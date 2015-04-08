@@ -1,0 +1,116 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+  {% if show_header %}
+    <div class="header">
+      <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="http://friendfeed-api.com/v2/picture/{{ feed.Id }}?size=large"/></a></div>
+      <div class="body">
+        <h1><a href="/{{ feed.Id }}">{{ feed.Name|escape }}</a></h1>
+        {% if feed.Description %}
+          <div class="description">{{ feed.Description }}</div>
+        {% endif %}
+        {% for command in feed.Commands %}
+          {% ifequal command "subscribe" %}
+            <form method="post" action="/a/subscribe">
+              <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
+              <input type="hidden" name="feed" value="{{ feed.Id }}"/>
+              <input type="submit" value="Subscribe"/>
+    	</form>
+          {% endifequal %}
+          {% ifequal command "unsubscribe" %}
+    	<form method="post" action="/a/unsubscribe">
+              <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
+              <input type="hidden" name="feed" value="{{ feed.Id }}"/>
+              <input type="submit" value="Unsubscribe"/>
+    	</form>
+          {% endifequal %}
+        {% endfor %}
+      </div>
+      <div class="clear"></div>
+    </div>
+  {% endif %}
+
+  {% if show_share or show_direct %}
+    <div class="share">
+      <form method="post" action="/a/entry">
+        {% if feed.id == "home" %}
+          <input type="hidden" name="to" value="{{ feed.id }}"/>
+        {% endif %}
+        <input type="hidden" name="next" value="{% if show_direct %}{% filter urlencode %}/filter/direct{% endfilter %}{% else %}{{ request.path|urlencode }}{% endif %}"/>
+        <input type="text" name="body" style="width:300px"/>
+        <input type="submit" value="{% if show_direct %}Direct message{% else %}Post{% endif %}"/>
+      </form>
+    </div>
+  {% endif %}
+
+  <div class="feed">
+    {% for entry in feed.Entries %}
+    <div class="entry" eid="{{ entry.Id }}">
+      <div class="picture"><a href="/feed/{{ entry.From.Id }}"><img src="http://friendfeed-api.com/v2/picture/{{ entry.From.Id }}?size=medium"/></a></div>
+      <div class="body">
+        <div class="author">
+          <span class="from"><a href="/feed/{{ entry.From.Id }}">{{ entry.From.Name|escape }}</a></span>
+          {% if entry.To %}
+            <span class="to">to
+              {% for recipient in entry.To %}
+                <a href="/{{ recipient.Id }}">{{ recipient.Name|escape }}</a>{% if not forloop.last %},{% endif %}
+              {% endfor %}
+            </span>
+          {% endif %}
+        </div>
+        <div class="title">{{ entry.Body|safe }}</div>
+        {% if entry.Thumbnails %}
+          <div class="media">{% for thumbnail in entry.Thumbnails %}<a href="{{ thumbnail.Link|escape }}"><img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} style="width:{{ thumbnail.Width }}px;height:{{ thumbnail.Height }}px"{% endif %} alt=""/></a>{% endfor %}</div>
+        {% endif %}
+        <div class="info">
+          <a href="/e/{{ entry.Id }}" class="permalink">{{ entry.Date|timesince }} ago</a>
+          {% if entry.Via %}
+            from <a href="{{ entry.Via.Url|escape }}" class="via">{{ entry.Via.name|escape }}</a>
+          {% endif %}
+          {% for command in entry.Commands %}
+            {% if command != "delete" %}
+              {% if command != "edit" %}
+                - <a href="#" class="{{ command }}command">{{ command|capfirst }}</a>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% if entry.Likes %}
+          <div class="likes">
+            {% for like in entry.Likes %}
+              {% if forloop.last and not forloop.first %}and{% endif %}
+              {% if like.Placeholder %}
+                  {{ like.Body }}
+              {% else %}
+                <a href="/feed/{{ like.From.Id }}">{{ like.From.Name|escape }}</a>{% if not forloop.last and not entry.Likes|length_is:"2" %},{% endif %}
+              {% endif %}
+            {% endfor %}
+            liked this
+          </div>
+        {% endif %}
+        {% for comment in entry.Comments %}
+          <div class="comment{% if comment.Placeholder %} placeholder {%endif %}">
+            {% if comment.Placeholder %}
+              <a href="#" class="expandcomments">{{ comment.Body|safe }}</a>
+            {% else %}
+              {{ comment.Body|safe }}
+              {% if comment.From %} - <a href="/feed/{{ comment.From.Id }}">{{ comment.From.Name|escape }}</a>{% endif %}
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="clear"></div>
+    {% endfor %}
+
+    {% if show_paging %}
+    <div class="pager bottom">
+      <a href="?start={{ prev_start }}">&laquo; Prev</a>
+      <a href="?start={{ next_start }}">Next &raquo;</a>
+    </div>
+    {% endif %}
+
+  </div>
+
+{% endblock %}

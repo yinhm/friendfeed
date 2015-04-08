@@ -1,0 +1,366 @@
+// Copyright 2015 The Lastff Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied. See the License for the specific language governing
+// permissions and limitations under the License. See the AUTHORS file
+// for names of contributors.
+//
+// Author: Heming Yin (haiming.yin@gmail.com)
+
+syntax = "proto3";
+
+package proto;
+
+enum FeedType {
+  user = 0;
+  group = 1;
+  special = 2;
+}
+
+enum StatusType {
+  private = 0;
+  public = 1;
+}
+
+message OAuthUser {
+  string uuid = 1;
+  // User info from oauth2 providers
+  string user_id = 2;
+  string name = 3;
+  string nick_name = 4;
+  string avater_url = 5;
+  string email = 6;
+  string access_token = 7;
+  string provider = 8;
+  string remote_key = 9;
+}
+
+// id map
+message Profile {
+  // the FriendFeed UUID
+  string uuid = 1;
+  // v1 nicknameo or v2 id, in URL
+  string id = 2; 
+  // the user's full name, display name
+  string name = 3;
+  string picture = 9;
+  // One of "user", "group", or "special"
+  string type = 4;
+  // true if the feed is private
+  bool private = 5;
+  // SUP (Simple Update Protocol)
+  // https://code.google.com/p/simpleupdateprotocol/
+  string sup_id = 6;
+  string description = 7;
+
+  // TODO: remove this
+  string remote_key = 8;
+}
+
+// /api/user/NICKNAME/profile - Get services and subscriptions
+// Returns list of all of the user's subscriptions (people) and services connected to their account (Authentication required for private users):
+
+// http://friendfeed.com/api/user/bret/profile
+
+// The returned JSON has the form:
+
+// status - private or public
+// id - the user's FriendFeed UUID
+// name - the user's full name
+// nickname - the user's FriendFeed nickname, used in FriendFeed URLs
+// profileUrl - the user's profile URL on FriendFeed
+// services[] - the services connected to the user's account
+//   * id - the service's FriendFeed ID, e.g., "picasa"
+//   * name - the service's official name, e.g., "Picasa Web Albums"
+//   * url - the official URL of the service, e.g., http://picasaweb.google.com/
+//   * iconUrl - the URL of the favicon for this service
+//   * profileUrl? - the user's profile URL on this service, if any
+//   * username? - the user's username for this service, if any
+// subscriptions[] - the users this user is subscribed to
+//   * id
+//   * name
+//   * nickname
+//   * profileUrl
+// rooms[] - the rooms this user is a member of
+//   * id - the room's FriendFeed UUID
+//   * name - the room's display name
+//   * nickname - the room's FriendFeed nickname, used in FriendFeed URLs
+//   * url - the room's URL on FriendFeed
+// lists[] - the lists this user is a member of (only visible if authenticated as this user)
+//   * id - the list's FriendFeed UUID
+//   * name - the list's display name
+//   * nickname - the list's FriendFeed nickname, used in FriendFeed URLs
+//   * url - the list's URL on FriendFeed
+message V1Profile {
+  string status = 1;
+  // FriendFeed UUID
+  string id = 2;
+  // full name
+  string name = 3;
+  // used in URL
+  string nickname = 4;
+  string profileUrl = 5;
+
+  repeated V1Profile services = 6;
+  repeated V1Profile subscriptions = 7;
+  repeated V1Profile rooms = 8;
+  repeated V1Profile lists = 9;
+}
+
+// Feed
+// id - The feed id, e.g., "bret" or "bret/comments"
+// name - Display name of the feed, e.g., "Bret Taylor"
+// sup_id - Simple Update Protocol
+// description? - Profile description, an HTML string
+// type - One of "user", "group", or "special"
+// private - true if the feed is private.
+// commands[]? - List of allowed commands for the authenticated user on this feed: "subscribe", "unsubscribe", "post", "dm", "admin"
+//
+// Full feeds have all of the fields above, plus the following field:
+// entries[]{} - List of the entries in this feed.
+message Feed {
+  optional string uuid = 1;
+  string id = 2;
+  string name = 3;
+  string picture = 11;
+  // SUP (Simple Update Protocol)
+  // https://code.google.com/p/simpleupdateprotocol/
+  optional string sup_id = 4;
+  optional string description = 5;
+  // One of "user", "group", or "special"
+  string type = 6;
+  // true if the feed is private
+  optional bool private = 7;
+  repeated string commands = 8;
+  repeated Entry entries = 9;
+
+  // TODO: remove this
+  optional string remote_key = 10;
+}
+
+// /feedinfo - Feed information
+// Return information about the feed with the specified feed id:
+// 
+// http://friendfeed-api.com/v2/feedinfo/feed id
+// 
+// The response is a feed, plus the following fields:
+// 
+// subscriptions[]? - The users and groups this feed is subscribed to
+// subscribers[]? - The users subscribed to this feed
+// admins[]{}? - For groups, the list of group administrators
+// feeds[]? - For special feeds, the feeds that are contained within this feed. For example, for a friend list feed, this property lists all of the users/groups in the friend list.
+// services[]{}? - Services associated with the feed (e.g., Twitter or an imported blog)
+//   * id - the service's id, e.g., "picasa"
+//   * name - the service's official name, e.g., "Picasa Web Albums"
+//   * url - the official URL of the service, e.g., "http://picasaweb.google.com/"
+//   * icon - the URL of the favicon for this service
+//   * profile? - the profile URL for this service, if any
+//   * username? - the username for this service, if any
+message Feedinfo {
+  // Feed
+  optional string uuid = 1;
+  string id = 2;
+  string name = 3;
+  string picture = 16;
+  // SUP (Simple Update Protocol)
+  // https://code.google.com/p/simpleupdateprotocol/
+  optional string sup_id = 4;
+  optional string description = 5;
+  // One of "user", "group", or "special"
+  string type = 6;
+  // true if the feed is private
+  optional bool private = 7;
+  repeated string commands = 8;
+  repeated Entry entries = 9;
+
+  // Feedinfo
+  repeated Profile subscribers = 10;
+  repeated Profile subscriptions = 11;
+  repeated Profile admins = 12;
+  repeated Profile feeds = 13; // for list
+  repeated Service services = 14;
+
+  // TODO: remove this
+  optional string remote_key = 15;
+}
+
+// message Subscriber {
+//   string id = 1;
+//   string name = 2;
+//   string type = 3;
+// }
+
+// message Subscription {
+//   string id = 1;
+//   string name= 2;
+//   string type = 3;
+// }
+
+// message Admin {
+//   string id = 1;
+//   string name = 2;
+//   string type = 3;
+// }
+
+// services[]{}? - Services associated with the feed (e.g., Twitter or an imported blog)
+//   * id - the service's id, e.g., "picasa"
+//   * name - the service's official name, e.g., "Picasa Web Albums"
+//   * url - the official URL of the service, e.g., "http://picasaweb.google.com/"
+//   * icon - the URL of the favicon for this service
+//   * profile? - the profile URL for this service, if any
+//   * username? - the username for this service, if any
+message Service {
+  string id = 1;
+  string name = 2;
+  string icon = 3;
+  optional string profile = 4;
+  optional string username = 5;
+}
+
+// message Connection {
+//   // profile
+//   string uuid = 1;
+//   Service service_id = 2;
+//   // the user's profile URL on this service, if any
+//   optional string url = 3;
+//   // username? - the user's username for this service, if any
+//   optional string username = 4;
+// }
+
+// Entry
+// id - The FriendFeed entry id, used to add comments/likes to the entry
+// url - URL of the entry page on the FriendFeed website.
+// date - The date the entry was posted.
+// body - The HTML body of the entry. URLs are turned into links. A best effort is made to resolve shortened URLs and use the final destination as the title of the link.
+// from{} - The user or group who posted this entry, a feed object
+// to[]{}? - List of feeds to which this entry was published, a list of feed objects
+// comments[]{}? - list of comments ordered by date
+// likes[]{}? - list of likes for this entry, ordered to present the authenticated user's friends first, and then all other other people who liked the entry
+// thumbnails[]{}? - List of thumbnails
+//   * url - Image URL
+//   * link - The URL the thumbnail should link to
+//   * width? - Image width
+//   * height? - Image height
+//   * player? - the player for this media file (e.g., the YouTube.com <embed> code)
+// files[]{}? - List of files attached to this entry
+//   * url - File URL
+//   * type - File MIME type (e.g., "application/pdf")
+//   * name - File name
+//   * icon - URL of file type icon. Always 16x16.
+//   * size? - File size in bytes
+// via{}? - If present, the application or service that created the entry.
+//   * name - The name of the entry source, e.g., "Google Reader", "Bookmarklet"
+//   * url - URL of the entry source
+// geo{}? - Present if the entry contains geographic information
+//   * lat - The latitude
+//   * long - The longitude
+// commands[]? - List of allowed commands for the authenticated user: "comment", "like", "unlike", "edit", "delete", "hide", "unhide"
+message Entry {
+  // entry uuid with prefix: "e/"
+  string id = 1;
+  string url = 2;
+  string date = 3;
+  string body = 4;
+  optional string rawBody = 5;
+  optional string rawLink = 6;
+  Feed from = 7;
+  repeated Feed to = 8;
+  repeated Comment comments = 9;
+  repeated Like likes = 10;
+  repeated Thumbnail thumbnails = 11;
+  repeated File files = 12;
+  optional Via via = 13;
+  optional Location geo = 14;
+  repeated string commands = 15;
+
+  // custom filed
+  // TODO: duplicated with from field
+  optional string profile_uuid = 16;
+}
+
+// Comment
+// id - The id of the comment
+// date - The date the comment was posted.
+// body - The HTML body of the comment. URLs are turned into links.
+// from{} - The user or group who posted this comment, a feed object
+// via{}? - present if comment was created by a third party application.
+//   * name - the name of the application, e.g., "BuddyFeed"
+//   * url - URL of the source, e.g., "http://www.codewalrus.com/buddyfeed/"
+// commands[]? - List of allowed commands for the authenticated user: "edit", "delete"
+message Comment {
+  string id = 1;
+  string date = 2;
+  string body = 3;
+  optional string rawBody = 4;
+  Feed from = 5;
+  optional Via via = 6;
+  repeated string commands = 7;
+
+  // when maxcomments=auto on feed
+  optional bool placeholder = 8;
+  optional int32 num = 9;
+}
+
+
+// Like
+// date
+// from{} - The user who liked the parent entry.
+message Like {
+  string date = 1;
+  Feed from = 2;
+
+  // when maxlikes=auto on feed
+  optional string body = 3;
+  optional bool placeholder = 8;
+  optional int32 num = 9;
+}
+
+// thumbnails - List of thumbnails
+//   * url - Image URL
+//   * link - The URL the thumbnail should link to
+//   * width? - Image width
+//   * height? - Image height
+//   * player? - the player for this media file (e.g., the YouTube.com <embed> code)
+message Thumbnail {
+  string url = 1;
+  string link = 2;
+  optional int32 width = 3;
+  optional int32 height = 4;
+  optional string player = 5;
+}
+
+// File
+// url - File URL
+// type - File MIME type (e.g., "application/pdf")
+// name - File name
+// icon - URL of file type icon. Always 16x16.
+// size? - File size in bytes
+message File {
+  string url = 1;
+  string type = 2;
+  string name = 3;
+  string icon = 4;
+  optional int32 size = 5;
+}
+
+// Via
+// name - the name of the application, e.g., "BuddyFeed"
+// url - URL of the source, e.g., "http://www.codewalrus.com/buddyfeed/"
+message Via {
+  string name = 1;
+  string url = 2;
+}
+
+// geographic information
+message Location {
+  double latitude = 1;
+  double longitude = 2;
+}

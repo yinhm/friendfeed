@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="/static/css/angular-material.css">
+</head>
+    <body ng-app="FApp">
+
+    <div ng-controller="MainController">
+
+    </div>
+
+    <script src="/js/angular.min.js"></script>
+    <script src="/js/angular-aria.min.js"></script>
+    <script src="/js/angular-animate.min.js"></script>
+    <script src="/js/angular-material.min.js"></script>
+    <script>
+
+        // Include app dependency on ngMaterial
+
+        angular.module( 'YourApp', [ 'ngMaterial' ] )
+            .controller("YourController", YourController );
+
+    </script>
+
+</body>

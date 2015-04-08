@@ -1,0 +1,122 @@
+// Copyright 2015, Friendfeed Project.
+// All rights reserved.
+
+syntax = "proto3";
+
+package proto;
+
+import "feed.proto";
+
+service Api {
+  rpc EnqueJob(FeedJob) returns (FeedJob) {}
+
+  rpc GetFeedJob(Worker) returns (FeedJob) {}
+  rpc FinishJob(FeedJob) returns (FeedJob) {}
+
+  rpc PostFeedinfo(Feedinfo) returns (Profile) {}
+
+  // A client-to-server streaming RPC.
+  //
+  // Accepts a stream of Entries on a feed being archived, returning a
+  // FeedSummary when archving is completed.
+  rpc ArchiveFeed(stream Entry) returns (FeedSummary) {}
+  rpc ForceArchiveFeed(stream Entry) returns (FeedSummary) {}
+
+  rpc FetchFeed(FeedRequest) returns (Feed) {}
+
+  // Entry page return Feed as well
+  rpc FetchEntry(EntryRequest) returns (Feed) {}
+  rpc PostEntry(Entry) returns (Entry) {}
+
+  rpc Auth(OAuthUser) returns (Feedinfo) {}
+  rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
+
+
+  rpc Command(CommandRequest) returns (CommandResponse) {}
+}
+
+message Worker {
+  string Id = 1;
+  Feed feed = 2;
+  FeedJob job = 3;
+}
+
+message FeedJob {
+  string key = 1;
+  string id = 2;
+  string remote_key = 3;
+  optional string target_id = 4;
+  int32 start = 5;
+  int32 page_size = 6;
+  string worker = 7;
+  int64 created = 8;
+  int64 updated = 9;
+  // uuid should always math target_id
+  optional string uuid = 10;
+  optional string status = 11;
+  int32 max_limit = 12;
+  bool force_update = 13;
+}
+
+message FeedSummary {
+  string id = 1;
+  int32 entry_count = 2;
+  string date_start = 3;
+  string date_end = 4;
+  int32 elapsed_time = 5;
+}
+
+message CommandRequest {
+  string command = 1;
+}
+
+message CommandResponse {
+  string command = 1;
+  string result = 2;
+}
+
+// Collapsing comments and likes
+// Many entries on FriendFeed have 100s or even 1000s of comments and likes. Retrieving and displaying all comments and likes for all feeds in your application can greatly reduce performance and usability. On FriendFeed, we display only a subset of the comments and likes for each entry along with links to expand the "collapsed" view to show the entire set of comments/likes. We support the maxcomments and maxlikes arguments for all feed requests to make this technique easy to support in your application as well:
+
+// maxcomments=limit - If limit is 0, then do not include any comments. If limit is auto, then return the same number of comments as displayed by default on friendfeed.com.
+// maxlikes=limit - If limit is 0, then do not include any likes. If limit is auto, then return the same number of likes as displayed by default on friendfeed.com.
+// For example, if you specify maxcomments=2 in your request, rather than getting this response:
+
+// "comments": [
+//   {"body":"First comment", "from":  {"id":"bret", "name":"Bret Taylor"}},
+//   {"body":"Second comment", "from":  {"id":"jim", "name":"Jim Norris"}},
+//   {"body":"Third comment", "from":  {"id":"sanjeev", "name":"Sanjeev Singh"}},
+//   {"body":"Fourth comment", "from":  {"id":"paul", "name":"Paul Buchheit"}},
+//   {"body":"Fifth comment", "from":  {"id":"ana", "name":"Ana Yang"}}
+// ]
+// you would get this "collapsed" response:
+
+// "comments": [
+//   {"body":"First comment", "from":  {"id":"bret", "name":"Bret Taylor"}},
+//   {"body":"3 more comments", "placeholder": true, "num": 3}},
+//   {"body":"Fifth comment", "from":  {"id":"ana", "name":"Ana Yang"}}
+// ]
+// If the maxcomments or maxlikes parameters are specified, then a placeholder field is included in the comments and likes lists for returned entries indicating where comments were excluded. The placeholder has the form:
+
+// placeholder - Always true, indicating the entity is the placeholder
+// body - The text we use for the placeholder on FriendFeed, e.g., "3 more comments" for comments or "234 other people" for likes
+// num - The number of comments or likes excluded. For example, if the body is "3 more comments", then num would be 3.
+// Example: http://friendfeed-api.com/v2/feed/bret?maxcomments=auto&maxlikes=auto
+message FeedRequest {
+  string id = 1;
+  optional int32 start = 2;
+  optional int32 page_size = 3;
+  // Include raw text entry and comment bodies in addition to the HTML bodies
+  // included by default. The raw text bodies are available as rawBody on all
+  // returned entries and comments. This also adds rawLink on all entries. 
+  optional bool raw = 4;
+  // NOTICE: this is not the same as original friendfeed api
+  // auto should be default it not set.
+  // if max_comments set to 1, then all comments should returned.
+  optional int32 max_comments = 5;
+  optional int32 max_likes = 6;
+}
+
+message EntryRequest {
+  string uuid = 1;
+}

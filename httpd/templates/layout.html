@@ -1,0 +1,47 @@
+<!doctype html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <title>{{ title|escape }} - FriendFeed</title>
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1" />
+  <link rel="stylesheet" href="/static/css/style.css">
+  </head>
+  <body>
+    <div class="page">
+
+      <div class="menu">
+        <div class="section">
+	  <h3><a href="/">Friends</a></h3>
+	  <ul>
+	    <li><a href="/">Homepage</a></li>
+	    <!-- <li><a href="/filter/discussions">My discussions</a></li> -->
+	    <!-- <li><a href="/summary/1">Best of day</a></li> -->
+	  </ul>
+	</div>
+
+        <div class="section">
+	  <h3>Login</h3>
+	  <ul>
+            <!-- <li><a href="/auth/twitter">Twitter</a></li> -->
+            <li><a href="/auth/google">Google</a></li>
+	  </ul>
+	</div>
+
+        <div class="section">
+	  <h3>Frienfeed User</h3>
+          <ul>
+            <li><a href="/account/import">Import your feed</a></li>
+          </ul>
+	</div>
+      </div>
+
+      
+      {% block content %}
+      {% endblock %}
+
+
+    </div>
+
+    <script src="/static/js/jquery-1.11.2.min.js"></script>
+    <script src="/static/js/application.js"></script>
+  </body>
+</html>

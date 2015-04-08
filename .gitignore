@@ -1,0 +1,6 @@
+*.pyc
+friendfeed
+gin-bin
+httpd/httpd
+client/client
+conf/*

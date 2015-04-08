@@ -1,0 +1,178 @@
+body {
+    background: white;
+    color: black;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+}
+
+.page {
+    max-width: 925px;
+    padding: 25px;
+    margin: auto;
+    position: relative;
+}
+
+img {
+    border: 0;
+}
+
+a {
+    color: #00c;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.header h1 a {
+    color: black;
+    text-decoration: none;
+}
+
+.header .picture {
+    float: left;
+    line-height: 0;
+}
+
+.header .picture img {
+    width: 75px;
+    height: 75px;
+}
+
+.header .body {
+    margin-left: 85px;
+}
+
+.header,
+.entry,
+.share {
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 12px;
+}
+
+.entry .picture {
+    float: left;
+    line-height: 0;
+}
+
+.header .picture img,
+.entry .picture img {
+    border: 1px solid silver;
+}
+
+.entry .picture img {
+    width: 50px;
+    height: 50px;
+}
+
+.entry .body {
+    margin-left: 60px;
+}
+
+.entry .media {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    line-height: 0;
+}
+
+.entry .media img {
+    border: 1px solid silver;
+    padding: 2px;
+    margin-right: 8px;
+}
+
+.entry .author a {
+    font-weight: bold;
+}
+
+.entry .title,
+.entry .info {
+    margin-top: 2px;
+}
+
+.entry .info,
+.entry .likes,
+.entry .comment {
+    color: #666;
+    font-size: 13px;
+}
+
+.entry .info a,
+.entry .likes a,
+.entry .comment a {
+    color: #77c;
+}
+
+.entry .info a.permalink,
+.entry .info a.via {
+    color: #666;
+}
+
+.entry .likes,
+.entry .comment {
+    padding-left: 20px;
+}
+
+.entry .likes {
+    margin-top: 7px;
+    background: url("http://friendfeed.com/static/images/n-smile.png") no-repeat top left;
+    line-height: 16px;
+}
+
+.entry .comment {
+    margin-top: 8px;
+    background: url("http://friendfeed.com/static/images/n-comment.png") no-repeat top left;
+}
+
+.entry .comment.placeholder {
+    background: none;
+}
+
+.entry a.expandcomments {
+    font-style: italic;
+}
+
+.clear {
+    clear: left;
+}
+
+.header,
+.share,
+.feed {
+    margin-right: 210px;
+}
+
+.menu {
+    float: right;
+    width: 155px;
+    border: 1px solid silver;
+    background: #eee;
+    padding: 8px;
+}
+
+.menu h3 {
+    font-size: 15px;
+    margin: 0;
+}
+
+.menu ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+.menu ul li {
+    margin-top: 2px;
+}
+
+.menu .section {
+    margin-bottom: 15px;
+}
