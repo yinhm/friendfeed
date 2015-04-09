@@ -111,32 +111,34 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		return nil, err
 	}
 
+	// TODO: server overload, disable friends of feed
+	// There is no way we can handle this much jobs in a short time.
 	// remote key only present when id == target_id
-	if in.RemoteKey != "" {
-		for _, sub := range in.Subscriptions {
-			// enqueue user subscriptons
-			oldjob, err := store.GetArchiveHistory(s.mdb, sub.Id)
-			if err != nil || oldjob.Status == "done" {
-				// no aggressive archiving for friends of feed
-				log.Printf("%s previous archived.", sub.Id)
-				continue
-			}
+	// if in.RemoteKey != "" {
+	// 	for _, sub := range in.Subscriptions {
+	// 		// enqueue user subscriptons
+	// 		oldjob, err := store.GetArchiveHistory(s.mdb, sub.Id)
+	// 		if err != nil || oldjob.Status == "done" {
+	// 			// no aggressive archiving for friends of feed
+	// 			log.Printf("%s previous archived.", sub.Id)
+	// 			continue
+	// 		}
 
-			ctx := context.Background()
-			key := store.NewFlakeKey(store.TableJobFeed, s.mdb.NextId())
-			job := &pb.FeedJob{
-				Key:       key.String(),
-				Id:        in.Id,
-				RemoteKey: in.RemoteKey,
-				TargetId:  sub.Id,
-				Start:     0,
-				PageSize:  100,
-				Created:   time.Now().Unix(),
-				Updated:   time.Now().Unix(),
-			}
-			s.EnqueJob(ctx, job)
-		}
-	}
+	// 		ctx := context.Background()
+	// 		key := store.NewFlakeKey(store.TableJobFeed, s.mdb.NextId())
+	// 		job := &pb.FeedJob{
+	// 			Key:       key.String(),
+	// 			Id:        in.Id,
+	// 			RemoteKey: in.RemoteKey,
+	// 			TargetId:  sub.Id,
+	// 			Start:     0,
+	// 			PageSize:  100,
+	// 			Created:   time.Now().Unix(),
+	// 			Updated:   time.Now().Unix(),
+	// 		}
+	// 		s.EnqueJob(ctx, job)
+	// 	}
+	// }
 
 	return profile, nil
 }
