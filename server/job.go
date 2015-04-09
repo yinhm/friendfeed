@@ -44,6 +44,7 @@ func (s *ApiServer) RefetchUserFeed() error {
 		}
 
 		job := &pb.FeedJob{
+			Uuid:        profile.Uuid,
 			Id:          profile.Id,
 			RemoteKey:   profile.RemoteKey,
 			TargetId:    profile.Id,
@@ -64,6 +65,53 @@ func (s *ApiServer) RefetchUserFeed() error {
 		log.Println("Error on scanning user profiles:", err)
 	}
 	log.Printf("Jobs pulled: %d scanned, %d user feeds scheduled.", n, j)
+	return err
+}
+
+func (s *ApiServer) RefetchFriendFeed() error {
+	prefix := store.TableProfile
+	j := 0
+	n, err := store.ForwardTableScan(s.mdb, prefix, func(i int, k, v []byte) error {
+		profile := &pb.Profile{}
+		if err := proto.Unmarshal(v, profile); err != nil {
+			return err
+		}
+
+		if profile.RemoteKey != "" {
+			return nil
+		}
+
+		oldjob, err := store.GetArchiveHistory(s.mdb, profile.Id)
+		if err != nil {
+			return err
+		}
+
+		if oldjob.Id == "" || oldjob.RemoteKey == "" {
+			return fmt.Errorf("Refetch Friendfeed: unknown remote key")
+		}
+
+		job := &pb.FeedJob{
+			Uuid:        profile.Uuid,
+			Id:          profile.Id,
+			RemoteKey:   profile.RemoteKey,
+			TargetId:    profile.Id,
+			Start:       0,
+			PageSize:    100,
+			MaxLimit:    99,
+			ForceUpdate: true,
+			Created:     time.Now().Unix(),
+			Updated:     time.Now().Unix(),
+		}
+
+		log.Println(job)
+		_, err = s.EnqueJob(context.Background(), job)
+		j++
+		return err
+	})
+	if err != nil {
+		log.Println("Error on scanning user profiles:", err)
+	}
+	log.Printf("Jobs pulled: %d scanned, %d friendfeed feeds scheduled.", n, j)
 	return err
 }
 
@@ -214,6 +262,8 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.RedoFailedJob()
 	case "RefetchUserFeed":
 		s.RefetchUserFeed()
+	case "RefetchFriendFeed":
+		s.RefetchFriendFeed()
 	}
 
 	// TODO: nothing here

@@ -198,12 +198,21 @@ func (ma *MirrorAgent) archive() error {
 	ma.apiv1 = ff.NewV1Client(httpClient, feedjob.Id, feedjob.RemoteKey)
 	ma.apiv2 = ff.NewClient(httpClient, feedjob.Id, feedjob.RemoteKey)
 
-	log.Printf("Start fetching feed: %s", feedjob.TargetId)
-	profile, err := ma.profile(feedjob)
-	if err != nil {
-		return err
+	var err error
+	profile := new(pb.Profile)
+	if feedjob.Uuid == "" {
+		log.Printf("Start fetching feed: %s", feedjob.TargetId)
+		profile, err = ma.profile(feedjob)
+		if err != nil {
+			return err
+		}
+		feedjob.Uuid = profile.Uuid // job.uuid matches to job.targetId not job.id
+	} else {
+		// id and uuid used when archive history
+		profile.Uuid = feedjob.Uuid
+		profile.Id = feedjob.Id
+		profile.RemoteKey = feedjob.RemoteKey
 	}
-	feedjob.Uuid = profile.Uuid // job.uuid matches to job.targetId not job.id
 
 	log.Printf("Start fetching entries: %s", profile.Id)
 	var total int
