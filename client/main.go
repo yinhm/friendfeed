@@ -210,8 +210,7 @@ func (ma *MirrorAgent) archive() error {
 	} else {
 		// id and uuid used when archive history
 		profile.Uuid = feedjob.Uuid
-		profile.Id = feedjob.Id
-		profile.RemoteKey = feedjob.RemoteKey
+		profile.Id = feedjob.TargetId
 	}
 
 	log.Printf("Start fetching entries: %s", profile.Id)
