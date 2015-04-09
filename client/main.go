@@ -177,7 +177,9 @@ func (ma *MirrorAgent) archive() error {
 	// set max_limit if feed not directly archived.
 	if feedjob.Id != feedjob.TargetId {
 		feedjob.ForceUpdate = true
-		feedjob.MaxLimit = 299
+		if feedjob.MaxLimit == 0 {
+			feedjob.MaxLimit = 299
+		}
 	}
 
 	httpClient := http.DefaultClient
