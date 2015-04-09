@@ -122,11 +122,13 @@ Setup once
   * Create Google Cloud Engine
   * Create Google Cloud Storage Bucket, config file save to conf/gcs.json
   * Media config as described in previous section.
-  
+
+```
     openssl rand 40 -base64 > conf/salt.conf
     fab production bootstrap
     fab production deploy_env
     fab production deploy_config
+```
 
 SSL && Nginx
 
