@@ -93,8 +93,8 @@ func (s *ApiServer) RefetchFriendFeed() error {
 
 		job := &pb.FeedJob{
 			Uuid:        profile.Uuid,
-			Id:          profile.Id,
-			RemoteKey:   profile.RemoteKey,
+			Id:          oldjob.Id,
+			RemoteKey:   oldjob.RemoteKey,
 			TargetId:    profile.Id,
 			Start:       0,
 			PageSize:    100,
