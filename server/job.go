@@ -87,7 +87,8 @@ func (s *ApiServer) RefetchFriendFeed() error {
 		}
 
 		if oldjob.Id == "" || oldjob.RemoteKey == "" {
-			return fmt.Errorf("Refetch Friendfeed: unknown remote key")
+			log.Println("Refetch Friendfeed: unknown remote key")
+			return nil
 		}
 
 		job := &pb.FeedJob{
