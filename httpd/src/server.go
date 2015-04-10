@@ -47,7 +47,7 @@ func NewServer(conn *grpc.ClientConn, secretKey string) *Server {
 }
 
 func DefaultTimeoutContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 300*time.Millisecond)
+	return context.WithTimeout(context.Background(), 500*time.Millisecond)
 }
 
 func (s *Server) AccountHandler(c *gin.Context) {
@@ -247,7 +247,7 @@ func (s *Server) EntryCommentHandler(c *gin.Context) {
 func RequestError(c *gin.Context, err error) bool {
 	if err != nil {
 		if grpc.Code(err) == codes.DeadlineExceeded {
-			c.String(http.StatusInternalServerError, "Server busy, try later.")
+			c.String(http.StatusServiceUnavailable, "Server busy, try later.")
 		} else {
 			// TODO: hacky error code
 			if err.Error() == "rpc error: code = 2 desc = \"404\"" {
