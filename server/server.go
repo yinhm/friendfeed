@@ -99,11 +99,6 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		return nil, err
 	}
 
-	// TODO: fix FixMaxEntryIndex hack
-	if err := store.FixMaxEntryIndex(s.rdb, profile); err != nil {
-		return nil, err
-	}
-
 	// save all feed info in one key for simplicity
 	// TODO: refactor?
 	in.Entries = []*pb.Entry{}
@@ -377,83 +372,6 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	if err != nil {
 		return nil, err
-	}
-
-	feed := &pb.Feed{
-		Uuid:        profile.Uuid,
-		Id:          profile.Id,
-		Name:        profile.Name,
-		Type:        profile.Type,
-		Private:     profile.Private,
-		SupId:       profile.SupId,
-		Description: profile.Description,
-		Entries:     entries[:],
-	}
-	return feed, nil
-}
-
-func (s *ApiServer) BackwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
-	if req.PageSize <= 0 || req.PageSize >= 100 {
-		req.PageSize = 50
-	}
-
-	profile, err := store.GetProfile(s.mdb, req.Id)
-	if err != nil {
-		return nil, err
-	}
-	if profile == nil {
-		return nil, fmt.Errorf("404")
-	}
-
-	uuid1, _ := uuid.FromString(profile.Uuid)
-	maxKey := store.MaxUUIDFlakeKey(store.TableEntryIndex, uuid1)
-	kb := maxKey.Bytes()
-	log.Println("seek max:", maxKey.String())
-
-	iter := s.rdb.Iterator()
-	defer iter.Close()
-	iter.Seek(kb)
-	if !iter.Valid() {
-		return nil, fmt.Errorf("invalid search")
-	}
-	iter.Prev()
-
-	var entries []*pb.Entry
-	start := req.Start
-	// backward search
-
-	// TODO: valid() broken TestPostProfile
-	// preKb := maxKey.Prefix().Bytes()
-	// for i := 0; iter.ValidForPrefix(preKb); iter.Prev() {
-	for i := 0; iter.Valid(); iter.Prev() {
-		if start > 0 {
-			start--
-			continue
-		}
-
-		// k:v, v point to key of entry data
-		kSlice := iter.Key()
-		vSlice := iter.Value()
-		defer kSlice.Free()
-		defer vSlice.Free()
-
-		eKey := vSlice.Data()
-
-		entry := new(pb.Entry)
-		rawdata, err := s.rdb.Get(eKey)
-		if err != nil {
-			return nil, err
-		}
-		if err := proto.Unmarshal(rawdata, entry); err != nil {
-			return nil, err
-		}
-		s.formatEntry(req, entry)
-		entries = append(entries, entry)
-		log.Println("found entry:", hex.EncodeToString(kSlice.Data()))
-		i++
-		if i > int(req.PageSize) {
-			break
-		}
 	}
 
 	feed := &pb.Feed{

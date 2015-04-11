@@ -68,17 +68,17 @@ func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	flakeid := rdb.TimeTravelId(oldtime)
-	key2 := NewUUIDFlakeKey(TableEntryIndex, uuid1, flakeid)
-	err = rdb.Put(key2.Bytes(), kb1)
-	if err != nil {
-		return nil, err
-	}
+	// flakeid := rdb.TimeTravelId(oldtime)
+	// key2 := NewUUIDFlakeKey(TableEntryIndex, uuid1, flakeid)
+	// err = rdb.Put(key2.Bytes(), kb1)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	// Reverse Entry index:
 	// K-> | table | user uuid | max-minus-ts-flake |
 	// V-> |       +++++   entry key   ++++++       |
-	flakeid = rdb.TimeTravelReverseId(oldtime)
+	flakeid := rdb.TimeTravelReverseId(oldtime)
 	key3 := NewUUIDFlakeKey(TableReverseEntryIndex, uuid1, flakeid)
 	err = rdb.Put(key3.Bytes(), kb1)
 	if err != nil {
@@ -156,17 +156,6 @@ func GetProfile(mdb *Store, id string) (*pb.Profile, error) {
 		return nil, err
 	}
 	return v, nil
-}
-
-// WARN: only entry index have this hack now
-func FixMaxEntryIndex(rdb *Store, profile *pb.Profile) error {
-	uuid1, err := uuid.FromString(profile.Uuid)
-	if err != nil {
-		return err
-	}
-	// MAX Delimiter Key
-	key := MaxUUIDFlakeKey(TableEntryIndex, uuid1)
-	return rdb.Put(key.Bytes(), []byte("0000"))
 }
 
 func GetEntry(rdb *Store, uuidStr string) (*pb.Entry, error) {

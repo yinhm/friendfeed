@@ -21,6 +21,7 @@ const (
 	TableFeedinfo PrefixTable = 2
 	TableEntry    PrefixTable = 3
 
+	// TODO: obsoleted TableEntryIndex, FixMaxEntryIndex
 	// WARN: TableEntryIndex > TableEntry for FixMaxEntryIndex
 	TableEntryIndex PrefixTable = 4
 	// TableEntryIndex NOT working, BackwardFetchFeed broken
@@ -54,21 +55,6 @@ type Store struct {
 
 	closed bool
 	idGen  *flake.Generator
-}
-
-var MaxFlakeId flake.Id
-
-func init() {
-	// FIXME: fake a max delimiter key for each prefix(and each column
-	// family). Detail at:
-	// https://github.com/tecbot/gorocksdb/issues/24
-	// This is only used for feed entry index, see FixMaxEntryIndex
-	MaxFlakeId = flake.Id{
-		0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF,
-	}
 }
 
 func NewStore(dbpath string) *Store {
@@ -397,11 +383,6 @@ type UUIDFlakeKey struct {
 func NewUUIDFlakeKey(prefix PrefixTable, uuid uuid.UUID, id flake.Id) *UUIDFlakeKey {
 	uk := UUIDKey{prefix, uuid}
 	return &UUIDFlakeKey{uk, id}
-}
-
-func MaxUUIDFlakeKey(prefix PrefixTable, uuid uuid.UUID) *UUIDFlakeKey {
-	uk := UUIDKey{prefix, uuid}
-	return &UUIDFlakeKey{uk, MaxFlakeId}
 }
 
 func (k *UUIDFlakeKey) Bytes() []byte {
