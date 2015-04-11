@@ -30,7 +30,7 @@ def production():
     #  type of repository (git or hg)
     env.repository_type = 'git'
     #  hosts to deploy your project, users must be sudoers
-    env.hosts = ['ffme', ]
+    env.hosts = ['ffme2', ]
     # additional packages to be installed on the server
     env.additional_packages = [
         #'mercurial',
