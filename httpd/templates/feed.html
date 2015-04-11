@@ -4,7 +4,7 @@
 
   {% if show_header %}
     <div class="header">
-      <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="http://friendfeed-api.com/v2/picture/{{ feed.Id }}?size=large"/></a></div>
+      <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
       <div class="body">
         <h1><a href="/{{ feed.Id }}">{{ feed.Name|escape }}</a></h1>
         {% if feed.Description %}
@@ -47,7 +47,7 @@
   <div class="feed">
     {% for entry in feed.Entries %}
     <div class="entry" eid="{{ entry.Id }}">
-      <div class="picture"><a href="/feed/{{ entry.From.Id }}"><img src="http://friendfeed-api.com/v2/picture/{{ entry.From.Id }}?size=medium"/></a></div>
+      <div class="picture"><a href="/feed/{{ entry.From.Id }}"><img src="{{ entry.From.Picture }}"/></a></div>
       <div class="body">
         <div class="author">
           <span class="from"><a href="/feed/{{ entry.From.Id }}">{{ entry.From.Name|escape }}</a></span>
