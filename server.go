@@ -51,7 +51,7 @@ func main() {
 	apiServer := server.NewApiServer(config.dbpath, config.config)
 
 	// TODO: friendfeed closed, no more refetch
-	go apiServer.RefetchJobTicker()
+	// go apiServer.RefetchJobTicker()
 	go apiServer.IndexJobTicker()
 	go waitShutdown(rpcServer, apiServer)
 
