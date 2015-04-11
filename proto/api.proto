@@ -27,6 +27,7 @@ service Api {
   // Entry page return Feed as well
   rpc FetchEntry(EntryRequest) returns (Feed) {}
   rpc PostEntry(Entry) returns (Entry) {}
+  rpc LikeEntry(LikeRequest) returns (Entry) {}
 
   rpc Auth(OAuthUser) returns (Profile) {}
   rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
@@ -123,4 +124,10 @@ message EntryRequest {
 
 message ProfileRequest {
   string uuid = 1;
+}
+
+message LikeRequest {
+  string entry = 1;
+  string user = 2;
+  bool like = 3;
 }

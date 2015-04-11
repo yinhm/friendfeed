@@ -61,13 +61,12 @@ func (s *Server) ImportHandler(c *gin.Context) {
 }
 
 func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context) {
-	sess := sessions.Default(c)
-	uuid := sess.Get("uuid")
-	if uuid != nil && uuid.(string) != "" {
+	uuid := CurrentUserUuid(c)
+	if uuid != "" {
 		ctx, cancel := DefaultTimeoutContext()
 		defer cancel()
 
-		profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid.(string)})
+		profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
 		if err != nil {
 			c.String(http.StatusInternalServerError, "error on fetch user")
 			return
@@ -261,6 +260,58 @@ func (s *Server) EntryCommentHandler(c *gin.Context) {
 
 	comments := feed.Entries[0].Comments
 	c.JSON(200, gin.H{"comments": comments})
+}
+
+func (s *Server) LikeHandler(c *gin.Context) {
+	c.Request.ParseForm()
+	entryId := c.Request.Form.Get("entry")
+	if entryId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+		return
+	}
+
+	uuid := CurrentUserUuid(c)
+	req := &pb.LikeRequest{
+		Entry: entryId,
+		User:  uuid,
+		Like:  true,
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	_, err := s.client.LikeEntry(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	c.JSON(200, gin.H{"success": true})
+}
+
+func (s *Server) LikeDeleteHandler(c *gin.Context) {
+	c.Request.ParseForm()
+	entryId := c.Request.Form.Get("entry")
+	if entryId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+		return
+	}
+
+	uuid := CurrentUserUuid(c)
+	req := &pb.LikeRequest{
+		Entry: entryId,
+		User:  uuid,
+		Like:  false,
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	_, err := s.client.LikeEntry(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	c.JSON(200, gin.H{"success": true})
 }
 
 func RequestError(c *gin.Context, err error) bool {

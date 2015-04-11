@@ -381,3 +381,42 @@ func BindOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	}
 	return u, nil
 }
+
+func Like(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
+	var err error
+	index := -1
+	for i, like := range entry.Likes {
+		if like.From.Id == profile.Id {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		like := &pb.Like{
+			Date: time.Now().Format(time.RFC3339),
+			From: &pb.Feed{
+				Id:   profile.Id,
+				Name: profile.Name,
+			},
+		}
+		entry.Likes = append(entry.Likes, like)
+		_, err = PutEntry(rdb, entry, true)
+	}
+	return entry, err
+}
+
+func DeleteLike(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
+	var err error
+	index := -1
+	for i, like := range entry.Likes {
+		if like.From.Id == profile.Id {
+			index = i
+			break
+		}
+	}
+	if index >= 0 {
+		entry.Likes = append(entry.Likes[:index], entry.Likes[index+1:]...)
+		_, err = PutEntry(rdb, entry, true)
+	}
+	return entry, err
+}

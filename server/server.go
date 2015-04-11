@@ -453,3 +453,27 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 func (s *ApiServer) PostEntry(ctx context.Context, in *pb.Entry) (*pb.Entry, error) {
 	return nil, fmt.Errorf("Not implemented")
 }
+
+func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Entry, error) {
+	entry, err := store.GetEntry(s.rdb, req.Entry)
+	if err != nil {
+		return nil, err
+	}
+
+	uuid1, err := uuid.FromString(req.User)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := store.GetProfileFromUuid(s.mdb, uuid1)
+	if err != nil || profile == nil {
+		return nil, err
+	}
+
+	if req.Like {
+		store.Like(s.rdb, profile, entry)
+	} else {
+		store.DeleteLike(s.rdb, profile, entry)
+	}
+
+	return entry, nil
+}

@@ -123,3 +123,19 @@ func GoogleAuthConfig(keyPath string, debug bool) *oauth2.Config {
 	}
 	return conf
 }
+
+func CurrentUserId(c *gin.Context) string {
+	sess := sessions.Default(c)
+	if sess.Get("user_id") == nil {
+		return ""
+	}
+	return sess.Get("user_id").(string)
+}
+
+func CurrentUserUuid(c *gin.Context) string {
+	sess := sessions.Default(c)
+	if sess.Get("uuid") == nil {
+		return ""
+	}
+	return sess.Get("uuid").(string)
+}

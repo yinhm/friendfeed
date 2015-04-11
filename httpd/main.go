@@ -144,6 +144,8 @@ func Serve(s *server.Server) {
 	action := r.Group("/a")
 	{
 		action.GET("/entry/:uuid", s.EntryCommentHandler)
+		action.POST("/like", s.LikeHandler)
+		action.POST("/like/delete", s.LikeDeleteHandler)
 	}
 
 	r.NotFound404(NotFoundHandler)
