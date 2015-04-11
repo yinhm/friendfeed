@@ -8,7 +8,6 @@ Package proto is a generated protocol buffer package.
 It is generated from these files:
 	feed.proto
 	api.proto
-	meta.proto
 
 It has these top-level messages:
 	OAuthUser

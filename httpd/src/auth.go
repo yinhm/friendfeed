@@ -93,7 +93,7 @@ func (s *Server) AuthCallback(c *gin.Context) {
 		Provider:    provider,
 	}
 
-	feedinfo, err := s.client.Auth(ctx, protoU)
+	profile, err := s.client.Auth(ctx, protoU)
 	if RequestError(c, err) {
 		return
 	}
@@ -101,8 +101,10 @@ func (s *Server) AuthCallback(c *gin.Context) {
 	sess := sessions.Default(c)
 	sess.Set("user_id", u.UserID)
 	sess.Set("provider", provider)
-	if feedinfo.Uuid != "" {
-		sess.Set("uuid", feedinfo.Uuid)
+	if profile.Uuid != "" {
+		sess.Set("uuid", profile.Uuid)
+	} else {
+		sess.Set("uuid", "")
 	}
 	sess.Save()
 

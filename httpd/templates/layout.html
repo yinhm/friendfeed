@@ -13,7 +13,9 @@
 	  <h3><a href="/">Friends</a></h3>
 	  <ul>
 	    <li><a href="/">Homepage</a></li>
-	    <!-- <li><a href="/filter/discussions">My discussions</a></li> -->
+            {% if current_user %}
+	    <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
+            {% endif %}
 	    <!-- <li><a href="/summary/1">Best of day</a></li> -->
 	  </ul>
 	</div>
@@ -21,8 +23,12 @@
         <div class="section">
 	  <h3>Login</h3>
 	  <ul>
+            {% if current_user %}
+	    <li><a href="/logout">Logout</a></li>
+            {% else %}
             <!-- <li><a href="/auth/twitter">Twitter</a></li> -->
             <li><a href="/auth/google">Google</a></li>
+            {% endif %}
 	  </ul>
 	</div>
 

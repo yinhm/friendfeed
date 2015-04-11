@@ -123,6 +123,14 @@ func (m *EntryRequest) Reset()         { *m = EntryRequest{} }
 func (m *EntryRequest) String() string { return proto1.CompactTextString(m) }
 func (*EntryRequest) ProtoMessage()    {}
 
+type ProfileRequest struct {
+	Uuid string `protobuf:"bytes,1,opt,name=uuid" json:"uuid,omitempty"`
+}
+
+func (m *ProfileRequest) Reset()         { *m = ProfileRequest{} }
+func (m *ProfileRequest) String() string { return proto1.CompactTextString(m) }
+func (*ProfileRequest) ProtoMessage()    {}
+
 func init() {
 }
 
@@ -143,8 +151,9 @@ type ApiClient interface {
 	// Entry page return Feed as well
 	FetchEntry(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*Feed, error)
 	PostEntry(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*Entry, error)
-	Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Feedinfo, error)
+	Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error)
 	BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*OAuthUser, error)
+	FetchProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Profile, error)
 	Command(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandResponse, error)
 }
 
@@ -287,8 +296,8 @@ func (c *apiClient) PostEntry(ctx context.Context, in *Entry, opts ...grpc.CallO
 	return out, nil
 }
 
-func (c *apiClient) Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Feedinfo, error) {
-	out := new(Feedinfo)
+func (c *apiClient) Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error) {
+	out := new(Profile)
 	err := grpc.Invoke(ctx, "/proto.Api/Auth", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -299,6 +308,15 @@ func (c *apiClient) Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOp
 func (c *apiClient) BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*OAuthUser, error) {
 	out := new(OAuthUser)
 	err := grpc.Invoke(ctx, "/proto.Api/BindUserFeed", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) FetchProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Profile, error) {
+	out := new(Profile)
+	err := grpc.Invoke(ctx, "/proto.Api/FetchProfile", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -331,8 +349,9 @@ type ApiServer interface {
 	// Entry page return Feed as well
 	FetchEntry(context.Context, *EntryRequest) (*Feed, error)
 	PostEntry(context.Context, *Entry) (*Entry, error)
-	Auth(context.Context, *OAuthUser) (*Feedinfo, error)
+	Auth(context.Context, *OAuthUser) (*Profile, error)
 	BindUserFeed(context.Context, *OAuthUser) (*OAuthUser, error)
+	FetchProfile(context.Context, *ProfileRequest) (*Profile, error)
 	Command(context.Context, *CommandRequest) (*CommandResponse, error)
 }
 
@@ -500,6 +519,18 @@ func _Api_BindUserFeed_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
+func _Api_FetchProfile_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(ProfileRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).FetchProfile(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _Api_Command_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
 	in := new(CommandRequest)
 	if err := proto1.Unmarshal(buf, in); err != nil {
@@ -551,6 +582,10 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BindUserFeed",
 			Handler:    _Api_BindUserFeed_Handler,
+		},
+		{
+			MethodName: "FetchProfile",
+			Handler:    _Api_FetchProfile_Handler,
 		},
 		{
 			MethodName: "Command",

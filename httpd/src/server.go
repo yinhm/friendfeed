@@ -60,6 +60,25 @@ func (s *Server) ImportHandler(c *gin.Context) {
 	c.HTML(200, "import.html", data)
 }
 
+func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context) {
+	sess := sessions.Default(c)
+	uuid := sess.Get("uuid")
+	if uuid != nil && uuid.(string) != "" {
+		ctx, cancel := DefaultTimeoutContext()
+		defer cancel()
+
+		profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid.(string)})
+		if err != nil {
+			c.String(http.StatusInternalServerError, "error on fetch user")
+			return
+		}
+
+		data["current_user"] = profile
+	}
+
+	c.HTML(code, name, data)
+}
+
 func (s *Server) FriendFeedImportHandler(c *gin.Context) {
 	c.Request.ParseForm()
 
@@ -137,7 +156,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		"name":  feed.Id,
 		"feed":  feed,
 	}
-	c.HTML(200, "feed.html", data)
+	s.HTML(c, 200, "feed.html", data)
 }
 
 func (s *Server) FeedHandler(c *gin.Context) {
@@ -189,7 +208,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		"next_start":  req.Start + req.PageSize,
 		"show_paging": true,
 	}
-	c.HTML(200, "feed.html", data)
+	s.HTML(c, 200, "feed.html", data)
 }
 
 func contains(slice []string, item string) bool {
@@ -225,7 +244,7 @@ func (s *Server) EntryHandler(c *gin.Context) {
 		"feed":        feed,
 		"show_paging": false,
 	}
-	c.HTML(200, "feed.html", data)
+	s.HTML(c, 200, "feed.html", data)
 }
 
 func (s *Server) EntryCommentHandler(c *gin.Context) {

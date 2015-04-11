@@ -28,9 +28,9 @@ service Api {
   rpc FetchEntry(EntryRequest) returns (Feed) {}
   rpc PostEntry(Entry) returns (Entry) {}
 
-  rpc Auth(OAuthUser) returns (Feedinfo) {}
+  rpc Auth(OAuthUser) returns (Profile) {}
   rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
-
+  rpc FetchProfile(ProfileRequest) returns (Profile) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 }
@@ -118,5 +118,9 @@ message FeedRequest {
 }
 
 message EntryRequest {
+  string uuid = 1;
+}
+
+message ProfileRequest {
   string uuid = 1;
 }

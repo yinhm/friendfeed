@@ -132,23 +132,25 @@ func UpdateProfile(mdb *Store, profile *pb.Profile) error {
 }
 
 func GetProfile(mdb *Store, id string) (*pb.Profile, error) {
-	data, err := mdb.Get([]byte(id))
-	if err != nil || string(data) == "" {
+	rawdata, err := mdb.Get([]byte(id))
+	if err != nil || string(rawdata) == "" {
 		return nil, fmt.Errorf("GetProfile error: missing id->uuid map")
 	}
-
-	uuid1, err := uuid.FromBytes(data)
+	uuid1, err := uuid.FromBytes(rawdata)
 	if err != nil {
 		return nil, err
 	}
+	return GetProfileFromUuid(mdb, uuid1)
+}
 
+func GetProfileFromUuid(mdb *Store, uuid1 uuid.UUID) (*pb.Profile, error) {
 	key := NewUUIDKey(TableProfile, uuid1)
-	data, err = mdb.Get(key.Bytes())
+	rawdata, err := mdb.Get(key.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	v := new(pb.Profile)
-	err = proto.Unmarshal(data, v)
+	err = proto.Unmarshal(rawdata, v)
 	if err != nil {
 		return nil, err
 	}
