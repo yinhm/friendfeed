@@ -469,11 +469,31 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 		return nil, err
 	}
 
+	// TODO: spread to friends?
 	if req.Like {
-		store.Like(s.rdb, profile, entry)
+		entry, err = store.Like(s.rdb, profile, entry)
 	} else {
-		store.DeleteLike(s.rdb, profile, entry)
+		entry, err = store.DeleteLike(s.rdb, profile, entry)
 	}
 
 	return entry, nil
+}
+
+func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*pb.Entry, error) {
+	entry, err := store.GetEntry(s.rdb, req.Entry)
+	if err != nil {
+		return nil, err
+	}
+
+	uuid1, err := uuid.FromString(req.User)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := store.GetProfileFromUuid(s.mdb, uuid1)
+	if err != nil || profile == nil {
+		return nil, err
+	}
+
+	// TODO: spread to friends?
+	return store.Comment(s.rdb, profile, entry, req.Body)
 }

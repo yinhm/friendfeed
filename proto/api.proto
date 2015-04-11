@@ -28,6 +28,7 @@ service Api {
   rpc FetchEntry(EntryRequest) returns (Feed) {}
   rpc PostEntry(Entry) returns (Entry) {}
   rpc LikeEntry(LikeRequest) returns (Entry) {}
+  rpc CommentEntry(CommentRequest) returns (Entry) {}
 
   rpc Auth(OAuthUser) returns (Profile) {}
   rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
@@ -130,4 +131,10 @@ message LikeRequest {
   string entry = 1;
   string user = 2;
   bool like = 3;
+}
+
+message CommentRequest {
+  string entry = 1;
+  string user = 2;
+  string body = 3;
 }

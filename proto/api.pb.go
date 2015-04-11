@@ -141,6 +141,16 @@ func (m *LikeRequest) Reset()         { *m = LikeRequest{} }
 func (m *LikeRequest) String() string { return proto1.CompactTextString(m) }
 func (*LikeRequest) ProtoMessage()    {}
 
+type CommentRequest struct {
+	Entry string `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	User  string `protobuf:"bytes,2,opt,name=user" json:"user,omitempty"`
+	Body  string `protobuf:"bytes,3,opt,name=body" json:"body,omitempty"`
+}
+
+func (m *CommentRequest) Reset()         { *m = CommentRequest{} }
+func (m *CommentRequest) String() string { return proto1.CompactTextString(m) }
+func (*CommentRequest) ProtoMessage()    {}
+
 func init() {
 }
 
@@ -162,6 +172,7 @@ type ApiClient interface {
 	FetchEntry(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*Feed, error)
 	PostEntry(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*Entry, error)
 	LikeEntry(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*Entry, error)
+	CommentEntry(ctx context.Context, in *CommentRequest, opts ...grpc.CallOption) (*Entry, error)
 	Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error)
 	BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*OAuthUser, error)
 	FetchProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Profile, error)
@@ -316,6 +327,15 @@ func (c *apiClient) LikeEntry(ctx context.Context, in *LikeRequest, opts ...grpc
 	return out, nil
 }
 
+func (c *apiClient) CommentEntry(ctx context.Context, in *CommentRequest, opts ...grpc.CallOption) (*Entry, error) {
+	out := new(Entry)
+	err := grpc.Invoke(ctx, "/proto.Api/CommentEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error) {
 	out := new(Profile)
 	err := grpc.Invoke(ctx, "/proto.Api/Auth", in, out, c.cc, opts...)
@@ -370,6 +390,7 @@ type ApiServer interface {
 	FetchEntry(context.Context, *EntryRequest) (*Feed, error)
 	PostEntry(context.Context, *Entry) (*Entry, error)
 	LikeEntry(context.Context, *LikeRequest) (*Entry, error)
+	CommentEntry(context.Context, *CommentRequest) (*Entry, error)
 	Auth(context.Context, *OAuthUser) (*Profile, error)
 	BindUserFeed(context.Context, *OAuthUser) (*OAuthUser, error)
 	FetchProfile(context.Context, *ProfileRequest) (*Profile, error)
@@ -528,6 +549,18 @@ func _Api_LikeEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 	return out, nil
 }
 
+func _Api_CommentEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(CommentRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).CommentEntry(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _Api_Auth_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
 	in := new(OAuthUser)
 	if err := proto1.Unmarshal(buf, in); err != nil {
@@ -611,6 +644,10 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LikeEntry",
 			Handler:    _Api_LikeEntry_Handler,
+		},
+		{
+			MethodName: "CommentEntry",
+			Handler:    _Api_CommentEntry_Handler,
 		},
 		{
 			MethodName: "Auth",

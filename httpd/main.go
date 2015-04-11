@@ -146,6 +146,7 @@ func Serve(s *server.Server) {
 		action.GET("/entry/:uuid", s.EntryCommentHandler)
 		action.POST("/like", s.LikeHandler)
 		action.POST("/like/delete", s.LikeDeleteHandler)
+		action.POST("/comment", s.CommentHandler)
 	}
 
 	r.NotFound404(NotFoundHandler)

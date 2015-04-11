@@ -314,6 +314,33 @@ func (s *Server) LikeDeleteHandler(c *gin.Context) {
 	c.JSON(200, gin.H{"success": true})
 }
 
+func (s *Server) CommentHandler(c *gin.Context) {
+	c.Request.ParseForm()
+	entryId := c.Request.Form.Get("entry")
+	body := c.Request.Form.Get("body")
+	if entryId == "" || body == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+		return
+	}
+
+	uuid := CurrentUserUuid(c)
+	req := &pb.CommentRequest{
+		Entry: entryId,
+		User:  uuid,
+		Body:  body,
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	_, err := s.client.CommentEntry(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	c.JSON(200, gin.H{"success": true})
+}
+
 func RequestError(c *gin.Context, err error) bool {
 	if err != nil {
 		if grpc.Code(err) == codes.DeadlineExceeded {
