@@ -123,13 +123,13 @@ a:hover {
 
 .entry .likes {
     margin-top: 7px;
-    background: url("http://friendfeed.com/static/images/n-smile.png") no-repeat top left;
+    background: url("/static/images/smile.png") no-repeat top left;
     line-height: 16px;
 }
 
 .entry .comment {
     margin-top: 8px;
-    background: url("http://friendfeed.com/static/images/n-comment.png") no-repeat top left;
+    background: url("/static/images/comment-lighter.png") no-repeat top left;
 }
 
 .entry .comment.placeholder {
