@@ -92,8 +92,8 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		profile.RemoteKey = in.RemoteKey
 	}
 
-	profile.Picture = s.ArchiveProfilePicture(profile.Id)
-	log.Println("profile pic:", profile.Picture)
+	// profile.Picture = s.ArchiveProfilePicture(profile.Id)
+	// log.Println("profile pic:", profile.Picture)
 
 	if err := store.UpdateProfile(s.mdb, profile); err != nil {
 		return nil, err
