@@ -54,7 +54,7 @@
           {% if entry.To %}
             <span class="to">to
               {% for recipient in entry.To %}
-                <a href="/{{ recipient.Id }}">{{ recipient.Name|escape }}</a>{% if not forloop.last %},{% endif %}
+                <a href="/feed/{{ recipient.Id }}">{{ recipient.Name|escape }}</a>{% if not forloop.last %},{% endif %}
               {% endfor %}
             </span>
           {% endif %}
