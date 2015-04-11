@@ -54,9 +54,6 @@ func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 			return key, &Error{"ok", ExistItem}
 		}
 	}
-	// TODO: seen lots of key exists message in archive
-	// friendfeed api has max limit, will remove this sooon.
-	// log.Println("DEBUG: put entry:", key.String())
 	if err := rdb.Put(kb1, bytes); err != nil {
 		return nil, err
 	}
