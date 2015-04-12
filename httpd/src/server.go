@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -56,6 +55,40 @@ func DefaultTimeoutContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 500*time.Millisecond)
 }
 
+func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context) {
+	profile, err := s.CurrentUser(c)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "error on fetch user")
+		return
+	}
+	if profile.Uuid != "" {
+		data["current_user"] = profile
+	}
+	c.HTML(code, name, data)
+}
+
+func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	profile := new(pb.Profile)
+	uuid := CurrentUserUuid(c)
+	if uuid != "" {
+		cacheKey := "profile:" + uuid
+		err := s.cache.Get(cacheKey, profile)
+		if err != nil {
+			profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
+			if err != nil {
+				return nil, err
+			}
+			if err := s.cache.Set(cacheKey, *profile, time.Minute); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return profile, nil
+}
+
 func (s *Server) AccountHandler(c *gin.Context) {
 }
 
@@ -64,31 +97,6 @@ func (s *Server) ImportHandler(c *gin.Context) {
 		"title": "import your",
 	}
 	c.HTML(200, "import.html", data)
-}
-
-func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context) {
-	uuid := CurrentUserUuid(c)
-	if uuid != "" {
-		ctx, cancel := DefaultTimeoutContext()
-		defer cancel()
-
-		profile := new(pb.Profile)
-		cacheKey := "profile:" + uuid
-		err := s.cache.Get(cacheKey, profile)
-		if err != nil {
-			profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
-			if err != nil {
-				c.String(http.StatusInternalServerError, "error on fetch user")
-				return
-			}
-			if err := s.cache.Set(cacheKey, *profile, time.Minute); err != nil {
-				log.Println(err)
-			}
-		}
-		data["current_user"] = profile
-	}
-
-	c.HTML(code, name, data)
 }
 
 func (s *Server) FriendFeedImportHandler(c *gin.Context) {
