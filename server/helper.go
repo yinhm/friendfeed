@@ -11,9 +11,16 @@ func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) err
 	if err := fmtEntryProfile(mdb, entry); err != nil {
 		return err
 	}
-	if err := fmtCollapse(req, entry); err != nil {
+	fmtComments(req, entry)
+	fmtLikes(req, entry)
+	return nil
+}
+
+func FormatEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
+	if err := fmtEntryProfile(mdb, entry); err != nil {
 		return err
 	}
+	fmtLikes(req, entry)
 	return nil
 }
 
@@ -27,8 +34,8 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	return nil
 }
 
-func fmtCollapse(req *pb.FeedRequest, entry *pb.Entry) error {
-	// collapse comments and likes
+func fmtComments(req *pb.FeedRequest, entry *pb.Entry) {
+	// collapse comments
 	length := len(entry.Comments)
 	if req.MaxComments == 0 && length > 4 {
 		collapsing := &pb.Comment{
@@ -38,7 +45,11 @@ func fmtCollapse(req *pb.FeedRequest, entry *pb.Entry) error {
 		}
 		entry.Comments = []*pb.Comment{entry.Comments[0], collapsing, entry.Comments[length-1]}
 	}
-	length = len(entry.Likes)
+}
+
+func fmtLikes(req *pb.FeedRequest, entry *pb.Entry) {
+	// collapse likes
+	length := len(entry.Likes)
 	if req.MaxLikes == 0 && length > 4 {
 		collapsing := &pb.Like{
 			Body:        fmt.Sprintf("%d other people", length-2),
@@ -48,6 +59,4 @@ func fmtCollapse(req *pb.FeedRequest, entry *pb.Entry) error {
 		entry.Likes = entry.Likes[:3]
 		entry.Likes = append(entry.Likes, collapsing)
 	}
-
-	return nil
 }
