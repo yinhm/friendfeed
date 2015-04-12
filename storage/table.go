@@ -428,7 +428,7 @@ func DeleteLike(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, er
 	return entry, err
 }
 
-func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, body string) (*pb.Entry, error) {
+func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, body string) (Key, *pb.Entry, error) {
 	var err error
 	comment := &pb.Comment{
 		Date: time.Now().Format(time.RFC3339),
@@ -440,6 +440,6 @@ func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, body string) (*pb
 		},
 	}
 	entry.Comments = append(entry.Comments, comment)
-	_, err = PutEntry(rdb, entry, true)
-	return entry, err
+	key, err := PutEntry(rdb, entry, true)
+	return key, entry, err
 }

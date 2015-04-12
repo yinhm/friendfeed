@@ -213,7 +213,7 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 		if err != nil {
 			log.Println("db error:", err)
 		} else {
-			s.cached["public"].Push(key.String())
+			s.spread(key)
 		}
 
 		go s.mirrorMedia(s.fs, entry)
@@ -485,6 +485,15 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 		return nil, err
 	}
 
+	key, entry, err := store.Comment(s.rdb, profile, entry, req.Body)
+	if err != nil {
+		return nil, err
+	}
+	s.spread(key)
+	return entry, nil
+}
+
+func (s *ApiServer) spread(key store.Key) {
 	// TODO: spread to friends?
-	return store.Comment(s.rdb, profile, entry, req.Body)
+	s.cached["public"].Push(key.String())
 }
