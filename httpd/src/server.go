@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/ff"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
@@ -135,11 +136,16 @@ func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
 	return graph, nil
 }
 
-func (s *Server) FetchFeed(c *gin.Context, req *pb.FeedRequest) (*pb.Feed, error) {
+func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (feed *pb.Feed, err error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	feed, err := s.client.FetchFeed(ctx, req)
+	switch req.(type) {
+	case *pb.FeedRequest:
+		feed, err = s.client.FetchFeed(ctx, req.(*pb.FeedRequest))
+	case *pb.EntryRequest:
+		feed, err = s.client.FetchEntry(ctx, req.(*pb.EntryRequest))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -304,11 +310,7 @@ func contains(slice []string, item string) bool {
 func (s *Server) EntryHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
 	req := &pb.EntryRequest{uuid}
-
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	feed, err := s.client.FetchEntry(ctx, req)
+	feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}
