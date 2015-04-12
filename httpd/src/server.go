@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/exp/utf8string"
 
 	"github.com/flosch/pongo2"
+	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/ff"
@@ -26,6 +28,7 @@ type Server struct {
 	worker     *pb.Worker
 	secretKey  string
 	httpclient *http.Client
+	cache      *cache.InMemoryStore
 }
 
 func NewServer(conn *grpc.ClientConn, secretKey string) *Server {
@@ -38,11 +41,14 @@ func NewServer(conn *grpc.ClientConn, secretKey string) *Server {
 		Timeout: 30 * time.Second,
 	}
 
+	cacheStore := cache.NewInMemoryStore(time.Second)
+
 	return &Server{
 		client:     c,
 		worker:     worker,
 		secretKey:  secretKey,
 		httpclient: httpclient,
+		cache:      cacheStore,
 	}
 }
 
@@ -66,12 +72,19 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		ctx, cancel := DefaultTimeoutContext()
 		defer cancel()
 
-		profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
+		profile := new(pb.Profile)
+		cacheKey := "profile:" + uuid
+		err := s.cache.Get(cacheKey, profile)
 		if err != nil {
-			c.String(http.StatusInternalServerError, "error on fetch user")
-			return
+			profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
+			if err != nil {
+				c.String(http.StatusInternalServerError, "error on fetch user")
+				return
+			}
+			if err := s.cache.Set(cacheKey, *profile, time.Minute); err != nil {
+				log.Println(err)
+			}
 		}
-
 		data["current_user"] = profile
 	}
 
