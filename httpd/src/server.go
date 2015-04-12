@@ -81,12 +81,80 @@ func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
 			if err != nil {
 				return nil, err
 			}
-			if err := s.cache.Set(cacheKey, *profile, time.Minute); err != nil {
+			if err := s.cache.Set(cacheKey, *profile, 15*time.Minute); err != nil {
 				return nil, err
 			}
 		}
 	}
 	return profile, nil
+}
+
+func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	feedinfo := new(pb.Feedinfo)
+	uuid := CurrentUserUuid(c)
+	if uuid != "" {
+		cacheKey := "feedinfo:" + uuid
+		err := s.cache.Get(cacheKey, feedinfo)
+		if err != nil {
+			req := &pb.ProfileRequest{Uuid: uuid}
+			feedinfo, err := s.client.FetchFeedinfo(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			if err := s.cache.Set(cacheKey, *feedinfo, 15*time.Minute); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return feedinfo, nil
+}
+
+func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	graph := new(pb.Graph)
+	uuid := CurrentUserUuid(c)
+	if uuid != "" {
+		cacheKey := "graph:" + uuid
+		err := s.cache.Get(cacheKey, graph)
+		if err != nil {
+			req := &pb.ProfileRequest{Uuid: uuid}
+			graph, err := s.client.FetchGraph(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			if err := s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return graph, nil
+}
+
+func (s *Server) FetchFeed(c *gin.Context, req *pb.FeedRequest) (*pb.Feed, error) {
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	feed, err := s.client.FetchFeed(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := s.CurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+	graph, err := s.CurrentGraph(c)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range feed.Entries {
+		e.RebuildCommand(profile, graph)
+	}
+	return feed, nil
 }
 
 func (s *Server) AccountHandler(c *gin.Context) {
@@ -163,10 +231,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		PageSize: 30,
 	}
 
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	feed, err := s.client.FetchFeed(ctx, req)
+	feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}
@@ -200,11 +265,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		Start:    int32(start),
 		PageSize: 30,
 	}
-
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	feed, err := s.client.FetchFeed(ctx, req)
+	feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}

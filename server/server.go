@@ -76,6 +76,13 @@ func (s *ApiServer) Shutdown() {
 	s.mdb = nil
 }
 
+func (s *ApiServer) FetchFeedinfo(ctx context.Context, req *pb.ProfileRequest) (*pb.Feedinfo, error) {
+	if req.Uuid == "" {
+		return nil, fmt.Errorf("bad request")
+	}
+	return store.GetFeedinfo(s.rdb, req.Uuid)
+}
+
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {
 	profile := &pb.Profile{
 		Uuid:        in.Uuid,
@@ -136,6 +143,18 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	// }
 
 	return profile, nil
+}
+
+// TODO: build graph if it not exists
+func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb.Graph, error) {
+	if req.Uuid == "" {
+		return nil, fmt.Errorf("bad request")
+	}
+	feedinfo, err := store.GetFeedinfo(s.rdb, req.Uuid)
+	if err != nil {
+		return nil, err
+	}
+	return BuildGraph(feedinfo), nil
 }
 
 func (s *ApiServer) ArchiveProfilePicture(id string) string {

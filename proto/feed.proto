@@ -65,6 +65,15 @@ message Profile {
   string remote_key = 8;
 }
 
+// social graph
+message Graph {
+  map<string, Profile> subscribers = 1;
+  map<string, Profile> subscriptions = 2;
+  map<string, Profile> admins = 3;
+  map<string, Profile> feeds = 4;
+  map<string, Service> services = 5;
+}
+
 // /api/user/NICKNAME/profile - Get services and subscriptions
 // Returns list of all of the user's subscriptions (people) and services connected to their account (Authentication required for private users):
 

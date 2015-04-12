@@ -60,3 +60,21 @@ func fmtLikes(req *pb.FeedRequest, entry *pb.Entry) {
 		entry.Likes = append(entry.Likes, collapsing)
 	}
 }
+
+func BuildGraph(info *pb.Feedinfo) *pb.Graph {
+	graph := &pb.Graph{
+		Subscriptions: make(map[string]*pb.Profile),
+		Admins:        make(map[string]*pb.Profile),
+		Services:      make(map[string]*pb.Service),
+	}
+	for _, item := range info.Subscriptions {
+		graph.Subscriptions[item.Id] = item
+	}
+	for _, item := range info.Admins {
+		graph.Admins[item.Id] = item
+	}
+	for _, item := range info.Services {
+		graph.Services[item.Id] = item
+	}
+	return graph
+}

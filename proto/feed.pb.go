@@ -12,6 +12,7 @@ It is generated from these files:
 It has these top-level messages:
 	OAuthUser
 	Profile
+	Graph
 	V1Profile
 	Feed
 	Feedinfo
@@ -115,6 +116,54 @@ type Profile struct {
 func (m *Profile) Reset()         { *m = Profile{} }
 func (m *Profile) String() string { return proto1.CompactTextString(m) }
 func (*Profile) ProtoMessage()    {}
+
+// social graph
+type Graph struct {
+	Subscribers   map[string]*Profile `protobuf:"bytes,1,rep,name=subscribers" json:"subscribers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Subscriptions map[string]*Profile `protobuf:"bytes,2,rep,name=subscriptions" json:"subscriptions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Admins        map[string]*Profile `protobuf:"bytes,3,rep,name=admins" json:"admins,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Feeds         map[string]*Profile `protobuf:"bytes,4,rep,name=feeds" json:"feeds,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Services      map[string]*Service `protobuf:"bytes,5,rep,name=services" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+}
+
+func (m *Graph) Reset()         { *m = Graph{} }
+func (m *Graph) String() string { return proto1.CompactTextString(m) }
+func (*Graph) ProtoMessage()    {}
+
+func (m *Graph) GetSubscribers() map[string]*Profile {
+	if m != nil {
+		return m.Subscribers
+	}
+	return nil
+}
+
+func (m *Graph) GetSubscriptions() map[string]*Profile {
+	if m != nil {
+		return m.Subscriptions
+	}
+	return nil
+}
+
+func (m *Graph) GetAdmins() map[string]*Profile {
+	if m != nil {
+		return m.Admins
+	}
+	return nil
+}
+
+func (m *Graph) GetFeeds() map[string]*Profile {
+	if m != nil {
+		return m.Feeds
+	}
+	return nil
+}
+
+func (m *Graph) GetServices() map[string]*Service {
+	if m != nil {
+		return m.Services
+	}
+	return nil
+}
 
 // status - private or public
 // id - the user's FriendFeed UUID

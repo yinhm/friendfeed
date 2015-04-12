@@ -257,6 +257,7 @@ func SaveFeedinfo(rdb *Store, uuidStr string, info *pb.Feedinfo) error {
 	return rdb.Put(key.Bytes(), bytes)
 }
 
+// TODO: move feedinfo to mdb?
 func GetFeedinfo(rdb *Store, uuidStr string) (*pb.Feedinfo, error) {
 	uuid1, err := uuid.FromString(uuidStr)
 	if err != nil {

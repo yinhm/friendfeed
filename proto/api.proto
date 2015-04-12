@@ -13,6 +13,10 @@ service Api {
   rpc GetFeedJob(Worker) returns (FeedJob) {}
   rpc FinishJob(FeedJob) returns (FeedJob) {}
 
+  rpc FetchProfile(ProfileRequest) returns (Profile) {}
+  rpc FetchGraph(ProfileRequest) returns (Graph) {}
+
+  rpc FetchFeedinfo(ProfileRequest) returns (Feedinfo) {}
   rpc PostFeedinfo(Feedinfo) returns (Profile) {}
 
   // A client-to-server streaming RPC.
@@ -32,7 +36,6 @@ service Api {
 
   rpc Auth(OAuthUser) returns (Profile) {}
   rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
-  rpc FetchProfile(ProfileRequest) returns (Profile) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 }

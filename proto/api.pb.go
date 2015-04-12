@@ -160,6 +160,9 @@ type ApiClient interface {
 	EnqueJob(ctx context.Context, in *FeedJob, opts ...grpc.CallOption) (*FeedJob, error)
 	GetFeedJob(ctx context.Context, in *Worker, opts ...grpc.CallOption) (*FeedJob, error)
 	FinishJob(ctx context.Context, in *FeedJob, opts ...grpc.CallOption) (*FeedJob, error)
+	FetchProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Profile, error)
+	FetchGraph(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Graph, error)
+	FetchFeedinfo(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Feedinfo, error)
 	PostFeedinfo(ctx context.Context, in *Feedinfo, opts ...grpc.CallOption) (*Profile, error)
 	// A client-to-server streaming RPC.
 	//
@@ -175,7 +178,6 @@ type ApiClient interface {
 	CommentEntry(ctx context.Context, in *CommentRequest, opts ...grpc.CallOption) (*Entry, error)
 	Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error)
 	BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*OAuthUser, error)
-	FetchProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Profile, error)
 	Command(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandResponse, error)
 }
 
@@ -208,6 +210,33 @@ func (c *apiClient) GetFeedJob(ctx context.Context, in *Worker, opts ...grpc.Cal
 func (c *apiClient) FinishJob(ctx context.Context, in *FeedJob, opts ...grpc.CallOption) (*FeedJob, error) {
 	out := new(FeedJob)
 	err := grpc.Invoke(ctx, "/proto.Api/FinishJob", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) FetchProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Profile, error) {
+	out := new(Profile)
+	err := grpc.Invoke(ctx, "/proto.Api/FetchProfile", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) FetchGraph(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Graph, error) {
+	out := new(Graph)
+	err := grpc.Invoke(ctx, "/proto.Api/FetchGraph", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) FetchFeedinfo(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Feedinfo, error) {
+	out := new(Feedinfo)
+	err := grpc.Invoke(ctx, "/proto.Api/FetchFeedinfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -354,15 +383,6 @@ func (c *apiClient) BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grp
 	return out, nil
 }
 
-func (c *apiClient) FetchProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*Profile, error) {
-	out := new(Profile)
-	err := grpc.Invoke(ctx, "/proto.Api/FetchProfile", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *apiClient) Command(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandResponse, error) {
 	out := new(CommandResponse)
 	err := grpc.Invoke(ctx, "/proto.Api/Command", in, out, c.cc, opts...)
@@ -378,6 +398,9 @@ type ApiServer interface {
 	EnqueJob(context.Context, *FeedJob) (*FeedJob, error)
 	GetFeedJob(context.Context, *Worker) (*FeedJob, error)
 	FinishJob(context.Context, *FeedJob) (*FeedJob, error)
+	FetchProfile(context.Context, *ProfileRequest) (*Profile, error)
+	FetchGraph(context.Context, *ProfileRequest) (*Graph, error)
+	FetchFeedinfo(context.Context, *ProfileRequest) (*Feedinfo, error)
 	PostFeedinfo(context.Context, *Feedinfo) (*Profile, error)
 	// A client-to-server streaming RPC.
 	//
@@ -393,7 +416,6 @@ type ApiServer interface {
 	CommentEntry(context.Context, *CommentRequest) (*Entry, error)
 	Auth(context.Context, *OAuthUser) (*Profile, error)
 	BindUserFeed(context.Context, *OAuthUser) (*OAuthUser, error)
-	FetchProfile(context.Context, *ProfileRequest) (*Profile, error)
 	Command(context.Context, *CommandRequest) (*CommandResponse, error)
 }
 
@@ -431,6 +453,42 @@ func _Api_FinishJob_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 		return nil, err
 	}
 	out, err := srv.(ApiServer).FinishJob(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Api_FetchProfile_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(ProfileRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).FetchProfile(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Api_FetchGraph_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(ProfileRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).FetchGraph(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Api_FetchFeedinfo_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(ProfileRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).FetchFeedinfo(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -585,18 +643,6 @@ func _Api_BindUserFeed_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
-func _Api_FetchProfile_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
-	in := new(ProfileRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
-		return nil, err
-	}
-	out, err := srv.(ApiServer).FetchProfile(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func _Api_Command_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
 	in := new(CommandRequest)
 	if err := proto1.Unmarshal(buf, in); err != nil {
@@ -624,6 +670,18 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FinishJob",
 			Handler:    _Api_FinishJob_Handler,
+		},
+		{
+			MethodName: "FetchProfile",
+			Handler:    _Api_FetchProfile_Handler,
+		},
+		{
+			MethodName: "FetchGraph",
+			Handler:    _Api_FetchGraph_Handler,
+		},
+		{
+			MethodName: "FetchFeedinfo",
+			Handler:    _Api_FetchFeedinfo_Handler,
 		},
 		{
 			MethodName: "PostFeedinfo",
@@ -656,10 +714,6 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BindUserFeed",
 			Handler:    _Api_BindUserFeed_Handler,
-		},
-		{
-			MethodName: "FetchProfile",
-			Handler:    _Api_FetchProfile_Handler,
 		},
 		{
 			MethodName: "Command",
