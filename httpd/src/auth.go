@@ -21,6 +21,10 @@ func LoginRequired() gin.HandlerFunc {
 		loginUrl := "/auth/google" // TODO: login page for all privider
 		sess := sessions.Default(c)
 		if sess.Get("user_id") == nil || sess.Get("user_id").(string) == "" {
+			if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" {
+				c.AbortWithStatus(401)
+				return
+			}
 			next := url.QueryEscape(c.Request.URL.RequestURI())
 			http.Redirect(c.Writer, c.Request, loginUrl+"?next="+next, http.StatusFound)
 		}

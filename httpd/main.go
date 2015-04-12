@@ -141,9 +141,9 @@ func Serve(s *server.Server) {
 	r.GET("/feed/:name", s.FeedHandler)
 	r.GET("/e/:uuid", s.EntryHandler)
 
-	action := r.Group("/a")
+	r.GET("/a/entry/:uuid", s.EntryCommentHandler)
+	action := r.Group("/a", server.LoginRequired())
 	{
-		action.GET("/entry/:uuid", s.EntryCommentHandler)
 		action.POST("/like", s.LikeHandler)
 		action.POST("/like/delete", s.LikeDeleteHandler)
 		action.POST("/comment", s.CommentHandler)
