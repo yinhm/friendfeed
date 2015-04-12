@@ -11,9 +11,14 @@ import (
 
 func TestTimeParse(t *testing.T) {
 	Convey("Given RFC3339, parse time string", t, func() {
+		// Z           A suffix which, when applied to a time, denotes a UTC
+		//             offset of 00:00; often spoken "Zulu" from the ICAO
+		//             phonetic alphabet representation of the letter "Z".
 		dt := "2009-06-25T18:23:38Z"
 		got, _ := time.Parse(time.RFC3339, dt)
 		So(got.Year(), ShouldEqual, 2009)
+		So(got.Hour(), ShouldEqual, 18)
+		So(got.UTC().Hour(), ShouldEqual, 18)
 	})
 }
 
