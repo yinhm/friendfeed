@@ -1,6 +1,11 @@
 package proto
 
 func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
+	if profile.Id == "" {
+		e.Commands = []string{}
+		return
+	}
+
 	author := e.From.Id
 	commands := []string{"comment"}
 	if _, ok := graph.Admins[author]; ok {
