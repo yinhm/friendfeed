@@ -313,7 +313,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
 		}
-		s.formatEntry(req, entry)
+		FormatFeedEntry(s.mdb, req, entry)
 		entries = append(entries, entry)
 		i++
 		if i > int(req.PageSize) {
@@ -362,7 +362,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
 		}
-		if err = s.formatEntry(req, entry); err != nil {
+		if err = FormatFeedEntry(s.mdb, req, entry); err != nil {
 			return err
 		}
 
@@ -391,40 +391,12 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	return feed, nil
 }
 
-func (s *ApiServer) formatEntry(req *pb.FeedRequest, entry *pb.Entry) error {
-	// refetch user profile
-	profile, err := store.GetProfile(s.mdb, entry.From.Id)
-	if err != nil {
-		return err
-	}
-	entry.From.Picture = profile.Picture
-
-	// collapse commetns and likes
-	length := len(entry.Comments)
-	if req.MaxComments == 0 && length > 4 {
-		collapsing := &pb.Comment{
-			Body:        fmt.Sprintf("%d more comments", length-2),
-			Num:         int32(length - 2),
-			Placeholder: true,
-		}
-		entry.Comments = []*pb.Comment{entry.Comments[0], collapsing, entry.Comments[length-1]}
-	}
-	length = len(entry.Likes)
-	if req.MaxLikes == 0 && length > 4 {
-		collapsing := &pb.Like{
-			Body:        fmt.Sprintf("%d other people", length-2),
-			Num:         int32(length - 2),
-			Placeholder: true,
-		}
-		entry.Likes = entry.Likes[:3]
-		entry.Likes = append(entry.Likes, collapsing)
-	}
-
-	return nil
-}
-
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {
 	entry, err := store.GetEntry(s.rdb, req.Uuid)
+	if err != nil {
+		return nil, err
+	}
+	err = fmtEntryProfile(s.mdb, entry)
 	if err != nil {
 		return nil, err
 	}
