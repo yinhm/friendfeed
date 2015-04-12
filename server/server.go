@@ -299,7 +299,6 @@ func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Fee
 		return s.cachedFeed(req)
 	}
 	s.RUnlock()
-	// return s.BackwardFetchFeed(ctx, req)
 	return s.ForwardFetchFeed(ctx, req)
 }
 
@@ -312,7 +311,8 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 	index := s.cached[req.Id]
 
 	var entries []*pb.Entry
-	for i := 0; i < len(index.bufq); {
+	found := 0
+	for i := 0; i < len(index.bufq); i++ {
 		if start > 0 {
 			start--
 			continue
@@ -334,15 +334,15 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		}
 		FormatFeedEntry(s.mdb, req, entry)
 		entries = append(entries, entry)
-		i++
-		if i > int(req.PageSize) {
+		found++
+		if found > int(req.PageSize) {
 			break
 		}
 	}
 
 	feed := &pb.Feed{
-		Uuid:    "public",
-		Id:      "public",
+		Uuid:    "Public",
+		Id:      "Public",
 		Name:    "Everyone's feed",
 		Type:    "group",
 		Private: false,

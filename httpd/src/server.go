@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -231,9 +230,10 @@ func (s *Server) FriendFeedImportHandler(c *gin.Context) {
 }
 
 func (s *Server) HomeHandler(c *gin.Context) {
+	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
 		Id:       "public",
-		Start:    0,
+		Start:    int32(start),
 		PageSize: 30,
 	}
 
@@ -242,10 +242,17 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		return
 	}
 
+	prevStart := req.Start - req.PageSize
+	if prevStart < 0 {
+		prevStart = 0
+	}
 	data := pongo2.Context{
-		"title": feed.Id,
-		"name":  feed.Id,
-		"feed":  feed,
+		"title":       feed.Id,
+		"name":        feed.Id,
+		"feed":        feed,
+		"prev_start":  prevStart,
+		"next_start":  req.Start + req.PageSize,
+		"show_paging": true,
 	}
 	s.HTML(c, 200, "feed.html", data)
 }
@@ -255,17 +262,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	if feedname == "" {
 		feedname = "home"
 	}
-
-	query := c.Request.URL.Query()
-	startS := query.Get("start")
-	if startS == "" {
-		startS = "0"
-	}
-	start, _ := strconv.Atoi(startS)
-	if start > 20000 {
-		start = 20000
-	}
-
+	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
 		Id:       feedname,
 		Start:    int32(start),
