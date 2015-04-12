@@ -460,14 +460,16 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 		return nil, err
 	}
 
-	// TODO: spread to friends?
 	if req.Like {
-		entry, err = store.Like(s.rdb, profile, entry)
+		var key *store.UUIDKey
+		key, entry, err = store.Like(s.rdb, profile, entry)
+		if err == nil {
+			s.spread(key)
+		}
 	} else {
 		entry, err = store.DeleteLike(s.rdb, profile, entry)
 	}
-
-	return entry, nil
+	return entry, err
 }
 
 func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*pb.Entry, error) {
@@ -493,7 +495,9 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 	return entry, nil
 }
 
-func (s *ApiServer) spread(key store.Key) {
+func (s *ApiServer) spread(key *store.UUIDKey) {
+	if key != nil {
+		s.cached["public"].Push(key.String())
+	}
 	// TODO: spread to friends?
-	s.cached["public"].Push(key.String())
 }

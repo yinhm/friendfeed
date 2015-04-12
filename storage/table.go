@@ -88,7 +88,6 @@ func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 	}
 
 	return key, nil
-
 }
 
 func UpdateProfile(mdb *Store, profile *pb.Profile) error {
@@ -388,8 +387,9 @@ func BindOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	return u, nil
 }
 
-func Like(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
+func Like(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*UUIDKey, *pb.Entry, error) {
 	var err error
+	var key *UUIDKey
 	index := -1
 	for i, like := range entry.Likes {
 		if like.From.Id == profile.Id {
@@ -407,9 +407,9 @@ func Like(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
 			},
 		}
 		entry.Likes = append(entry.Likes, like)
-		_, err = PutEntry(rdb, entry, true)
+		key, err = PutEntry(rdb, entry, true)
 	}
-	return entry, err
+	return key, entry, err
 }
 
 func DeleteLike(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
@@ -428,7 +428,7 @@ func DeleteLike(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, er
 	return entry, err
 }
 
-func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, body string) (Key, *pb.Entry, error) {
+func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, body string) (*UUIDKey, *pb.Entry, error) {
 	var err error
 	comment := &pb.Comment{
 		Date: time.Now().Format(time.RFC3339),
