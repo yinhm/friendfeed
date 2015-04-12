@@ -7,6 +7,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	. "github.com/smartystreets/goconvey/convey"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/storage/flake"
 )
 
 func TestTimeParse(t *testing.T) {
@@ -87,6 +88,19 @@ func TestPutEntry(t *testing.T) {
 		uuid1, _ := uuid.FromString(p.Uuid)
 		key := NewUUIDKey(TableReverseEntryIndex, uuid1)
 		n, err := ForwardTableScan(rdb, key, func(i int, k, v []byte) error {
+			return nil
+		})
+		So(err, ShouldBeNil)
+		So(n, ShouldEqual, 2)
+
+		// produce duplicated entry issue when server moved
+		flake.NewWorkerId = flake.NewRandWorkerId
+		// rdb.idGen.WorkerId = flake.NewRandWorkerId()
+		// force put exists entry
+		_, err = PutEntry(rdb, e, true)
+		So(err, ShouldBeNil)
+
+		n, err = ForwardTableScan(rdb, key, func(i int, k, v []byte) error {
 			return nil
 		})
 		So(err, ShouldBeNil)

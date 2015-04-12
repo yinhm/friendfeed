@@ -46,14 +46,19 @@ func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 	// | table | entry uuid |
 	key := NewUUIDKey(TableEntry, uuid2)
 	kb1 := key.Bytes()
-	if !update {
-		// query if it exists?
-		value, err := rdb.Get(kb1)
-		if err == nil && value != nil { // already exists
-			// log.Println("key exists, skip update:", key.String())
-			return key, &Error{"ok", ExistItem}
+	// is entry exists?
+	value, err := rdb.Get(kb1)
+	if err == nil && value != nil { // already exists
+		if update {
+			if err := rdb.Put(kb1, bytes); err != nil {
+				return nil, err
+			}
+			return key, nil
 		}
+		return key, &Error{"ok", ExistItem}
 	}
+
+	// not exists
 	if err := rdb.Put(kb1, bytes); err != nil {
 		return nil, err
 	}

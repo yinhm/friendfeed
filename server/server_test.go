@@ -329,6 +329,23 @@ func TestPostProfile(t *testing.T) {
 			So(len(feed.Entries), ShouldEqual, 1)
 			// prefix stripped
 			So(feed.Entries[0].Id, ShouldEqual, "2b43a9066074d120ed2e45494eea1797")
+
+			Convey("comment on the entry", func() {
+				cReq := &pb.CommentRequest{
+					Entry: entry.Id,
+					User:  profile.Uuid,
+					Body:  "this is a comment",
+				}
+				entry, err := srv.CommentEntry(context.Background(), cReq)
+				So(err, ShouldBeNil)
+				So(entry.Id, ShouldEqual, "2b43a9066074d120ed2e45494eea1797")
+
+				// BUG: duplicated entry when comment
+				feed, err := srv.FetchFeed(context.Background(), req)
+				So(err, ShouldBeNil)
+				So(feed.Id, ShouldEqual, "yinhm")
+				So(len(feed.Entries), ShouldEqual, 1)
+			})
 		})
 	})
 }

@@ -119,7 +119,8 @@ func (gen *Generator) NextId() (id Id, err error) {
 	return id, nil
 }
 
-func NewWorkerId() (id WorkerId) {
+// make it variable so we can test
+var NewWorkerId = func() (id WorkerId) {
 	if ifaces, err := net.Interfaces(); err == nil {
 		for _, iface := range ifaces {
 			if len(iface.HardwareAddr) == 0 {
