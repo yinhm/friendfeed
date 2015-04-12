@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	uuid "github.com/satori/go.uuid"
 	. "github.com/smartystreets/goconvey/convey"
@@ -582,5 +583,27 @@ func TestArchiveHistory(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(job.Key, ShouldEqual, "")
 		So(job.Status, ShouldNotEqual, "done")
+	})
+}
+
+func TestTimeTravelId(t *testing.T) {
+	setup()
+	defer teardown()
+
+	Convey("Given old time, should return the same time travel id", t, func() {
+		dt := "2009-06-25T18:23:38Z"
+		t, _ := time.Parse(time.RFC3339, dt)
+
+		fid1 := mdb.TimeTravelId(t)
+		for i := 0; i < 100; i++ {
+			fid2 := mdb.TimeTravelId(t)
+			So(fid1, ShouldEqual, fid2)
+		}
+
+		fid1 = mdb.TimeTravelReverseId(t)
+		for i := 0; i < 100; i++ {
+			fid2 := mdb.TimeTravelReverseId(t)
+			So(fid1, ShouldEqual, fid2)
+		}
 	})
 }
