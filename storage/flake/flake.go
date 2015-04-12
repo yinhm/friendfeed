@@ -89,12 +89,6 @@ func NewGeneratorFromTime(t time.Time) *Generator {
 	}
 }
 
-// Reconstructs a timestamp from the first 64 bits of an Id
-func ParseTimestamp(id Id) time.Time {
-	msSinceEpoch := int64(binary.BigEndian.Uint64(id[0:8]))
-	return time.Unix(msSinceEpoch/1e3, (msSinceEpoch%1e3)*1e6)
-}
-
 func (gen *Generator) Timestamp() time.Time {
 	return gen.TimeSource().UTC()
 }
@@ -144,4 +138,18 @@ func NewRandWorkerId() (id WorkerId) {
 	cryptorand.Read(bytes)
 	copy(id[:], bytes[0:len(id)])
 	return id
+}
+
+// Reconstructs a timestamp from the first 64 bits of an Id
+func ParseTimestamp(id Id) time.Time {
+	msSinceEpoch := int64(binary.BigEndian.Uint64(id[0:8]))
+	return time.Unix(msSinceEpoch/1e3, (msSinceEpoch%1e3)*1e6)
+}
+
+// Reconstructs a timestamp from the first 64 bits of an Id
+func ParseReverseTimestamp(id Id) time.Time {
+	ms := int64(binary.BigEndian.Uint64(id[0:8]))
+	reverseTime := time.Unix(ms/1e3, 0)
+	msSinceEpoch := int64(MaxTime.Sub(reverseTime).Seconds())
+	return time.Unix(msSinceEpoch, 0)
 }

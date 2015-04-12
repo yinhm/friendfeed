@@ -157,7 +157,8 @@ func TestNewRandWorkerId(t *testing.T) {
 func TestTimeTravel(t *testing.T) {
 	Convey("Parse timestamp from ID", t, func() {
 		tSlice := []time.Time{
-			time.Date(1964, 1, 1, 0, 0, 0, 0, time.UTC),
+			// unix time start from January 1, 1970 UTC
+			time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 			time.Date(1974, 1, 1, 0, 0, 0, 0, time.UTC),
 			time.Date(1984, 1, 1, 0, 0, 0, 0, time.UTC),
 			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -175,6 +176,35 @@ func TestTimeTravel(t *testing.T) {
 			gen := NewGeneratorFromTime(expect)
 			id, _ := gen.NextId()
 			got := ParseTimestamp(id)
+			So(got.Equal(expect), ShouldBeTrue)
+		}
+	})
+}
+
+func TestTimeReverseTravel(t *testing.T) {
+	Convey("Parse timestamp from ID", t, func() {
+		tSlice := []time.Time{
+			// unix time start from January 1, 1970 UTC
+			time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+			time.Date(1984, 1, 1, 0, 0, 0, 0, time.UTC),
+			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+			time.Date(2005, 9, 10, 23, 0, 0, 0, time.UTC),
+			time.Date(2015, 9, 10, 23, 0, 0, 0, time.UTC),
+			time.Date(2025, 4, 5, 23, 0, 0, 0, time.UTC),
+			time.Date(2035, 4, 5, 23, 0, 0, 0, time.UTC),
+			time.Date(2045, 4, 5, 23, 0, 0, 0, time.UTC),
+			time.Date(2145, 4, 5, 23, 0, 0, 0, time.UTC),
+			time.Date(2245, 4, 5, 23, 0, 0, 0, time.UTC),
+			time.Date(2254, 6, 4, 00, 0, 0, 0, time.UTC),
+		}
+
+		for _, expect := range tSlice {
+			// shift := MaxTime.Unix() - expect.Unix()
+			shift := MaxTime.Sub(expect)
+			reverseTime := time.Unix(int64(shift.Seconds()), 0)
+			gen := NewGeneratorFromTime(reverseTime)
+			id, _ := gen.NextId()
+			got := ParseReverseTimestamp(id)
 			So(got.Equal(expect), ShouldBeTrue)
 		}
 	})
