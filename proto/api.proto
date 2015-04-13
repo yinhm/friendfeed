@@ -62,6 +62,9 @@ message FeedJob {
   optional string status = 11;
   int32 max_limit = 12;
   bool force_update = 13;
+
+  // translate to new service(sync) job
+  Service service = 14;
 }
 
 message FeedSummary {

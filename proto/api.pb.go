@@ -57,11 +57,20 @@ type FeedJob struct {
 	Status      string `protobuf:"bytes,11,opt,name=status" json:"status,omitempty"`
 	MaxLimit    int32  `protobuf:"varint,12,opt,name=max_limit" json:"max_limit,omitempty"`
 	ForceUpdate bool   `protobuf:"varint,13,opt,name=force_update" json:"force_update,omitempty"`
+	// translate to new service(sync) job
+	Service *Service `protobuf:"bytes,14,opt,name=service" json:"service,omitempty"`
 }
 
 func (m *FeedJob) Reset()         { *m = FeedJob{} }
 func (m *FeedJob) String() string { return proto1.CompactTextString(m) }
 func (*FeedJob) ProtoMessage()    {}
+
+func (m *FeedJob) GetService() *Service {
+	if m != nil {
+		return m.Service
+	}
+	return nil
+}
 
 type FeedSummary struct {
 	Id          string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`

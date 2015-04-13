@@ -39,24 +39,26 @@ func (s *ApiServer) RefetchUserFeed() error {
 			return err
 		}
 
-		if profile.RemoteKey == "" {
+		feedinfo, _ := store.GetFeedinfo(s.rdb, profile.Uuid)
+		// only sync twitter service
+		graph := BuildGraph(feedinfo)
+		if _, ok := graph.Services["twitter"]; !ok {
 			return nil
 		}
 
+		service := graph.Services["twitter"]
+		if service.Oauth == nil {
+			return nil
+		}
 		job := &pb.FeedJob{
-			Uuid:        profile.Uuid,
-			Id:          profile.Id,
-			RemoteKey:   profile.RemoteKey,
-			TargetId:    profile.Id,
-			Start:       0,
-			PageSize:    100,
-			MaxLimit:    99,
-			ForceUpdate: true,
-			Created:     time.Now().Unix(),
-			Updated:     time.Now().Unix(),
+			Uuid:    feedinfo.Uuid,
+			Id:      feedinfo.Id,
+			Service: service,
+			Start:   0,
+			Created: time.Now().Unix(),
+			Updated: time.Now().Unix(),
 		}
 
-		log.Println(job)
 		_, err := s.EnqueJob(context.Background(), job)
 		j++
 		return err
@@ -119,11 +121,6 @@ func (s *ApiServer) RefetchFriendFeed() error {
 func (s *ApiServer) EnqueJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob, error) {
 	// Time ordered job queue
 	key := store.NewFlakeKey(store.TableJobFeed, s.mdb.NextId())
-	log.Printf("enque job: %s", key.String())
-
-	if job.TargetId == "" {
-		job.TargetId = job.Id
-	}
 
 	job.Key = key.String()
 	job.Created = time.Now().Unix()
@@ -134,7 +131,6 @@ func (s *ApiServer) EnqueJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob,
 		return nil, err
 	}
 	s.mdb.Put(key.Bytes(), bytes)
-
 	return job, nil
 }
 
@@ -144,7 +140,6 @@ func (s *ApiServer) GetFeedJob(ctx context.Context, in *pb.Worker) (*pb.FeedJob,
 
 	job, err := s.dequeJob()
 	if err != nil {
-		log.Println("deque err:", err)
 		return nil, err
 	}
 
@@ -161,52 +156,29 @@ func (s *ApiServer) GetFeedJob(ctx context.Context, in *pb.Worker) (*pb.FeedJob,
 		return nil, err
 	}
 	s.mdb.Put(key.Bytes(), bytes)
-
 	return job, nil
 }
 
 func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
-	// derived job
-	var firstJob *pb.FeedJob
-	// high priority job
-	var pqJob *pb.FeedJob
+	var job *pb.FeedJob
 
 	key := store.NewFlakeKey(store.TableJobFeed, s.mdb.NextId())
-
 	store.ForwardTableScan(s.mdb, key.Prefix(), func(i int, k, v []byte) error {
-		job := &pb.FeedJob{}
+		job = &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
 		}
-		if firstJob == nil {
-			firstJob = job
-		}
-		if job.Id == job.TargetId {
-			pqJob = job
-			return &store.Error{"ok", store.StopIteration}
-		}
+		return &store.Error{"ok", store.StopIteration}
+	})
 
-		if i > 1000 {
-			return &store.Error{"ok", store.StopIteration}
-		}
-
-		return nil
-	}) // WARN: err maybe ok error
-
-	if pqJob == nil && firstJob == nil {
-		return nil, fmt.Errorf("No more job available")
-	}
-
-	job := pqJob
 	if job == nil {
-		job = firstJob
+		return nil, fmt.Errorf("No more job available")
 	}
 
 	kb, _ := hex.DecodeString(job.Key)
 	if err := s.mdb.Delete(kb); err != nil {
 		return nil, err
 	}
-	log.Printf("dequeue job: %s", job.Key)
 	return job, nil
 }
 
@@ -406,18 +378,4 @@ func (s *ApiServer) RedoFailedJob() error {
 		return err
 	}
 	return nil
-}
-
-func (s *ApiServer) RebuildPublicFeed() {
-	prefix := store.TableProfile
-	store.ForwardTableScan(s.mdb, prefix, func(i int, key, value []byte) error {
-		item := &pb.Profile{}
-		if err := proto.Unmarshal(value, item); err != nil {
-			return err
-		}
-		// seek first 100 feeds?
-		log.Println("profile: %s", item.Id)
-		return nil
-	})
-	return
 }

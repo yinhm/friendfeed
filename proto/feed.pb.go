@@ -78,7 +78,9 @@ func (x StatusType) String() string {
 type OAuthUser struct {
 	Uuid string `protobuf:"bytes,1,opt,name=uuid" json:"uuid,omitempty"`
 	// User info from oauth2 providers
-	UserId            string `protobuf:"bytes,2,opt,name=user_id" json:"user_id,omitempty"`
+	// sequence
+	UserId string `protobuf:"bytes,2,opt,name=user_id" json:"user_id,omitempty"`
+	// login
 	Name              string `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
 	NickName          string `protobuf:"bytes,4,opt,name=nick_name" json:"nick_name,omitempty"`
 	AvaterUrl         string `protobuf:"bytes,5,opt,name=avater_url" json:"avater_url,omitempty"`
