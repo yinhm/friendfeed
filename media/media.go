@@ -113,9 +113,9 @@ func (c *Client) PostUrl(imageUrl string) (*Response, error) {
 // Google Cloud Storage Mirror
 // ----------------------------
 type Config struct {
-	AppId   string `json:"app_id"`
-	Bucket  string `json:"bucket"`
-	KeyFile string `json:"key_file"`
+	AppId   string `json:"gcs_app_id"`
+	Bucket  string `json:"gcs_bucket"`
+	KeyFile string `json:"gcs_key_file"`
 }
 
 type Object struct {

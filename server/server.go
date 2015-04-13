@@ -48,7 +48,7 @@ func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
 
 	config, err := media.NewConfigFromJSON(mediaConfigFile)
 	if err != nil {
-		log.Fatal("no media config file")
+		log.Fatal("no config file")
 	}
 	// TODO: fix lazy hack for local dev.
 	// if no key file then go google storage.

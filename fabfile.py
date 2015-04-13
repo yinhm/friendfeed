@@ -134,8 +134,8 @@ def deploy_config():
     sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))
     sudo('chmod 600 %s' % (key_path))
 
-    template = 'conf/media.json'
-    key_path = '/srv/ff/media.json'
+    template = 'conf/config.json'
+    key_path = '/srv/ff/config.json'
     upload_template(template, key_path,
                     context=context, backup=False, use_sudo=True)
     sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))

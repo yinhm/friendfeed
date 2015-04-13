@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"mime"
 	"net/http"
@@ -21,14 +23,15 @@ import (
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/gplus"
+	"github.com/markbates/goth/providers/twitter"
 )
 
 var options struct {
 	Debug bool `short:"d" description:"Enable debug" default:"false" env:"DEBUG"`
 	// RpcAddress string `short:"rpc" description:"Rpc Server Address" default:"localhost:8901" env:"RPC_ADDRESS"`
-	Port      uint   `short:"p" description:"HTTP server listen port" default:"8080" env:"PORT"`
-	SecretKey string `short:"s" description:"Key used to encryption cookies" default:"randombitsreplacedlkjsa" env:"SECRET_KEY"`
-	KeyFile   string `short:"f" description:"Google OAuth2 Client Config" env:"GoogleKeyFile"`
+	Port       uint   `short:"p" description:"HTTP server listen port" default:"8080" env:"PORT"`
+	SecretKey  string `short:"s" description:"Key used to encryption cookies" default:"randombitsreplacedlkjsa" env:"SECRET_KEY"`
+	ConfigFile string `short:"c" description:"Config file" env:"CONFIG_FILE"`
 }
 
 func init() {
@@ -37,6 +40,26 @@ func init() {
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+type Config struct {
+	GAuthKeyFile       string `json:"gauth_key_file"`
+	TwitterApiKey      string `json:"twitter_api_key"`
+	TwitterApiSecret   string `json:"twitter_api_secret"`
+	TwitterApiCallback string `json:"twitter_api_callback"`
+}
+
+func NewConfigFromJSON(filename string) (*Config, error) {
+	rawdata, err := ioutil.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	config := new(Config)
+	if err := json.Unmarshal(rawdata, &config); err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 func waitShutdown() {
@@ -90,9 +113,14 @@ func FaviconHandler(c *gin.Context) {
 }
 
 func Serve(s *server.Server) {
-	gauthConfig := server.GoogleAuthConfig(options.KeyFile, options.Debug)
+	config, err := NewConfigFromJSON(options.ConfigFile)
+	if err != nil {
+		log.Fatal("no config file")
+	}
+
+	gauthConfig := server.GoogleAuthConfig(config.GAuthKeyFile, options.Debug)
 	goth.UseProviders(
-		// twitter.New("yDY5kMcl71OAdHDiJc0S7MMOk", "vWsANrwaNHeIsdKg0t5AEixgUgbQZiQGpoklDfHhSnpBKQCMlP", "https://friendfeed.me/auth/twitter/callback"),
+		twitter.New(config.TwitterApiKey, config.TwitterApiSecret, config.TwitterApiCallback),
 		gplus.New(gauthConfig.ClientID, gauthConfig.ClientSecret, gauthConfig.RedirectURL),
 	)
 	providers := goth.GetProviders()

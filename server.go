@@ -21,7 +21,7 @@ var config struct {
 func init() {
 	flag.StringVar(&config.address, "addr", ":8901", "RPC Server Url")
 	flag.StringVar(&config.dbpath, "db", "/srv/ff/db", "RPC Server Url")
-	flag.StringVar(&config.config, "c", "/srv/ff/media.json", "media config file")
+	flag.StringVar(&config.config, "c", "/srv/ff/config.json", "config file")
 }
 
 func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
