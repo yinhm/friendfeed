@@ -13,7 +13,7 @@ import (
 )
 
 func (s *ApiServer) RefetchJobTicker() {
-	t := time.Tick(15 * time.Minute)
+	t := time.Tick(2 * time.Minute)
 	for _ = range t {
 		log.Printf("refetch user feeds.")
 		s.RefetchUserFeed()
