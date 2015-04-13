@@ -106,6 +106,15 @@ func (fa *FeedAgent) Start() {
 	}
 
 	log.Print("start processing...")
+
+	// lazy init
+	tc, err := NewConfigFromJSON(config.file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	anaconda.SetConsumerKey(tc.ApiKey)
+	anaconda.SetConsumerSecret(tc.ApiSecret)
+
 	// run feed mirror job forever
 	for {
 		job, err := fa.newJob()
@@ -257,13 +266,6 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 
 func main() {
 	flag.Parse()
-
-	tc, err := NewConfigFromJSON(config.file)
-	if err != nil {
-		log.Fatal(err)
-	}
-	anaconda.SetConsumerKey(tc.ApiKey)
-	anaconda.SetConsumerSecret(tc.ApiSecret)
 
 	conn, err := grpc.Dial(config.address)
 	if err != nil {
