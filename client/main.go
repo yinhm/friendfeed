@@ -184,7 +184,14 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 	tweets, _ := api.GetUserTimeline(v)
 
 	n := 0
-	for _, tweet := range tweets {
+	for i := len(tweets) - 1; i >= 0; i-- {
+		tweet := tweets[i]
+
+		// skip reply status
+		if tweet.InReplyToStatusID != 0 {
+			continue
+		}
+
 		url := "https://twitter.com/" + tweet.User.ScreenName + "/status/" + tweet.IdStr
 		// deterministic uuid or feed will be polluted
 		uuid1 := uuid.NewV5(uuid.NamespaceURL, url)
@@ -243,9 +250,6 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 		}
 
 		n++
-		if n > 5 {
-			break
-		}
 	}
 	return n, nil
 }
