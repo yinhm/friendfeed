@@ -316,7 +316,7 @@ func GetOAuthUser(mdb *Store, provider, userId string) (Key, *pb.OAuthUser, erro
 		return nil, nil, err
 	}
 	if len(rawdata) == 0 {
-		return nil, nil, fmt.Errorf("user not found")
+		return key, nil, nil
 	}
 
 	v := new(pb.OAuthUser)
@@ -329,7 +329,10 @@ func GetOAuthUser(mdb *Store, provider, userId string) (Key, *pb.OAuthUser, erro
 
 func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	key, v, err := GetOAuthUser(mdb, u.Provider, u.UserId)
-	if err == nil {
+	if err != nil {
+		return nil, err
+	}
+	if v != nil {
 		if u.Uuid != "" && v.Uuid != "" {
 			uuid1, _ := uuid.FromString(u.Uuid)
 			uuid2, _ := uuid.FromString(v.Uuid)
