@@ -1,0 +1,9 @@
+{
+  "gcs_app_id": "ff-20150409",
+  "gcs_bucket": "ffmedia",
+  "gcs_key_file": "/srv/ff/gcs.json",
+  "gauth_key_file": "/srv/ff/gauth.json",
+  "twitter_api_key": "",
+  "twitter_api_secret": "",
+  "twitter_api_callback": ""
+}
