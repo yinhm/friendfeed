@@ -196,8 +196,11 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 			return err
 		}
 		entryCount++
-		// save db
-		key, err := store.PutEntry(s.rdb, entry, false)
+		key, err := store.PutEntry(s.rdb, entry, false) // always use false
+		if err == nil {
+			// no error or new key
+			s.spread(key)
+		}
 		// Retuen if not force update and all entries are exists
 		// TODO: client dead lock???
 		if serr, ok := err.(*store.Error); ok {
@@ -209,11 +212,8 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 				// }
 			}
 		}
-
 		if err != nil {
 			log.Println("db error:", err)
-		} else {
-			s.spread(key)
 		}
 
 		go s.mirrorMedia(s.fs, entry)

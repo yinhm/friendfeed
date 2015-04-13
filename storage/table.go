@@ -49,6 +49,8 @@ func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 	// is entry exists?
 	value, err := rdb.Get(kb1)
 	if err == nil && value != nil { // already exists
+		// TODO: it is not safe to update(comments/likes)
+		// split comments/likes from entry
 		if update {
 			if err := rdb.Put(kb1, bytes); err != nil {
 				return nil, err

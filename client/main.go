@@ -226,12 +226,13 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 			Date:    tt.Format(time.RFC3339),
 			Body:    tweet.Text,
 			RawBody: tweet.Text,
+			RawLink: url,
 			From:    from,
 			// To:         []*pb.Feed{from},
 			Thumbnails: thumbnails,
 			Via: &pb.Via{
 				Name: "Twitter",
-				Url:  "https://twitter.com/" + tweet.User.ScreenName,
+				Url:  url,
 			},
 			ProfileUuid: job.Profile.Uuid,
 		}
