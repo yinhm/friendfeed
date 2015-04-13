@@ -20,10 +20,10 @@ import (
 	server "github.com/yinhm/friendfeed/httpd/src"
 	"google.golang.org/grpc"
 
-	"github.com/yinhm/goth"
-	"github.com/yinhm/goth/gothic"
-	"github.com/yinhm/goth/providers/gplus"
-	"github.com/yinhm/goth/providers/twitter"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/gplus"
+	"github.com/markbates/goth/providers/twitter"
 )
 
 var options struct {
