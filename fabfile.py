@@ -254,7 +254,7 @@ def deploy_web():
     template = 'conf/ffweb.conf'
     context = copy(env)
     context.salt = open('conf/salt.conf').read().strip()
-    context.auth_file = key_path
+    context.config_file = '/srv/ff/config.json'
     context.web_path = web_path
     context.www_public_path = web_path
     upload_template(template, '/etc/init/ffweb.conf',
