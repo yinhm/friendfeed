@@ -53,6 +53,7 @@ func (s *ApiServer) RefetchUserFeed() error {
 		job := &pb.FeedJob{
 			Uuid:    feedinfo.Uuid,
 			Id:      feedinfo.Id,
+			Profile: profile,
 			Service: service,
 			Start:   0,
 			Created: time.Now().Unix(),
@@ -237,6 +238,8 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.RefetchUserFeed()
 	case "RefetchFriendFeed":
 		s.RefetchFriendFeed()
+	case "TestJob":
+		s.TestJob()
 	}
 
 	// TODO: nothing here
@@ -378,4 +381,31 @@ func (s *ApiServer) RedoFailedJob() error {
 		return err
 	}
 	return nil
+}
+
+func (s *ApiServer) TestJob() error {
+	profile, _ := store.GetProfile(s.mdb, "yinhm")
+	feedinfo, _ := store.GetFeedinfo(s.rdb, profile.Uuid)
+	// only sync twitter service
+	graph := BuildGraph(feedinfo)
+	if _, ok := graph.Services["twitter"]; !ok {
+		return nil
+	}
+
+	service := graph.Services["twitter"]
+	if service.Oauth == nil {
+		return nil
+	}
+	job := &pb.FeedJob{
+		Uuid:    feedinfo.Uuid,
+		Id:      feedinfo.Id,
+		Profile: profile,
+		Service: service,
+		Start:   0,
+		Created: time.Now().Unix(),
+		Updated: time.Now().Unix(),
+	}
+
+	_, err := s.EnqueJob(context.Background(), job)
+	return err
 }

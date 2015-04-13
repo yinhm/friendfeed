@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
+	uuid "github.com/satori/go.uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -184,9 +185,66 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 
 	n := 0
 	for _, tweet := range tweets {
-		fmt.Printf("%s\n", tweet.Text)
+		url := "https://twitter.com/" + tweet.User.ScreenName + "/status/" + tweet.IdStr
+		// deterministic uuid or feed will be polluted
+		uuid1 := uuid.NewV5(uuid.NamespaceURL, url)
+		tt, err := tweet.CreatedAtTime()
+		if err != nil {
+			continue
+		}
+
+		from := &pb.Feed{
+			Id:   job.Profile.Id,
+			Name: job.Profile.Name,
+			Type: job.Profile.Type,
+		}
+
+		var thumbnails []*pb.Thumbnail
+		for _, media := range tweet.Entities.Media {
+			if media.Type != "photo" {
+				continue
+			}
+
+			url := ""
+			if media.Media_url_https != "" {
+				url = media.Media_url_https
+			} else {
+				url = media.Media_url
+			}
+			thumb := &pb.Thumbnail{
+				Url:    url,
+				Link:   media.Expanded_url,
+				Width:  int32(media.Sizes.Small.W),
+				Height: int32(media.Sizes.Small.H),
+			}
+			thumbnails = append(thumbnails, thumb)
+		}
+
+		entry := &pb.Entry{
+			Id:      uuid1.String(),
+			Url:     url,
+			Date:    tt.Format(time.RFC3339),
+			Body:    tweet.Text,
+			RawBody: tweet.Text,
+			From:    from,
+			// To:         []*pb.Feed{from},
+			Thumbnails: thumbnails,
+			Via: &pb.Via{
+				Name: "Twitter",
+				Url:  "https://twitter.com/" + tweet.User.ScreenName,
+			},
+			ProfileUuid: job.Profile.Uuid,
+		}
+
+		if err := stream.Send(entry); err != nil {
+			log.Printf("%v.Send(%v) = %v", stream, entry, err)
+			return n, err
+		}
+
 		n++
-		break
+		if n > 5 {
+			break
+		}
 	}
 	return n, nil
 }

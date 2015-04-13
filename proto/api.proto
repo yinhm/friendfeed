@@ -65,6 +65,7 @@ message FeedJob {
 
   // translate to new service(sync) job
   Service service = 14;
+  Profile profile = 15;
 }
 
 message FeedSummary {

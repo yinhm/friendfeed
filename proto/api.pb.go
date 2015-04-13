@@ -59,6 +59,7 @@ type FeedJob struct {
 	ForceUpdate bool   `protobuf:"varint,13,opt,name=force_update" json:"force_update,omitempty"`
 	// translate to new service(sync) job
 	Service *Service `protobuf:"bytes,14,opt,name=service" json:"service,omitempty"`
+	Profile *Profile `protobuf:"bytes,15,opt,name=profile" json:"profile,omitempty"`
 }
 
 func (m *FeedJob) Reset()         { *m = FeedJob{} }
@@ -68,6 +69,13 @@ func (*FeedJob) ProtoMessage()    {}
 func (m *FeedJob) GetService() *Service {
 	if m != nil {
 		return m.Service
+	}
+	return nil
+}
+
+func (m *FeedJob) GetProfile() *Profile {
+	if m != nil {
+		return m.Profile
 	}
 	return nil
 }
