@@ -326,8 +326,8 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		kb, _ := hex.DecodeString(key)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
-		if err != nil {
-			return nil, err
+		if err != nil || len(rawdata) == 0 {
+			return nil, fmt.Errorf("entry data missing")
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
@@ -375,8 +375,8 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
-		if err != nil {
-			return err
+		if err != nil || len(rawdata) == 0 {
+			return fmt.Errorf("entry data missing")
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
