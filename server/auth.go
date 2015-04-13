@@ -31,11 +31,12 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			if err != nil {
 				return nil, err
 			}
+			// WARN: goth user.NickName == screen_name which is twitter id
 			service := &pb.Service{
 				Id:       "twitter",
 				Name:     "Twitter",
 				Icon:     "/static/images/icons/twitter.png",
-				Profile:  "https://twitter.com/" + user.Name,
+				Profile:  "https://twitter.com/" + user.NickName,
 				Username: user.Name,
 				Oauth:    user,
 			}
@@ -61,4 +62,21 @@ func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*
 		return nil, err
 	}
 	return store.GetProfileFromUuid(s.mdb, uuid1)
+}
+
+func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {
+	feedinfo, err := store.GetFeedinfo(s.rdb, req.User)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, item := range feedinfo.Services {
+		if item.Id == req.Service {
+			feedinfo.Services = append(feedinfo.Services[:i], feedinfo.Services[i+1:]...)
+		}
+	}
+	if err := store.SaveFeedinfo(s.rdb, feedinfo.Uuid, feedinfo); err != nil {
+		return nil, err
+	}
+	return feedinfo, nil
 }

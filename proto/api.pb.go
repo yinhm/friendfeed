@@ -168,6 +168,15 @@ func (m *CommentRequest) Reset()         { *m = CommentRequest{} }
 func (m *CommentRequest) String() string { return proto1.CompactTextString(m) }
 func (*CommentRequest) ProtoMessage()    {}
 
+type ServiceRequest struct {
+	User    string `protobuf:"bytes,1,opt,name=user" json:"user,omitempty"`
+	Service string `protobuf:"bytes,2,opt,name=service" json:"service,omitempty"`
+}
+
+func (m *ServiceRequest) Reset()         { *m = ServiceRequest{} }
+func (m *ServiceRequest) String() string { return proto1.CompactTextString(m) }
+func (*ServiceRequest) ProtoMessage()    {}
+
 func init() {
 }
 
@@ -196,6 +205,8 @@ type ApiClient interface {
 	PutOAuth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error)
 	// rpc BindAuth(OAuthUser) returns (OAuthUser) {}
 	BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*OAuthUser, error)
+	// service
+	DeleteService(ctx context.Context, in *ServiceRequest, opts ...grpc.CallOption) (*Feedinfo, error)
 	Command(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandResponse, error)
 }
 
@@ -401,6 +412,15 @@ func (c *apiClient) BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grp
 	return out, nil
 }
 
+func (c *apiClient) DeleteService(ctx context.Context, in *ServiceRequest, opts ...grpc.CallOption) (*Feedinfo, error) {
+	out := new(Feedinfo)
+	err := grpc.Invoke(ctx, "/proto.Api/DeleteService", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) Command(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandResponse, error) {
 	out := new(CommandResponse)
 	err := grpc.Invoke(ctx, "/proto.Api/Command", in, out, c.cc, opts...)
@@ -435,6 +455,8 @@ type ApiServer interface {
 	PutOAuth(context.Context, *OAuthUser) (*Profile, error)
 	// rpc BindAuth(OAuthUser) returns (OAuthUser) {}
 	BindUserFeed(context.Context, *OAuthUser) (*OAuthUser, error)
+	// service
+	DeleteService(context.Context, *ServiceRequest) (*Feedinfo, error)
 	Command(context.Context, *CommandRequest) (*CommandResponse, error)
 }
 
@@ -662,6 +684,18 @@ func _Api_BindUserFeed_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
+func _Api_DeleteService_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(ServiceRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).DeleteService(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _Api_Command_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
 	in := new(CommandRequest)
 	if err := proto1.Unmarshal(buf, in); err != nil {
@@ -733,6 +767,10 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BindUserFeed",
 			Handler:    _Api_BindUserFeed_Handler,
+		},
+		{
+			MethodName: "DeleteService",
+			Handler:    _Api_DeleteService_Handler,
 		},
 		{
 			MethodName: "Command",

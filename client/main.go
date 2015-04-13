@@ -180,7 +180,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 	api := anaconda.NewTwitterApi(authinfo.AccessToken, authinfo.AccessTokenSecret)
 
 	v := url.Values{}
-	v.Set("screen_name", authinfo.Name)
+	v.Set("screen_name", authinfo.NickName) // goth user.NickName == screen_name
 	tweets, _ := api.GetUserTimeline(v)
 
 	n := 0

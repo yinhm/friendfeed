@@ -159,6 +159,8 @@ func Serve(s *server.Server) {
 		authorized.GET("/import/", s.ImportHandler)
 		// authorized.POST("/ffimport/", s.FriendFeedImportHandler)
 		authorized.GET("/import/twitter", s.TwitterImportHandler)
+		// TODO: fix get
+		authorized.GET("/service/:service/delete", s.DeleteServiceHandler)
 	}
 
 	r.GET("/", s.HomeHandler)

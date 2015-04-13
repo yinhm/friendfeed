@@ -12,6 +12,9 @@
         {{ service.Name }}
         {% if service.Username != "" %}: {{ service.Username }}{% endif %}
       </a>
+      <a href="/account/service/{{service.Id}}/delete">
+        DELETE(all of {{service.Id}} type)
+      </a>
     </li>
     {% endfor %}
   </ul>

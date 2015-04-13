@@ -38,6 +38,9 @@ service Api {
   // rpc BindAuth(OAuthUser) returns (OAuthUser) {}
   rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
 
+  // service
+  rpc DeleteService(ServiceRequest) returns (Feedinfo) {}
+
   rpc Command(CommandRequest) returns (CommandResponse) {}
 }
 
@@ -145,4 +148,9 @@ message CommentRequest {
   string entry = 1;
   string user = 2;
   string body = 3;
+}
+
+message ServiceRequest {
+  string user = 1;
+  string service = 2;
 }

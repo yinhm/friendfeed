@@ -192,6 +192,28 @@ func (s *Server) TwitterImportHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/auth/twitter")
 }
 
+func (s *Server) DeleteServiceHandler(c *gin.Context) {
+	service := c.Params.ByName("service")
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	uuid := CurrentUserUuid(c)
+	if uuid == "" {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	req := &pb.ServiceRequest{
+		User:    uuid,
+		Service: service,
+	}
+	_, err := s.client.DeleteService(ctx, req)
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	c.Redirect(http.StatusFound, "/account/import")
+}
+
 func (s *Server) FriendFeedImportHandler(c *gin.Context) {
 	c.Request.ParseForm()
 
