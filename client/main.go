@@ -74,31 +74,31 @@ func randhash() string {
 	return hex.EncodeToString(h.Sum(nil))[:12]
 }
 
-type MirrorAgent struct {
+type FeedAgent struct {
 	client pb.ApiClient
 	worker *pb.Worker
 }
 
-func NewMirrorAgent(conn *grpc.ClientConn) *MirrorAgent {
+func NewFeedAgent(conn *grpc.ClientConn) *FeedAgent {
 	c := pb.NewApiClient(conn)
 	worker := &pb.Worker{
 		Id: randhash(),
 	}
-	return &MirrorAgent{
+	return &FeedAgent{
 		client: c,
 		worker: worker,
 	}
 }
 
-func (ma *MirrorAgent) Start() {
+func (fa *FeedAgent) Start() {
 	if config.command != "" {
 		cmd := &pb.CommandRequest{config.command}
-		ma.client.Command(context.Background(), cmd)
+		fa.client.Command(context.Background(), cmd)
 		return
 	}
 
 	if config.debug && config.username != "" {
-		if err := ma.Debug(config.username); err != nil {
+		if err := fa.Debug(config.username); err != nil {
 			log.Fatalf("Debug failed: %s", err)
 		}
 		return
@@ -107,14 +107,14 @@ func (ma *MirrorAgent) Start() {
 	log.Print("start processing...")
 	// run feed mirror job forever
 	for {
-		job, err := ma.newJob()
+		job, err := fa.newJob()
 		if err != nil {
 			log.Printf("Get job failed: %v", err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		if err := ma.process(job); err != nil {
+		if err := fa.process(job); err != nil {
 			log.Printf("Archive failed: %v", err)
 			time.Sleep(1 * time.Second)
 			continue
@@ -122,13 +122,13 @@ func (ma *MirrorAgent) Start() {
 	}
 }
 
-func (ma *MirrorAgent) Debug(name string) error {
+func (fa *FeedAgent) Debug(name string) error {
 	req := &pb.FeedRequest{
 		Id:       name,
 		Start:    0,
 		PageSize: 50,
 	}
-	feed, err := ma.client.FetchFeed(context.Background(), req)
+	feed, err := fa.client.FetchFeed(context.Background(), req)
 	if err != nil {
 		return err
 	}
@@ -141,22 +141,22 @@ func (ma *MirrorAgent) Debug(name string) error {
 	return nil
 }
 
-func (ma *MirrorAgent) newJob() (*pb.FeedJob, error) {
-	feedjob, err := ma.client.GetFeedJob(context.Background(), ma.worker)
+func (fa *FeedAgent) newJob() (*pb.FeedJob, error) {
+	feedjob, err := fa.client.GetFeedJob(context.Background(), fa.worker)
 	if err != nil {
 		return nil, err
 	}
 	return feedjob, nil
 }
 
-func (ma *MirrorAgent) process(job *pb.FeedJob) error {
+func (fa *FeedAgent) process(job *pb.FeedJob) error {
 	log.Printf("Start fetching entries for: %s", job.Id)
-	total, err := ma.fetchService(job)
+	total, err := fa.fetchService(job)
 	if err != nil {
 		return err
 	}
 
-	job, err = ma.client.FinishJob(context.Background(), job)
+	job, err = fa.client.FinishJob(context.Background(), job)
 	if err != nil {
 		return err
 	}
@@ -165,8 +165,8 @@ func (ma *MirrorAgent) process(job *pb.FeedJob) error {
 	return nil
 }
 
-func (ma *MirrorAgent) fetchService(job *pb.FeedJob) (int, error) {
-	stream, err := ma.client.ArchiveFeed(context.Background())
+func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
+	stream, err := fa.client.ArchiveFeed(context.Background())
 	defer stream.CloseAndRecv()
 	if err != nil {
 		return 0, err
@@ -207,6 +207,6 @@ func main() {
 	}
 	defer conn.Close()
 
-	agent := NewMirrorAgent(conn)
+	agent := NewFeedAgent(conn)
 	agent.Start()
 }
