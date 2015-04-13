@@ -236,6 +236,8 @@ message Service {
   optional string profile = 4;
   optional string username = 5;
   optional OAuthUser oauth = 6;
+  optional int64 created = 7;
+  optional int64 updated = 8;
 }
 
 // message Connection {

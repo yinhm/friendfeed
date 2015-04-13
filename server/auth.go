@@ -1,6 +1,8 @@
 package server
 
 import (
+	"time"
+
 	uuid "github.com/satori/go.uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
@@ -39,6 +41,8 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 				Profile:  "https://twitter.com/" + user.NickName,
 				Username: user.Name,
 				Oauth:    user,
+				Created:  time.Now().Unix(),
+				Updated:  time.Now().Unix(),
 			}
 			feedinfo.Services = append(feedinfo.Services, service)
 			err = store.SaveFeedinfo(s.rdb, profile.Uuid, feedinfo)

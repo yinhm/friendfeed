@@ -173,6 +173,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 		return 0, err
 	}
 
+	updated := time.Unix(job.Service.Updated, 0)
 	authinfo := job.Service.Oauth
 	if authinfo == nil {
 		return 0, fmt.Errorf("skip job: no authinfo")
@@ -196,7 +197,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 		// deterministic uuid or feed will be polluted
 		uuid1 := uuid.NewV5(uuid.NamespaceURL, url)
 		tt, err := tweet.CreatedAtTime()
-		if err != nil {
+		if err != nil || tt.Before(updated) {
 			continue
 		}
 

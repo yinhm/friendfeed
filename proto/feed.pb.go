@@ -387,6 +387,8 @@ type Service struct {
 	Profile  string     `protobuf:"bytes,4,opt,name=profile" json:"profile,omitempty"`
 	Username string     `protobuf:"bytes,5,opt,name=username" json:"username,omitempty"`
 	Oauth    *OAuthUser `protobuf:"bytes,6,opt,name=oauth" json:"oauth,omitempty"`
+	Created  int64      `protobuf:"varint,7,opt,name=created" json:"created,omitempty"`
+	Updated  int64      `protobuf:"varint,8,opt,name=updated" json:"updated,omitempty"`
 }
 
 func (m *Service) Reset()         { *m = Service{} }
