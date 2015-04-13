@@ -33,7 +33,7 @@ Attach Disk
     gcloud compute regions list
 
     // create then select regoin
-    gcloud compute disks create ffdb --size 200GB
+    gcloud compute disks create ffdb --size 500GB
     gcloud compute instances attach-disk "instance-1" --disk ffdb --zone "us-central1-f"
 
   ssh to instance
@@ -44,6 +44,8 @@ Attach Disk
     sudo sh -c 'cat "/dev/sdb /srv ext4 noatime 0 0" >> /etc/fstab'
     sudo mount /srv
 
+  WARN: Google Cloud Disk IOPS performance limits grow linearly with the size
+  of the persistent disk volume, you may not want to create disk <=200GB.
 
 Firewall
 ========
@@ -69,14 +71,19 @@ Golang Env
     sudo apt-get install imagemagick -y
 
 
-Media Server
+Server Config
 ============
 
-  Media files will be archived to Google Cloud Storage if it was from friendfeed.
+  Config files include media, twitter, gauth file, etc
 
-    cp conf/example.media.json conf/media.json
+    cp conf/example.config.json conf/config.json
 
-  Change media.json according to your project.  
+  Change config.json according to your project.
+
+Media
+====
+
+All medias will be archived to Google Cloud Storage if it was from friendfeed.
 
 RocksDB
 =======
@@ -142,5 +149,8 @@ Routine update
     fab production deploy_web
 
 deploy_client only start one client, if you need more, start ffclient manually.
+
+
+Notice: The FriendFeed clone project is not affiliated with FriendFeed.
 
 [1] http://blog.friendfeed.com/2015/03/dear-friendfeed-community-were.html
