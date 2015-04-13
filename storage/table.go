@@ -301,29 +301,35 @@ func ForwardTableScan(db *Store, prefix Key, fn ScanCallback) (n int, err error)
 	return
 }
 
-func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
+func GetOAuthUser(mdb *Store, provider, userId string) (Key, *pb.OAuthUser, error) {
 	var pt PrefixTable
-	switch u.Provider {
+	switch provider {
 	case "google":
 		pt = TableOAuthGoogle
 	case "twitter":
 		pt = TableOAuthTwitter
 	}
 
-	key := NewMetaKey(pt, u.UserId)
+	key := NewMetaKey(pt, userId)
 	rawdata, err := mdb.Get(key.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if len(rawdata) == 0 {
+		return nil, nil, fmt.Errorf("user not found")
 	}
 
-	// retrieve uuid
-	if len(rawdata) != 0 {
-		v := new(pb.OAuthUser)
-		err = proto.Unmarshal(rawdata, v)
-		if err != nil {
-			return nil, err
-		}
+	v := new(pb.OAuthUser)
+	err = proto.Unmarshal(rawdata, v)
+	if err != nil {
+		return nil, nil, err
+	}
+	return key, v, nil
+}
 
+func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
+	key, v, err := GetOAuthUser(mdb, u.Provider, u.UserId)
+	if err == nil {
 		if u.Uuid != "" && v.Uuid != "" {
 			uuid1, _ := uuid.FromString(u.Uuid)
 			uuid2, _ := uuid.FromString(v.Uuid)
@@ -331,7 +337,9 @@ func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 				return nil, fmt.Errorf("user mismatch")
 			}
 		}
-		u.Uuid = v.Uuid
+		if u.Uuid == "" {
+			u.Uuid = v.Uuid
+		}
 	}
 
 	bytes, err := proto.Marshal(u)

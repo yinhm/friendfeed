@@ -166,12 +166,26 @@ func (s *Server) AccountHandler(c *gin.Context) {
 }
 
 func (s *Server) ImportHandler(c *gin.Context) {
-	c.AbortWithStatus(401)
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	uuid := CurrentUserUuid(c)
+	if uuid == "" {
+		c.String(http.StatusBadRequest, "no profile yet")
+		return
+	}
+	req := &pb.ProfileRequest{Uuid: uuid}
+	graph, err := s.client.FetchGraph(ctx, req)
+	if err != nil {
+		c.String(http.StatusBadRequest, "no profile yet")
+		return
+	}
 
 	data := pongo2.Context{
-		"title": "import your",
+		"title": "Import services",
+		"graph": graph,
 	}
-	c.HTML(200, "import.html", data)
+	s.HTML(c, 200, "import.html", data)
 }
 
 func (s *Server) TwitterImportHandler(c *gin.Context) {

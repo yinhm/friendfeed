@@ -33,7 +33,9 @@ enum StatusType {
 message OAuthUser {
   string uuid = 1;
   // User info from oauth2 providers
+  // sequence
   string user_id = 2;
+  // login
   string name = 3;
   string nick_name = 4;
   string avater_url = 5;

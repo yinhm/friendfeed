@@ -20,7 +20,32 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		if err != nil {
 			return nil, err
 		}
-		return store.GetProfileFromUuid(s.mdb, uuid1)
+		profile, err := store.GetProfileFromUuid(s.mdb, uuid1)
+		if err != nil {
+			return nil, err
+		}
+
+		// build services if profile present
+		if authinfo.Provider == "twitter" {
+			feedinfo, err := store.GetFeedinfo(s.rdb, profile.Uuid)
+			if err != nil {
+				return nil, err
+			}
+			service := &pb.Service{
+				Id:       "twitter",
+				Name:     "Twitter",
+				Icon:     "/static/images/icons/twitter.png",
+				Profile:  "https://twitter.com/" + user.Name,
+				Username: user.Name,
+				Oauth:    user,
+			}
+			feedinfo.Services = append(feedinfo.Services, service)
+			err = store.SaveFeedinfo(s.rdb, profile.Uuid, feedinfo)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return profile, nil
 	}
 
 	return new(pb.Profile), nil
