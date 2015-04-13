@@ -34,7 +34,8 @@ service Api {
   rpc LikeEntry(LikeRequest) returns (Entry) {}
   rpc CommentEntry(CommentRequest) returns (Entry) {}
 
-  rpc Auth(OAuthUser) returns (Profile) {}
+  rpc PutOAuth(OAuthUser) returns (Profile) {}
+  // rpc BindAuth(OAuthUser) returns (OAuthUser) {}
   rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}

@@ -78,14 +78,15 @@ func (x StatusType) String() string {
 type OAuthUser struct {
 	Uuid string `protobuf:"bytes,1,opt,name=uuid" json:"uuid,omitempty"`
 	// User info from oauth2 providers
-	UserId      string `protobuf:"bytes,2,opt,name=user_id" json:"user_id,omitempty"`
-	Name        string `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
-	NickName    string `protobuf:"bytes,4,opt,name=nick_name" json:"nick_name,omitempty"`
-	AvaterUrl   string `protobuf:"bytes,5,opt,name=avater_url" json:"avater_url,omitempty"`
-	Email       string `protobuf:"bytes,6,opt,name=email" json:"email,omitempty"`
-	AccessToken string `protobuf:"bytes,7,opt,name=access_token" json:"access_token,omitempty"`
-	Provider    string `protobuf:"bytes,8,opt,name=provider" json:"provider,omitempty"`
-	RemoteKey   string `protobuf:"bytes,9,opt,name=remote_key" json:"remote_key,omitempty"`
+	UserId            string `protobuf:"bytes,2,opt,name=user_id" json:"user_id,omitempty"`
+	Name              string `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+	NickName          string `protobuf:"bytes,4,opt,name=nick_name" json:"nick_name,omitempty"`
+	AvaterUrl         string `protobuf:"bytes,5,opt,name=avater_url" json:"avater_url,omitempty"`
+	Email             string `protobuf:"bytes,6,opt,name=email" json:"email,omitempty"`
+	AccessToken       string `protobuf:"bytes,7,opt,name=access_token" json:"access_token,omitempty"`
+	AccessTokenSecret string `protobuf:"bytes,10,opt,name=access_token_secret" json:"access_token_secret,omitempty"`
+	Provider          string `protobuf:"bytes,8,opt,name=provider" json:"provider,omitempty"`
+	RemoteKey         string `protobuf:"bytes,9,opt,name=remote_key" json:"remote_key,omitempty"`
 }
 
 func (m *OAuthUser) Reset()         { *m = OAuthUser{} }
@@ -378,16 +379,24 @@ func (m *Feedinfo) GetServices() []*Service {
 //   * profile? - the profile URL for this service, if any
 //   * username? - the username for this service, if any
 type Service struct {
-	Id       string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
-	Name     string `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	Icon     string `protobuf:"bytes,3,opt,name=icon" json:"icon,omitempty"`
-	Profile  string `protobuf:"bytes,4,opt,name=profile" json:"profile,omitempty"`
-	Username string `protobuf:"bytes,5,opt,name=username" json:"username,omitempty"`
+	Id       string     `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Name     string     `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Icon     string     `protobuf:"bytes,3,opt,name=icon" json:"icon,omitempty"`
+	Profile  string     `protobuf:"bytes,4,opt,name=profile" json:"profile,omitempty"`
+	Username string     `protobuf:"bytes,5,opt,name=username" json:"username,omitempty"`
+	Oauth    *OAuthUser `protobuf:"bytes,6,opt,name=oauth" json:"oauth,omitempty"`
 }
 
 func (m *Service) Reset()         { *m = Service{} }
 func (m *Service) String() string { return proto1.CompactTextString(m) }
 func (*Service) ProtoMessage()    {}
+
+func (m *Service) GetOauth() *OAuthUser {
+	if m != nil {
+		return m.Oauth
+	}
+	return nil
+}
 
 // Entry
 // id - The FriendFeed entry id, used to add comments/likes to the entry

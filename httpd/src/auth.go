@@ -2,7 +2,6 @@
 package server
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -10,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/markbates/goth/gothic"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/goth/gothic"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -34,7 +33,6 @@ func LoginRequired() gin.HandlerFunc {
 func LogoutHandler(c *gin.Context) {
 	sess := sessions.Default(c)
 	next := extractNextPath(c.Request.URL.Query().Get("next"))
-	sess.Delete("provider")
 	sess.Delete("user_id")
 	sess.Delete("uuid")
 	sess.Save()
@@ -75,9 +73,6 @@ func (s *Server) AuthCallback(c *gin.Context) {
 		return provider, nil
 	}
 
-	// print our state string to the console
-	fmt.Println("get state callback", gothic.GetState(c.Request))
-
 	provider, _ := gothic.GetProviderName(c.Request)
 	u, err := gothic.CompleteUserAuth(c.Writer, c.Request)
 	if err != nil {
@@ -88,31 +83,40 @@ func (s *Server) AuthCallback(c *gin.Context) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	protoU := &pb.OAuthUser{
-		UserId:      u.UserID,
-		Name:        u.Name,
-		NickName:    u.NickName,
-		Email:       u.Email,
-		AccessToken: u.AccessToken,
-		Provider:    provider,
+	authinfo := &pb.OAuthUser{
+		UserId:            u.UserID,
+		Name:              u.Name,
+		NickName:          u.NickName,
+		Email:             u.Email,
+		AccessToken:       u.AccessToken,
+		AccessTokenSecret: u.AccessTokenSecret,
+		Provider:          provider,
 	}
 
-	profile, err := s.client.Auth(ctx, protoU)
+	profile, err := s.CurrentUser(c)
+	if err != nil {
+		c.Fail(500, err)
+		return
+	}
+	authinfo.Uuid = profile.Uuid
+	profile, err = s.client.PutOAuth(ctx, authinfo)
 	if RequestError(c, err) {
 		return
 	}
 
-	sess := sessions.Default(c)
-	sess.Set("user_id", u.UserID)
-	sess.Set("provider", provider)
-	if profile.Uuid != "" {
+	// Only allow login from google
+	// Twitter only for importing feed
+	if provider == "google" {
+		sess := sessions.Default(c)
+		sess.Set("user_id", u.UserID)
 		sess.Set("uuid", profile.Uuid)
-	} else {
-		sess.Set("uuid", "")
+		sess.Save()
 	}
-	sess.Save()
 
 	next := extractNextPath(c.Request.URL.Query().Get("state"))
+	if next == "/" && provider == "twitter" {
+		next = "/account/import"
+	}
 	http.Redirect(c.Writer, c.Request, next, http.StatusFound)
 }
 

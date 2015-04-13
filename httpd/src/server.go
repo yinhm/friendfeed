@@ -166,10 +166,16 @@ func (s *Server) AccountHandler(c *gin.Context) {
 }
 
 func (s *Server) ImportHandler(c *gin.Context) {
+	c.AbortWithStatus(401)
+
 	data := pongo2.Context{
 		"title": "import your",
 	}
 	c.HTML(200, "import.html", data)
+}
+
+func (s *Server) TwitterImportHandler(c *gin.Context) {
+	c.Redirect(http.StatusFound, "/auth/twitter")
 }
 
 func (s *Server) FriendFeedImportHandler(c *gin.Context) {

@@ -7,8 +7,9 @@ import (
 	"golang.org/x/net/context"
 )
 
-func (s *ApiServer) Auth(ctx context.Context, user *pb.OAuthUser) (*pb.Profile, error) {
-	user, err := store.UpdateOAuthUser(s.mdb, user)
+func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
+	// TODO: create profile on oauth?
+	user, err := store.PutOAuthUser(s.mdb, authinfo)
 	if err != nil {
 		return nil, err
 	}

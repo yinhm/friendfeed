@@ -20,10 +20,10 @@ import (
 	server "github.com/yinhm/friendfeed/httpd/src"
 	"google.golang.org/grpc"
 
-	"github.com/markbates/goth"
-	"github.com/markbates/goth/gothic"
-	"github.com/markbates/goth/providers/gplus"
-	"github.com/markbates/goth/providers/twitter"
+	"github.com/yinhm/goth"
+	"github.com/yinhm/goth/gothic"
+	"github.com/yinhm/goth/providers/gplus"
+	"github.com/yinhm/goth/providers/twitter"
 )
 
 var options struct {
@@ -157,7 +157,8 @@ func Serve(s *server.Server) {
 	{
 		authorized.GET("/", s.AccountHandler)
 		authorized.GET("/import/", s.ImportHandler)
-		authorized.POST("/ffimport/", s.FriendFeedImportHandler)
+		// authorized.POST("/ffimport/", s.FriendFeedImportHandler)
+		authorized.GET("/import/twitter", s.TwitterImportHandler)
 	}
 
 	r.GET("/", s.HomeHandler)

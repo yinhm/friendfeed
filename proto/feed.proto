@@ -39,6 +39,7 @@ message OAuthUser {
   string avater_url = 5;
   string email = 6;
   string access_token = 7;
+  string access_token_secret = 10;
   string provider = 8;
   string remote_key = 9;
 }
@@ -232,6 +233,7 @@ message Service {
   string icon = 3;
   optional string profile = 4;
   optional string username = 5;
+  optional OAuthUser oauth = 6;
 }
 
 // message Connection {

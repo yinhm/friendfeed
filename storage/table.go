@@ -301,7 +301,7 @@ func ForwardTableScan(db *Store, prefix Key, fn ScanCallback) (n int, err error)
 	return
 }
 
-func UpdateOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
+func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	var pt PrefixTable
 	switch u.Provider {
 	case "google":
@@ -322,6 +322,14 @@ func UpdateOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 		err = proto.Unmarshal(rawdata, v)
 		if err != nil {
 			return nil, err
+		}
+
+		if u.Uuid != "" && v.Uuid != "" {
+			uuid1, _ := uuid.FromString(u.Uuid)
+			uuid2, _ := uuid.FromString(v.Uuid)
+			if !uuid.Equal(uuid1, uuid2) {
+				return nil, fmt.Errorf("user mismatch")
+			}
 		}
 		u.Uuid = v.Uuid
 	}

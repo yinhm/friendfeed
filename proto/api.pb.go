@@ -176,7 +176,8 @@ type ApiClient interface {
 	PostEntry(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*Entry, error)
 	LikeEntry(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*Entry, error)
 	CommentEntry(ctx context.Context, in *CommentRequest, opts ...grpc.CallOption) (*Entry, error)
-	Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error)
+	PutOAuth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error)
+	// rpc BindAuth(OAuthUser) returns (OAuthUser) {}
 	BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*OAuthUser, error)
 	Command(ctx context.Context, in *CommandRequest, opts ...grpc.CallOption) (*CommandResponse, error)
 }
@@ -365,9 +366,9 @@ func (c *apiClient) CommentEntry(ctx context.Context, in *CommentRequest, opts .
 	return out, nil
 }
 
-func (c *apiClient) Auth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error) {
+func (c *apiClient) PutOAuth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error) {
 	out := new(Profile)
-	err := grpc.Invoke(ctx, "/proto.Api/Auth", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/proto.Api/PutOAuth", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +415,8 @@ type ApiServer interface {
 	PostEntry(context.Context, *Entry) (*Entry, error)
 	LikeEntry(context.Context, *LikeRequest) (*Entry, error)
 	CommentEntry(context.Context, *CommentRequest) (*Entry, error)
-	Auth(context.Context, *OAuthUser) (*Profile, error)
+	PutOAuth(context.Context, *OAuthUser) (*Profile, error)
+	// rpc BindAuth(OAuthUser) returns (OAuthUser) {}
 	BindUserFeed(context.Context, *OAuthUser) (*OAuthUser, error)
 	Command(context.Context, *CommandRequest) (*CommandResponse, error)
 }
@@ -619,12 +621,12 @@ func _Api_CommentEntry_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
-func _Api_Auth_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_PutOAuth_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
 	in := new(OAuthUser)
 	if err := proto1.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(ApiServer).Auth(ctx, in)
+	out, err := srv.(ApiServer).PutOAuth(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -708,8 +710,8 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Api_CommentEntry_Handler,
 		},
 		{
-			MethodName: "Auth",
-			Handler:    _Api_Auth_Handler,
+			MethodName: "PutOAuth",
+			Handler:    _Api_PutOAuth_Handler,
 		},
 		{
 			MethodName: "BindUserFeed",
