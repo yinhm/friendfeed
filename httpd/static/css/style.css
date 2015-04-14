@@ -176,3 +176,97 @@ a:hover {
 .menu .section {
     margin-bottom: 15px;
 }
+
+/* sharebox */
+.submit{
+    font-size:15px;
+    font-weight:bold;
+}
+
+.sharebox div.to li.addedit a{
+  display:none;
+  margin-left:4px;
+}
+
+.sharebox div.to:hover li.addedit a{
+  display:inline;
+}
+
+.sharebox div.to:hover ul.active li.addedit a{
+  display:none;
+}
+
+.sharebox form lable.title{
+    display:block;
+    float:left;
+    width:40px;
+}
+
+.sharebox form textarea{
+    border:1px solid #BDBDBB;
+    width:715px;
+    height:60px;
+    padding:2px;
+    overflow:auto;
+    margin-bottom:4px;
+}
+
+.sharebox form .submit{
+    margin-right:0;
+    margin-left:15px;
+}
+
+.sharebox .max_chars{
+    font-size:16px;
+    font-weight:bold;
+}
+
+.sharebox .l_tolist{
+    border:1px solid #BDBDBB;
+    padding-bottom:2px;
+    margin-left:40px;
+    height:auto!important;
+    height:1%;
+    overflow:hidden;
+    margin-bottom:4px;
+    background-color:#FFF;
+}
+
+.sharebox .l_toinput{
+    padding:3px 0 2px;
+    border:none;
+}
+.sharebox .l_tolist li{
+    float:left;
+    line-height:22px;
+}
+
+ul.l_tolist li.l_tocard{
+    border:1px solid #ccc;
+    background:#eee;
+    padding:0 4px 0px;
+    white-space:nowrap;
+    margin:2px 2px;
+    -border-radius:6px;
+    -moz-border-radius:6px;
+    -webkit-border-radius:6px;
+    border-radius:6px;
+}
+.sharebox .l_tolist_input{
+    margin:2px 2px;
+}
+.sharebox .l_toinput{
+    padding:3px 0 2px;
+    border-width:0px;
+}
+.sharebox .insert,
+.sharebox. .post{
+    float:left;
+    margin-bottom:0;
+    margin-top:4px;
+}
+.sharebox .post{
+    float:right;
+    overflow:hidden;
+    position:relative;
+}

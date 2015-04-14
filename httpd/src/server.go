@@ -132,7 +132,7 @@ func (s *Server) CurrentGraph(c *gin.Context) (graph *pb.Graph, err error) {
 	return
 }
 
-func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (feed *pb.Feed, err error) {
+func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profile, feed *pb.Feed, err error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
@@ -143,20 +143,20 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (feed *pb.Feed, er
 		feed, err = s.client.FetchEntry(ctx, req.(*pb.EntryRequest))
 	}
 	if err != nil {
-		return nil, err
+		return
 	}
-	profile, err := s.CurrentUser(c)
+	profile, err = s.CurrentUser(c)
 	if err != nil {
-		return nil, err
+		return
 	}
 	graph, err := s.CurrentGraph(c)
 	if err != nil {
-		return nil, err
+		return
 	}
 	for _, e := range feed.Entries {
 		e.RebuildCommand(profile, graph)
 	}
-	return feed, nil
+	return
 }
 
 func (s *Server) AccountHandler(c *gin.Context) {
@@ -276,16 +276,18 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		PageSize: 30,
 	}
 
-	feed, err := s.FetchFeed(c, req)
+	profile, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}
 
+	showShare := profile.Uuid != ""
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0
 	}
 	data := pongo2.Context{
+		"show_share":  showShare,
 		"title":       feed.Id,
 		"name":        feed.Id,
 		"feed":        feed,
@@ -299,7 +301,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 func (s *Server) FeedHandler(c *gin.Context) {
 	feedname := c.Params.ByName("name")
 	if feedname == "" {
-		feedname = "home"
+		feedname = "Home"
 	}
 	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
@@ -307,7 +309,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		Start:    int32(start),
 		PageSize: 30,
 	}
-	feed, err := s.FetchFeed(c, req)
+	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}
@@ -346,7 +348,7 @@ func contains(slice []string, item string) bool {
 func (s *Server) EntryHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
 	req := &pb.EntryRequest{uuid}
-	feed, err := s.FetchFeed(c, req)
+	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}

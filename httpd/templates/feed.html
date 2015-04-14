@@ -32,16 +32,33 @@
   {% endif %}
 
   {% if show_share or show_direct %}
-    <div class="share">
-      <form method="post" action="/a/entry">
+  <div class="sharebox" id="shareform">
+    <form action="/a/share" method="post" enctype="multipart/form-data" onsubmit="return shareSubmit($(this))">
+      <div class="to" style="display: none;">
+        <label class="title" for="streams">To:</label>
+        <ul class="l_tolist">
+          <li class="spacer"></li>
+          <li class="l_tocard">My Feed<img title="Delete" class="a_toremove" src="/images/icon/to-delete.png" /></li>
+        </ul>
+      </div>
+
+      <textarea name="body"></textarea>
+
+      <div class="insert">
+        Add: <a href="#" class="l_add_media">Photo</a>
+      </div>
+
+      <div class="post">
+        <span class="max_info"></span>
+        <input class="submit" type="submit" value="{% if show_direct %}Direct message{% else %}Post{% endif %}"/>
         {% if feed.id == "home" %}
-          <input type="hidden" name="to" value="{{ feed.id }}"/>
+        <input type="hidden" name="to" value="{{ feed.id }}"/>
         {% endif %}
+        <input id="streams" name="streams" type="hidden" value="{{feed.Id}}" />
         <input type="hidden" name="next" value="{% if show_direct %}{% filter urlencode %}/filter/direct{% endfilter %}{% else %}{{ request.path|urlencode }}{% endif %}"/>
-        <input type="text" name="body" style="width:300px"/>
-        <input type="submit" value="{% if show_direct %}Direct message{% else %}Post{% endif %}"/>
-      </form>
-    </div>
+      </div>
+    </form>
+  </div>
   {% endif %}
 
   <div class="feed">
