@@ -54,7 +54,7 @@
           {% if entry.To %}
             <span class="to">to
               {% for recipient in entry.To %}
-                <a href="/feed/{{ recipient.Id }}">{{ recipient.Name|escape }}</a>{% if not forloop.last %},{% endif %}
+                <a href="/feed/{{ recipient.Id }}">{{ recipient.Name|escape }}</a>{% if not forloop.Last %},{% endif %}
               {% endfor %}
             </span>
           {% endif %}
@@ -79,11 +79,11 @@
         {% if entry.Likes %}
           <div class="likes">
             {% for like in entry.Likes %}
-              {% if forloop.last and not forloop.first %}and{% endif %}
+              {% if forloop.Last and not forloop.First %}and{% endif %}
               {% if like.Placeholder %}
                   {{ like.Body }}
               {% else %}
-                <a href="/feed/{{ like.From.Id }}">{{ like.From.Name|escape }}</a>{% if not forloop.last and not entry.Likes|length_is:"2" %},{% endif %}
+                <a href="/feed/{{ like.From.Id }}">{{ like.From.Name|escape }}</a>{% if not forloop.Last and not entry.Likes|length_is:"2" %},{% endif %}
               {% endif %}
             {% endfor %}
             liked this
