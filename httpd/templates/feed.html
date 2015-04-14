@@ -6,7 +6,7 @@
     <div class="header">
       <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
       <div class="body">
-        <h1><a href="/{{ feed.Id }}">{{ feed.Name|escape }}</a></h1>
+        <h1><a href="/feed/{{ feed.Id }}">{{ feed.Name|escape }}</a></h1>
         {% if feed.Description %}
           <div class="description">{{ feed.Description }}</div>
         {% endif %}
