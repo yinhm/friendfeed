@@ -23,9 +23,11 @@ import (
 	"io/ioutil"
 	"log"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
+	ttext "github.com/cupcake/text-entities-go"
 	uuid "github.com/satori/go.uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
@@ -237,11 +239,23 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 			thumbnails = append(thumbnails, thumb)
 		}
 
+		body := tweet.Text
+		tags := ttext.ExtractHashtags(body)
+		for _, tag := range tags {
+			new := fmt.Sprintf("<a href=\"https://twitter.com/hashtag/%s\">%s</a>", tag, tag)
+			body = strings.Replace(body, tag, new, -1)
+		}
+		urls := ttext.ExtractURLs(tweet.Text)
+		for _, url := range urls {
+			new := fmt.Sprintf("<a href=\"%s\">%s</a>", url, url)
+			body = strings.Replace(body, url, new, -1)
+		}
+
 		entry := &pb.Entry{
 			Id:      uuid1.String(),
 			Url:     url,
 			Date:    tt.Format(time.RFC3339),
-			Body:    tweet.Text,
+			Body:    body,
 			RawBody: tweet.Text,
 			RawLink: url,
 			From:    from,
