@@ -67,72 +67,69 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 	c.HTML(code, name, data)
 }
 
-func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
+func (s *Server) CurrentUser(c *gin.Context) (profile *pb.Profile, err error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	profile := new(pb.Profile)
 	uuid := CurrentUserUuid(c)
 	if uuid != "" {
 		cacheKey := "profile:" + uuid
 		err := s.cache.Get(cacheKey, profile)
 		if err != nil {
-			profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
+			profile, err = s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
 			if err != nil {
 				return nil, err
 			}
-			if err := s.cache.Set(cacheKey, *profile, 15*time.Minute); err != nil {
+			if err = s.cache.Set(cacheKey, *profile, 15*time.Minute); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return profile, nil
+	return
 }
 
-func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
+func (s *Server) CurrentFeedinfo(c *gin.Context) (feedinfo *pb.Feedinfo, err error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	feedinfo := new(pb.Feedinfo)
 	uuid := CurrentUserUuid(c)
 	if uuid != "" {
 		cacheKey := "feedinfo:" + uuid
 		err := s.cache.Get(cacheKey, feedinfo)
 		if err != nil {
 			req := &pb.ProfileRequest{Uuid: uuid}
-			feedinfo, err := s.client.FetchFeedinfo(ctx, req)
+			feedinfo, err = s.client.FetchFeedinfo(ctx, req)
 			if err != nil {
 				return nil, err
 			}
-			if err := s.cache.Set(cacheKey, *feedinfo, 15*time.Minute); err != nil {
+			if err = s.cache.Set(cacheKey, *feedinfo, 15*time.Minute); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return feedinfo, nil
+	return
 }
 
-func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
+func (s *Server) CurrentGraph(c *gin.Context) (graph *pb.Graph, err error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	graph := new(pb.Graph)
 	uuid := CurrentUserUuid(c)
 	if uuid != "" {
 		cacheKey := "graph:" + uuid
 		err := s.cache.Get(cacheKey, graph)
 		if err != nil {
 			req := &pb.ProfileRequest{Uuid: uuid}
-			graph, err := s.client.FetchGraph(ctx, req)
+			graph, err = s.client.FetchGraph(ctx, req)
 			if err != nil {
 				return nil, err
 			}
-			if err := s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
+			if err = s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return graph, nil
+	return
 }
 
 func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (feed *pb.Feed, err error) {
