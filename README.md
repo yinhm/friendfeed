@@ -108,12 +108,12 @@ Start develop
 
     go build; ./httpd -f=../conf/gauth.json -d
 
-Gin(not working)
+Or use Gin
         
     go get github.com/codegangsta/gin
     export DEBUG=1
-    export RPC_ADDRESS=localhost:8901
-    export GoogleKeyFile=../conf/gauth.json
+    export RPC="localhost:8901"
+    export CONFIG_FILE=/srv/ff/config.json
     gin -p 8080
 
 Deploy FriendFeed
