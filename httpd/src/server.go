@@ -67,10 +67,11 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 	c.HTML(code, name, data)
 }
 
-func (s *Server) CurrentUser(c *gin.Context) (profile *pb.Profile, err error) {
+func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
+	profile := new(pb.Profile)
 	uuid := CurrentUserUuid(c)
 	if uuid != "" {
 		cacheKey := "profile:" + uuid
@@ -80,18 +81,19 @@ func (s *Server) CurrentUser(c *gin.Context) (profile *pb.Profile, err error) {
 			if err != nil {
 				return nil, err
 			}
-			if err = s.cache.Set(cacheKey, *profile, 15*time.Minute); err != nil {
+			if err := s.cache.Set(cacheKey, *profile, 15*time.Minute); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return
+	return profile, nil
 }
 
-func (s *Server) CurrentFeedinfo(c *gin.Context) (feedinfo *pb.Feedinfo, err error) {
+func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
+	feedinfo := new(pb.Feedinfo)
 	uuid := CurrentUserUuid(c)
 	if uuid != "" {
 		cacheKey := "feedinfo:" + uuid
@@ -102,18 +104,19 @@ func (s *Server) CurrentFeedinfo(c *gin.Context) (feedinfo *pb.Feedinfo, err err
 			if err != nil {
 				return nil, err
 			}
-			if err = s.cache.Set(cacheKey, *feedinfo, 15*time.Minute); err != nil {
+			if err := s.cache.Set(cacheKey, *feedinfo, 15*time.Minute); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return
+	return feedinfo, nil
 }
 
-func (s *Server) CurrentGraph(c *gin.Context) (graph *pb.Graph, err error) {
+func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
+	graph := new(pb.Graph)
 	uuid := CurrentUserUuid(c)
 	if uuid != "" {
 		cacheKey := "graph:" + uuid
@@ -124,12 +127,12 @@ func (s *Server) CurrentGraph(c *gin.Context) (graph *pb.Graph, err error) {
 			if err != nil {
 				return nil, err
 			}
-			if err = s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
+			if err := s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return
+	return graph, nil
 }
 
 func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profile, feed *pb.Feed, err error) {
