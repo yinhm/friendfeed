@@ -135,6 +135,17 @@ func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
 	return graph, nil
 }
 
+func (s *Server) feedReadable(c *gin.Context, feedId string) bool {
+	graph, err := s.CurrentGraph(c)
+	if err != nil || graph == nil {
+		return false
+	}
+	if _, ok := graph.Subscriptions[feedId]; ok {
+		return true
+	}
+	return false
+}
+
 func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (feed *pb.Feed, err error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
@@ -312,6 +323,10 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	}
 	feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
+		return
+	}
+	if feed.Private && !s.feedReadable(c, feed.Id) {
+		c.HTML(http.StatusForbidden, "403.html", pongo2.Context{})
 		return
 	}
 
