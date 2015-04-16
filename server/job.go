@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	uuid "github.com/satori/go.uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
@@ -240,6 +241,8 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.RefetchFriendFeed()
 	case "TestJob":
 		s.TestJob()
+	case "FixComment":
+		s.FixComment()
 	case "MarkDelete":
 		s.MarkDelete(cmd.Arg1)
 	}
@@ -420,4 +423,25 @@ func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
 	profile.Deleted = true
 	store.UpdateProfile(s.mdb, profile)
 	return true, nil
+}
+
+func (s *ApiServer) FixComment() error {
+	req := &pb.FeedRequest{
+		Id:       "public",
+		Start:    int32(0),
+		PageSize: 50,
+	}
+	feed, _ := s.cachedFeed(req)
+	for _, e := range feed.Entries {
+		for _, cmt := range e.Comments {
+			// date, _ := time.Parse(time.RFC3339, cmt.Date)
+			profile, _ := store.GetProfile(s.mdb, cmt.From.Id)
+			fixedName := e.Id + profile.Uuid + cmt.Date
+			uuid1 := uuid.NewV5(uuid.NamespaceURL, fixedName)
+
+			cmt.Id = uuid1.String()
+		}
+		store.PutEntry(s.rdb, e, true)
+	}
+	return nil
 }
