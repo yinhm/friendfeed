@@ -51,10 +51,11 @@
       <div class="post">
         <span class="max_info"></span>
         <input class="submit" type="submit" value="{% if show_direct %}Direct message{% else %}Post{% endif %}"/>
-        {% if feed.id == "home" %}
-        <input type="hidden" name="to" value="{{ feed.id }}"/>
+        {% if feed.Id == "Home" || feed.Id == "Public" %}
+        <input type="hidden" name="feedid" value="{{ current_user.Id }}"/>
+        {% else %}
+        <input type="hidden" name="feedid" value="{{feed.Id}}" />
         {% endif %}
-        <input id="streams" name="streams" type="hidden" value="{{feed.Id}}" />
         <input type="hidden" name="next" value="{% if show_direct %}{% filter urlencode %}/filter/direct{% endfilter %}{% else %}{{ request.path|urlencode }}{% endif %}"/>
       </div>
     </form>

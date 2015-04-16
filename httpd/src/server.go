@@ -14,7 +14,9 @@ import (
 	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/golang/protobuf/proto"
+	uuid "github.com/satori/go.uuid"
 	"github.com/yinhm/friendfeed/ff"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
@@ -113,26 +115,7 @@ func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
 }
 
 func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	graph := new(pb.Graph)
-	uuid := CurrentUserUuid(c)
-	if uuid != "" {
-		cacheKey := "graph:" + uuid
-		err := s.cache.Get(cacheKey, graph)
-		if err != nil {
-			req := &pb.ProfileRequest{Uuid: uuid}
-			graph, err = s.client.FetchGraph(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-			if err := s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return graph, nil
+	return s.GraphFrom(CurrentUserUuid(c))
 }
 
 func (s *Server) feedReadable(c *gin.Context, feedId string) bool {
@@ -393,6 +376,53 @@ func (s *Server) EntryHandler(c *gin.Context) {
 		"show_paging": false,
 	}
 	s.HTML(c, 200, "feed.html", data)
+}
+
+// TODO: allow cross post to multiply feeds
+func (s *Server) EntryPostHandler(c *gin.Context) {
+	var form struct {
+		FeedId string `form:"feedid" binding:"required"`
+		Body   string `form:"body" binding:"required"`
+	}
+	c.BindWith(&form, binding.MultipartForm)
+
+	if !s.feedWritable(c, form.FeedId) {
+		c.AbortWithStatus(401)
+		return
+	}
+
+	body := form.Body
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	profile, _ := s.CurrentUser(c)
+	dt := time.Now().UTC()
+	name := profile.Uuid + "/" + dt.Format(time.RFC3339)
+	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
+
+	from := &pb.Feed{
+		Id:   profile.Id,
+		Name: profile.Name,
+		Type: profile.Type,
+	}
+
+	entry := &pb.Entry{
+		Id:      uuid1.String(),
+		Date:    dt.Format(time.RFC3339),
+		Body:    body,
+		RawBody: body,
+		From:    from,
+		// To:      []*pb.Feed{from},
+		// Thumbnails: thumbnails,
+		ProfileUuid: profile.Uuid,
+	}
+
+	entry, err := s.client.PostEntry(ctx, entry)
+	if RequestError(c, err) {
+		return
+	}
+	c.JSON(200, gin.H{"entry": entry})
 }
 
 func (s *Server) EntryCommentHandler(c *gin.Context) {

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -146,4 +147,60 @@ func CurrentUserUuid(c *gin.Context) string {
 		return ""
 	}
 	return sess.Get("uuid").(string)
+}
+
+func (s *Server) GraphFrom(uuid string) (*pb.Graph, error) {
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	graph := new(pb.Graph)
+	if uuid == "" {
+		return graph, nil
+	}
+
+	cacheKey := "graph:" + uuid
+	err := s.cache.Get(cacheKey, graph)
+	if err != nil {
+		req := &pb.ProfileRequest{Uuid: uuid}
+		graph, err = s.client.FetchGraph(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
+			return nil, err
+		}
+	}
+	return graph, nil
+}
+
+func (s *Server) feedWritable(c *gin.Context, feedId string) bool {
+	// owner feed
+	user, err := s.CurrentUser(c)
+	if err != nil {
+		return false
+	}
+	if user.Id == feedId {
+		return true
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	// group feed
+	profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{feedId})
+	if err != nil || profile == nil {
+		return false
+	}
+	if profile.Type != "group" {
+		return false
+	}
+
+	graph, err := s.CurrentGraph(c)
+	if err != nil || graph == nil {
+		return false
+	}
+	if _, ok := graph.Subscriptions[feedId]; ok {
+		return true
+	}
+	return false
 }

@@ -441,8 +441,13 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 	return feed, nil
 }
 
-func (s *ApiServer) PostEntry(ctx context.Context, in *pb.Entry) (*pb.Entry, error) {
-	return nil, fmt.Errorf("Not implemented")
+func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, error) {
+	key, err := store.PutEntry(s.rdb, entry, false) // always use false
+	if err != nil {
+		return nil, err
+	}
+	s.spread(key)
+	return entry, nil
 }
 
 func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Entry, error) {

@@ -175,6 +175,7 @@ func Serve(s *server.Server) {
 	r.GET("/a/entry/:uuid", s.EntryCommentHandler)
 	action := r.Group("/a", server.LoginRequired())
 	{
+		action.POST("/share", s.EntryPostHandler)
 		action.POST("/like", s.LikeHandler)
 		action.POST("/like/delete", s.LikeDeleteHandler)
 		action.POST("/comment", s.CommentHandler)
