@@ -74,8 +74,26 @@ a:hover {
     height: 50px;
 }
 
+@media (max-width: 600px) {
+    .entry .picture {
+        float: none;
+        display: none;
+    }
+    .entry .picture img {
+        display: none;
+        width: 0px;
+        height: 0px;
+    }
+}
+
 .entry .body {
     margin-left: 60px;
+}
+
+@media (max-width: 600px) {
+    .entry .body {
+        margin-left: 0px;
+    }
 }
 
 .entry .media {
@@ -152,12 +170,30 @@ a:hover {
     margin-right: 210px;
 }
 
+@media (max-width: 600px) {
+    .header,
+    .sharebox,
+    .share,
+    .feed {
+        width:100%;
+        margin-right:0px;
+    }
+}
+
 .menu {
     float: right;
     width: 155px;
     border: 1px solid silver;
     background: #eee;
     padding: 8px;
+}
+
+@media (max-width: 600px) {
+   .menu {
+       float: none;
+       width:100%;
+       padding:auto;
+   }
 }
 
 .menu h3 {
@@ -211,6 +247,21 @@ a:hover {
     padding:2px;
     overflow:auto;
     margin-bottom:4px;
+}
+@media (max-width: 600px) {
+    .sharebox form textarea{
+        width: 100%;
+        max-width: 100%;
+    }
+    .sharebox form{
+        width: 100%;
+        max-width: 100%;
+    }
+    .sharebox form textarea{
+        border:1px solid #BDBDBB;
+        width: 100%;
+        max-width: 100%;
+    }
 }
 
 .sharebox form .submit{
