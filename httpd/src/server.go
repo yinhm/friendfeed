@@ -136,6 +136,14 @@ func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
 }
 
 func (s *Server) feedReadable(c *gin.Context, feedId string) bool {
+	user, err := s.CurrentUser(c)
+	if err != nil {
+		return false
+	}
+	if user.Id == feedId {
+		return true
+	}
+
 	graph, err := s.CurrentGraph(c)
 	if err != nil || graph == nil {
 		return false
@@ -143,6 +151,7 @@ func (s *Server) feedReadable(c *gin.Context, feedId string) bool {
 	if _, ok := graph.Subscriptions[feedId]; ok {
 		return true
 	}
+
 	return false
 }
 
