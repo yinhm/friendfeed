@@ -58,6 +58,7 @@
         {% endif %}
         <input type="hidden" name="next" value="{% if show_direct %}{% filter urlencode %}/filter/direct{% endfilter %}{% else %}{{ request.path|urlencode }}{% endif %}"/>
       </div>
+      <div class="clear"></div>
     </form>
   </div>
   {% endif %}

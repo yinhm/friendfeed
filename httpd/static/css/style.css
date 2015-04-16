@@ -51,6 +51,7 @@ a:hover {
 }
 
 .header,
+.sharebox,
 .entry,
 .share {
     padding-bottom: 12px;
@@ -145,6 +146,7 @@ a:hover {
 }
 
 .header,
+.sharebox,
 .share,
 .feed {
     margin-right: 210px;
@@ -260,7 +262,7 @@ ul.l_tolist li.l_tocard{
     border-width:0px;
 }
 .sharebox .insert,
-.sharebox. .post{
+.sharebox .post{
     float:left;
     margin-bottom:0;
     margin-top:4px;
