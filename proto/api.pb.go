@@ -94,6 +94,9 @@ func (*FeedSummary) ProtoMessage()    {}
 
 type CommandRequest struct {
 	Command string `protobuf:"bytes,1,opt,name=command" json:"command,omitempty"`
+	Arg1    string `protobuf:"bytes,2,opt,name=arg1" json:"arg1,omitempty"`
+	Arg2    string `protobuf:"bytes,3,opt,name=arg2" json:"arg2,omitempty"`
+	Arg3    string `protobuf:"bytes,4,opt,name=arg3" json:"arg3,omitempty"`
 }
 
 func (m *CommandRequest) Reset()         { *m = CommandRequest{} }

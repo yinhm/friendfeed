@@ -67,7 +67,7 @@ message Profile {
   // TODO: remove this
   string remote_key = 8;
   // mark deletion, will purge all related data later
-  string deleted = 10;
+  bool deleted = 10;
 }
 
 // social graph

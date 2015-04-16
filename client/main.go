@@ -2,15 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// default crawl client
-// go run main.go -c=/srv/httpcache
-//
-// enque job
-// go run main.go -u=name -p=pwd
-// go run main.go -u=name -p=pwd -t=friendfeed-feedback
-//
 // debug archived
-// go run main.go -u=yinhm -d=true
+// go run main.go -u=foobar -d=true
+//
+// Mark deletion
+// go run main.go --cmd="MarkDelete" --arg1="foobar"
 package main
 
 import (
@@ -39,6 +35,7 @@ var config struct {
 	username string
 	file     string
 	command  string
+	arg1     string
 	debug    bool
 }
 
@@ -51,6 +48,7 @@ func init() {
 	flag.StringVar(&config.address, "addr", "localhost:8901", "RPC Server Url")
 	flag.StringVar(&config.file, "c", "/srv/ff/config.json", "config file")
 	flag.StringVar(&config.command, "cmd", "", "cmd execution")
+	flag.StringVar(&config.arg1, "arg1", "", "pass argument to command")
 	flag.StringVar(&config.username, "u", "", "debug user feed")
 	flag.BoolVar(&config.debug, "d", false, "Enable debug info.")
 }
@@ -95,7 +93,12 @@ func NewFeedAgent(conn *grpc.ClientConn) *FeedAgent {
 
 func (fa *FeedAgent) Start() {
 	if config.command != "" {
-		cmd := &pb.CommandRequest{config.command}
+		cmd := &pb.CommandRequest{
+			Command: config.command,
+		}
+		if config.arg1 != "" {
+			cmd.Arg1 = config.arg1
+		}
 		fa.client.Command(context.Background(), cmd)
 		return
 	}

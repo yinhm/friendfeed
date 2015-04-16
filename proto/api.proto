@@ -81,6 +81,8 @@ message FeedSummary {
 
 message CommandRequest {
   string command = 1;
+  optional string arg1 = 2;
+  optional string arg2 = 3;
 }
 
 message CommandResponse {
