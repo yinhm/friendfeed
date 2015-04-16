@@ -148,8 +148,7 @@ message LikeRequest {
 
 message CommentRequest {
   string entry = 1;
-  string user = 2;
-  string body = 3;
+  Comment comment = 2;
 }
 
 message ServiceRequest {

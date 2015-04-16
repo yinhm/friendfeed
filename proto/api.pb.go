@@ -96,7 +96,6 @@ type CommandRequest struct {
 	Command string `protobuf:"bytes,1,opt,name=command" json:"command,omitempty"`
 	Arg1    string `protobuf:"bytes,2,opt,name=arg1" json:"arg1,omitempty"`
 	Arg2    string `protobuf:"bytes,3,opt,name=arg2" json:"arg2,omitempty"`
-	Arg3    string `protobuf:"bytes,4,opt,name=arg3" json:"arg3,omitempty"`
 }
 
 func (m *CommandRequest) Reset()         { *m = CommandRequest{} }
@@ -162,14 +161,20 @@ func (m *LikeRequest) String() string { return proto1.CompactTextString(m) }
 func (*LikeRequest) ProtoMessage()    {}
 
 type CommentRequest struct {
-	Entry string `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	User  string `protobuf:"bytes,2,opt,name=user" json:"user,omitempty"`
-	Body  string `protobuf:"bytes,3,opt,name=body" json:"body,omitempty"`
+	Entry   string   `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Comment *Comment `protobuf:"bytes,2,opt,name=comment" json:"comment,omitempty"`
 }
 
 func (m *CommentRequest) Reset()         { *m = CommentRequest{} }
 func (m *CommentRequest) String() string { return proto1.CompactTextString(m) }
 func (*CommentRequest) ProtoMessage()    {}
+
+func (m *CommentRequest) GetComment() *Comment {
+	if m != nil {
+		return m.Comment
+	}
+	return nil
+}
 
 type ServiceRequest struct {
 	User    string `protobuf:"bytes,1,opt,name=user" json:"user,omitempty"`

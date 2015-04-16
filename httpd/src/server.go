@@ -413,7 +413,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		Id:      uuid1.String(),
 		Date:    dt.Format(time.RFC3339),
 		Body:    body,
-		RawBody: body,
+		RawBody: form.Body,
 		From:    from,
 		// To:      []*pb.Feed{from},
 		// Thumbnails: thumbnails,
@@ -499,17 +499,37 @@ func (s *Server) LikeDeleteHandler(c *gin.Context) {
 func (s *Server) CommentHandler(c *gin.Context) {
 	c.Request.ParseForm()
 	entryId := c.Request.Form.Get("entry")
-	body := c.Request.Form.Get("body")
-	if entryId == "" || body == "" {
+	rawBody := c.Request.Form.Get("body")
+	if entryId == "" || rawBody == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
 		return
 	}
 
-	uuid := CurrentUserUuid(c)
+	body := util.DefaultSanitize(rawBody)
+	body = util.EntityToLink(body)
+
+	profile, _ := s.CurrentUser(c)
+	date := time.Now().UTC().Format(time.RFC3339)
+	name := entryId + profile.Uuid + date
+	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
+
+	from := &pb.Feed{
+		Id:   profile.Id,
+		Name: profile.Name,
+		Type: profile.Type,
+	}
+
+	comment := &pb.Comment{
+		Id:      uuid1.String(),
+		Date:    date,
+		Body:    body,
+		RawBody: rawBody,
+		From:    from,
+	}
+
 	req := &pb.CommentRequest{
-		Entry: entryId,
-		User:  uuid,
-		Body:  body,
+		Entry:   entryId,
+		Comment: comment,
 	}
 
 	ctx, cancel := DefaultTimeoutContext()

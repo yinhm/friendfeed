@@ -331,10 +331,16 @@ func TestPostProfile(t *testing.T) {
 			So(feed.Entries[0].Id, ShouldEqual, "2b43a9066074d120ed2e45494eea1797")
 
 			Convey("comment on the entry", func() {
+				cmt := &pb.Comment{
+					Id:      "2b43a9066074d120ed2e45494eea1797",
+					Date:    "2012-09-07T07:40:22Z",
+					From:    from,
+					Body:    "this is a comment",
+					RawBody: "this is a comment",
+				}
 				cReq := &pb.CommentRequest{
-					Entry: entry.Id,
-					User:  profile.Uuid,
-					Body:  "this is a comment",
+					Entry:   entry.Id,
+					Comment: cmt,
 				}
 				entry, err := srv.CommentEntry(context.Background(), cReq)
 				So(err, ShouldBeNil)

@@ -483,16 +483,12 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 		return nil, err
 	}
 
-	uuid1, err := uuid.FromString(req.User)
-	if err != nil {
-		return nil, err
-	}
-	profile, err := store.GetProfileFromUuid(s.mdb, uuid1)
+	profile, err := store.GetProfile(s.mdb, req.Comment.From.Id)
 	if err != nil || profile == nil {
 		return nil, err
 	}
 
-	key, entry, err := store.Comment(s.rdb, profile, entry, req.Body)
+	key, entry, err := store.Comment(s.rdb, profile, entry, req.Comment)
 	if err != nil {
 		return nil, err
 	}
