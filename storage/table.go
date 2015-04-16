@@ -160,6 +160,9 @@ func GetProfileFromUuid(mdb *Store, uuid1 uuid.UUID) (*pb.Profile, error) {
 	if err != nil {
 		return nil, err
 	}
+	if v.Deleted {
+		return nil, fmt.Errorf("Profile deleted")
+	}
 	return v, nil
 }
 

@@ -240,6 +240,8 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.RefetchFriendFeed()
 	case "TestJob":
 		s.TestJob()
+	case "MarkDelete":
+		s.MarkDelete(cmd.Arg1)
 	}
 
 	// TODO: nothing here
@@ -408,4 +410,14 @@ func (s *ApiServer) TestJob() error {
 
 	_, err := s.EnqueJob(context.Background(), job)
 	return err
+}
+
+func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
+	profile, err := store.GetProfile(s.mdb, feedId)
+	if err != nil {
+		return false, err
+	}
+	profile.Deleted = true
+	store.UpdateProfile(s.mdb, profile)
+	return true, nil
 }

@@ -562,7 +562,7 @@ func TestOAuthUser(t *testing.T) {
 			Provider:    "twitter",
 		}
 
-		got, err := UpdateOAuthUser(mdb, ptu)
+		got, err := PutOAuthUser(mdb, ptu)
 		So(err, ShouldBeNil)
 		So(got.UserId, ShouldEqual, ptu.UserId)
 		So(got.Provider, ShouldEqual, ptu.Provider)
@@ -597,13 +597,13 @@ func TestTimeTravelId(t *testing.T) {
 		fid1 := mdb.TimeTravelId(t)
 		for i := 0; i < 100; i++ {
 			fid2 := mdb.TimeTravelId(t)
-			So(fid1, ShouldEqual, fid2)
+			So(string(fid1[:]), ShouldEqual, string(fid2[:]))
 		}
 
 		fid1 = mdb.TimeTravelReverseId(t)
 		for i := 0; i < 100; i++ {
 			fid2 := mdb.TimeTravelReverseId(t)
-			So(fid1, ShouldEqual, fid2)
+			So(string(fid1[:]), ShouldEqual, string(fid2[:]))
 		}
 	})
 }

@@ -114,6 +114,8 @@ type Profile struct {
 	Description string `protobuf:"bytes,7,opt,name=description" json:"description,omitempty"`
 	// TODO: remove this
 	RemoteKey string `protobuf:"bytes,8,opt,name=remote_key" json:"remote_key,omitempty"`
+	// mark deletion, will purge all related data later
+	Deleted bool `protobuf:"varint,10,opt,name=deleted" json:"deleted,omitempty"`
 }
 
 func (m *Profile) Reset()         { *m = Profile{} }

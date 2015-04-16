@@ -23,7 +23,7 @@ var (
 
 func setup() {
 	dbpath = os.TempDir() + "/fftestdb"
-	mcFile = "../conf/media.json"
+	mcFile = "../conf/example.config.json"
 
 	srv = NewApiServer(dbpath, mcFile)
 
