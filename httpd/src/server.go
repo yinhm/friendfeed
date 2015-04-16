@@ -19,6 +19,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"github.com/yinhm/friendfeed/ff"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -391,7 +392,8 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		return
 	}
 
-	body := form.Body
+	body := util.DefaultSanitize(form.Body)
+	body = util.EntityToLink(body)
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
@@ -422,7 +424,8 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	if RequestError(c, err) {
 		return
 	}
-	c.JSON(200, gin.H{"entry": entry})
+	// c.JSON(200, gin.H{"entry": entry})
+	c.Redirect(http.StatusFound, "/")
 }
 
 func (s *Server) EntryCommentHandler(c *gin.Context) {
