@@ -109,7 +109,7 @@
           </div>
         {% endif %}
         {% for comment in entry.Comments %}
-          <div cid="{{ comment.Id }}" class="comment{% if comment.Placeholder %} placeholder {%endif %}">
+          <div cid="{{ comment.Id }}" class="comment{% if comment.Placeholder%} placeholder {%endif %}" title="{{ comment.Date }}">
             {% if comment.Placeholder %}
               <a href="#" class="expandcomments">{{ comment.Body|safe }}</a>
             {% else %}

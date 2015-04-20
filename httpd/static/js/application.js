@@ -22,6 +22,9 @@ $(document).ready(function() {
       commentDiv.append(' - ');
       commentDiv.append(from);
     }
+    if (comment.date) {
+      commentDiv.attr("title", comment.date);
+    }
     return commentDiv;
   }
 
