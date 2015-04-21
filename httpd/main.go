@@ -181,6 +181,8 @@ func Serve(s *server.Server) {
 		action.POST("/comment", s.CommentHandler)
 	}
 
+	r.GET("/public", s.PublicHandler)
+
 	r.NotFound404(NotFoundHandler)
 
 	fmt.Println("Starting server...")
@@ -206,7 +208,7 @@ func main() {
 		}
 	}
 
-	s := server.NewServer(rpcConn, options.SecretKey)
+	s := server.NewServer(rpcConn, options.SecretKey, options.Debug)
 	go Serve(s)
 	waitShutdown()
 }

@@ -63,7 +63,7 @@
   </div>
   {% endif %}
 
-  <div class="feed">
+  <div id="feed" class="feed">
     {% for entry in feed.Entries %}
     <div class="entry" eid="{{ entry.Id }}">
       <div class="picture"><a href="/feed/{{ entry.From.Id }}"><img src="{{ entry.From.Picture }}"/></a></div>

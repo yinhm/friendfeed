@@ -4,12 +4,14 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"golang.org/x/exp/utf8string"
 
+	react "github.com/bluele/react-go"
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/contrib/sessions"
@@ -26,14 +28,17 @@ import (
 )
 
 type Server struct {
+	debug      bool
 	client     pb.ApiClient
 	worker     *pb.Worker
 	secretKey  string
 	httpclient *http.Client
 	cache      *cache.InMemoryStore
+	jsx        *react.JSX
+	rc         *react.React
 }
 
-func NewServer(conn *grpc.ClientConn, secretKey string) *Server {
+func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 	c := pb.NewApiClient(conn)
 	worker := &pb.Worker{
 		Id: randhash(),
@@ -45,12 +50,18 @@ func NewServer(conn *grpc.ClientConn, secretKey string) *Server {
 
 	cacheStore := cache.NewInMemoryStore(time.Second)
 
+	rc, _ := react.NewReact()
+	jsx, _ := react.NewJSX()
+
 	return &Server{
+		debug:      debug,
 		client:     c,
 		worker:     worker,
 		secretKey:  secretKey,
 		httpclient: httpclient,
 		cache:      cacheStore,
+		jsx:        jsx,
+		rc:         rc,
 	}
 }
 
@@ -67,7 +78,40 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 	if profile.Uuid != "" {
 		data["current_user"] = profile
 	}
+	data["dev"] = s.debug
 	c.HTML(code, name, data)
+}
+
+func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
+	component, err := s.jsx.TransformFile("./static/jsx/_feed.jsx", map[string]interface{}{
+		"harmony":     true,
+		"strip_types": true,
+	})
+	if err != nil {
+		log.Println(err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	err = s.rc.Load(component)
+	if err != nil {
+		log.Println(err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	feed_body, err := s.rc.RenderComponent("Feed", data)
+	if err != nil {
+		log.Println(err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	data["feed_body"] = feed_body
+
+	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" {
+		c.JSON(200, data)
+	} else {
+		s.HTML(c, 200, "_feed.html", data)
+	}
 }
 
 func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
@@ -541,6 +585,36 @@ func (s *Server) CommentHandler(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"success": true})
+}
+
+func (s *Server) PublicHandler(c *gin.Context) {
+	start := ParseStart(c.Request)
+	req := &pb.FeedRequest{
+		Id:       "public",
+		Start:    int32(start),
+		PageSize: 50,
+	}
+
+	profile, feed, err := s.FetchFeed(c, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	showShare := profile.Uuid != ""
+	prevStart := req.Start - req.PageSize
+	if prevStart < 0 {
+		prevStart = 0
+	}
+	data := pongo2.Context{
+		"show_share":  showShare,
+		"title":       feed.Id,
+		"name":        feed.Id,
+		"feed":        feed,
+		"prev_start":  prevStart,
+		"next_start":  req.Start + req.PageSize,
+		"show_paging": true,
+	}
+	s.renderFeed(c, data)
 }
 
 func RequestError(c *gin.Context, err error) bool {

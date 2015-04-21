@@ -1,0 +1,74 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+  {% if show_header %}
+    <div class="header">
+      <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
+      <div class="body">
+        <h1><a href="/feed/{{ feed.Id }}">{{ feed.Name|escape }}</a></h1>
+        {% if feed.Description %}
+          <div class="description">{{ feed.Description }}</div>
+        {% endif %}
+        {% for command in feed.Commands %}
+          {% ifequal command "subscribe" %}
+            <form method="post" action="/a/subscribe">
+              <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
+              <input type="hidden" name="feed" value="{{ feed.Id }}"/>
+              <input type="submit" value="Subscribe"/>
+    	</form>
+          {% endifequal %}
+          {% ifequal command "unsubscribe" %}
+    	<form method="post" action="/a/unsubscribe">
+              <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
+              <input type="hidden" name="feed" value="{{ feed.Id }}"/>
+              <input type="submit" value="Unsubscribe"/>
+    	</form>
+          {% endifequal %}
+        {% endfor %}
+      </div>
+      <div class="clear"></div>
+    </div>
+  {% endif %}
+
+  {% if show_share or show_direct %}
+  <div class="sharebox" id="shareform">
+    <form action="/a/share" method="post" enctype="multipart/form-data" onsubmit="return shareSubmit($(this))">
+      <div class="to" style="display: none;">
+        <label class="title" for="streams">To:</label>
+        <ul class="l_tolist">
+          <li class="spacer"></li>
+          <li class="l_tocard">My Feed<img title="Delete" class="a_toremove" src="/images/icon/to-delete.png" /></li>
+        </ul>
+      </div>
+
+      <textarea name="body"></textarea>
+
+      <div class="insert">
+        Add: <a href="#" class="l_add_media">Photo</a>
+      </div>
+
+      <div class="post">
+        <span class="max_info"></span>
+        <input class="submit" type="submit" value="{% if show_direct %}Direct message{% else %}Post{% endif %}"/>
+        {% if feed.Id == "Home" || feed.Id == "Public" %}
+        <input type="hidden" name="feedid" value="{{ current_user.Id }}"/>
+        {% else %}
+        <input type="hidden" name="feedid" value="{{feed.Id}}" />
+        {% endif %}
+        <input type="hidden" name="next" value="{% if show_direct %}{% filter urlencode %}/filter/direct{% endfilter %}{% else %}{{ request.path|urlencode }}{% endif %}"/>
+      </div>
+      <div class="clear"></div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div id="feed">
+    {{feed_body|safe}}
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+  <script type="text/jsx;harmony=true" src="/static/jsx/_feed.jsx"></script>
+{% endblock %}

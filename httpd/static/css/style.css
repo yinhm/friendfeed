@@ -59,6 +59,12 @@ a:hover {
     margin-bottom: 12px;
 }
 
+.entry:after {
+  content: "";
+  display: table;
+  clear: left;
+}
+
 .entry .picture {
     float: left;
     line-height: 0;
