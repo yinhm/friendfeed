@@ -592,7 +592,7 @@ func (s *Server) PublicHandler(c *gin.Context) {
 	req := &pb.FeedRequest{
 		Id:       "public",
 		Start:    int32(start),
-		PageSize: 50,
+		PageSize: 30,
 	}
 
 	profile, feed, err := s.FetchFeed(c, req)

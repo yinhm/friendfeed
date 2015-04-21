@@ -323,7 +323,7 @@ var Feed = React.createClass({
   },
 
   render() {
-    if (!this.state.feed || this.state.feed.entries.length == 0) {
+    if (!this.state.feed || !this.state.feed.entries) {
       return null;
     }
 
@@ -349,8 +349,9 @@ var Feed = React.createClass({
 self.Feed = Feed;
 
 if (typeof window !== 'undefined') {
+  var path = window.location.pathname + window.location.search;
   React.render(
-    <Feed url="/public" />,
+    <Feed url={path} />,
     document.getElementById('feed')
   );
 }
