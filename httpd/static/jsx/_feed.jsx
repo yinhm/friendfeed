@@ -273,7 +273,7 @@ var FeedPagin = React.createClass({
     var next = null;
     var sep = null;
     if (this.props.show) {
-      if (this.props.prev > 0) {
+      if (this.props.next > 30) {
         prev = <a href={'?start='+this.props.prev}>&laquo; Prev</a>;
         sep = " ";
       }
