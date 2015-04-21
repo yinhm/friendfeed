@@ -193,6 +193,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 		return 0, fmt.Errorf("skip job: no authinfo")
 	}
 	api := anaconda.NewTwitterApi(authinfo.AccessToken, authinfo.AccessTokenSecret)
+	defer api.Close()
 
 	v := url.Values{}
 	v.Set("screen_name", authinfo.NickName) // goth user.NickName == screen_name
