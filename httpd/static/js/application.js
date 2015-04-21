@@ -86,7 +86,7 @@ $(document).ready(function() {
 
   $("div").on("click", ".expandcomments", function() {
     var entry = $(this).parents(".entry");
-    var eid = $(this).parents(".entry").attr("eid");
+    var eid = $(this).parents(".entry").attr("eid") || $(this).parents(".entry").attr("data-eid");
     $.getJSON("/a/entry/" + eid, function(data) {
       entry.find(".comment").remove();
       $.each(data.comments, function(i, comment) {
