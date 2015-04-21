@@ -53,6 +53,19 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 	rc, _ := react.NewReact()
 	jsx, _ := react.NewJSX()
 
+	// TODO: caching if we have more components
+	component, err := jsx.TransformFile("./static/jsx/_feed.jsx", map[string]interface{}{
+		"harmony":     true,
+		"strip_types": true,
+	})
+	if err != nil {
+		panic(err)
+	}
+	err = rc.Load(component)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Server{
 		debug:      debug,
 		client:     c,
@@ -83,33 +96,16 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 }
 
 func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
-	component, err := s.jsx.TransformFile("./static/jsx/_feed.jsx", map[string]interface{}{
-		"harmony":     true,
-		"strip_types": true,
-	})
-	if err != nil {
-		log.Println(err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	err = s.rc.Load(component)
-	if err != nil {
-		log.Println(err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-
-	feed_body, err := s.rc.RenderComponent("Feed", data)
-	if err != nil {
-		log.Println(err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	data["feed_body"] = feed_body
-
 	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" {
 		c.JSON(200, data)
 	} else {
+		feed_body, err := s.rc.RenderComponent("Feed", data)
+		if err != nil {
+			log.Println(err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		data["feed_body"] = feed_body
 		s.HTML(c, 200, "_feed.html", data)
 	}
 }
