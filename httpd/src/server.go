@@ -200,8 +200,11 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 	if err != nil {
 		return
 	}
+	var basetime time.Time
 	for _, e := range feed.Entries {
 		e.RebuildCommand(profile, graph)
+		basetime, _ = time.Parse(time.RFC3339, e.Date)
+		e.Date = util.FormatTime(basetime)
 	}
 	return
 }

@@ -83,7 +83,7 @@
           <div class="media">{% for thumbnail in entry.Thumbnails %}<a href="{{ thumbnail.Link|escape }}"><img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} style="width:{{ thumbnail.Width }}px;height:{{ thumbnail.Height }}px"{% endif %} alt=""/></a>{% endfor %}</div>
         {% endif %}
         <div class="info">
-          <a href="/e/{{ entry.Id }}" class="permalink">{{ entry.Date|timesince }}</a>
+          <a href="/e/{{ entry.Id }}" class="permalink">{{ entry.Date }}</a>
           {% if entry.Via %}
             from <a href="{{ entry.Via.Url|escape }}" class="via">{{ entry.Via.name|escape }}</a>
           {% endif %}
