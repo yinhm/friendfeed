@@ -26,6 +26,15 @@ var Entry = React.createClass({
       medias = <EntryMediaBox thumbs={entry.thumbnails} />
     }
 
+    var comments = null;
+    if (entry.comments) {
+      var comments = entry.comments.map(function(comment, index) {
+        return (
+          <EntryComment comment={comment} key={index} />
+        );
+      });
+    }
+
     return (
       <div className="entry" data-eid={entry.id}>
         <EntryPicture feed={entry.from} />
@@ -35,6 +44,7 @@ var Entry = React.createClass({
           {medias}
           <EntryInfo entry={entry} />
           <EntryLikes likes={entry.likes} />
+          {comments}
         </div>
       </div>
     );
@@ -237,7 +247,26 @@ var EntryLikes = React.createClass({
   }
 });
 
-
+var EntryComment = React.createClass({
+  render: function() {
+    var comment = this.props.comment;
+    if (comment.placeholder) {
+      return (
+        <div data-cid={comment.id} className="comment placeholder">
+          <a href="#" className="expandcomments">{comment.body}</a>
+        </div>
+      );
+    } else {
+      return (
+        <div data-cid={comment.id} className="comment" title={comment.date}>
+          {comment.body}
+          {" - "}
+          <a href={'/feed/' + comment.from.id }>{comment.from.name}</a>
+        </div>
+      );
+    }
+  }
+});
 
 var Feed = React.createClass({
 
