@@ -164,26 +164,25 @@ var EntryTitle = React.createClass({
 var EntryInfo = React.createClass({
   render: function() {
     var entry = this.props.entry;
-    var info;
     var infos = [];
+    var via = null;
     if (entry.via) {
-      info = <span className="item">
+      via = <span className="item">
         {" from "}<a href={entry.via.url} className='via'>{entry.via.name}</a>
       </span>;
-      infos.push(info);
     }
 
     if (entry.commands) {
-      entry.commands.map(function(cmd, idx) {
-        info = <span className="item" key={idx}>
+      infos = entry.commands.map(function(cmd, idx) {
+        return <span className="item" key={idx}>
         {" - "}<EntryCommand command={cmd} /></span>;
-        infos.push(info);
       });
     };
 
     return (
       <div className="info">
         <a href={'/e/'+entry.id} className="permalink">{entry.date}</a>
+        {via}
         {infos}
       </div>
     );
@@ -268,6 +267,26 @@ var EntryComment = React.createClass({
   }
 });
 
+var FeedPagin = React.createClass({
+  render: function() {
+    var prev = null;
+    var next = null;
+    var sep = null;
+    if (this.props.show) {
+      if (this.props.prev > 0) {
+        prev = <a href={'?start='+this.props.prev}>&laquo; Prev</a>;
+        sep = " ";
+      }
+      next = <a href={'?start='+this.props.next}>Next &raquo;</a>;
+    }
+    return (
+      <div className="pager bottom">
+        {prev}{sep}{next}
+      </div>
+    );
+  }
+});
+
 var Feed = React.createClass({
 
   refreshInterval: 20 * 1000,
@@ -320,6 +339,8 @@ var Feed = React.createClass({
     return (
       <div className="feed">
         {entryNodes}
+        <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
+                   next={this.state.next_start} />
       </div>
     );
   }
