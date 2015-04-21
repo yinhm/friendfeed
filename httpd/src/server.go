@@ -614,6 +614,7 @@ func (s *Server) PublicHandler(c *gin.Context) {
 		"next_start":  req.Start + req.PageSize,
 		"show_paging": true,
 	}
+	// s.HTML(c, 200, "_feed.html", data)
 	s.renderFeed(c, data)
 }
 

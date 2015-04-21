@@ -34,6 +34,7 @@ var Entry = React.createClass({
           <EntryTitle body={entry.body} />
           {medias}
           <EntryInfo entry={entry} />
+          <EntryLikes likes={entry.likes} />
         </div>
       </div>
     );
@@ -186,6 +187,56 @@ var EntryCommand = React.createClass({
     );
   }
 });
+
+
+var EntryLike = React.createClass({
+  render: function() {
+    var like = this.props.like;
+    if (like.placeholder) {
+      return (
+        <span>{like.body}</span>
+      );
+    } else {
+      return (
+        <a href={'/feed/' + like.from.id }>
+          {like.from.name}
+        </a>
+      );
+    }
+  }
+});
+
+var EntryLikes = React.createClass({
+  render: function() {
+    if (!this.props.likes || this.props.likes.length == 0) {
+      return null;
+    }
+
+    var likes = this.props.likes.map(function(like, index) {
+      return (
+        <EntryLike like={like} key={index} />
+      );
+    });
+    if (likes.length == 1) {
+      return (
+        <div className="likes">
+          {likes}{" liked this"}
+        </div>
+      );
+    }
+
+    var last = likes[likes.length-1];
+    likes = likes.slice(0, -1);
+    likes = intersperse(likes, ", ");
+
+    return (
+      <div className="likes">
+        {likes}{" and "}{last}{" liked this"}
+      </div>
+    );
+  }
+});
+
 
 
 var Feed = React.createClass({
