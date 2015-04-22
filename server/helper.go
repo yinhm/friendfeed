@@ -1,8 +1,6 @@
 package server
 
 import (
-	"fmt"
-
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 )
@@ -35,30 +33,11 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 }
 
 func fmtComments(req *pb.FeedRequest, entry *pb.Entry) {
-	// collapse comments
-	length := len(entry.Comments)
-	if req.MaxComments == 0 && length > 4 {
-		collapsing := &pb.Comment{
-			Body:        fmt.Sprintf("%d more comments", length-2),
-			Num:         int32(length - 2),
-			Placeholder: true,
-		}
-		entry.Comments = []*pb.Comment{entry.Comments[0], collapsing, entry.Comments[length-1]}
-	}
+	entry.FormatComments(req.MaxComments)
 }
 
 func fmtLikes(req *pb.FeedRequest, entry *pb.Entry) {
-	// collapse likes
-	length := len(entry.Likes)
-	if req.MaxLikes == 0 && length > 4 {
-		collapsing := &pb.Like{
-			Body:        fmt.Sprintf("%d other people", length-2),
-			Num:         int32(length - 2),
-			Placeholder: true,
-		}
-		entry.Likes = entry.Likes[:3]
-		entry.Likes = append(entry.Likes, collapsing)
-	}
+	entry.FormatLikes(req.MaxLikes)
 }
 
 func BuildGraph(info *pb.Feedinfo) *pb.Graph {

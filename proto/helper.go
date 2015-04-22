@@ -1,5 +1,7 @@
 package proto
 
+import "fmt"
+
 func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 	if profile.Id == "" {
 		e.Commands = []string{}
@@ -21,4 +23,31 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 	}
 	e.Commands = commands
 	return
+}
+
+func (e *Entry) FormatComments(max int32) {
+	// collapse comments
+	length := len(e.Comments)
+	if max == 0 && length > 4 {
+		collapsing := &Comment{
+			Body:        fmt.Sprintf("%d more comments", length-2),
+			Num:         int32(length - 2),
+			Placeholder: true,
+		}
+		e.Comments = []*Comment{e.Comments[0], collapsing, e.Comments[length-1]}
+	}
+}
+
+func (e *Entry) FormatLikes(max int32) {
+	// collapse likes
+	length := len(e.Likes)
+	if max == 0 && length > 4 {
+		collapsing := &Like{
+			Body:        fmt.Sprintf("%d other people", length-2),
+			Num:         int32(length - 2),
+			Placeholder: true,
+		}
+		e.Likes = e.Likes[:3]
+		e.Likes = append(e.Likes, collapsing)
+	}
 }
