@@ -273,8 +273,8 @@ def deploy_web():
         with cd(code_root):
             run('git reset --hard && git checkout master && git pull')
             run("cd %s/httpd && npm install && gulp release" % code_root)
+            run("cd %s/httpd && %s/bin/go-bindata -pkg=server static/... templates/ && mv bindata.go src/" % (code_root, go_path))
             run("cd %s/httpd && go get ." % code_root)
-            run("cd %s/httpd/src && %s/bin/go-bindata -pkg=server ../static/... ../templates/" % (code_root, go_path))
             run("cd httpd && go build")
 
     with cd(web_path):
