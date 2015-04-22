@@ -583,7 +583,7 @@ func (s *Server) CommentHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"success": true})
+	c.JSON(200, comment)
 }
 
 func (s *Server) PublicHandler(c *gin.Context) {

@@ -20,17 +20,44 @@ function intersperse(arr, sep) {
 var Entry = React.createClass({
 
   getInitialState: function() {
-    return {comment_form: false};
+    // var comments = this.props.entry.comments
+    return {
+      comments: this.props.entry.comments,
+      comment_form: false
+    };
   },
 
   handleNewComment: function(child) {
     var btn = this;
     if (this.state.comment_form) {
       // focus
-      React.findDOMNode(this.refs.commentForm).focus();
+      React.findDOMNode(this.refs.commentInput).focus();
     } else {
       // make form
       this.setState({comment_form: true});
+    }
+  },
+
+  handleComment: function(event) {
+    event.preventDefault();
+    var self = this;
+    var comments = this.state.comments;
+
+    var comment = React.findDOMNode(this.refs.commentInput).value.trim();
+    if (!comment) {
+      return;
+    }
+    React.findDOMNode(this.refs.commentInput).value = '';
+
+    if (this.state.comment_form) {
+      var args = {
+        entry: this.props.entry.id,
+        body: comment
+      };
+      $.postJSON("/a/comment", args, function(comment) {
+        comments.push(comment);
+        self.setState({comment_form: false});
+      });
     }
   },
 
@@ -57,9 +84,11 @@ var Entry = React.createClass({
       form_cmt = (
         <div className="comment form">
           <form method="post">
-            <input type="text" name="body" style={inputStyle} />
+            <input autoFocus type="text" name="body"
+                   style={inputStyle}
+                   ref="commentInput" />
             {" "}
-            <input type="submit" value="Comment" />
+            <input type="submit" value="Comment" onClick={this.handleComment} />
           </form>
         </div>
       );
