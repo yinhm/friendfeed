@@ -54,7 +54,7 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 	jsx, _ := react.NewJSX()
 
 	// TODO: caching if we have more components
-	component, err := jsx.TransformFile("./static/jsx/_feed.jsx", map[string]interface{}{
+	component, err := jsx.TransformFile("./templates/_feed.jsx", map[string]interface{}{
 		"harmony":     true,
 		"strip_types": true,
 	})

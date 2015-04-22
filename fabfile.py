@@ -98,11 +98,13 @@ def bootstrap():
     sudo("apt-get -y install imagemagick")
     sudo("apt-get -y install unzip")
     sudo("apt-get -y install tmux")
+    sudo("apt-get -y install nodejs npm")
 
     sudo ("apt-get -y install debhelper libsnappy-dev libgflags-dev libjemalloc-dev libbz2-dev zlib1g-dev")
     sudo("sudo apt-get -y install devscripts")
     sudo('git config --global url."git@github.com:".insteadOf "https://github.com/"')
-    
+
+    sudo("npm install -g gulp")
 
 @task
 def deploy_env():
@@ -269,6 +271,7 @@ def deploy_web():
 
         with cd(code_root):
             run('git reset --hard && git checkout master && git pull')
+            run("cd %s/httpd && npm install && gulp release" % code_root)
             run("cd %s/httpd && go get ." % code_root)
             run("cd %s/httpd && %s/bin/go-bindata static/... templates/" % (code_root, go_path))
             run("cd httpd && go build")

@@ -70,5 +70,9 @@
 {% endblock %}
 
 {% block scripts %}
-  <script type="text/jsx;harmony=true" src="/static/jsx/_feed.jsx"></script>
+  {% if dev %}
+  <script src="/static/js/bundle.js"></script>
+  {% else %}
+  <script src="/static/js/bundle.min.js"></script>
+  {% endif %}
 {% endblock %}

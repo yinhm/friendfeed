@@ -101,20 +101,28 @@ Google OAUTH2
 Web Dev
 =======
 
+build js
+
+    sudo apt-get install nodejs
+    sudo npm install -g gulp
     cd httpd
-    go get .
+    npm install
+    gulp watch
 
 Start develop
 
+    cd httpd
+    go get .
     go build; ./httpd -f=../conf/gauth.json -d
 
-Or use Gin
+Or use Gin(recommend)
         
     go get github.com/codegangsta/gin
     export DEBUG=1
     export RPC="localhost:8901"
     export CONFIG_FILE=/srv/ff/config.json
     gin -p 8080
+
 
 Deploy FriendFeed
 =================
