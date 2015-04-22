@@ -327,7 +327,7 @@ var EntryCommandEdit = React.createClass({
 var EntryCommandDelete = React.createClass({
   render: function() {
     return (
-      <a href="#" className="deletecommand">Edit</a>
+      <a href="#" className="deletecommand">Delete</a>
     );
   }
 });
