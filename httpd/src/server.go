@@ -492,7 +492,7 @@ func (s *Server) EntryCommentHandler(c *gin.Context) {
 	}
 
 	comments := feed.Entries[0].Comments
-	c.JSON(200, gin.H{"comments": comments})
+	c.JSON(200, comments)
 }
 
 func (s *Server) LikeHandler(c *gin.Context) {

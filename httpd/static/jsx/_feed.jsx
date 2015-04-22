@@ -70,6 +70,13 @@ var Entry = React.createClass({
     this.setState({comment_form: false});
   },
 
+  expandComments: function(event) {
+    var self = this;
+    $.getJSON("/a/entry/" + this.props.entry.id, function(data) {
+      self.setState({comments: data});
+    });
+  },
+
   render: function() {
     var entry = this.props.entry;
 
@@ -79,10 +86,11 @@ var Entry = React.createClass({
     }
 
     var comments = null;
-    if (entry.comments) {
-      var comments = entry.comments.map(function(comment, index) {
+    if (this.state.comments) {
+      var self = this;
+      var comments = this.state.comments.map(function(comment, index) {
         return (
-          <EntryComment comment={comment} key={index} />
+          <EntryComment comment={comment} expandComments={self.expandComments} key={index} />
         );
       });
     }
@@ -392,12 +400,18 @@ var EntryLikes = React.createClass({
 });
 
 var EntryComment = React.createClass({
+
+  expandComments: function(event) {
+    event.preventDefault();
+    this.props.expandComments();
+  },
+
   render: function() {
     var comment = this.props.comment;
     if (comment.placeholder) {
       return (
         <div data-cid={comment.id} className="comment placeholder">
-          <a href="#" className="expandcomments">{comment.body}</a>
+          <a href="#" onClick={this.expandComments}>{comment.body}</a>
         </div>
       );
     } else {
