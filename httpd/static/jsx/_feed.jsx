@@ -245,6 +245,10 @@ var EntryInfo = React.createClass({
           case "like":
             btn = <EntryCommandLike eid={entry.id} liked={liked} />;
             break;
+          case "unlike":
+            liked = true;
+            btn = <EntryCommandLike eid={entry.id} liked={liked} />;
+            break;
           case "edit":
             btn = <EntryCommandEdit />;
             break;

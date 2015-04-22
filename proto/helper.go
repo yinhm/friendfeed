@@ -19,7 +19,20 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 	if profile.Id == e.From.Id {
 		commands = append(commands, "edit", "delete")
 	} else {
-		commands = append(commands, "like")
+		// liked?
+		liked := false
+		for _, like := range e.Likes {
+			// TODO: fixme, why on earth like.From == nil?
+			if like.From != nil && like.From.Id == profile.Id {
+				liked = true
+				break
+			}
+		}
+		if liked {
+			commands = append(commands, "unlike")
+		} else {
+			commands = append(commands, "like")
+		}
 	}
 	e.Commands = commands
 	return
