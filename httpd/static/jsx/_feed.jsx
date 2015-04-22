@@ -23,7 +23,8 @@ var Entry = React.createClass({
     // var comments = this.props.entry.comments
     return {
       comments: this.props.entry.comments,
-      comment_form: false
+      comment_form: false,
+      comment_preserve: null
     };
   },
 
@@ -61,12 +62,20 @@ var Entry = React.createClass({
     }
   },
 
+  handleCommentCancel: function(event) {
+    var comment = React.findDOMNode(this.refs.commentInput).value.trim();
+    if (comment) {
+      this.setState({comment_preserve: comment});
+    }
+    this.setState({comment_form: false});
+  },
+
   render: function() {
     var entry = this.props.entry;
 
     var medias = "";
     if (entry.thumbnails) {
-      medias = <EntryMediaBox thumbs={entry.thumbnails} />
+      medias = <EntryMediaBox thumbs={entry.thumbnails} />;
     }
 
     var comments = null;
@@ -80,15 +89,13 @@ var Entry = React.createClass({
 
     var form_cmt = null;
     if (this.state.comment_form) {
-      var inputStyle = {width: '300px'}
       form_cmt = (
         <div className="comment form">
           <form method="post">
-            <input autoFocus type="text" name="body"
-                   style={inputStyle}
-                   ref="commentInput" />
-            {" "}
-            <input type="submit" value="Comment" onClick={this.handleComment} />
+            <textarea autoFocus name="body" ref="commentInput" value={this.state.comment_preserve} />
+            <input type="submit" value="Post"
+                   onClick={this.handleComment} />
+            <span onClick={this.handleCommentCancel}>Cancel</span>
           </form>
         </div>
       );
