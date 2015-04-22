@@ -513,12 +513,13 @@ func (s *Server) LikeHandler(c *gin.Context) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	_, err := s.client.LikeEntry(ctx, req)
+	entry, err := s.client.LikeEntry(ctx, req)
 	if RequestError(c, err) {
 		return
 	}
 
-	c.JSON(200, gin.H{"success": true})
+	entry.FormatLikes(int32(0))
+	c.JSON(200, entry.Likes)
 }
 
 func (s *Server) LikeDeleteHandler(c *gin.Context) {
@@ -539,12 +540,13 @@ func (s *Server) LikeDeleteHandler(c *gin.Context) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	_, err := s.client.LikeEntry(ctx, req)
+	entry, err := s.client.LikeEntry(ctx, req)
 	if RequestError(c, err) {
 		return
 	}
 
-	c.JSON(200, gin.H{"success": true})
+	entry.FormatLikes(int32(0))
+	c.JSON(200, entry.Likes)
 }
 
 func (s *Server) CommentHandler(c *gin.Context) {

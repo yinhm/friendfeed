@@ -22,7 +22,9 @@ var Entry = React.createClass({
   getInitialState: function() {
     // var comments = this.props.entry.comments
     return {
+      entry: this.props.entry,
       comments: this.props.entry.comments,
+      likes: this.props.entry.likes,
       comment_form: false,
       comment_preserve: null
     };
@@ -77,8 +79,24 @@ var Entry = React.createClass({
     });
   },
 
+  handleLike: function(btn) {
+    var self = this;
+    var entry = this.state.entry;
+    if (!btn.state.liked) {
+      $.postJSON("/a/like", {entry: entry.id}, function(likes) {
+        btn.setState({liked: !btn.state.liked});
+        self.setState({likes: likes});
+      });
+    } else {
+      $.postJSON("/a/like/delete", {entry: entry.id}, function(likes) {
+        btn.setState({liked: !btn.state.liked});
+        self.setState({likes: likes});
+      });
+    }
+  },
+
   render: function() {
-    var entry = this.props.entry;
+    var entry = this.state.entry;
 
     var medias = "";
     if (entry.thumbnails) {
@@ -116,8 +134,8 @@ var Entry = React.createClass({
           <EntryAuthor from={entry.from} to={entry.to} />
           <EntryTitle body={entry.body} />
           {medias}
-          <EntryInfo entry={entry} onNewComment={this.handleNewComment} />
-          <EntryLikes likes={entry.likes} />
+          <EntryInfo entry={entry} onNewComment={this.handleNewComment} onLike={this.handleLike} />
+          <EntryLikes likes={this.state.likes} />
           {comments}
           {form_cmt}
         </div>
@@ -258,11 +276,11 @@ var EntryInfo = React.createClass({
             btn = <EntryCommandComment onNewComment={self.props.onNewComment} />;
             break;
           case "like":
-            btn = <EntryCommandLike eid={entry.id} liked={liked} />;
+            btn = <EntryCommandLike onLike={self.props.onLike} liked={liked} />;
             break;
           case "unlike":
             liked = true;
-            btn = <EntryCommandLike eid={entry.id} liked={liked} />;
+            btn = <EntryCommandLike onLike={self.props.onLike} liked={liked} />;
             break;
           case "edit":
             btn = <EntryCommandEdit />;
@@ -298,17 +316,7 @@ var EntryCommandLike = React.createClass({
 
   handleClick: function(event) {
     event.preventDefault();
-    var btn = this;
-
-    if (!this.state.liked) {
-      $.postJSON("/a/like", {entry: this.props.eid}, function(resp) {
-        btn.setState({liked: !btn.state.liked});
-      });
-    } else {
-      $.postJSON("/a/like/delete", {entry: this.props.eid}, function(resp) {
-        btn.setState({liked: !btn.state.liked});
-      });
-    }
+    this.props.onLike(this);
   },
 
   render: function() {
