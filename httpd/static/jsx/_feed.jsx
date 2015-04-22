@@ -1,6 +1,12 @@
 'use strict';
 var React = self.React;
 
+function dprint(msg) {
+  if (typeof window !== 'undefined' && window.console && window.console.log) {
+    window.console.log(msg);
+  }
+}
+
 /* intersperse: Return an array with the separator interspersed between
  * each element of the input array.
  *
@@ -463,7 +469,6 @@ var Feed = React.createClass({
       url: this.props.url,
       dataType: 'json',
       success: function(data) {
-        console.log(data);
         this.setState(data);
       }.bind(this),
       error: function(xhr, status, err) {
@@ -474,17 +479,17 @@ var Feed = React.createClass({
 
   // Set the initial component state
   getInitialState: function(props){
-    console.log("getInitialState");
+    dprint("getInitialState");
     return props || this.props;
   },
 
   componentWillReceiveProps: function(nextProps){
-    console.log("componentWillReceiveProps");
+    dprint("componentWillReceiveProps");
     this.setState(this.getInitialState(nextProps));
   },
 
   componentDidMount() {
-    console.log("Loading feeds from server...");
+    dprint("Loading feeds...");
     this.loadFeeds();
     setInterval(this.loadFeeds, this.refreshInterval);
   },
@@ -494,7 +499,6 @@ var Feed = React.createClass({
       return null;
     }
 
-    console.log("rending...");
     var feed = this.state.feed;
     var entryNodes = feed.entries.map(function(entry, index){
       return (
