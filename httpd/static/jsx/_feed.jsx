@@ -18,6 +18,22 @@ function intersperse(arr, sep) {
 }
 
 var Entry = React.createClass({
+
+  getInitialState: function() {
+    return {comment_form: false};
+  },
+
+  handleNewComment: function(child) {
+    var btn = this;
+    if (this.state.comment_form) {
+      // focus
+      React.findDOMNode(this.refs.commentForm).focus();
+    } else {
+      // make form
+      this.setState({comment_form: true});
+    }
+  },
+
   render: function() {
     var entry = this.props.entry;
 
@@ -35,6 +51,20 @@ var Entry = React.createClass({
       });
     }
 
+    var form_cmt = null;
+    if (this.state.comment_form) {
+      var inputStyle = {width: '300px'}
+      form_cmt = (
+        <div className="comment form">
+          <form method="post">
+            <input type="text" name="body" style={inputStyle} />
+            {" "}
+            <input type="submit" value="Comment" />
+          </form>
+        </div>
+      );
+    }
+
     return (
       <div className="entry" data-eid={entry.id}>
         <EntryPicture feed={entry.from} />
@@ -42,9 +72,10 @@ var Entry = React.createClass({
           <EntryAuthor from={entry.from} to={entry.to} />
           <EntryTitle body={entry.body} />
           {medias}
-          <EntryInfo entry={entry} />
+          <EntryInfo entry={entry} onNewComment={this.handleNewComment} />
           <EntryLikes likes={entry.likes} />
           {comments}
+          {form_cmt}
         </div>
       </div>
     );
@@ -162,6 +193,7 @@ var EntryTitle = React.createClass({
 });
 
 var EntryInfo = React.createClass({
+
   render: function() {
     var entry = this.props.entry;
     var infos = [];
@@ -173,12 +205,13 @@ var EntryInfo = React.createClass({
     }
 
     if (entry.commands) {
+      var self = this;
       infos = entry.commands.map(function(cmd, idx) {
         var btn = null
         var liked = false;
         switch (cmd) {
           case "comment":
-            btn = <EntryCommandComment />;
+            btn = <EntryCommandComment onNewComment={self.props.onNewComment} />;
             break;
           case "like":
             btn = <EntryCommandLike eid={entry.id} liked={liked} />;
@@ -241,9 +274,15 @@ var EntryCommandLike = React.createClass({
 });
 
 var EntryCommandComment = React.createClass({
+
+  handleClick: function(event) {
+    event.preventDefault();
+    this.props.onNewComment(this);
+  },
+
   render: function() {
     return (
-      <a href="#">Comment</a>
+      <a href="#" onClick={this.handleClick}>Comment</a>
     );
   }
 });
