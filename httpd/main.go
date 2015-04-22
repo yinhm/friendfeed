@@ -79,7 +79,7 @@ func assetContentType(name string) string {
 }
 
 func serveAsset(path string, c *gin.Context) {
-	buff, err := Asset(path)
+	buff, err := server.Asset(path)
 
 	if err != nil {
 		c.String(400, err.Error())

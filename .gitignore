@@ -6,3 +6,4 @@ client/client
 conf/*
 httpd/node_modules
 httpd/static/js/bundle*.js
+httpd/src/bindata.go

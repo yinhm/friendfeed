@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/flosch/pongo2"
+	server "github.com/yinhm/friendfeed/httpd/src"
 )
 
 type Render struct {
@@ -29,7 +30,7 @@ func (p *Render) Render(w http.ResponseWriter, code int, data ...interface{}) er
 			}
 			t = tmpl
 		} else {
-			buff, err := Asset(file)
+			buff, err := server.Asset(file)
 			if err == nil {
 				tmpl, err := pongo2.FromString(string(buff))
 				if err != nil {

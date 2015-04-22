@@ -54,16 +54,27 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 	jsx, _ := react.NewJSX()
 
 	// TODO: caching if we have more components
-	component, err := jsx.TransformFile("./templates/_feed.jsx", map[string]interface{}{
-		"harmony":     true,
-		"strip_types": true,
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = rc.Load(component)
-	if err != nil {
-		panic(err)
+	if debug {
+		component, err := jsx.TransformFile("./templates/_feed.jsx", map[string]interface{}{
+			"harmony":     true,
+			"strip_types": true,
+		})
+		if err != nil {
+			panic(err)
+		}
+		err = rc.Load(component)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		component, err := Asset("static/js/bundle.min.js")
+		if err != nil {
+			panic(err)
+		}
+		err = rc.Load(component)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	return &Server{

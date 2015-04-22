@@ -105,6 +105,7 @@ def bootstrap():
     sudo('git config --global url."git@github.com:".insteadOf "https://github.com/"')
 
     sudo("npm install -g gulp")
+    sudo("ln -s /usr/bin/nodejs /usr/bin/node")
 
 @task
 def deploy_env():
@@ -273,7 +274,7 @@ def deploy_web():
             run('git reset --hard && git checkout master && git pull')
             run("cd %s/httpd && npm install && gulp release" % code_root)
             run("cd %s/httpd && go get ." % code_root)
-            run("cd %s/httpd && %s/bin/go-bindata static/... templates/" % (code_root, go_path))
+            run("cd %s/httpd/src && %s/bin/go-bindata -pkg=server ../static/... ../templates/" % (code_root, go_path))
             run("cd httpd && go build")
 
     with cd(web_path):
