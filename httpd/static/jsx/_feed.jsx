@@ -174,8 +174,29 @@ var EntryInfo = React.createClass({
 
     if (entry.commands) {
       infos = entry.commands.map(function(cmd, idx) {
-        return <span className="item" key={idx}>
-        {" - "}<EntryCommand command={cmd} /></span>;
+        var btn = null
+        var liked = false;
+        switch (cmd) {
+          case "comment":
+            btn = <EntryCommandComment />;
+            break;
+          case "like":
+            btn = <EntryCommandLike eid={entry.id} liked={liked} />;
+            break;
+          case "edit":
+            btn = <EntryCommandEdit />;
+            break;
+          case "delete":
+            btn = <EntryCommandDelete />;
+            break;
+          default:
+            break;
+        }
+        return (
+          <span className="item" key={idx}>
+            {" - "}{btn}
+          </span>
+        );
       });
     };
 
@@ -189,14 +210,59 @@ var EntryInfo = React.createClass({
   }
 });
 
-var EntryCommand = React.createClass({
+var EntryCommandLike = React.createClass({
+  getInitialState: function() {
+    return {liked: this.props.liked};
+  },
+
+  handleClick: function(event) {
+    event.preventDefault();
+    var btn = this;
+
+    if (!this.state.liked) {
+      $.postJSON("/a/like", {entry: this.props.eid}, function(resp) {
+        btn.setState({liked: !btn.state.liked});
+      });
+    } else {
+      $.postJSON("/a/like/delete", {entry: this.props.eid}, function(resp) {
+        btn.setState({liked: !btn.state.liked});
+      });
+    }
+  },
+
   render: function() {
+    var text = this.state.liked ? 'Unlike' : 'Like';
     return (
-      <a href="#" className={this.props.command + 'command'}>{this.props.command}</a>
+      <a href="#" onClick={this.handleClick}>
+        {text}
+      </a>
     );
   }
 });
 
+var EntryCommandComment = React.createClass({
+  render: function() {
+    return (
+      <a href="#">Comment</a>
+    );
+  }
+});
+
+var EntryCommandEdit = React.createClass({
+  render: function() {
+    return (
+      <a href="#" className="editcommand">Edit</a>
+    );
+  }
+});
+
+var EntryCommandDelete = React.createClass({
+  render: function() {
+    return (
+      <a href="#" className="deletecommand">Edit</a>
+    );
+  }
+});
 
 var EntryLike = React.createClass({
   render: function() {
@@ -329,7 +395,7 @@ var Feed = React.createClass({
 
     console.log("rending...");
     var feed = this.state.feed;
-    var entryNodes = feed.entries.map(function(entry, index) {
+    var entryNodes = feed.entries.map(function(entry, index){
       return (
         <Entry entry={entry} key={entry.id}>
         </Entry>
