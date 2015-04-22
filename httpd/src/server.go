@@ -183,9 +183,12 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
+	var format = false
+
 	switch req.(type) {
 	case *pb.FeedRequest:
 		feed, err = s.client.FetchFeed(ctx, req.(*pb.FeedRequest))
+		format = true
 	case *pb.EntryRequest:
 		feed, err = s.client.FetchEntry(ctx, req.(*pb.EntryRequest))
 	}
@@ -205,6 +208,11 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 		e.RebuildCommand(profile, graph)
 		basetime, _ = time.Parse(time.RFC3339, e.Date)
 		e.Date = util.FormatTime(basetime)
+
+		if format {
+			e.FormatComments(int32(0))
+			e.FormatLikes(int32(0))
+		}
 	}
 	return
 }
