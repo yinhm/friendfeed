@@ -89,7 +89,7 @@ $(document).ready(function() {
     var eid = $(this).parents(".entry").attr("eid") || $(this).parents(".entry").attr("data-eid");
     $.getJSON("/a/entry/" + eid, function(data) {
       entry.find(".comment").remove();
-      $.each(data.comments, function(i, comment) {
+      $.each(data, function(i, comment) {
         entry.find(".body").append(makeCommentDiv(comment));
       });
     });
