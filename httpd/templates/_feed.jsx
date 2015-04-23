@@ -496,8 +496,16 @@ var Feed = React.createClass({
   },
 
   componentDidMount: function() {
-    dprint("Loading feeds...");
-    this.loadFeeds();
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (window.app_props) {
+      dprint("Loading feeds...");
+      this.setState(window.app_props);
+    } else {
+      dprint("Fetching feeds...");
+      this.loadFeeds();
+    }
     setInterval(this.loadFeeds, this.refreshInterval);
   },
 

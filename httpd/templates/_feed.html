@@ -70,6 +70,10 @@
 {% endblock %}
 
 {% block scripts %}
+  <script>
+   window.app_props = {{app_props|safe}};
+  </script>
+
   {% if dev %}
   <script src="/static/js/bundle.js"></script>
   {% else %}

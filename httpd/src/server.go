@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -117,6 +118,8 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 			return
 		}
 		data["feed_body"] = feed_body
+		encoded, _ := json.Marshal(data)
+		data["app_props"] = string(encoded)
 		s.HTML(c, 200, "_feed.html", data)
 	}
 }
