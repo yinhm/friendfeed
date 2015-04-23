@@ -494,7 +494,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
-func (s *Server) EntryCommentHandler(c *gin.Context) {
+func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
 	req := &pb.EntryRequest{uuid}
 
@@ -510,6 +510,20 @@ func (s *Server) EntryCommentHandler(c *gin.Context) {
 	graph, _ := s.CurrentGraph(c)
 	feed.Entries[0].RebuildCommentsCommand(profile, graph)
 	c.JSON(200, feed.Entries[0].Comments)
+}
+
+func (s *Server) ExpandLikeHandler(c *gin.Context) {
+	uuid := c.Params.ByName("uuid")
+	req := &pb.EntryRequest{uuid}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	feed, err := s.client.FetchEntry(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+	c.JSON(200, feed.Entries[0].Likes)
 }
 
 func (s *Server) LikeHandler(c *gin.Context) {

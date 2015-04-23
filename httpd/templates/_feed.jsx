@@ -93,6 +93,13 @@ var Entry = React.createClass({
     });
   },
 
+  expandLikes: function() {
+    var self = this;
+    $.getJSON("/a/expandlikes/" + this.props.entry.id, function(data) {
+      self.setState({likes: data});
+    });
+  },
+
   deleteComment: function(comment) {
     if (!comment.id) {
       return comment;
@@ -163,7 +170,8 @@ var Entry = React.createClass({
           <EntryTitle body={entry.body} />
           {medias}
           <EntryInfo entry={entry} onNewComment={this.handleNewComment} onLike={this.handleLike} />
-          <EntryLikes likes={this.state.likes} />
+          <EntryLikes likes={this.state.likes}
+                      expandLikes={this.expandLikes} />
           {comments}
           {form_cmt}
         </div>
@@ -405,6 +413,21 @@ var EntryLike = React.createClass({
 });
 
 var EntryLikes = React.createClass({
+
+  getInitialState: function() {
+    return {expanded: false};
+  },
+
+  expandLikes: function(event) {
+    if (this.state.expanded) {
+      return;
+    }
+
+    event.preventDefault();
+    this.props.expandLikes();
+    this.setState({expanded: true});
+  },
+
   render: function() {
     if (!this.props.likes || this.props.likes.length == 0) {
       return null;
@@ -428,7 +451,7 @@ var EntryLikes = React.createClass({
     likes = intersperse(likes, ", ");
 
     return (
-      <div className="likes">
+      <div className="likes" onClick={this.expandLikes}>
         {likes}{" and "}{last}{" liked this"}
       </div>
     );

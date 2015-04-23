@@ -172,7 +172,8 @@ func Serve(s *server.Server) {
 	r.GET("/feed/:name", s.FeedHandler)
 	r.GET("/e/:uuid", s.EntryHandler)
 
-	r.GET("/a/entry/:uuid", s.EntryCommentHandler)
+	r.GET("/a/entry/:uuid", s.ExpandCommentHandler)
+	r.GET("/a/expandlikes/:uuid", s.ExpandLikeHandler)
 	action := r.Group("/a", server.LoginRequired())
 	{
 		action.POST("/share", s.EntryPostHandler)
