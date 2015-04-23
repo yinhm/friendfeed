@@ -33,6 +33,7 @@ service Api {
   rpc PostEntry(Entry) returns (Entry) {}
   rpc LikeEntry(LikeRequest) returns (Entry) {}
   rpc CommentEntry(CommentRequest) returns (Entry) {}
+  rpc DeleteComment(CommentDeleteRequest) returns (Entry) {}
 
   rpc PutOAuth(OAuthUser) returns (Profile) {}
   // rpc BindAuth(OAuthUser) returns (OAuthUser) {}
@@ -149,6 +150,12 @@ message LikeRequest {
 message CommentRequest {
   string entry = 1;
   Comment comment = 2;
+}
+
+message CommentDeleteRequest {
+  string entry = 1;
+  string comment = 2;
+  string user = 3;
 }
 
 message ServiceRequest {

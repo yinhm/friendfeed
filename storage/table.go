@@ -458,3 +458,19 @@ func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comme
 	key, err := PutEntry(rdb, entry, true)
 	return key, entry, err
 }
+
+func DeleteComment(rdb *Store, profile *pb.Profile, entry *pb.Entry, commentId string) (*pb.Entry, error) {
+	var err error
+	index := -1
+	for i, cmt := range entry.Comments {
+		if commentId == cmt.Id {
+			index = i
+			break
+		}
+	}
+	if index >= 0 {
+		entry.Comments = append(entry.Comments[:index], entry.Comments[index+1:]...)
+		_, err = PutEntry(rdb, entry, true)
+	}
+	return entry, err
+}

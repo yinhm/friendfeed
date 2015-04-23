@@ -227,6 +227,7 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 			e.FormatComments(int32(0))
 			e.FormatLikes(int32(0))
 		}
+		e.RebuildCommentsCommand(profile, graph)
 	}
 	return
 }
@@ -607,7 +608,37 @@ func (s *Server) CommentHandler(c *gin.Context) {
 		return
 	}
 
+	comment.Commands = []string{"edit", "delete"}
 	c.JSON(200, comment)
+}
+
+func (s *Server) CommentDeleteHandler(c *gin.Context) {
+	var form struct {
+		Entry   string `form:"entry" binding:"required"`
+		Comment string `form:"comment" binding:"required"`
+	}
+	c.BindWith(&form, binding.Form)
+
+	// TODO: check perm
+	profile, _ := s.CurrentUser(c)
+	graph, _ := s.CurrentGraph(c)
+	req := &pb.CommentDeleteRequest{
+		Entry:   form.Entry,
+		Comment: form.Comment,
+		User:    profile.Id,
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	entry, err := s.client.DeleteComment(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	entry.FormatComments(int32(0))
+	entry.RebuildCommentsCommand(profile, graph)
+	c.JSON(200, entry.Comments)
 }
 
 func (s *Server) PublicHandler(c *gin.Context) {

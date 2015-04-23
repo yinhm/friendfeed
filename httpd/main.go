@@ -179,6 +179,7 @@ func Serve(s *server.Server) {
 		action.POST("/like", s.LikeHandler)
 		action.POST("/like/delete", s.LikeDeleteHandler)
 		action.POST("/comment", s.CommentHandler)
+		action.POST("/comment/delete", s.CommentDeleteHandler)
 	}
 
 	r.GET("/public", s.PublicHandler)

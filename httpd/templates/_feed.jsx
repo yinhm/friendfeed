@@ -93,6 +93,17 @@ var Entry = React.createClass({
     });
   },
 
+  deleteComment: function(comment) {
+    if (!comment.id) {
+      return comment;
+    }
+    var data = {entry: this.state.entry.id, comment: comment.id}
+    $.postJSON("/a/comment/delete", data), function(data) {
+      comment.body = "comment deleted";
+    };
+    return null;
+  },
+
   handleLike: function(btn) {
     var self = this;
     var entry = this.state.entry;
@@ -122,7 +133,10 @@ var Entry = React.createClass({
       var self = this;
       var comments = this.state.comments.map(function(comment, index) {
         return (
-          <EntryComment comment={comment} expandComments={self.expandComments} key={index} />
+          <EntryComment comment={comment}
+                        expandComments={self.expandComments}
+                        deleteComment={self.deleteComment}
+                        key={index} />
         );
       });
     }
@@ -423,25 +437,59 @@ var EntryLikes = React.createClass({
 
 var EntryComment = React.createClass({
 
+  getInitialState: function() {
+    return {comment: this.props.comment};
+  },
+
   expandComments: function(event) {
     event.preventDefault();
     this.props.expandComments();
   },
 
+  deleteComment: function(event) {
+    event.preventDefault();
+    var comment = this.props.deleteComment(this.state.comment);
+    this.setState({comment: comment});
+  },
+
   render: function() {
-    var comment = this.props.comment;
+    var comment = this.state.comment;
+
+    if (!comment) {
+      return (
+        <div className="comment placeholder">
+          <span>Comment deleted.</span>
+        </div>
+      );
+    }
+
+    var cmds = null
+    if (comment.commands && comment.commands.length > 0) {
+      cmds = (
+        <span className="commands">
+          {" ( "}
+          <a href="#" >Edit</a>
+          {" | "}
+          <a href="#" onClick={this.deleteComment}>Delete</a>
+          {" )"}
+        </span>
+      );
+    }
+
     if (comment.placeholder) {
       return (
-        <div data-cid={comment.id} className="comment placeholder">
+        <div className="comment placeholder">
           <a href="#" onClick={this.expandComments}>{comment.body}</a>
         </div>
       );
     } else {
       return (
-        <div data-cid={comment.id} className="comment" title={comment.date}>
+        <div onFocus={this.showCommands}
+             className="comment" title={comment.date}>
           {comment.body}
           {" - "}
           <a href={'/feed/' + comment.from.id }>{comment.from.name}</a>
+          {cmds}
         </div>
       );
     }

@@ -496,6 +496,20 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 	return entry, nil
 }
 
+func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequest) (*pb.Entry, error) {
+	entry, err := store.GetEntry(s.rdb, req.Entry)
+	if err != nil {
+		return nil, err
+	}
+
+	profile, err := store.GetProfile(s.mdb, req.User)
+	if err != nil || profile == nil {
+		return nil, err
+	}
+
+	return store.DeleteComment(s.rdb, profile, entry, req.Comment)
+}
+
 func (s *ApiServer) spread(key *store.UUIDKey) {
 	if key != nil {
 		s.cached["public"].Push(key.String())

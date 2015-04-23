@@ -38,6 +38,18 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 	return
 }
 
+func (e *Entry) RebuildCommentsCommand(profile *Profile, graph *Graph) {
+	for _, cmt := range e.Comments {
+		cmt.Commands = []string{}
+		if cmt.From == nil || profile.Id == "" {
+			continue
+		}
+		if profile.Id == cmt.From.Id {
+			cmt.Commands = []string{"edit", "delete"}
+		}
+	}
+}
+
 func (e *Entry) FormatComments(max int32) {
 	// collapse comments
 	length := len(e.Comments)

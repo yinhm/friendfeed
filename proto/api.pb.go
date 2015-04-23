@@ -176,6 +176,16 @@ func (m *CommentRequest) GetComment() *Comment {
 	return nil
 }
 
+type CommentDeleteRequest struct {
+	Entry   string `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Comment string `protobuf:"bytes,2,opt,name=comment" json:"comment,omitempty"`
+	User    string `protobuf:"bytes,3,opt,name=user" json:"user,omitempty"`
+}
+
+func (m *CommentDeleteRequest) Reset()         { *m = CommentDeleteRequest{} }
+func (m *CommentDeleteRequest) String() string { return proto1.CompactTextString(m) }
+func (*CommentDeleteRequest) ProtoMessage()    {}
+
 type ServiceRequest struct {
 	User    string `protobuf:"bytes,1,opt,name=user" json:"user,omitempty"`
 	Service string `protobuf:"bytes,2,opt,name=service" json:"service,omitempty"`
@@ -210,6 +220,7 @@ type ApiClient interface {
 	PostEntry(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*Entry, error)
 	LikeEntry(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*Entry, error)
 	CommentEntry(ctx context.Context, in *CommentRequest, opts ...grpc.CallOption) (*Entry, error)
+	DeleteComment(ctx context.Context, in *CommentDeleteRequest, opts ...grpc.CallOption) (*Entry, error)
 	PutOAuth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error)
 	// rpc BindAuth(OAuthUser) returns (OAuthUser) {}
 	BindUserFeed(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*OAuthUser, error)
@@ -402,6 +413,15 @@ func (c *apiClient) CommentEntry(ctx context.Context, in *CommentRequest, opts .
 	return out, nil
 }
 
+func (c *apiClient) DeleteComment(ctx context.Context, in *CommentDeleteRequest, opts ...grpc.CallOption) (*Entry, error) {
+	out := new(Entry)
+	err := grpc.Invoke(ctx, "/proto.Api/DeleteComment", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) PutOAuth(ctx context.Context, in *OAuthUser, opts ...grpc.CallOption) (*Profile, error) {
 	out := new(Profile)
 	err := grpc.Invoke(ctx, "/proto.Api/PutOAuth", in, out, c.cc, opts...)
@@ -460,6 +480,7 @@ type ApiServer interface {
 	PostEntry(context.Context, *Entry) (*Entry, error)
 	LikeEntry(context.Context, *LikeRequest) (*Entry, error)
 	CommentEntry(context.Context, *CommentRequest) (*Entry, error)
+	DeleteComment(context.Context, *CommentDeleteRequest) (*Entry, error)
 	PutOAuth(context.Context, *OAuthUser) (*Profile, error)
 	// rpc BindAuth(OAuthUser) returns (OAuthUser) {}
 	BindUserFeed(context.Context, *OAuthUser) (*OAuthUser, error)
@@ -668,6 +689,18 @@ func _Api_CommentEntry_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
+func _Api_DeleteComment_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(CommentDeleteRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).DeleteComment(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _Api_PutOAuth_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
 	in := new(OAuthUser)
 	if err := proto1.Unmarshal(buf, in); err != nil {
@@ -767,6 +800,10 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CommentEntry",
 			Handler:    _Api_CommentEntry_Handler,
+		},
+		{
+			MethodName: "DeleteComment",
+			Handler:    _Api_DeleteComment_Handler,
 		},
 		{
 			MethodName: "PutOAuth",
