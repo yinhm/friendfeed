@@ -36,6 +36,14 @@ var Entry = React.createClass({
     };
   },
 
+  componentWillReceiveProps: function(nextProps){
+    this.setState({
+      entry: nextProps.entry,
+      comments: nextProps.entry.comments,
+      likes: nextProps.entry.likes
+    })
+  },
+
   handleNewComment: function(child) {
     var btn = this;
     if (this.state.comment_form) {
