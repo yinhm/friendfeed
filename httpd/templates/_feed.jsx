@@ -441,6 +441,10 @@ var EntryComment = React.createClass({
     return {comment: this.props.comment};
   },
 
+  componentWillReceiveProps: function(nextProps){
+    this.setState({comment: nextProps.comment});
+  },
+
   expandComments: function(event) {
     event.preventDefault();
     this.props.expandComments();
@@ -528,7 +532,8 @@ var Feed = React.createClass({
         this.setState(data);
       }.bind(this),
       error: function(xhr, status, err) {
-        console.error(this.props.url, status, err.toString());
+        var msg = "Get: " + this.props.url + " " + status + " " + err.toString();
+        dprint(msg);
       }.bind(this)
     });
   },

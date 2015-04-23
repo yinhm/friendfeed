@@ -506,8 +506,10 @@ func (s *Server) EntryCommentHandler(c *gin.Context) {
 		return
 	}
 
-	comments := feed.Entries[0].Comments
-	c.JSON(200, comments)
+	profile, _ := s.CurrentUser(c)
+	graph, _ := s.CurrentGraph(c)
+	feed.Entries[0].RebuildCommentsCommand(profile, graph)
+	c.JSON(200, feed.Entries[0].Comments)
 }
 
 func (s *Server) LikeHandler(c *gin.Context) {
