@@ -32,5 +32,6 @@ function buildjs(release) {
 }
  
 gulp.task('watch', function() {
+  buildjs();
   gulp.watch(sourcesDir + '/' + "*.jsx", ['default']);
 });
