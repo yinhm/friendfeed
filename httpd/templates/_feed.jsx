@@ -457,9 +457,17 @@ var EntryLikes = React.createClass({
     likes = likes.slice(0, -1);
     likes = intersperse(likes, ", ");
 
+    if (likes.length <= 3) {
+      return (
+        <div className="likes" onClick={this.expandLikes}>
+          {likes}{" and "}{last}{" liked this"}
+        </div>
+      );
+    }
+
     return (
       <div className="likes" onClick={this.expandLikes}>
-        {likes}{" and "}{last}{" liked this"}
+        {likes}{" and "}<a href="#">{last}</a>{" liked this"}
       </div>
     );
   }
