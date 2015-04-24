@@ -32,16 +32,20 @@ var Entry = React.createClass({
       comments: this.props.entry.comments,
       likes: this.props.entry.likes,
       comment_form: false,
+      expand_comments: false,
       comment_preserve: null
     };
   },
 
   componentWillReceiveProps: function(nextProps){
-    this.setState({
+    var newdata = {
       entry: nextProps.entry,
-      comments: nextProps.entry.comments,
       likes: nextProps.entry.likes
-    })
+    }
+    if (!this.state.expand_comments) {
+      newdata.comments = nextProps.entry.comments;
+    }
+    this.setState(newdata);
   },
 
   handleNewComment: function(child) {
@@ -89,7 +93,10 @@ var Entry = React.createClass({
   expandComments: function(event) {
     var self = this;
     $.getJSON("/a/entry/" + this.props.entry.id, function(data) {
-      self.setState({comments: data});
+      self.setState({
+        expand_comments: true,
+        comments: data
+      });
     });
   },
 
