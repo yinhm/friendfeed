@@ -124,20 +124,30 @@ var Entry = React.createClass({
     return null;
   },
 
-  handleLike: function(btn) {
+  handleLike: function() {
     var self = this;
     var entry = this.state.entry;
-    if (!btn.state.liked) {
-      $.postJSON("/a/like", {entry: entry.id}, function(likes) {
-        btn.setState({liked: !btn.state.liked});
-        self.setState({likes: likes});
+    $.postJSON("/a/like", {entry: entry.id}, function(likes) {
+      entry.commands.map(function(cmd, index) {
+        if (cmd == "like") {
+          entry.commands[index] = "unlike";
+        }
       });
-    } else {
-      $.postJSON("/a/like/delete", {entry: entry.id}, function(likes) {
-        btn.setState({liked: !btn.state.liked});
-        self.setState({likes: likes});
+      self.setState({likes: likes});
+    });
+  },
+
+  handleUnlike: function() {
+    var self = this;
+    var entry = this.state.entry;
+    $.postJSON("/a/like/delete", {entry: entry.id}, function(likes) {
+      entry.commands.map(function(cmd, index) {
+        if (cmd == "unlike") {
+          entry.commands[index] = "like";
+        }
       });
-    }
+      self.setState({likes: likes});
+    });
   },
 
   render: function() {
@@ -182,7 +192,10 @@ var Entry = React.createClass({
           <EntryAuthor from={entry.from} to={entry.to} />
           <EntryTitle body={entry.body} />
           {medias}
-          <EntryInfo entry={entry} onNewComment={this.handleNewComment} onLike={this.handleLike} />
+          <EntryInfo entry={entry}
+                     onNewComment={this.handleNewComment}
+                     onLike={this.handleLike}
+                     onUnlike={this.handleUnlike}/>
           <EntryLikes likes={this.state.likes}
                       expandLikes={this.expandLikes} />
           {comments}
@@ -329,7 +342,7 @@ var EntryInfo = React.createClass({
             break;
           case "unlike":
             liked = true;
-            btn = <EntryCommandLike onLike={self.props.onLike} liked={liked} />;
+            btn = <EntryCommandLike onUnlike={self.props.onUnlike} liked={liked} />;
             break;
           case "edit":
             btn = <EntryCommandEdit />;
@@ -359,22 +372,31 @@ var EntryInfo = React.createClass({
 });
 
 var EntryCommandLike = React.createClass({
-  getInitialState: function() {
-    return {liked: this.props.liked};
+
+  handleLike: function(event) {
+    event.preventDefault();
+    this.props.onLike();
   },
 
-  handleClick: function(event) {
+  handleUnlike: function(event) {
     event.preventDefault();
-    this.props.onLike(this);
+    this.props.onUnlike();
   },
 
   render: function() {
-    var text = this.state.liked ? 'Unlike' : 'Like';
-    return (
-      <a href="#" onClick={this.handleClick}>
-        {text}
-      </a>
-    );
+    if (this.props.liked) {
+      return (
+        <a href="#" onClick={this.handleUnlike}>
+          Unlike
+        </a>
+      );
+    } else {
+      return (
+        <a href="#" onClick={this.handleLike}>
+          Like
+        </a>
+      );
+    }
   }
 });
 
