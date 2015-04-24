@@ -531,12 +531,11 @@ var EntryComment = React.createClass({
         </div>
       );
     } else {
+      var body = comment.body + " - " + "<a href=\"/feed/" + comment.from.id + "\">" + comment.from.name + "</a>";
       return (
         <div onFocus={this.showCommands}
              className="comment" title={comment.date}>
-          {comment.body}
-          {" - "}
-          <a href={'/feed/' + comment.from.id }>{comment.from.name}</a>
+          <span dangerouslySetInnerHTML={{__html: body}}></span>
           {cmds}
         </div>
       );
