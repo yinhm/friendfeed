@@ -32,7 +32,8 @@ var Entry = React.createClass({
       comments: this.props.entry.comments,
       likes: this.props.entry.likes,
       comment_form: false,
-      expand_comments: false,
+      expanded_likes: false,
+      expanded_comments: false,
       comment_preserve: null
     };
   },
@@ -40,10 +41,12 @@ var Entry = React.createClass({
   componentWillReceiveProps: function(nextProps){
     var newdata = {
       entry: nextProps.entry,
-      likes: nextProps.entry.likes
     }
-    if (!this.state.expand_comments) {
+    if (!this.state.expanded_comments) {
       newdata.comments = nextProps.entry.comments;
+    }
+    if (!this.state.expanded_likes) {
+      newdata.likes = nextProps.entry.likes;
     }
     this.setState(newdata);
   },
@@ -94,7 +97,7 @@ var Entry = React.createClass({
     var self = this;
     $.getJSON("/a/entry/" + this.props.entry.id, function(data) {
       self.setState({
-        expand_comments: true,
+        expanded_comments: true,
         comments: data
       });
     });
@@ -103,7 +106,10 @@ var Entry = React.createClass({
   expandLikes: function() {
     var self = this;
     $.getJSON("/a/expandlikes/" + this.props.entry.id, function(data) {
-      self.setState({likes: data});
+      self.setState({
+        expanded_likes: true,
+        likes: data
+      });
     });
   },
 
