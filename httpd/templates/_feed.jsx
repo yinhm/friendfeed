@@ -62,16 +62,16 @@ var Entry = React.createClass({
     }
   },
 
-  handleComment: function(event) {
+  submitComment: function(child) {
     event.preventDefault();
     var self = this;
     var comments = this.state.comments;
 
-    var comment = React.findDOMNode(this.refs.commentInput).value.trim();
+    var comment = React.findDOMNode(child.refs.commentInput).value.trim();
     if (!comment) {
       return;
     }
-    React.findDOMNode(this.refs.commentInput).value = '';
+    React.findDOMNode(child.refs.commentInput).value = '';
 
     if (this.state.new_comment_form) {
       var args = {
@@ -91,8 +91,8 @@ var Entry = React.createClass({
     }
   },
 
-  handleCommentCancel: function(event) {
-    var comment = React.findDOMNode(this.refs.commentInput).value.trim();
+  cancelComment: function(child) {
+    var comment = React.findDOMNode(child.refs.commentInput).value.trim();
     if (comment) {
       this.setState({comment_preserve: comment});
     }
@@ -179,16 +179,10 @@ var Entry = React.createClass({
 
     var form_cmt = null;
     if (this.state.new_comment_form) {
-      form_cmt = (
-        <div className="comment form">
-          <form method="post">
-            <textarea autoFocus name="body" ref="commentInput" value={this.state.comment_preserve} />
-            <input type="submit" value="Post"
-                   onClick={this.handleComment} />
-            <span onClick={this.handleCommentCancel}>Cancel</span>
-          </form>
-        </div>
-      );
+      form_cmt = <EntryCommentForm commentBody={this.state.comment_preserve}
+                                   onSubmitComment={this.submitComment}
+                                   onCancelComment={this.cancelComment}/>
+
     }
 
     return (
@@ -435,6 +429,33 @@ var EntryCommandDelete = React.createClass({
     );
   }
 });
+
+var EntryCommentForm = React.createClass({
+
+  onSubmitComment: function(event) {
+    event.preventDefault();
+    this.props.onSubmitComment(this);
+  },
+
+  onCancelComment: function(event) {
+    event.preventDefault();
+    this.props.onCancelComment(this);
+  },
+
+  render: function() {
+    return (
+          <div className="comment form">
+          <form method="post">
+            <textarea autoFocus name="body" ref="commentInput"
+                      value={this.props.commentBody} />
+            <input type="submit" value="Post"
+                   onClick={this.onSubmitComment} />
+            <span onClick={this.onCancelComment}>Cancel</span>
+          </form>
+          </div>
+    );
+  }
+})
 
 var EntryLike = React.createClass({
 
