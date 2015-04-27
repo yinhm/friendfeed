@@ -31,7 +31,7 @@ var Entry = React.createClass({
       entry: this.props.entry,
       comments: this.props.entry.comments,
       likes: this.props.entry.likes,
-      comment_form: false,
+      new_comment_form: false,
       expanded_likes: false,
       expanded_comments: false,
       comment_preserve: null
@@ -53,12 +53,12 @@ var Entry = React.createClass({
 
   handleNewComment: function(child) {
     var btn = this;
-    if (this.state.comment_form) {
+    if (this.state.new_comment_form) {
       // focus
       React.findDOMNode(this.refs.commentInput).focus();
     } else {
       // make form
-      this.setState({comment_form: true});
+      this.setState({new_comment_form: true});
     }
   },
 
@@ -73,7 +73,7 @@ var Entry = React.createClass({
     }
     React.findDOMNode(this.refs.commentInput).value = '';
 
-    if (this.state.comment_form) {
+    if (this.state.new_comment_form) {
       var args = {
         entry: this.props.entry.id,
         body: comment
@@ -85,7 +85,7 @@ var Entry = React.createClass({
         comments.push(comment);
         self.setState({
           comments: comments,
-          comment_form: false
+          new_comment_form: false
         });
       });
     }
@@ -96,7 +96,7 @@ var Entry = React.createClass({
     if (comment) {
       this.setState({comment_preserve: comment});
     }
-    this.setState({comment_form: false});
+    this.setState({new_comment_form: false});
   },
 
   expandComments: function(event) {
@@ -178,7 +178,7 @@ var Entry = React.createClass({
     }
 
     var form_cmt = null;
-    if (this.state.comment_form) {
+    if (this.state.new_comment_form) {
       form_cmt = (
         <div className="comment form">
           <form method="post">
