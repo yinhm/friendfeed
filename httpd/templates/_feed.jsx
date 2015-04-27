@@ -79,8 +79,14 @@ var Entry = React.createClass({
         body: comment
       };
       $.postJSON("/a/comment", args, function(comment) {
+        if (!comments) {
+          comments = [];
+        }
         comments.push(comment);
-        self.setState({comment_form: false});
+        self.setState({
+          comments: comments,
+          comment_form: false
+        });
       });
     }
   },
