@@ -42,8 +42,17 @@ var Entry = React.createClass({
     var newdata = {
       entry: nextProps.entry,
     }
-    if (!this.state.expanded_comments) {
-      newdata.comments = nextProps.entry.comments;
+    if (!this.state.expanded_comments && nextProps.entry.comments) {
+      var safe_update = true;
+      var comments = this.state.comments || [];
+      comments.map(function(cmt, index) {
+        if (cmt.is_editing) {
+          safe_update = false;
+        }
+      });
+      if (safe_update) {
+        newdata.comments = nextProps.entry.comments;
+      }
     }
     if (!this.state.expanded_likes) {
       newdata.likes = nextProps.entry.likes;
