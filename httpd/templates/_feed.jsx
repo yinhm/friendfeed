@@ -431,23 +431,6 @@ var EntryCommandDelete = React.createClass({
 });
 
 var EntryLike = React.createClass({
-  render: function() {
-    var like = this.props.like;
-    if (like.placeholder) {
-      return (
-        <span>{like.body}</span>
-      );
-    } else {
-      return (
-        <a href={'/feed/' + like.from.id }>
-          {like.from.name}
-        </a>
-      );
-    }
-  }
-});
-
-var EntryLikes = React.createClass({
 
   getInitialState: function() {
     return {expanded: false};
@@ -464,13 +447,32 @@ var EntryLikes = React.createClass({
   },
 
   render: function() {
+    var like = this.props.like;
+    if (like.placeholder) {
+      return (
+        <a href="#" onClick={this.expandLikes}>{like.body}</a>
+      );
+    } else {
+      return (
+        <a href={'/feed/' + like.from.id }>
+          {like.from.name}
+        </a>
+      );
+    }
+  }
+});
+
+var EntryLikes = React.createClass({
+  render: function() {
     if (!this.props.likes || this.props.likes.length == 0) {
       return null;
     }
 
+    var expandLikes = this.props.expandLikes;
     var likes = this.props.likes.map(function(like, index) {
       return (
-        <EntryLike like={like} key={index} />
+        <EntryLike like={like} key={index}
+                   expandLikes={expandLikes} />
       );
     });
     if (likes.length == 1) {
@@ -485,19 +487,11 @@ var EntryLikes = React.createClass({
     likes = likes.slice(0, -1);
     likes = intersperse(likes, ", ");
 
-    if (last.placeholder) {
-      return (
-        <div className="likes" onClick={this.expandLikes}>
-          {likes}{" and "}<a href="#">{last}</a>{" liked this"}
-        </div>
-      );
-    } else {
-      return (
-        <div className="likes">
-          {likes}{" and "}{last}{" liked this"}
-        </div>
-      );
-    }
+    return (
+      <div className="likes">
+        {likes}{" and "}{last}{" liked this"}
+      </div>
+    );
   }
 });
 
