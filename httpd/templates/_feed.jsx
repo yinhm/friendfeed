@@ -74,11 +74,21 @@ var Entry = React.createClass({
       args.id = id;
     }
     $.postJSON("/a/comment", args, function(comment) {
-      comments.push(comment);
-      self.setState({
-        comments: comments,
-        new_comment_form: false
-      });
+      if (id) {
+        var cmts = comments.map(function(cmt, index) {
+          if (id == cmt.id) {
+            return comment;
+          }
+          return cmt;
+        });
+        self.setState({comments: cmts});
+      } else {
+        comments.push(comment);
+        self.setState({
+          comments: comments,
+          new_comment_form: false
+        });
+      }
     });
   },
 

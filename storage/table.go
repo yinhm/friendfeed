@@ -454,7 +454,24 @@ func DeleteLike(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, er
 
 func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (*UUIDKey, *pb.Entry, error) {
 	var err error
-	entry.Comments = append(entry.Comments, comment)
+
+	// is update?
+	idx := -1
+	for i, cmt := range entry.Comments {
+		if cmt.Id == comment.Id {
+			// recheck perm
+			if cmt.From.Id != comment.From.Id {
+				return nil, nil, fmt.Errorf("403: perm error")
+			}
+			idx = i
+			break
+		}
+	}
+	if idx >= 0 {
+		entry.Comments[idx] = comment
+	} else {
+		entry.Comments = append(entry.Comments, comment)
+	}
 	key, err := PutEntry(rdb, entry, true)
 	return key, entry, err
 }

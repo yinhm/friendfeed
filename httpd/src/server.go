@@ -580,8 +580,10 @@ func (s *Server) LikeDeleteHandler(c *gin.Context) {
 	c.JSON(200, entry.Likes)
 }
 
+// /a/comment
 func (s *Server) CommentHandler(c *gin.Context) {
 	c.Request.ParseForm()
+	id := c.Request.Form.Get("id")
 	entryId := c.Request.Form.Get("entry")
 	rawBody := c.Request.Form.Get("body")
 	if entryId == "" || rawBody == "" {
@@ -593,23 +595,31 @@ func (s *Server) CommentHandler(c *gin.Context) {
 	body = util.EntityToLink(body)
 
 	profile, _ := s.CurrentUser(c)
-	date := time.Now().UTC().Format(time.RFC3339)
-	name := entryId + profile.Uuid + date
-	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
-
 	from := &pb.Feed{
 		Id:   profile.Id,
 		Name: profile.Name,
 		Type: profile.Type,
 	}
-
 	comment := &pb.Comment{
-		Id:      uuid1.String(),
-		Date:    date,
 		Body:    body,
 		RawBody: rawBody,
 		From:    from,
 	}
+
+	var err error
+	var uuid1 uuid.UUID
+	if id != "" {
+		uuid1, err = uuid.FromString(id)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+			return
+		}
+	} else {
+		comment.Date = time.Now().UTC().Format(time.RFC3339)
+		name := entryId + profile.Uuid + comment.Date
+		uuid1 = uuid.NewV5(uuid.NamespaceURL, name)
+	}
+	comment.Id = uuid1.String()
 
 	req := &pb.CommentRequest{
 		Entry:   entryId,
@@ -619,7 +629,7 @@ func (s *Server) CommentHandler(c *gin.Context) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	_, err := s.client.CommentEntry(ctx, req)
+	_, err = s.client.CommentEntry(ctx, req)
 	if RequestError(c, err) {
 		return
 	}
