@@ -62,41 +62,42 @@ var Entry = React.createClass({
     }
   },
 
-  submitComment: function(child) {
+  submitComment: function(id, comment) {
     event.preventDefault();
     var self = this;
-    var comments = this.state.comments;
-
-    var comment = React.findDOMNode(child.refs.commentInput).value.trim();
-    if (!comment) {
-      return;
+    var comments = this.state.comments || [];
+    var args = {
+      entry: this.props.entry.id,
+      body: comment
+    };
+    if (id) {
+      args.id = id;
     }
-    React.findDOMNode(child.refs.commentInput).value = '';
-
-    if (this.state.new_comment_form) {
-      var args = {
-        entry: this.props.entry.id,
-        body: comment
-      };
-      $.postJSON("/a/comment", args, function(comment) {
-        if (!comments) {
-          comments = [];
-        }
-        comments.push(comment);
-        self.setState({
-          comments: comments,
-          new_comment_form: false
-        });
+    $.postJSON("/a/comment", args, function(comment) {
+      comments.push(comment);
+      self.setState({
+        comments: comments,
+        new_comment_form: false
       });
-    }
+    });
   },
 
-  cancelComment: function(child) {
-    var comment = React.findDOMNode(child.refs.commentInput).value.trim();
-    if (comment) {
-      this.setState({comment_preserve: comment});
+  cancelComment: function(id, body) {
+    if (id) {
+      var comments = [];
+      this.state.comments.map(function(cmt, index) {
+        if (id == cmt.id) {
+          cmt.is_editing = false;
+        }
+        comments.push(cmt);
+      });
+      this.setState({comments: comments});
+    } else {
+      if (body) {
+        this.setState({comment_preserve: body});
+      }
+      this.setState({new_comment_form: false});
     }
-    this.setState({new_comment_form: false});
   },
 
   expandComments: function(event) {
@@ -117,6 +118,17 @@ var Entry = React.createClass({
         likes: data
       });
     });
+  },
+
+  editComment: function(comment) {
+    var comments = [];
+    this.state.comments.map(function(cmt, index) {
+      if (comment.id && comment.id == cmt.id) {
+        cmt.is_editing = true;
+      }
+      comments.push(cmt);
+    });
+    this.setState({comments: comments});
   },
 
   deleteComment: function(comment) {
@@ -168,12 +180,22 @@ var Entry = React.createClass({
     if (this.state.comments) {
       var self = this;
       var comments = this.state.comments.map(function(comment, index) {
-        return (
-          <EntryComment comment={comment}
-                        expandComments={self.expandComments}
-                        deleteComment={self.deleteComment}
-                        key={index} />
-        );
+        if (comment.is_editing) {
+          return (
+            <EntryCommentForm commentId={comment.id}
+                              commentBody={comment.rawBody}
+                              onSubmitComment={self.submitComment}
+                              onCancelComment={self.cancelComment}/>
+          );
+        } else {
+          return (
+            <EntryComment comment={comment}
+                          expandComments={self.expandComments}
+                          editComment={self.editComment}
+                          deleteComment={self.deleteComment}
+                          key={index} />
+          );
+        }
       });
     }
 
@@ -432,14 +454,27 @@ var EntryCommandDelete = React.createClass({
 
 var EntryCommentForm = React.createClass({
 
+  getInitialState: function() {
+    return {value: this.props.commentBody};
+  },
+
+  handleChange: function(event) {
+    this.setState({value: event.target.value});
+  },
+
   onSubmitComment: function(event) {
     event.preventDefault();
-    this.props.onSubmitComment(this);
+    if (!this.state.value) {
+      return;
+    }
+    this.props.onSubmitComment(this.props.commentId, this.state.value);
+    this.state.value = '';
   },
 
   onCancelComment: function(event) {
     event.preventDefault();
-    this.props.onCancelComment(this);
+    var comment = this.state.value;
+    this.props.onCancelComment(this.props.commentId, comment);
   },
 
   render: function() {
@@ -447,7 +482,8 @@ var EntryCommentForm = React.createClass({
           <div className="comment form">
           <form method="post">
             <textarea autoFocus name="body" ref="commentInput"
-                      value={this.props.commentBody} />
+                      onChange={this.handleChange}
+                      value={this.state.value} />
             <input type="submit" value="Post"
                    onClick={this.onSubmitComment} />
             <span onClick={this.onCancelComment}>Cancel</span>
@@ -537,6 +573,12 @@ var EntryComment = React.createClass({
     this.props.expandComments();
   },
 
+  editComment: function(event) {
+    event.preventDefault();
+    this.props.editComment(this.state.comment);
+    // this.setState({comment: comment});
+  },
+
   deleteComment: function(event) {
     event.preventDefault();
     var comment = this.props.deleteComment(this.state.comment);
@@ -559,7 +601,7 @@ var EntryComment = React.createClass({
       cmds = (
         <span className="commands">
           {" ( "}
-          <a href="#" >Edit</a>
+          <a href="#" onClick={this.editComment}>Edit</a>
           {" | "}
           <a href="#" onClick={this.deleteComment}>Delete</a>
           {" )"}
