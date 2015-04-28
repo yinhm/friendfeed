@@ -327,6 +327,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
+			index.Remove(key)
 			return nil, fmt.Errorf("entry data missing")
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
@@ -351,6 +352,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 	}
 	return feed, nil
 }
+
 func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
 	if req.PageSize <= 0 || req.PageSize >= 100 {
 		req.PageSize = 50
@@ -376,6 +378,8 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
 		if err != nil || len(rawdata) == 0 {
+			s.rdb.Delete(k)
+			// TODO: return error as skip signal
 			return fmt.Errorf("entry data missing")
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {

@@ -73,6 +73,22 @@ func (f *FeedIndex) Push(uuid string) {
 	f.itemCh <- uuid
 }
 
+func (f *FeedIndex) Remove(key1 string) {
+	f.Lock()
+	defer f.Unlock()
+
+	index := -1
+	for i, key2 := range f.bufq {
+		if key1 == key2 {
+			index = i
+			break
+		}
+	}
+	if index >= 0 {
+		f.bufq = append(f.bufq[:index], f.bufq[index+1:]...)
+	}
+}
+
 func (f *FeedIndex) rebuild() {
 	if !f.dirty {
 		return
