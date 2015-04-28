@@ -187,6 +187,11 @@ var Entry = React.createClass({
     });
   },
 
+  onDelete: function(event) {
+    event.preventDefault();
+    this.props.onDelete(this.state.entry);
+  },
+
   render: function() {
     var entry = this.state.entry;
 
@@ -236,7 +241,9 @@ var Entry = React.createClass({
           <EntryInfo entry={entry}
                      onNewComment={this.handleNewComment}
                      onLike={this.handleLike}
-                     onUnlike={this.handleUnlike}/>
+                     onUnlike={this.handleUnlike}
+                     onDelete={this.onDelete}
+                     onEdit={this.onEdit}/>
           <EntryLikes likes={this.state.likes}
                       expandLikes={this.expandLikes} />
           {comments}
@@ -389,7 +396,7 @@ var EntryInfo = React.createClass({
             btn = <EntryCommandEdit />;
             break;
           case "delete":
-            btn = <EntryCommandDelete />;
+            btn = <EntryCommandDelete onDelete={self.props.onDelete} />;
             break;
           default:
             break;
@@ -466,7 +473,7 @@ var EntryCommandEdit = React.createClass({
 var EntryCommandDelete = React.createClass({
   render: function() {
     return (
-      <a href="#" className="deletecommand">Delete</a>
+      <a href="#" onClick={this.props.onDelete}>Delete</a>
     );
   }
 });
@@ -709,16 +716,31 @@ var Feed = React.createClass({
     setInterval(this.loadFeeds, this.refreshInterval);
   },
 
+  handleDelete: function(deleted) {
+    console.log(deleted);
+    console.log(deleted.id);
+    var entries = [];
+    var feed = this.state.feed;
+    feed.entries.map(function(entry, index){
+      if (entry.id != deleted.id) {
+        entries.push(entry);
+      }
+    });
+    feed.entries = entries;
+    this.setState({feed: feed});
+  },
+
   render: function() {
     if (!this.state.feed || !this.state.feed.entries) {
       return null;
     }
 
+    var self = this;
     var feed = this.state.feed;
     var entryNodes = feed.entries.map(function(entry, index){
       return (
-        <Entry entry={entry} key={entry.id}>
-        </Entry>
+        <Entry entry={entry} key={entry.id}
+               onDelete={self.handleDelete} />
       );
     });
 
