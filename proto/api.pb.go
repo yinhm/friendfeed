@@ -218,6 +218,7 @@ type ApiClient interface {
 	// Entry page return Feed as well
 	FetchEntry(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*Feed, error)
 	PostEntry(ctx context.Context, in *Entry, opts ...grpc.CallOption) (*Entry, error)
+	DeleteEntry(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*Entry, error)
 	LikeEntry(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*Entry, error)
 	CommentEntry(ctx context.Context, in *CommentRequest, opts ...grpc.CallOption) (*Entry, error)
 	DeleteComment(ctx context.Context, in *CommentDeleteRequest, opts ...grpc.CallOption) (*Entry, error)
@@ -395,6 +396,15 @@ func (c *apiClient) PostEntry(ctx context.Context, in *Entry, opts ...grpc.CallO
 	return out, nil
 }
 
+func (c *apiClient) DeleteEntry(ctx context.Context, in *EntryRequest, opts ...grpc.CallOption) (*Entry, error) {
+	out := new(Entry)
+	err := grpc.Invoke(ctx, "/proto.Api/DeleteEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *apiClient) LikeEntry(ctx context.Context, in *LikeRequest, opts ...grpc.CallOption) (*Entry, error) {
 	out := new(Entry)
 	err := grpc.Invoke(ctx, "/proto.Api/LikeEntry", in, out, c.cc, opts...)
@@ -478,6 +488,7 @@ type ApiServer interface {
 	// Entry page return Feed as well
 	FetchEntry(context.Context, *EntryRequest) (*Feed, error)
 	PostEntry(context.Context, *Entry) (*Entry, error)
+	DeleteEntry(context.Context, *EntryRequest) (*Entry, error)
 	LikeEntry(context.Context, *LikeRequest) (*Entry, error)
 	CommentEntry(context.Context, *CommentRequest) (*Entry, error)
 	DeleteComment(context.Context, *CommentDeleteRequest) (*Entry, error)
@@ -665,6 +676,18 @@ func _Api_PostEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 	return out, nil
 }
 
+func _Api_DeleteEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+	in := new(EntryRequest)
+	if err := proto1.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ApiServer).DeleteEntry(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _Api_LikeEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
 	in := new(LikeRequest)
 	if err := proto1.Unmarshal(buf, in); err != nil {
@@ -792,6 +815,10 @@ var _Api_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PostEntry",
 			Handler:    _Api_PostEntry_Handler,
+		},
+		{
+			MethodName: "DeleteEntry",
+			Handler:    _Api_DeleteEntry_Handler,
 		},
 		{
 			MethodName: "LikeEntry",

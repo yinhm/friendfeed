@@ -450,6 +450,14 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 	return entry, nil
 }
 
+func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Entry, error) {
+	_, entry, err := store.DeleteEntry(s.rdb, req.Uuid)
+	if err != nil {
+		return nil, err
+	}
+	return entry, nil
+}
+
 func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Entry, error) {
 	entry, err := store.GetEntry(s.rdb, req.Entry)
 	if err != nil {

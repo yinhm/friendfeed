@@ -137,6 +137,18 @@ func UpdateProfile(mdb *Store, profile *pb.Profile) error {
 	return mdb.Put(key.Bytes(), bytes)
 }
 
+func DeleteEntry(rdb *Store, uuidStr string) (*UUIDKey, *pb.Entry, error) {
+	entry, err := GetEntry(rdb, uuidStr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	uuid2, _ := uuid.FromString(uuidStr)
+	key := NewUUIDKey(TableEntry, uuid2)
+	err = rdb.Delete(key.Bytes())
+	return key, entry, err
+}
+
 func GetProfile(mdb *Store, id string) (*pb.Profile, error) {
 	rawdata, err := mdb.Get([]byte(id))
 	if err != nil || string(rawdata) == "" {

@@ -494,6 +494,37 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
+func (s *Server) EntryDeleteHandler(c *gin.Context) {
+	c.Request.ParseForm()
+	uuid1 := c.Request.Form.Get("entry")
+	if uuid1 == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+		return
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	req := &pb.EntryRequest{uuid1}
+	feed, err := s.client.FetchEntry(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+	entry := feed.Entries[0]
+
+	uuid2 := CurrentUserUuid(c)
+	if entry.ProfileUuid != uuid2 {
+		c.AbortWithStatus(401)
+		return
+	}
+
+	_, err = s.client.DeleteEntry(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+	c.JSON(200, gin.H{"status": "+ok"})
+}
+
 func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
 	req := &pb.EntryRequest{uuid}

@@ -31,6 +31,7 @@ service Api {
   // Entry page return Feed as well
   rpc FetchEntry(EntryRequest) returns (Feed) {}
   rpc PostEntry(Entry) returns (Entry) {}
+  rpc DeleteEntry(EntryRequest) returns (Entry) {}
   rpc LikeEntry(LikeRequest) returns (Entry) {}
   rpc CommentEntry(CommentRequest) returns (Entry) {}
   rpc DeleteComment(CommentDeleteRequest) returns (Entry) {}

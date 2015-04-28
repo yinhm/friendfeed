@@ -121,7 +121,7 @@ var Entry = React.createClass({
 
   expandComments: function(event) {
     var self = this;
-    $.getJSON("/a/entry/" + this.props.entry.id, function(data) {
+    $.getJSON("/a/expandcomments/" + this.props.entry.id, function(data) {
       self.setState({
         expanded_comments: true,
         comments: data
@@ -717,17 +717,18 @@ var Feed = React.createClass({
   },
 
   handleDelete: function(deleted) {
-    console.log(deleted);
-    console.log(deleted.id);
     var entries = [];
     var feed = this.state.feed;
-    feed.entries.map(function(entry, index){
-      if (entry.id != deleted.id) {
-        entries.push(entry);
-      }
+
+    $.postJSON("/a/entry/delete", {entry: deleted.id}, function(result) {
+      feed.entries.map(function(entry, index){
+        if (entry.id != deleted.id) {
+          entries.push(entry);
+        }
+      });
+      feed.entries = entries;
+      this.setState({feed: feed});
     });
-    feed.entries = entries;
-    this.setState({feed: feed});
   },
 
   render: function() {
