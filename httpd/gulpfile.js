@@ -4,6 +4,7 @@ var browserify = require('browserify');
 var reactify = require('reactify');
 var uglify = require('gulp-uglify')
 var rename = require('gulp-rename');
+var jshint = require('gulp-jshint');
  
 var sourcesDir = './templates/';
 var appEntryPoint = "_feed.jsx";
@@ -20,6 +21,14 @@ gulp.task('release', function() {
     .pipe(uglify())
     .pipe(rename('bundle.min.js'))
     .pipe(gulp.dest(targetDir));
+});
+
+gulp.task('lint', function(cb) {
+    gulp.src(targetDir + '/bundle.js')
+        .pipe(jshint())
+        .pipe(jshint.reporter('default'))
+        .pipe(jshint.reporter('fail'));
+    cb();
 });
 
 function buildjs(release) {
