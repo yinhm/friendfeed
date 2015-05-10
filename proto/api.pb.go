@@ -493,9 +493,9 @@ func RegisterApiServer(s *grpc.Server, srv ApiServer) {
 	s.RegisterService(&_Api_serviceDesc, srv)
 }
 
-func _Api_EnqueJob_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_EnqueJob_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(FeedJob)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).EnqueJob(ctx, in)
@@ -505,9 +505,9 @@ func _Api_EnqueJob_Handler(srv interface{}, ctx context.Context, buf []byte) (in
 	return out, nil
 }
 
-func _Api_GetFeedJob_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_GetFeedJob_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Worker)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).GetFeedJob(ctx, in)
@@ -517,9 +517,9 @@ func _Api_GetFeedJob_Handler(srv interface{}, ctx context.Context, buf []byte) (
 	return out, nil
 }
 
-func _Api_FinishJob_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_FinishJob_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(FeedJob)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).FinishJob(ctx, in)
@@ -529,9 +529,9 @@ func _Api_FinishJob_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 	return out, nil
 }
 
-func _Api_FetchProfile_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_FetchProfile_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(ProfileRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).FetchProfile(ctx, in)
@@ -541,9 +541,9 @@ func _Api_FetchProfile_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
-func _Api_FetchGraph_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_FetchGraph_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(ProfileRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).FetchGraph(ctx, in)
@@ -553,9 +553,9 @@ func _Api_FetchGraph_Handler(srv interface{}, ctx context.Context, buf []byte) (
 	return out, nil
 }
 
-func _Api_FetchFeedinfo_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_FetchFeedinfo_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(ProfileRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).FetchFeedinfo(ctx, in)
@@ -565,9 +565,9 @@ func _Api_FetchFeedinfo_Handler(srv interface{}, ctx context.Context, buf []byte
 	return out, nil
 }
 
-func _Api_PostFeedinfo_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_PostFeedinfo_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Feedinfo)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).PostFeedinfo(ctx, in)
@@ -629,9 +629,9 @@ func (x *apiForceArchiveFeedServer) Recv() (*Entry, error) {
 	return m, nil
 }
 
-func _Api_FetchFeed_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_FetchFeed_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(FeedRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).FetchFeed(ctx, in)
@@ -641,9 +641,9 @@ func _Api_FetchFeed_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 	return out, nil
 }
 
-func _Api_FetchEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_FetchEntry_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(EntryRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).FetchEntry(ctx, in)
@@ -653,9 +653,9 @@ func _Api_FetchEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (
 	return out, nil
 }
 
-func _Api_PostEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_PostEntry_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(Entry)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).PostEntry(ctx, in)
@@ -665,9 +665,9 @@ func _Api_PostEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 	return out, nil
 }
 
-func _Api_LikeEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_LikeEntry_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(LikeRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).LikeEntry(ctx, in)
@@ -677,9 +677,9 @@ func _Api_LikeEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (i
 	return out, nil
 }
 
-func _Api_CommentEntry_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_CommentEntry_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(CommentRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).CommentEntry(ctx, in)
@@ -689,9 +689,9 @@ func _Api_CommentEntry_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
-func _Api_DeleteComment_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_DeleteComment_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(CommentDeleteRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).DeleteComment(ctx, in)
@@ -701,9 +701,9 @@ func _Api_DeleteComment_Handler(srv interface{}, ctx context.Context, buf []byte
 	return out, nil
 }
 
-func _Api_PutOAuth_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_PutOAuth_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(OAuthUser)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).PutOAuth(ctx, in)
@@ -713,9 +713,9 @@ func _Api_PutOAuth_Handler(srv interface{}, ctx context.Context, buf []byte) (in
 	return out, nil
 }
 
-func _Api_BindUserFeed_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_BindUserFeed_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(OAuthUser)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).BindUserFeed(ctx, in)
@@ -725,9 +725,9 @@ func _Api_BindUserFeed_Handler(srv interface{}, ctx context.Context, buf []byte)
 	return out, nil
 }
 
-func _Api_DeleteService_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_DeleteService_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(ServiceRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).DeleteService(ctx, in)
@@ -737,9 +737,9 @@ func _Api_DeleteService_Handler(srv interface{}, ctx context.Context, buf []byte
 	return out, nil
 }
 
-func _Api_Command_Handler(srv interface{}, ctx context.Context, buf []byte) (interface{}, error) {
+func _Api_Command_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(CommandRequest)
-	if err := proto1.Unmarshal(buf, in); err != nil {
+	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(ApiServer).Command(ctx, in)
