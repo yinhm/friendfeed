@@ -26,11 +26,11 @@ def production():
     #  name of your project - no spaces, no special chars
     env.project = 'ff'
     #  hg repository of your project
-    env.repository = 'git@github.com:yinhm/friendfeed.git'
+    env.repository = 'https://github.com/yinhm/friendfeed.git'
     #  type of repository (git or hg)
     env.repository_type = 'git'
     #  hosts to deploy your project, users must be sudoers
-    env.hosts = ['ffme2', ]
+    env.hosts = ['ffme3', ]
     # additional packages to be installed on the server
     env.additional_packages = [
         #'mercurial',
@@ -88,7 +88,7 @@ def locale():
     sudo("echo 'LANGUAGE=\"en_US:en\"' >> /etc/default/locale")
     sudo("locale-gen en_US.UTF-8")
     sudo("update-locale en_US.UTF-8")
-    sudp("locale-gen zh_CN.UTF-8")
+    sudo("locale-gen zh_CN.UTF-8")
 
 
 @task
@@ -98,11 +98,12 @@ def bootstrap():
     sudo("apt-get -y install imagemagick")
     sudo("apt-get -y install unzip")
     sudo("apt-get -y install tmux")
+    sudo("apt-get -y install nginx")
     sudo("apt-get -y install nodejs npm")
 
     sudo ("apt-get -y install debhelper libsnappy-dev libgflags-dev libjemalloc-dev libbz2-dev zlib1g-dev")
     sudo("sudo apt-get -y install devscripts")
-    sudo('git config --global url."git@github.com:".insteadOf "https://github.com/"')
+    # sudo('git config --global url."git@github.com:".insteadOf "https://github.com/"')
 
     sudo("npm install -g gulp")
     sudo("ln -s /usr/bin/nodejs /usr/bin/node")
@@ -110,14 +111,15 @@ def bootstrap():
 @task
 def deploy_env():
     build_path = "/srv/build"
+    sudo('mkdir -p %s' % build_path)
 
     template = 'conf/deb-rocksdb.sh'
     upload_template(template, join(build_path, 'deb-rocksdb.sh'),
-                    context=copy(env), backup=False)    
+                    use_sudo=True, backup=False)    
     
-    sudo('mkdir -p %s' % build_path)
     with cd(build_path):
-        sudo("curl -L https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz | tar zx --strip 1 && ./godeb install 1.4.2")
+        sudo("curl -L https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz | tar zx")
+        sudo("./godeb install 1.4.2")
         sudo("wget https://github.com/facebook/rocksdb/archive/rocksdb-3.9.1.tar.gz -O rocksdb.tgz")
         sudo("tar zxvf rocksdb.tgz && mv rocksdb-rocksdb-3.9.1 rocksdb")
         sudo("bash deb-rocksdb.sh")
