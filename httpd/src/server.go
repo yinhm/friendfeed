@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/exp/utf8string"
 
-	react "github.com/bluele/react-go"
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/contrib/sessions"
@@ -23,6 +22,7 @@ import (
 	"github.com/yinhm/friendfeed/ff"
 	pb "github.com/yinhm/friendfeed/proto"
 	"github.com/yinhm/friendfeed/util"
+	react "github.com/yinhm/react-go"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -35,7 +35,6 @@ type Server struct {
 	secretKey  string
 	httpclient *http.Client
 	cache      *cache.InMemoryStore
-	jsx        *react.JSX
 	rc         *react.React
 }
 
@@ -52,30 +51,22 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 	cacheStore := cache.NewInMemoryStore(time.Second)
 
 	rc, _ := react.NewReact()
-	jsx, _ := react.NewJSX()
+	bundlejs, err := Asset("static/js/bundle.min.js")
+	if err != nil {
+		panic(err)
+	}
+	err = rc.Load(bundlejs)
+	if err != nil {
+		panic(err)
+	}
 
-	// TODO: caching if we have more components
-	if debug {
-		component, err := jsx.TransformFile("./templates/_feed.jsx", map[string]interface{}{
-			"harmony":     true,
-			"strip_types": true,
-		})
-		if err != nil {
-			panic(err)
-		}
-		err = rc.Load(component)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		component, err := Asset("static/js/bundle.min.js")
-		if err != nil {
-			panic(err)
-		}
-		err = rc.Load(component)
-		if err != nil {
-			panic(err)
-		}
+	component, err := Asset("static/js/bundle.min.js")
+	if err != nil {
+		panic(err)
+	}
+	err = rc.Load(component)
+	if err != nil {
+		panic(err)
 	}
 
 	return &Server{
@@ -85,7 +76,6 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 		secretKey:  secretKey,
 		httpclient: httpclient,
 		cache:      cacheStore,
-		jsx:        jsx,
 		rc:         rc,
 	}
 }
@@ -111,15 +101,16 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" {
 		c.JSON(200, data)
 	} else {
-		feed_body, err := s.rc.RenderComponent("Feed", data)
+		encoded, _ := json.Marshal(data)
+		data["app_props"] = string(encoded)
+
+		body, err := s.rc.RenderComponent("Feed", data["app_props"].(string))
 		if err != nil {
 			log.Println(err)
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
-		data["feed_body"] = feed_body
-		encoded, _ := json.Marshal(data)
-		data["app_props"] = string(encoded)
+		data["feed_body"] = body
 		s.HTML(c, 200, "_feed.html", data)
 	}
 }
