@@ -51,15 +51,6 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 	cacheStore := cache.NewInMemoryStore(time.Second)
 
 	rc, _ := react.NewReact()
-	bundlejs, err := Asset("static/js/bundle.min.js")
-	if err != nil {
-		panic(err)
-	}
-	err = rc.Load(bundlejs)
-	if err != nil {
-		panic(err)
-	}
-
 	component, err := Asset("static/js/bundle.min.js")
 	if err != nil {
 		panic(err)
