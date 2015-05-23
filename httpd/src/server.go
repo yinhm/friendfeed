@@ -50,12 +50,14 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 
 	cacheStore := cache.NewInMemoryStore(time.Second)
 
-	rc, _ := react.NewReact()
 	component, err := Asset("static/js/bundle.min.js")
 	if err != nil {
 		panic(err)
 	}
-	err = rc.Load(component)
+	opt := react.DefaultReactOption()
+	opt.Source = append(opt.Source, component...)
+	opt.PoolSize = 2
+	rc, err := react.NewReactWithOption(opt)
 	if err != nil {
 		panic(err)
 	}
