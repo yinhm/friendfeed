@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
+	gcloud "cloud.google.com/go"
+	"cloud.google.com/go/storage"
+	gcs "cloud.google.com/go/storage"
 	"github.com/yinhm/friendfeed/ff"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	gcloud "google.golang.org/cloud"
-	"google.golang.org/cloud/storage"
-	gcs "google.golang.org/cloud/storage"
 )
 
 const (
