@@ -141,23 +141,23 @@ message V1Profile {
 // Full feeds have all of the fields above, plus the following field:
 // entries[]{} - List of the entries in this feed.
 message Feed {
-  optional string uuid = 1;
+  string uuid = 1;
   string id = 2;
   string name = 3;
   string picture = 11;
   // SUP (Simple Update Protocol)
   // https://code.google.com/p/simpleupdateprotocol/
-  optional string sup_id = 4;
-  optional string description = 5;
+  string sup_id = 4;
+  string description = 5;
   // One of "user", "group", or "special"
   string type = 6;
   // true if the feed is private
-  optional bool private = 7;
+  bool private = 7;
   repeated string commands = 8;
   repeated Entry entries = 9;
 
   // TODO: remove this
-  optional string remote_key = 10;
+  string remote_key = 10;
 }
 
 // /feedinfo - Feed information
@@ -180,18 +180,18 @@ message Feed {
 //   * username? - the username for this service, if any
 message Feedinfo {
   // Feed
-  optional string uuid = 1;
+  string uuid = 1;
   string id = 2;
   string name = 3;
   string picture = 16;
   // SUP (Simple Update Protocol)
   // https://code.google.com/p/simpleupdateprotocol/
-  optional string sup_id = 4;
-  optional string description = 5;
+  string sup_id = 4;
+  string description = 5;
   // One of "user", "group", or "special"
   string type = 6;
   // true if the feed is private
-  optional bool private = 7;
+  bool private = 7;
   repeated string commands = 8;
   repeated Entry entries = 9;
 
@@ -203,7 +203,7 @@ message Feedinfo {
   repeated Service services = 14;
 
   // TODO: remove this
-  optional string remote_key = 15;
+  string remote_key = 15;
 }
 
 // message Subscriber {
@@ -235,11 +235,11 @@ message Service {
   string id = 1;
   string name = 2;
   string icon = 3;
-  optional string profile = 4;
-  optional string username = 5;
-  optional OAuthUser oauth = 6;
-  optional int64 created = 7;
-  optional int64 updated = 8;
+  string profile = 4;
+  string username = 5;
+  OAuthUser oauth = 6;
+  int64 created = 7;
+  int64 updated = 8;
 }
 
 // message Connection {
@@ -247,9 +247,9 @@ message Service {
 //   string uuid = 1;
 //   Service service_id = 2;
 //   // the user's profile URL on this service, if any
-//   optional string url = 3;
+//   string url = 3;
 //   // username? - the user's username for this service, if any
-//   optional string username = 4;
+//   string username = 4;
 // }
 
 // Entry
@@ -286,21 +286,21 @@ message Entry {
   string url = 2;
   string date = 3;
   string body = 4;
-  optional string rawBody = 5;
-  optional string rawLink = 6;
+  string rawBody = 5;
+  string rawLink = 6;
   Feed from = 7;
   repeated Feed to = 8;
   repeated Comment comments = 9;
   repeated Like likes = 10;
   repeated Thumbnail thumbnails = 11;
   repeated File files = 12;
-  optional Via via = 13;
-  optional Location geo = 14;
+  Via via = 13;
+  Location geo = 14;
   repeated string commands = 15;
 
   // custom filed
   // TODO: duplicated with from field
-  optional string profile_uuid = 16;
+  string profile_uuid = 16;
 }
 
 // Comment
@@ -316,14 +316,14 @@ message Comment {
   string id = 1;
   string date = 2;
   string body = 3;
-  optional string rawBody = 4;
+  string rawBody = 4;
   Feed from = 5;
-  optional Via via = 6;
+  Via via = 6;
   repeated string commands = 7;
 
   // when maxcomments=auto on feed
-  optional bool placeholder = 8;
-  optional int32 num = 9;
+  bool placeholder = 8;
+  int32 num = 9;
 }
 
 
@@ -335,9 +335,9 @@ message Like {
   Feed from = 2;
 
   // when maxlikes=auto on feed
-  optional string body = 3;
-  optional bool placeholder = 8;
-  optional int32 num = 9;
+  string body = 3;
+  bool placeholder = 8;
+  int32 num = 9;
 }
 
 // thumbnails - List of thumbnails
@@ -349,9 +349,9 @@ message Like {
 message Thumbnail {
   string url = 1;
   string link = 2;
-  optional int32 width = 3;
-  optional int32 height = 4;
-  optional string player = 5;
+  int32 width = 3;
+  int32 height = 4;
+  string player = 5;
 }
 
 // File
@@ -365,7 +365,7 @@ message File {
   string type = 2;
   string name = 3;
   string icon = 4;
-  optional int32 size = 5;
+  int32 size = 5;
 }
 
 // Via

@@ -55,15 +55,15 @@ message FeedJob {
   string key = 1;
   string id = 2;
   string remote_key = 3;
-  optional string target_id = 4;
+  string target_id = 4;
   int32 start = 5;
   int32 page_size = 6;
   string worker = 7;
   int64 created = 8;
   int64 updated = 9;
   // uuid should always math target_id
-  optional string uuid = 10;
-  optional string status = 11;
+  string uuid = 10;
+  string status = 11;
   int32 max_limit = 12;
   bool force_update = 13;
 
@@ -82,8 +82,8 @@ message FeedSummary {
 
 message CommandRequest {
   string command = 1;
-  optional string arg1 = 2;
-  optional string arg2 = 3;
+  string arg1 = 2;
+  string arg2 = 3;
 }
 
 message CommandResponse {
@@ -120,17 +120,17 @@ message CommandResponse {
 // Example: http://friendfeed-api.com/v2/feed/bret?maxcomments=auto&maxlikes=auto
 message FeedRequest {
   string id = 1;
-  optional int32 start = 2;
-  optional int32 page_size = 3;
+  int32 start = 2;
+  int32 page_size = 3;
   // Include raw text entry and comment bodies in addition to the HTML bodies
   // included by default. The raw text bodies are available as rawBody on all
   // returned entries and comments. This also adds rawLink on all entries. 
-  optional bool raw = 4;
+  bool raw = 4;
   // NOTICE: this is not the same as original friendfeed api
   // auto should be default it not set.
   // if max_comments set to 1, then all comments should returned.
-  optional int32 max_comments = 5;
-  optional int32 max_likes = 6;
+  int32 max_comments = 5;
+  int32 max_likes = 6;
 }
 
 message EntryRequest {
