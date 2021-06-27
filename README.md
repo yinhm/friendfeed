@@ -88,7 +88,14 @@ All medias will be archived to Google Cloud Storage if it was from friendfeed.
 RocksDB
 =======
 
-    fab production deploy_env
+···
+sudo apt install librocksdb-dev
+CGO_CFLAGS="-I/usr/include/rocksdb" \
+CGO_LDFLAGS="-L/usr/lib/ -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy -llz4 -lzstd" \
+  go get github.com/tecbot/gorocksdb
+
+    // fab production deploy_env
+···
 
 Google OAUTH2
 ============

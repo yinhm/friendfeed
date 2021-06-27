@@ -10,9 +10,9 @@ import (
 
 	uuid "github.com/satori/go.uuid"
 	. "github.com/smartystreets/goconvey/convey"
+	rocksdb "github.com/tecbot/gorocksdb"
 	pb "github.com/yinhm/friendfeed/proto"
 	"github.com/yinhm/friendfeed/storage/flake"
-	rocksdb "github.com/yinhm/gorocksdb"
 )
 
 var (

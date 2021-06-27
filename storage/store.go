@@ -10,8 +10,8 @@ import (
 
 	"github.com/golang/glog"
 	uuid "github.com/satori/go.uuid"
+	rocksdb "github.com/tecbot/gorocksdb"
 	"github.com/yinhm/friendfeed/storage/flake"
-	rocksdb "github.com/yinhm/gorocksdb"
 )
 
 type PrefixTable uint32
