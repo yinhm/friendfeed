@@ -3,7 +3,7 @@ module github.com/yinhm/friendfeed
 go 1.16
 
 require (
-	cloud.google.com/go v0.84.0
+	cloud.google.com/go v0.84.0 // indirect
 	cloud.google.com/go/storage v1.15.0
 	github.com/ChimeraCoder/anaconda v2.0.0+incompatible
 	github.com/ChimeraCoder/tokenbucket v0.0.0-20131201223612-c5a927568de7 // indirect
@@ -34,6 +34,7 @@ require (
 	golang.org/x/exp v0.0.0-20210625193404-fa9d1d177d71
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/oauth2 v0.0.0-20210622215436-a8dc77f794b6
+	google.golang.org/api v0.48.0
 	google.golang.org/grpc v1.38.0
 	launchpad.net/goyaml v0.0.0-20140305200416-000000000051 // indirect
 )

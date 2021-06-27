@@ -9,15 +9,14 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
-	gcloud "cloud.google.com/go"
 	"cloud.google.com/go/storage"
 	gcs "cloud.google.com/go/storage"
 	"github.com/yinhm/friendfeed/ff"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/option"
 )
 
 const (
@@ -65,12 +64,12 @@ func NewClient() *Client {
 
 func (c *Client) PostUrl(imageUrl string) (*Response, error) {
 	thumbs := map[string]thumbConfig{
-		"small": thumbConfig{
+		"small": {
 			Width:  175,
 			Height: 175,
 			Shape:  "thumb",
 		},
-		"large": thumbConfig{
+		"large": {
 			Width:  1600,
 			Height: 1600,
 			Shape:  "thumb",
@@ -170,9 +169,9 @@ func (c *LocalStorage) Post(obj *Object) (*Object, error) {
 }
 
 type GoogleStorage struct {
-	ctx        context.Context
-	bucket     string
-	httpclient *http.Client
+	ctx    context.Context
+	bucket string
+	client *storage.Client
 }
 
 func NewGoogleStorage(config *Config) *GoogleStorage {
@@ -188,21 +187,23 @@ func NewGoogleStorage(config *Config) *GoogleStorage {
 		log.Fatal(err)
 	}
 
-	httpclient := &http.Client{
-		Timeout: 5 * time.Second,
+	httpClient := conf.Client(oauth2.NoContext)
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx, option.WithHTTPClient(httpClient))
+	if err != nil {
+		log.Fatal(err)
 	}
-	ctx := gcloud.NewContext(config.AppId, conf.Client(oauth2.NoContext))
 
 	return &GoogleStorage{
-		ctx:        ctx,
-		bucket:     config.Bucket,
-		httpclient: httpclient,
+		ctx:    ctx,
+		bucket: config.Bucket,
+		client: client,
 	}
 }
 
 func (c *GoogleStorage) Exists(name string) (bool, error) {
-	_, err := storage.StatObject(c.ctx, c.bucket, name)
-	if err != nil {
+	_, err := c.client.Bucket(c.bucket).Object(name).Attrs(c.ctx)
+	if err == storage.ErrObjectNotExist {
 		return false, err
 	}
 	return true, nil
@@ -233,7 +234,7 @@ func (c *GoogleStorage) FromUrl(filename, src, mimetype string) (*Object, error)
 }
 
 func (c *GoogleStorage) Mirror(obj *Object) (*Object, error) {
-	gcsObj, err := storage.StatObject(c.ctx, c.bucket, obj.Path)
+	gcsObj, err := c.client.Bucket(c.bucket).Object(obj.Path).Attrs(c.ctx)
 	if err != nil {
 		return c.Post(obj)
 	}
@@ -258,7 +259,8 @@ func (c *GoogleStorage) Post(obj *Object) (*Object, error) {
 	}
 
 	// path = obj.path
-	wc := storage.NewWriter(c.ctx, c.bucket, obj.Path)
+	wc := c.client.Bucket(c.bucket).Object(obj.Path).NewWriter(c.ctx)
+
 	wc.ContentType = obj.MimeType
 	if _, err := wc.Write(obj.Content); err != nil {
 		log.Printf("error on write data: %s", err)
@@ -269,12 +271,11 @@ func (c *GoogleStorage) Post(obj *Object) (*Object, error) {
 		return nil, err
 	}
 
-	gcsObj := wc.Object()
-	newUrl := "https://storage.googleapis.com/" + c.bucket + "/" + gcsObj.Name
+	newUrl := "https://storage.googleapis.com/" + c.bucket + "/" + wc.Name
 	newObj := &Object{
 		Filename: obj.Filename,
 		Bucket:   c.bucket,
-		Path:     gcsObj.Name, // without bucket
+		Path:     wc.Name, // without bucket
 		MimeType: obj.MimeType,
 		Url:      newUrl,
 	}
