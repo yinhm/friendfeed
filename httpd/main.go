@@ -27,11 +27,11 @@ import (
 )
 
 var options struct {
-	Debug      bool   `short:"d" description:"Enable debug" default:"false" env:"DEBUG"`
-	Rpc        string `short:"r" description:"Rpc Server Address" default:"localhost:8901" env:"RPC"`
-	Port       uint   `short:"p" description:"HTTP server listen port" default:"8080" env:"PORT"`
-	SecretKey  string `short:"s" description:"Key used to encryption cookies" default:"randombitsreplacedlkjsa" env:"SECRET_KEY"`
-	ConfigFile string `short:"c" description:"Config file" env:"CONFIG_FILE"`
+	Debug      bool
+	Rpc        string
+	Port       uint
+	SecretKey  string
+	ConfigFile string
 }
 
 func init() {
