@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"mime"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -21,7 +20,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/markbates/goth"
-	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/gplus"
 	"github.com/markbates/goth/providers/twitter"
 )
@@ -127,14 +125,6 @@ func Serve(s *server.Server) {
 	)
 	providers := goth.GetProviders()
 	providers["google"] = providers["gplus"]
-
-	// Assign the GetState function variable so we can return the
-	// state string we want to get back at the end of the oauth process.
-	// Only works with facebook and gplus providers.
-	gothic.GetState = func(req *http.Request) string {
-		// Get the state string from the query parameters.
-		return req.URL.Query().Get("next")
-	}
 
 	if !options.Debug {
 		gin.SetMode(gin.ReleaseMode)
