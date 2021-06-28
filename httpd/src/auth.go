@@ -96,7 +96,7 @@ func (s *Server) AuthCallback(c *gin.Context) {
 
 	profile, err := s.CurrentUser(c)
 	if err != nil {
-		c.Fail(500, err)
+		c.AbortWithError(500, err)
 		return
 	}
 	authinfo.Uuid = profile.Uuid
@@ -187,7 +187,7 @@ func (s *Server) feedWritable(c *gin.Context, feedId string) bool {
 	defer cancel()
 
 	// group feed
-	profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{feedId})
+	profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{Uuid: feedId})
 	if err != nil || profile == nil {
 		return false
 	}

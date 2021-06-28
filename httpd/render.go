@@ -2,59 +2,57 @@ package main
 
 import (
 	"net/http"
+	"path"
 
 	"github.com/flosch/pongo2"
-	server "github.com/yinhm/friendfeed/httpd/src"
+	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/render"
 )
 
-type Render struct {
-	cache map[string]*pongo2.Template
+type FriendRender struct {
 }
 
-func NewRender() *Render {
-	return &Render{map[string]*pongo2.Template{}}
+type HTMLRender struct {
+	Template *pongo2.Template
+	Name     string
+	Data     pongo2.Context
 }
 
-func (p *Render) Render(w http.ResponseWriter, code int, data ...interface{}) error {
-	file := "templates/" + data[0].(string)
-	ctx := data[1].(pongo2.Context)
-	var t *pongo2.Template
+func NewFriendRender() *FriendRender {
+	return &FriendRender{}
+}
 
-	if tmpl, ok := p.cache[file]; ok {
-		t = tmpl
+func (p *FriendRender) Instance(name string, data interface{}) render.Render {
+	var template *pongo2.Template
+	// fileName := path.Join("templates", name)
+	// buff, err := server.Asset(fileName)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	if gin.Mode() == gin.DebugMode {
+		// template = pongo2.Must(pongo2.FromString(string(buff)))
+		name := path.Join("templates", name)
+		template = pongo2.Must(pongo2.FromFile(name))
 	} else {
-		if options.Debug {
-			tmpl, err := pongo2.FromFile(file)
-			if err != nil {
-				return err
-			}
-			t = tmpl
-		} else {
-			buff, err := server.Asset(file)
-			if err == nil {
-				tmpl, err := pongo2.FromString(string(buff))
-				if err != nil {
-					return err
-				}
-				t = tmpl
-			} else {
-				tmpl, err := pongo2.FromFile(file)
-				if err != nil {
-					return err
-				}
-				t = tmpl
-			}
-
-		}
-		p.cache[file] = t
+		template = pongo2.Must(pongo2.FromCache(name))
 	}
-	writeHeader(w, code, "text/html")
-	return t.ExecuteWriter(ctx, w)
+
+	return &HTMLRender{
+		Template: template,
+		Name:     name,
+		Data:     data.(pongo2.Context),
+	}
 }
 
-func writeHeader(w http.ResponseWriter, code int, contentType string) {
-	if code >= 0 {
-		w.Header().Set("Content-Type", contentType)
-		w.WriteHeader(code)
+func (p *HTMLRender) Render(w http.ResponseWriter) error {
+	p.WriteContentType(w)
+	return p.Template.ExecuteWriter(p.Data, w)
+}
+
+func (p *HTMLRender) WriteContentType(w http.ResponseWriter) {
+	header := w.Header()
+	if val := header["Content-Type"]; len(val) == 0 {
+		header["Content-Type"] = []string{"text/html; charset=utf-8"}
 	}
 }

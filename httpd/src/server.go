@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/exp/utf8string"
 
-	react "github.com/bluele/react-go"
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/contrib/sessions"
@@ -21,6 +20,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	uuid "github.com/satori/go.uuid"
 	"github.com/yinhm/friendfeed/ff"
+	"github.com/yinhm/friendfeed/httpd/src/react"
 	pb "github.com/yinhm/friendfeed/proto"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
@@ -134,7 +134,7 @@ func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
 		cacheKey := "profile:" + uuid
 		err := s.cache.Get(cacheKey, profile)
 		if err != nil {
-			profile, err = s.client.FetchProfile(ctx, &pb.ProfileRequest{uuid})
+			profile, err = s.client.FetchProfile(ctx, &pb.ProfileRequest{Uuid: uuid})
 			if err != nil {
 				return nil, err
 			}
@@ -424,7 +424,7 @@ func contains(slice []string, item string) bool {
 
 func (s *Server) EntryHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
-	req := &pb.EntryRequest{uuid}
+	req := &pb.EntryRequest{Uuid: uuid}
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
@@ -451,7 +451,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		FeedId string `form:"feedid" binding:"required"`
 		Body   string `form:"body" binding:"required"`
 	}
-	c.BindWith(&form, binding.MultipartForm)
+	c.BindWith(&form, binding.FormMultipart)
 
 	if !s.feedWritable(c, form.FeedId) {
 		c.AbortWithStatus(401)
@@ -496,7 +496,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 
 func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
-	req := &pb.EntryRequest{uuid}
+	req := &pb.EntryRequest{Uuid: uuid}
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
@@ -514,7 +514,7 @@ func (s *Server) ExpandCommentHandler(c *gin.Context) {
 
 func (s *Server) ExpandLikeHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
-	req := &pb.EntryRequest{uuid}
+	req := &pb.EntryRequest{Uuid: uuid}
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -16,7 +17,6 @@ import (
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
-	flags "github.com/jessevdk/go-flags"
 	server "github.com/yinhm/friendfeed/httpd/src"
 	"google.golang.org/grpc"
 
@@ -35,11 +35,13 @@ var options struct {
 }
 
 func init() {
-	_, err := flags.ParseArgs(&options, os.Args)
+	flag.BoolVar(&options.Debug, "d", false, "Enable debug")
+	flag.StringVar(&options.Rpc, "rpc", "localhost:8901", "Rpc Server Address")
+	flag.UintVar(&options.Port, "p", 8080, "HTTP server listen port")
+	flag.StringVar(&options.SecretKey, "s", "randombitsreplacedlkjsa", "Key used to encryption cookies")
+	flag.StringVar(&options.ConfigFile, "c", "/srv/ff/config.json", "Config file")
 
-	if err != nil {
-		os.Exit(1)
-	}
+	// babel.Init(runtime.NumCPU())
 }
 
 type Config struct {
@@ -134,8 +136,12 @@ func Serve(s *server.Server) {
 		return req.URL.Query().Get("next")
 	}
 
+	if !options.Debug {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	r := gin.Default()
-	r.HTMLRender = NewRender()
+	r.HTMLRender = NewFriendRender()
 	// session
 	store := sessions.NewCookieStore([]byte(options.SecretKey))
 	r.Use(sessions.Sessions("ffsession", store))
@@ -185,14 +191,16 @@ func Serve(s *server.Server) {
 
 	r.GET("/public", s.PublicHandler)
 
-	r.NotFound404(NotFoundHandler)
+	r.NoRoute(NotFoundHandler)
 
 	fmt.Println("Starting server...")
 	r.Run(fmt.Sprintf(":%v", options.Port))
 }
 
 func main() {
-	rpcConn, err := grpc.Dial(options.Rpc)
+	flag.Parse()
+
+	rpcConn, err := grpc.Dial(options.Rpc, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Connection error: %v", err)
 	}
