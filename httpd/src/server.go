@@ -451,7 +451,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		FeedId string `form:"feedid" binding:"required"`
 		Body   string `form:"body" binding:"required"`
 	}
-	c.BindWith(&form, binding.FormMultipart)
+	c.MustBindWith(&form, binding.FormMultipart)
 
 	if !s.feedWritable(c, form.FeedId) {
 		c.AbortWithStatus(401)
@@ -643,7 +643,7 @@ func (s *Server) CommentDeleteHandler(c *gin.Context) {
 		Entry   string `form:"entry" binding:"required"`
 		Comment string `form:"comment" binding:"required"`
 	}
-	c.BindWith(&form, binding.Form)
+	c.MustBindWith(&form, binding.Form)
 
 	// TODO: check perm
 	profile, _ := s.CurrentUser(c)
