@@ -5,604 +5,604 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"testing"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
-	. "github.com/smartystreets/goconvey/convey"
-	rocksdb "github.com/tecbot/gorocksdb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	pb "github.com/yinhm/friendfeed/proto"
 	"github.com/yinhm/friendfeed/storage/flake"
 )
 
-var (
+type DBTestSuite struct {
+	suite.Suite
+
 	rdb    *Store
 	mdb    *Store
 	dbpath string
-)
-
-func setup() {
-	dbpath := os.TempDir() + "/fftestdb"
-	rdb = NewStore(dbpath)
-	mdb = NewMetaStore(dbpath + "/meta")
 }
 
-func teardown() {
-	if !rdb.closed {
-		rdb.Close()
-		if err := rdb.Destroy(); err != nil {
-			log.Fatalf("fail on destroy rdb: %s", err)
-		}
+func TestDBTestSuite(t *testing.T) {
+	suite.Run(t, new(DBTestSuite))
+}
+
+func (s *DBTestSuite) SetupTest() {
+	log.Println("setup tests...")
+	dbpath := os.TempDir() + "/testffdb2"
+	s.rdb = NewStore(dbpath)
+	s.mdb = NewMetaStore(path.Join(dbpath, "meta"))
+}
+
+func (s *DBTestSuite) TearDownTest() {
+	log.Println("teardown tests...")
+	s.mdb.Close()
+	err := os.RemoveAll(s.mdb.dbpath)
+	if err != nil {
+		log.Println("can not remove test db.")
 	}
-	if !mdb.closed {
-		mdb.Close()
-		if err := mdb.Destroy(); err != nil {
-			log.Fatalf("fail on destroy mdb: %s", err)
-		}
+
+	s.rdb.Close()
+	err = os.RemoveAll(s.rdb.dbpath)
+	if err != nil {
+		log.Println("can not remove test db.")
 	}
 }
 
-func TestStore(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestDBGetPut() {
+	err := s.rdb.Put([]byte("key1"), []byte("value1"))
+	assert.Nil(s.T(), err)
 
-	Convey("When put then get value, it should be equal", t, func() {
-		err := rdb.Put([]byte("key1"), []byte("value1"))
-		So(err, ShouldBeNil)
+	value, err := s.rdb.Get([]byte("key1"))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "value1", string(value))
 
-		value, err := rdb.Get([]byte("key1"))
-		So(err, ShouldBeNil)
-
-		So(string(value), ShouldEqual, "value1")
-
-		value, err = rdb.Get([]byte("key2"))
-		So(err, ShouldBeNil)
-		So(value, ShouldEqual, nil)
-	})
+	value, err = s.rdb.Get([]byte("key2"))
+	assert.Nil(s.T(), err)
 }
 
-func TestMetaStore(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestMetaStore() {
+	// Giving meta store
+	err := s.mdb.Put([]byte("key1"), []byte("value1"))
+	assert.Nil(s.T(), err)
 
-	Convey("Giving meta store", t, func() {
-		err := mdb.Put([]byte("key1"), []byte("value1"))
-		So(err, ShouldBeNil)
-		value, err := mdb.Get([]byte("key1"))
-		So(err, ShouldBeNil)
-		So(string(value), ShouldEqual, "value1")
+	value, err := s.mdb.Get([]byte("key1"))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "value1", string(value))
 
-		Convey("With large key", func() {
-			key := []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdegfhijklmnopqrstuvwxyz")
-			err := mdb.Put(key, []byte("value2"))
-			So(err, ShouldBeNil)
-			value, err := mdb.Get(key)
-			So(err, ShouldBeNil)
-			So(string(value), ShouldEqual, "value2")
-		})
-	})
+	// With large key
+	key := []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdegfhijklmnopqrstuvwxyz")
+	err = s.mdb.Put(key, []byte("value2"))
+	assert.Nil(s.T(), err)
+
+	value, err = s.mdb.Get(key)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "value2", string(value))
 }
 
-func TestIteration(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestIteration() {
+	// Giving meta store, When iterator data, it should find all keys
+	prefix := []byte("job:feed:")
+	key1 := fmt.Sprintf("job:feed:%s", "key1")
+	key2 := fmt.Sprintf("job:feed:%s", "key2")
 
-	Convey("Giving meta store, When iterator data, it should find all keys", t, func() {
-		prefix := []byte("job:feed:")
-		key1 := fmt.Sprintf("job:feed:%s", "key1")
-		key2 := fmt.Sprintf("job:feed:%s", "key2")
+	err := s.mdb.Put([]byte(key1), []byte("value1"))
+	assert.Nil(s.T(), err)
 
-		So(mdb.Put([]byte(key1), []byte("value1")), ShouldBeNil)
-		So(mdb.Put([]byte(key2), []byte("value2")), ShouldBeNil)
+	err = s.mdb.Put([]byte(key2), []byte("value2"))
+	assert.Nil(s.T(), err)
 
-		opts := prefixIteratorOptions(prefix)
-		iter := newIterator(mdb.rdb, opts)
-		defer iter.Close()
+	opts := prefixIteratorOptions(prefix)
+	iter := newIterator(s.mdb.rdb, opts)
+	defer iter.Close()
 
-		So(func() { iter.First() }, ShouldNotPanic)
-		So(iter.Valid(), ShouldBeTrue)
-		So(string(iter.Key()), ShouldEqual, key1)
-		So(string(iter.Value()), ShouldEqual, "value1")
+	iter.First()
+	assert.True(s.T(), iter.Valid())
+	assert.Equal(s.T(), key1, string(iter.Key()))
+	assert.Equal(s.T(), "value1", string(iter.Value()))
 
-		iter.Next()
-		So(iter.Valid(), ShouldBeTrue)
-		So(string(iter.Key()), ShouldEqual, key2)
-		So(string(iter.Value()), ShouldEqual, "value2")
+	iter.Next()
+	assert.True(s.T(), iter.Valid())
+	assert.Equal(s.T(), key2, string(iter.Key()))
+	assert.Equal(s.T(), "value2", string(iter.Value()))
 
-		iter.Next()
-		So(iter.Valid(), ShouldBeFalse)
+	iter.Next()
+	assert.False(s.T(), iter.Valid())
 
-		err := iter.Error()
-		So(err, ShouldBeNil)
-	})
+	assert.Nil(s.T(), iter.Error())
 }
 
-func TestIteration2(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestIterationReopen() {
+	// Giving meta store, when iterator data, it should find all keys
+	// first iter
+	for i := 0; i < 3; i++ {
+		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value1"))
+	}
 
-	Convey("Giving meta store, When iterator data, it should find all keys", t, func() {
-		Convey("first iter", func() {
-			for i := 0; i < 3; i++ {
-				key := NewFlakeKey(TableJobFeed, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value1"))
-			}
+	for i := 0; i < 2; i++ {
+		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value2"))
+	}
 
-			for i := 0; i < 2; i++ {
-				key := NewFlakeKey(TableJobRunning, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value2"))
-			}
+	key := NewFlakeKey(TableMax, s.mdb.NextId())
+	s.mdb.Put(key.Bytes(), []byte("value3"))
 
-			key := NewFlakeKey(TableMax, mdb.NextId())
-			mdb.Put(key.Bytes(), []byte("value3"))
+	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it := s.mdb.Iterator()
+	it.SeekGE(key.Prefix().Bytes())
+	numFound := 0
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	// mdb switched to Block-based format
+	assert.Equal(s.T(), 6, numFound)
+	it.Close()
 
-			key = NewFlakeKey(TableJobFeed, mdb.NextId())
-			it := mdb.Iterator()
-			defer it.Close()
-			it.SeekGE(key.Prefix().Bytes())
+	// demonstrate data inconsistent when reopen db
+	s.rdb.Close()
+	s.mdb.Close()
+	s.SetupTest()
 
-			numFound := 0
-			for ; it.Valid(); it.Next() {
-				it.Key()
-				numFound++
-			}
-			So(it.Error(), ShouldBeNil)
-			// mdb switched to Block-based format
-			// So(numFound, ShouldEqual, 3)
-			So(numFound, ShouldEqual, 6)
-		})
+	// iter to key>=prefix
+	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 6, numFound)
+	it.Close()
 
-		// WARN: must scoped or trigger assertion `is_last_reference' failed
-		// due to it not closed.
-		Convey("demonstrate the inconsistent behaviour when reopen db", func() {
-			// reopen
-			rdb.Close()
-			mdb.Close()
-			setup()
-			defer teardown()
+	// inconsistent occur
+	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	// was true for rocksdb
+	// assert.Equal(s.T(), 3, numFound)
+	assert.Equal(s.T(), 6, numFound)
+	it.Close()
 
-			// iter to key>=prefix
-			key := NewFlakeKey(TableJobFeed, mdb.NextId())
-			it := mdb.Iterator()
-			defer it.Close()
-			numFound := 0
-			it.SeekGE(key.Prefix().Bytes())
+	// iter to key>=prefix
+	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-			for ; it.Valid(); it.Next() {
-				it.Key()
-				numFound++
-			}
-			So(it.Error(), ShouldBeNil)
-			So(numFound, ShouldEqual, 6)
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 3, numFound)
+	it.Close()
 
-			// so we need to use ValidForPrefix
-			key = NewFlakeKey(TableJobFeed, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.SeekGE(key.Prefix().Bytes())
-
-			for ; it.ValidForPrefix(key.Prefix().Bytes()); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 3)
-
-			// iter to key>=prefix
-			key = NewFlakeKey(TableJobRunning, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
-
-			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 3)
-
-			// iter.ValidForPrefix
-			key = NewFlakeKey(TableJobRunning, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
-
-			for ; it.ValidForPrefix(key.Prefix().Bytes()); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 2)
-		})
-	})
+	// inconsistent occur
+	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	// was true for rocksdb
+	// assert.Equal(s.T(), 2, numFound)
+	assert.Equal(s.T(), 3, numFound)
+	it.Close()
 }
 
-func TestRockStorePrefixSeek(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestRockStorePrefixSeek() {
+	// Giving meta store
+	// First iteration: populate data
+	for i := 0; i < 1000; i++ {
+		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value1"))
+	}
 
-	Convey("Giving meta store", t, func() {
-		Convey("First iteration: populate data", func() {
-			for i := 0; i < 1000; i++ {
-				key := NewFlakeKey(TableJobFeed, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value1"))
-			}
+	for i := 0; i < 1000; i++ {
+		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value2"))
+	}
 
-			for i := 0; i < 1000; i++ {
-				key := NewFlakeKey(TableJobRunning, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value2"))
-			}
+	for i := 0; i < 1000; i++ {
+		key := NewFlakeKey(TableMax, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value3"))
+	}
 
-			for i := 0; i < 1000; i++ {
-				key := NewFlakeKey(TableMax, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value3"))
-			}
+	key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it := s.mdb.Iterator()
+	it.SeekGE(key.Prefix().Bytes())
+	numFound := 0
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 3000, numFound)
+	it.Close()
 
-			ro := rocksdb.NewDefaultReadOptions()
-			// ro.prefix_seek = true is on by default
-			key := NewFlakeKey(TableJobFeed, mdb.NextId())
-			it := mdb.rdb.NewIterator(ro)
-			defer it.Close()
-			it.Seek(key.Prefix().Bytes())
+	// Second iteration: reopen db
+	s.rdb.Close()
+	s.mdb.Close()
+	s.SetupTest()
 
-			numFound := 0
-			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			// mdb switched to Block-based format
-			//So(numFound, ShouldEqual, 1000)
-			So(numFound, ShouldEqual, 3000)
-		})
+	// iter to key>=prefix
+	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-		Convey("Second iteration: reopen db", func() {
-			// reopen
-			rdb.Close()
-			mdb.Close()
-			setup()
-			defer teardown()
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 3000, numFound)
+	it.Close()
 
-			// iter to key>=prefix
-			ro := rocksdb.NewDefaultReadOptions()
-			// ro.prefix_seek = true is on by default
-			key := NewFlakeKey(TableJobFeed, mdb.NextId())
-			it := mdb.rdb.NewIterator(ro)
-			defer it.Close()
-			numFound := 0
-			it.Seek(key.Prefix().Bytes())
+	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 3000)
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 3000, numFound)
+	it.Close()
 
-			// so we need to use ValidForPrefix
-			key = NewFlakeKey(TableJobFeed, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
+	// iter to key>=prefix
+	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-			for ; it.ValidForPrefix(key.Prefix().Bytes()); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 1000)
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 2000, numFound)
+	it.Close()
 
-			// iter to key>=prefix
-			key = NewFlakeKey(TableJobRunning, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
+	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	defer it.Close()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 2000)
-
-			// iter.ValidForPrefix
-			key = NewFlakeKey(TableJobRunning, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
-
-			for ; it.ValidForPrefix(key.Prefix().Bytes()); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 1000)
-		})
-	})
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 2000, numFound)
 }
 
-func TestPrefixSeekWithDelimiterKey(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
+	// Giving meta store
+	//First iteration: populate data
+	// @rdallman suggest this hack on gorocksdb issue #24
+	// maxKey := []byte{
+	// 	0xFF, 0xFF, 0xFF, 0xFF,
+	// 	0xFF, 0xFF, 0xFF, 0xFF,
+	// 	0xFF, 0xFF, 0xFF, 0xFF,
+	// 	0xFF, 0xFF, 0xFF, 0xFF,
+	// }
+	// s.mdb.Put(maxKey, []byte(""))
+	for i := 0; i < 1000; i++ {
+		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value1"))
+	}
 
-	Convey("Giving meta store", t, func() {
-		Convey("First iteration: populate data", func() {
-			// @rdallman suggest this hack on gorocksdb issue #24
-			// maxKey := []byte{
-			// 	0xFF, 0xFF, 0xFF, 0xFF,
-			// 	0xFF, 0xFF, 0xFF, 0xFF,
-			// 	0xFF, 0xFF, 0xFF, 0xFF,
-			// 	0xFF, 0xFF, 0xFF, 0xFF,
-			// }
-			// mdb.Put(maxKey, []byte(""))
+	for i := 0; i < 1000; i++ {
+		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value2"))
+	}
 
-			for i := 0; i < 1000; i++ {
-				key := NewFlakeKey(TableJobFeed, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value1"))
-			}
+	for i := 0; i < 1000; i++ {
+		key := NewFlakeKey(TableMax, s.mdb.NextId())
+		s.mdb.Put(key.Bytes(), []byte("value3"))
+	}
 
-			for i := 0; i < 1000; i++ {
-				key := NewFlakeKey(TableJobRunning, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value2"))
-			}
+	key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it := s.mdb.Iterator()
+	it.SeekGE(key.Prefix().Bytes())
 
-			for i := 0; i < 1000; i++ {
-				key := NewFlakeKey(TableMax, mdb.NextId())
-				mdb.Put(key.Bytes(), []byte("value3"))
-			}
+	numFound := 0
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 3000, numFound)
+	it.Close()
 
-			ro := rocksdb.NewDefaultReadOptions()
-			// ro.prefix_seek = true is on by default
-			key := NewFlakeKey(TableJobFeed, mdb.NextId())
-			it := mdb.rdb.NewIterator(ro)
-			defer it.Close()
-			it.Seek(key.Prefix().Bytes())
+	// Second iteration: reopen db
+	// reopen
+	s.rdb.Close()
+	s.mdb.Close()
+	s.SetupTest()
 
-			numFound := 0
-			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			// mdb switched to Block-based format
-			//So(numFound, ShouldEqual, 1000)
-			So(numFound, ShouldEqual, 3000)
-		})
+	// iter to key>=prefix
+	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-		Convey("Second iteration: reopen db", func() {
-			// reopen
-			rdb.Close()
-			mdb.Close()
-			setup()
-			defer teardown()
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 3000, numFound)
+	it.Close()
 
-			// iter to key>=prefix
-			ro := rocksdb.NewDefaultReadOptions()
-			// ro.prefix_seek = true is on by default
-			key := NewFlakeKey(TableJobFeed, mdb.NextId())
-			it := mdb.rdb.NewIterator(ro)
-			defer it.Close()
-			numFound := 0
-			it.Seek(key.Prefix().Bytes())
+	// again
+	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 3000)
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 3000, numFound)
+	it.Close()
 
-			// so we need to use ValidForPrefix
-			key = NewFlakeKey(TableJobFeed, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
+	// iter to key>=prefix
+	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-			for ; it.ValidForPrefix(key.Prefix().Bytes()); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 1000)
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 2000, numFound)
+	it.Close()
 
-			// iter to key>=prefix
-			key = NewFlakeKey(TableJobRunning, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
+	// again
+	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
+	it = s.mdb.Iterator()
+	defer it.Close()
+	numFound = 0
+	it.SeekGE(key.Prefix().Bytes())
 
-			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 2000)
-
-			// iter.ValidForPrefix
-			key = NewFlakeKey(TableJobRunning, mdb.NextId())
-			it = mdb.Iterator()
-			defer it.Close()
-			numFound = 0
-			it.Seek(key.Prefix().Bytes())
-
-			for ; it.ValidForPrefix(key.Prefix().Bytes()); it.Next() {
-				kk := it.Key()
-				kk.Free()
-				numFound++
-			}
-			So(it.Err(), ShouldBeNil)
-			So(numFound, ShouldEqual, 1000)
-		})
-	})
+	for ; it.Valid(); it.Next() {
+		it.Key()
+		numFound++
+	}
+	assert.Nil(s.T(), it.Error())
+	assert.Equal(s.T(), 2000, numFound)
+	it.Close()
 }
 
 //-------------------------
 // testing keys
 //-------------------------
-
 func TestPrefixTable(t *testing.T) {
-	Convey("Giving prefix table, convert to bytes", t, func() {
-		var p1 PrefixTable
-		So(p1.Len(), ShouldEqual, 4)
+	// Giving prefix table, convert to bytes
+	var p1 PrefixTable
+	assert.Equal(t, 4, p1.Len())
 
-		p := TableFeed
-		So(p.Len(), ShouldEqual, 4)
-		So(p.String(), ShouldEqual, "00000001")
-		So(hex.EncodeToString(p.Bytes()), ShouldEqual, "00000001")
-	})
+	p := TableFeed
+	assert.Equal(t, 4, p.Len())
+	assert.Equal(t, "00000001", p.String())
+	assert.Equal(t, "00000001", hex.EncodeToString(p.Bytes()))
 }
 
 func TestMetaKey(t *testing.T) {
-	Convey("Giving meta key, When convert to bytes", t, func() {
-		key := &MetaKey{TableOAuthTwitter, "foobar"}
-		So(key.Len(), ShouldEqual, 10)
-		So(key.Prefix().Len(), ShouldEqual, 4)
-		So(key.String(), ShouldEqual, key.Prefix().String()+"foobar")
-	})
+	// Giving meta key, When convert to bytes
+	key := &MetaKey{TableOAuthTwitter, "foobar"}
+	assert.Equal(t, 10, key.Len())
+	assert.Equal(t, 4, key.Prefix().Len())
+	assert.Equal(t, key.Prefix().String()+"foobar", key.String())
 }
 
 func TestFlakeKey(t *testing.T) {
-	Convey("Giving falke key, When convert to bytes", t, func() {
-		fid := flake.Id{}
-		suffix := hex.EncodeToString(fid[:])
-		key := &FlakeKey{TableFeed, fid}
-		So(key.Len(), ShouldEqual, 20)
-		So(key.Prefix().Len(), ShouldEqual, 4)
-		So(key.String(), ShouldEqual, "00000001"+suffix)
-		So(hex.EncodeToString(key.Prefix().Bytes()), ShouldEqual, "00000001")
+	// Giving falke key, When convert to bytes
+	fid := flake.Id{}
+	suffix := hex.EncodeToString(fid[:])
+	key := &FlakeKey{TableFeed, fid}
+	assert.Equal(t, 20, key.Len())
+	assert.Equal(t, 4, key.Prefix().Len())
+	assert.Equal(t, "00000001"+suffix, key.String())
+	assert.Equal(t, "00000001", hex.EncodeToString(key.Prefix().Bytes()))
 
-		key.PrefixTable = TableFeedinfo
-		So(key.String(), ShouldEqual, "00000002"+suffix)
-		So(hex.EncodeToString(key.Prefix().Bytes()), ShouldEqual, "00000002")
+	key.PrefixTable = TableFeedinfo
+	assert.Equal(t, "00000002"+suffix, key.String())
+	assert.Equal(t, "00000002", hex.EncodeToString(key.Prefix().Bytes()))
 
-		key.Id[15] = 1
-		suffix = hex.EncodeToString(key.Id[:])
-		So(key.String(), ShouldEqual, "00000002"+suffix)
-		So(hex.EncodeToString(key.Prefix().Bytes()), ShouldEqual, "00000002")
-	})
+	key.Id[15] = 1
+	suffix = hex.EncodeToString(key.Id[:])
+	assert.Equal(t, key.String(), "00000002"+suffix)
+	assert.Equal(t, hex.EncodeToString(key.Prefix().Bytes()), "00000002")
 }
 
 func TestUUIDKey(t *testing.T) {
-	Convey("Giving prefix, convert to bytes", t, func() {
-		uuid1 := new(uuid.UUID)
-		So(uuid1.String(), ShouldEqual, "00000000-0000-0000-0000-000000000000")
+	// Giving prefix, convert to bytes
+	uuid1 := new(uuid.UUID)
+	assert.Equal(t, uuid1.String(), "00000000-0000-0000-0000-000000000000")
 
-		id, err := uuid.FromString("c6f8dca8-54f0-11dd-b489-003048343a40")
-		So(err, ShouldBeNil)
-		So(hex.EncodeToString(id.Bytes()), ShouldEqual, hex.EncodeToString(id[:16][:]))
+	id, err := uuid.FromString("c6f8dca8-54f0-11dd-b489-003048343a40")
+	assert.Nil(t, err)
+	assert.Equal(t, hex.EncodeToString(id.Bytes()), hex.EncodeToString(id[:16][:]))
 
-		prefix := NewUUIDKey(TableFeed, id)
-		So(prefix.Len(), ShouldEqual, 20)
+	prefix := NewUUIDKey(TableFeed, id)
+	assert.Equal(t, prefix.Len(), 20)
 
-		uid := "c6f8dca854f011ddb489003048343a40"
-		So(prefix.String(), ShouldEqual, "00000001"+uid)
-		So(hex.EncodeToString(prefix.Bytes()), ShouldEqual, "00000001"+uid)
-	})
+	uid := "c6f8dca854f011ddb489003048343a40"
+	assert.Equal(t, prefix.String(), "00000001"+uid)
+	assert.Equal(t, hex.EncodeToString(prefix.Bytes()), "00000001"+uid)
 }
 
 func TestUUIDFlakeKey(t *testing.T) {
-	Convey("Giving key, convert to bytes", t, func() {
-		id, err := uuid.FromString("c6f8dca8-54f0-11dd-b489-003048343a40")
-		So(err, ShouldBeNil)
-		So(hex.EncodeToString(id.Bytes()), ShouldEqual, hex.EncodeToString(id[:16][:]))
+	// Giving key, convert to bytes
+	id, err := uuid.FromString("c6f8dca8-54f0-11dd-b489-003048343a40")
+	assert.Nil(t, err)
+	assert.Equal(t, hex.EncodeToString(id.Bytes()), hex.EncodeToString(id[:16][:]))
 
-		fid := flake.Id{}
-		suffix := hex.EncodeToString(fid[:])
-		key := NewUUIDFlakeKey(TableFeed, id, fid)
-		So(key.Len(), ShouldEqual, 36)
+	fid := flake.Id{}
+	suffix := hex.EncodeToString(fid[:])
+	key := NewUUIDFlakeKey(TableFeed, id, fid)
+	assert.Equal(t, key.Len(), 36)
 
-		uid := "c6f8dca854f011ddb489003048343a40"
-		So(key.String(), ShouldEqual, "00000001"+uid+suffix)
-		So(hex.EncodeToString(key.Prefix().Bytes()), ShouldEqual, "00000001"+uid)
-		So(string(key.Prefix().Bytes()), ShouldEqual, string(key.UUIDKey.Bytes()))
+	uid := "c6f8dca854f011ddb489003048343a40"
+	assert.Equal(t, key.String(), "00000001"+uid+suffix)
+	assert.Equal(t, hex.EncodeToString(key.Prefix().Bytes()), "00000001"+uid)
+	assert.Equal(t, string(key.Prefix().Bytes()), string(key.UUIDKey.Bytes()))
 
-		key.UUIDKey.PrefixTable = TableFeedinfo
-		So(key.String(), ShouldEqual, "00000002"+uid+suffix)
-		So(hex.EncodeToString(key.Prefix().Bytes()), ShouldEqual, "00000002"+uid)
+	key.UUIDKey.PrefixTable = TableFeedinfo
+	assert.Equal(t, key.String(), "00000002"+uid+suffix)
+	assert.Equal(t, hex.EncodeToString(key.Prefix().Bytes()), "00000002"+uid)
 
-		key.Id[15] = 1
-		suffix = hex.EncodeToString(key.Id[:])
-		So(key.String(), ShouldEqual, "00000002"+uid+suffix)
-		So(hex.EncodeToString(key.Prefix().Bytes()), ShouldEqual, "00000002"+uid)
-	})
+	key.Id[15] = 1
+	suffix = hex.EncodeToString(key.Id[:])
+	assert.Equal(t, key.String(), "00000002"+uid+suffix)
+	assert.Equal(t, hex.EncodeToString(key.Prefix().Bytes()), "00000002"+uid)
 }
 
-func TestOAuthUser(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestOAuthUser() {
+	// "Given OAuth User, should save
+	ptu := &pb.OAuthUser{
+		UserId:      "12345",
+		Name:        "foobar",
+		NickName:    "foo bar",
+		Email:       "foo@bar.com",
+		AccessToken: "f o o b a r",
+		Provider:    "twitter",
+	}
 
-	Convey("Given OAuth User, should save", t, func() {
-		ptu := &pb.OAuthUser{
-			UserId:      "12345",
-			Name:        "foobar",
-			NickName:    "foo bar",
-			Email:       "foo@bar.com",
-			AccessToken: "f o o b a r",
-			Provider:    "twitter",
-		}
+	got, err := PutOAuthUser(s.mdb, ptu)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), ptu.UserId, got.UserId)
+	assert.Equal(s.T(), ptu.Provider, got.Provider)
 
-		got, err := PutOAuthUser(mdb, ptu)
-		So(err, ShouldBeNil)
-		So(got.UserId, ShouldEqual, ptu.UserId)
-		So(got.Provider, ShouldEqual, ptu.Provider)
-
-		key := NewMetaKey(TableOAuthTwitter, ptu.UserId)
-		rawdata, err := mdb.Get(key.Bytes())
-		So(err, ShouldBeNil)
-		So(rawdata, ShouldNotEqual, "")
-	})
+	key := NewMetaKey(TableOAuthTwitter, ptu.UserId)
+	rawdata, err := s.mdb.Get(key.Bytes())
+	assert.Nil(s.T(), err)
+	assert.NotEqual(s.T(), "", rawdata)
 }
 
-func TestArchiveHistory(t *testing.T) {
-	setup()
-	defer teardown()
-
-	Convey("No archive history", t, func() {
-		job, err := GetArchiveHistory(mdb, "not-exists")
-		So(err, ShouldBeNil)
-		So(job.Key, ShouldEqual, "")
-		So(job.Status, ShouldNotEqual, "done")
-	})
+func (s *DBTestSuite) TestArchiveHistory() {
+	//No archive history
+	job, err := GetArchiveHistory(s.mdb, "not-exists")
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "", job.Key)
+	assert.NotEqual(s.T(), "done", job.Status)
 }
 
-func TestTimeTravelId(t *testing.T) {
-	setup()
-	defer teardown()
+func (s *DBTestSuite) TestTimeTravelId() {
+	// Given old time, should return the same time travel id
+	dt := "2009-06-25T18:23:38Z"
+	t, _ := time.Parse(time.RFC3339, dt)
 
-	Convey("Given old time, should return the same time travel id", t, func() {
-		dt := "2009-06-25T18:23:38Z"
-		t, _ := time.Parse(time.RFC3339, dt)
+	fid1 := s.mdb.TimeTravelId(t)
+	for i := 0; i < 100; i++ {
+		fid2 := s.mdb.TimeTravelId(t)
+		assert.Equal(s.T(), string(fid1[:]), string(fid2[:]))
+	}
 
-		fid1 := mdb.TimeTravelId(t)
-		for i := 0; i < 100; i++ {
-			fid2 := mdb.TimeTravelId(t)
-			So(string(fid1[:]), ShouldEqual, string(fid2[:]))
-		}
+	fid1 = s.mdb.TimeTravelReverseId(t)
+	for i := 0; i < 100; i++ {
+		fid2 := s.mdb.TimeTravelReverseId(t)
+		assert.Equal(s.T(), string(fid1[:]), string(fid2[:]))
+	}
+}
 
-		fid1 = mdb.TimeTravelReverseId(t)
-		for i := 0; i < 100; i++ {
-			fid2 := mdb.TimeTravelReverseId(t)
-			So(string(fid1[:]), ShouldEqual, string(fid2[:]))
-		}
+func (s *DBTestSuite) TestPutEntry() {
+	p := &pb.Profile{
+		Uuid: "c6f8dca854f011ddb489003048343a40",
+		Id:   "yinhm",
+		Name: "yinhm",
+		Type: "user",
+	}
+
+	feed := &pb.Feed{
+		Id:   "yinhm",
+		Name: "yinhm",
+		Type: "user",
+	}
+
+	e := &pb.Entry{
+		Body:        "张无忌对张三丰说：“太师父，武当山的生活太寂寞了，只有清风和明月两个朋友能陪我玩。”张三丰叹了口气：“已经很不错啦，至少还有清风明月呢。想当年我在少林寺的时候，也是只有两个朋友，其中一个也叫清风……”“那另一个呢？”“叫心相印。”…",
+		Id:          "e/2b43a9066074d120ed2e45494eea1797",
+		Date:        "2012-09-07T07:40:22Z",
+		Url:         "http://friendfeed.com/yinhm/2b43a906/rt-trojansj",
+		From:        feed,
+		ProfileUuid: "c6f8dca854f011ddb489003048343a40",
+	}
+
+	// Put entry"
+	// fresh put
+	_, err := PutEntry(s.rdb, e, false)
+	assert.Nil(s.T(), err)
+
+	// put exists entry
+	_, err = PutEntry(s.rdb, e, false)
+	_, ok := err.(*Error)
+	assert.True(s.T(), ok)
+
+	// force put
+	e.Id = "e/ab439960a83546c683fd989a40a68462"
+	// fake new falkeid
+	e.Date = "2013-09-07T07:40:22Z"
+
+	_, err = PutEntry(s.rdb, e, false)
+	assert.Nil(s.T(), err)
+
+	// force put exists entry
+	_, err = PutEntry(s.rdb, e, true)
+	assert.Nil(s.T(), err)
+
+	for i := 0; i < 100; i++ {
+		_, err = PutEntry(s.rdb, e, true)
+		assert.Nil(s.T(), err)
+	}
+
+	uuid1, _ := uuid.FromString(p.Uuid)
+	key := NewUUIDKey(TableReverseEntryIndex, uuid1)
+	n, err := ForwardTableScan(s.rdb, key, func(i int, k, v []byte) error {
+		return nil
 	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 2, n)
+
+	// produce duplicated entry issue when server moved
+	oldNewWorkerId := flake.NewWorkerId
+	flake.NewWorkerId = flake.NewRandWorkerId
+	// rdb.idGen.WorkerId = flake.NewRandWorkerId()
+	// force put exists entry
+	_, err = PutEntry(s.rdb, e, true)
+	assert.Nil(s.T(), err)
+
+	n, err = ForwardTableScan(s.rdb, key, func(i int, k, v []byte) error {
+		return nil
+	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 2, n)
+
+	// restore NewWorkerId func otherwise will break other tests
+	flake.NewWorkerId = oldNewWorkerId
 }

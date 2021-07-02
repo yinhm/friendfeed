@@ -216,7 +216,7 @@ func (db *Store) Options() *pebble.Options {
 	return db.options
 }
 
-func (db *Store) rawGet(key []byte) ([]byte, error) {
+func (db *Store) Get(key []byte) ([]byte, error) {
 	value, closer, err := db.rdb.Get(key)
 	if closer != nil {
 		valueCopy := make([]byte, len(value))
@@ -224,14 +224,10 @@ func (db *Store) rawGet(key []byte) ([]byte, error) {
 		value = valueCopy
 		closer.Close()
 	}
-	if err != pebble.ErrNotFound || len(value) == 0 {
+	if err == pebble.ErrNotFound || len(value) == 0 {
 		return nil, nil
 	}
 	return value, err
-}
-
-func (db *Store) Get(key []byte) ([]byte, error) {
-	return db.rawGet(key)
 }
 
 func (db *Store) Put(key, value []byte) error {
@@ -249,8 +245,9 @@ func (db *Store) Delete(key []byte) error {
 }
 
 // func (db *Store) Iterator(key []byte) *rocksdb.Iterator {
-func (db *Store) Iterator() *pebble.Iterator {
-	return db.rdb.NewIter(nil)
+func (db *Store) Iterator() *iterator {
+	opts := &pebble.IterOptions{}
+	return newIterator(db.rdb, opts)
 }
 
 func (db *Store) NextId() flake.Id {
