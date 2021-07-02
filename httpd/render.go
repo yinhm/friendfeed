@@ -24,14 +24,8 @@ func NewFriendRender() *FriendRender {
 
 func (p *FriendRender) Instance(name string, data interface{}) render.Render {
 	var template *pongo2.Template
-	// fileName := path.Join("templates", name)
-	// buff, err := server.Asset(fileName)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
 
 	if gin.Mode() == gin.DebugMode {
-		// template = pongo2.Must(pongo2.FromString(string(buff)))
 		name := path.Join("templates", name)
 		template = pongo2.Must(pongo2.FromFile(name))
 	} else {

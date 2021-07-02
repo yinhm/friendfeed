@@ -116,12 +116,6 @@ build js
     npm install
     gulp watch
 
-bindata
-
-    go get -u github.com/jteeuwen/go-bindata/...
-    cd httpd
-    go-bindata -pkg=server -o=./src/bindata.go static/... templates/
-
 Start develop
 
     cd httpd

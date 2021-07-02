@@ -269,13 +269,9 @@ def deploy_web():
         if not exists(code_root):
             run('git clone %s %s' % (env.repository, code_root))
 
-        if not exists("%s/bin/go-bindata" % go_path):
-            run('go get -u github.com/jteeuwen/go-bindata/...')
-
         with cd(code_root):
             run('git reset --hard && git checkout master && git pull')
             run("cd %s/httpd && npm install && gulp && gulp release" % code_root)
-            run("cd %s/httpd && %s/bin/go-bindata -pkg=server -o=./src/bindata.go static/... templates/" % (code_root, go_path))
             run("cd %s/httpd && go get ." % code_root)
             run("cd httpd && go build")
 

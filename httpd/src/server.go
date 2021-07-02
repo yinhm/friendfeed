@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rand"
 	"crypto/sha1"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"log"
@@ -39,7 +40,7 @@ type Server struct {
 	rc         *react.React
 }
 
-func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
+func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug bool) *Server {
 	c := pb.NewApiClient(conn)
 	worker := &pb.Worker{
 		Id: randhash(),
@@ -68,7 +69,7 @@ func NewServer(conn *grpc.ClientConn, secretKey string, debug bool) *Server {
 			panic(err)
 		}
 	} else {
-		component, err := Asset("static/js/bundle.min.js")
+		component, err := assets.ReadFile("static/js/bundle.min.js")
 		if err != nil {
 			panic(err)
 		}

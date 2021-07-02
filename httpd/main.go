@@ -1,13 +1,14 @@
 package main
 
 import (
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"mime"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -24,6 +25,9 @@ import (
 	"github.com/markbates/goth/providers/gplus"
 	"github.com/markbates/goth/providers/twitter"
 )
+
+//go:embed static/* templates/*
+var assetsFS embed.FS
 
 var options struct {
 	Debug      bool
@@ -74,27 +78,6 @@ func waitShutdown() {
 	}
 }
 
-func assetContentType(name string) string {
-	ext := filepath.Ext(name)
-	return mime.TypeByExtension(ext)
-}
-
-func serveAsset(path string, c *gin.Context) {
-	buff, err := server.Asset(path)
-
-	if err != nil {
-		c.String(400, err.Error())
-		return
-	}
-
-	c.Data(200, assetContentType(path), buff)
-}
-
-func AssetHandler(c *gin.Context) {
-	path := "static" + c.Params.ByName("path")
-	serveAsset(path, c)
-}
-
 func NotFoundHandler(c *gin.Context) {
 	ctx := pongo2.Context{
 		"title": "Frienfeed",
@@ -143,7 +126,9 @@ func Serve(s *server.Server) {
 		log.Println("==> debug mode")
 		r.Static("/static", "./static")
 	} else {
-		r.GET("/static/*path", AssetHandler)
+		r.GET("/static/*path", func(c *gin.Context) {
+			c.FileFromFS(c.Request.URL.Path, http.FS(assetsFS))
+		})
 	}
 
 	// oauth2
@@ -210,7 +195,7 @@ func main() {
 		}
 	}
 
-	s := server.NewServer(rpcConn, options.SecretKey, options.Debug)
+	s := server.NewServer(rpcConn, assetsFS, options.SecretKey, options.Debug)
 	go Serve(s)
 	waitShutdown()
 }
