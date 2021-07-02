@@ -88,30 +88,31 @@ func TestIteration(t *testing.T) {
 	defer teardown()
 
 	Convey("Giving meta store, When iterator data, it should find all keys", t, func() {
+		prefix := []byte("job:feed:")
 		key1 := fmt.Sprintf("job:feed:%s", "key1")
 		key2 := fmt.Sprintf("job:feed:%s", "key2")
 
 		So(mdb.Put([]byte(key1), []byte("value1")), ShouldBeNil)
 		So(mdb.Put([]byte(key2), []byte("value2")), ShouldBeNil)
 
-		iter := mdb.Iterator()
+		opts := prefixIteratorOptions(prefix)
+		iter := newIterator(mdb.rdb, opts)
 		defer iter.Close()
 
-		So(func() { iter.Seek([]byte(key1)) }, ShouldNotPanic)
+		So(func() { iter.First() }, ShouldNotPanic)
 		So(iter.Valid(), ShouldBeTrue)
-
-		So(string(iter.Key().Data()), ShouldEqual, key1)
-		So(string(iter.Value().Data()), ShouldEqual, "value1")
+		So(string(iter.Key()), ShouldEqual, key1)
+		So(string(iter.Value()), ShouldEqual, "value1")
 
 		iter.Next()
 		So(iter.Valid(), ShouldBeTrue)
-		So(string(iter.Key().Data()), ShouldEqual, key2)
-		So(string(iter.Value().Data()), ShouldEqual, "value2")
+		So(string(iter.Key()), ShouldEqual, key2)
+		So(string(iter.Value()), ShouldEqual, "value2")
 
 		iter.Next()
 		So(iter.Valid(), ShouldBeFalse)
 
-		err := iter.Err()
+		err := iter.Error()
 		So(err, ShouldBeNil)
 	})
 }
@@ -138,15 +139,14 @@ func TestIteration2(t *testing.T) {
 			key = NewFlakeKey(TableJobFeed, mdb.NextId())
 			it := mdb.Iterator()
 			defer it.Close()
-			it.Seek(key.Prefix().Bytes())
+			it.SeekGE(key.Prefix().Bytes())
 
 			numFound := 0
 			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
+				it.Key()
 				numFound++
 			}
-			So(it.Err(), ShouldBeNil)
+			So(it.Error(), ShouldBeNil)
 			// mdb switched to Block-based format
 			// So(numFound, ShouldEqual, 3)
 			So(numFound, ShouldEqual, 6)
@@ -166,14 +166,13 @@ func TestIteration2(t *testing.T) {
 			it := mdb.Iterator()
 			defer it.Close()
 			numFound := 0
-			it.Seek(key.Prefix().Bytes())
+			it.SeekGE(key.Prefix().Bytes())
 
 			for ; it.Valid(); it.Next() {
-				kk := it.Key()
-				kk.Free()
+				it.Key()
 				numFound++
 			}
-			So(it.Err(), ShouldBeNil)
+			So(it.Error(), ShouldBeNil)
 			So(numFound, ShouldEqual, 6)
 
 			// so we need to use ValidForPrefix
@@ -181,7 +180,7 @@ func TestIteration2(t *testing.T) {
 			it = mdb.Iterator()
 			defer it.Close()
 			numFound = 0
-			it.Seek(key.Prefix().Bytes())
+			it.SeekGE(key.Prefix().Bytes())
 
 			for ; it.ValidForPrefix(key.Prefix().Bytes()); it.Next() {
 				kk := it.Key()

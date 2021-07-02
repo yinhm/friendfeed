@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"log"
 	"time"
 	"unsafe"
 
+	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/bloom"
 	"github.com/golang/glog"
 	uuid "github.com/satori/go.uuid"
-	rocksdb "github.com/tecbot/gorocksdb"
 	"github.com/yinhm/friendfeed/storage/flake"
 )
 
@@ -48,10 +51,10 @@ const (
 
 type Store struct {
 	dbpath  string
-	rdb     *rocksdb.DB
-	options *rocksdb.Options
-	ro      *rocksdb.ReadOptions
-	wo      *rocksdb.WriteOptions
+	rdb     *pebble.DB
+	options *pebble.Options
+	// ro      *pebble.ReadOptions
+	wo *pebble.WriteOptions
 
 	closed bool
 	idGen  *flake.Generator
@@ -68,14 +71,16 @@ func NewStore(dbpath string) *Store {
 	db.initReadOptions()
 	db.initWriteOptions()
 
-	rdb, err := rocksdb.OpenDb(db.options, db.dbpath)
+	// TODO: shared cache for meta store
+	cacheSize := 512 << 20 // 512 MB
+	pebbleCache := pebble.NewCache(int64(cacheSize))
+	defer pebbleCache.Unref()
+
+	db.options.Cache = pebbleCache
+
+	rdb, err := pebble.Open(dbpath, db.options)
 	if err != nil {
-		glog.Errorf("Can not open db: %s", err)
-		err = rocksdb.RepairDb(db.dbpath, db.options)
-		if err != nil {
-			glog.Fatalf("Can not repair: %s", err)
-		}
-		glog.Fatalf("Repair success, please re-run.")
+		log.Fatalf("Can not open db: %s", err)
 	}
 	db.rdb = rdb
 
@@ -93,14 +98,16 @@ func NewMetaStore(dbpath string) *Store {
 	db.initReadOptions()
 	db.initWriteOptions()
 
-	rdb, err := rocksdb.OpenDb(db.options, db.dbpath)
+	// TODO: shared cache
+	cacheSize := 128 << 20 // 512 MB
+	pebbleCache := pebble.NewCache(int64(cacheSize))
+	defer pebbleCache.Unref()
+
+	db.options.Cache = pebbleCache
+
+	rdb, err := pebble.Open(dbpath, db.options)
 	if err != nil {
-		glog.Errorf("Can not open db: %s", err)
-		err = rocksdb.RepairDb(db.dbpath, db.options)
-		if err != nil {
-			glog.Fatalf("Can not repair: %s", err)
-		}
-		glog.Fatalf("Repair success, please re-run.")
+		log.Fatalf("Can not open db: %s", err)
 	}
 	db.rdb = rdb
 
@@ -110,89 +117,140 @@ func NewMetaStore(dbpath string) *Store {
 	return db
 }
 
-func DestroyStore(dbpath string, options *rocksdb.Options) error {
-	return rocksdb.DestroyDb(dbpath, options)
+func DestroyStore(dbpath string, options *pebble.Options) error {
+	return fmt.Errorf("DestroyStore not implemented...")
 }
 
-func NewStoreOptions() *rocksdb.Options {
-	var prefix UUIDKey
-	transform := rocksdb.NewFixedPrefixTransform(prefix.Len())
+func NewStoreOptions() *pebble.Options {
+	opts := &pebble.Options{
+		LBaseMaxBytes:               64 << 20, // 64 MB
+		Levels:                      make([]pebble.LevelOptions, 7),
+		MemTableSize:                64 << 20, // 64 MB
+		MemTableStopWritesThreshold: 4,
+	}
 
-	opts := rocksdb.NewDefaultOptions()
-	opts.SetPrefixExtractor(transform)
-	opts.SetWriteBufferSize(64 * 1024 * 1024) // 64MB
-	opts.SetTargetFileSizeBase(64 * 1024 * 1024)
-	opts.SetMaxOpenFiles(10 * 10000)
-	opts.SetMaxWriteBufferNumber(3)
-	opts.SetCreateIfMissing(true)
+	for i := 0; i < len(opts.Levels); i++ {
+		l := &opts.Levels[i]
+		l.BlockSize = 32 << 10       // 32 KB
+		l.IndexBlockSize = 256 << 10 // 256 KB
+		l.FilterPolicy = bloom.FilterPolicy(10)
+		l.FilterType = pebble.TableFilter
+		if i > 0 {
+			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * 2
+		}
+		l.EnsureDefaults()
+	}
 
-	b := rocksdb.NewDefaultBlockBasedTableOptions()
-	b.SetBlockCache(rocksdb.NewLRUCache(1024 * 1024 * 1024)) // 1GB
-	// b.SetBlockCacheCompressed(rocksdb.NewLRUCache(128 * 1024 * 1024))
-	// Default bits_per_key is 10, which yields ~1% false positive rate.
-	b.SetFilterPolicy(rocksdb.NewBloomFilter(10))
-	opts.SetBlockBasedTableFactory(b)
+	// Do not create bloom filters for the last level (i.e. the largest level
+	// which contains data in the LSM store). This configuration reduces the size
+	// of the bloom filters by 10x. This is significant given that bloom filters
+	// require 1.25 bytes (10 bits) per key which can translate into gigabytes of
+	// memory given typical key and value sizes. The downside is that bloom
+	// filters will only be usable on the higher levels, but that seems
+	// acceptable. We typically see read amplification of 5-6x on clusters
+	// (i.e. there are 5-6 levels of sstables) which means we'll achieve 80-90%
+	// of the benefit of having bloom filters on every level for only 10% of the
+	// memory cost.
+	opts.Levels[6].FilterPolicy = nil
+
 	return opts
 }
 
-func NewMetaStoreOptions() *rocksdb.Options {
-	var prefix PrefixTable
-	transform := rocksdb.NewFixedPrefixTransform(prefix.Len())
+func NewMetaStoreOptions() *pebble.Options {
+	opts := &pebble.Options{
+		LBaseMaxBytes:               64 << 20, // 64 MB
+		Levels:                      make([]pebble.LevelOptions, 7),
+		MemTableSize:                64 << 20, // 64 MB
+		MemTableStopWritesThreshold: 4,
+	}
+	for i := 0; i < len(opts.Levels); i++ {
+		l := &opts.Levels[i]
+		l.BlockSize = 32 << 10       // 32 KB
+		l.IndexBlockSize = 256 << 10 // 256 KB
+		l.FilterPolicy = bloom.FilterPolicy(10)
+		l.FilterType = pebble.TableFilter
+		if i > 0 {
+			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * 2
+		}
+		l.EnsureDefaults()
+	}
 
-	opts := rocksdb.NewDefaultOptions()
-	opts.SetPrefixExtractor(transform)
-	opts.SetWriteBufferSize(64 * 1024 * 1024) // 64MB
-	opts.SetTargetFileSizeBase(64 * 1024 * 1024)
-	opts.SetMaxOpenFiles(5 * 10000)
-	opts.SetMaxWriteBufferNumber(3)
-	opts.SetCreateIfMissing(true)
+	// Do not create bloom filters for the last level (i.e. the largest level
+	// which contains data in the LSM store). This configuration reduces the size
+	// of the bloom filters by 10x. This is significant given that bloom filters
+	// require 1.25 bytes (10 bits) per key which can translate into gigabytes of
+	// memory given typical key and value sizes. The downside is that bloom
+	// filters will only be usable on the higher levels, but that seems
+	// acceptable. We typically see read amplification of 5-6x on clusters
+	// (i.e. there are 5-6 levels of sstables) which means we'll achieve 80-90%
+	// of the benefit of having bloom filters on every level for only 10% of the
+	// memory cost.
+	opts.Levels[6].FilterPolicy = nil
 
-	b := rocksdb.NewDefaultBlockBasedTableOptions()
-	b.SetBlockCache(rocksdb.NewLRUCache(1014 * 1024 * 1024)) // 1GB
-	// b.SetBlockCacheCompressed(rocksdb.NewLRUCache(128 * 1024 * 1024))
-	// Default bits_per_key is 10, which yields ~1% false positive rate.
-	b.SetFilterPolicy(rocksdb.NewBloomFilter(10))
-	opts.SetBlockBasedTableFactory(b)
 	return opts
 }
 
 func (db *Store) initReadOptions() {
-	db.ro = rocksdb.NewDefaultReadOptions()
+	// db.ro = rocksdb.NewDefaultReadOptions()
 }
 
 func (db *Store) initWriteOptions() {
-	db.wo = rocksdb.NewDefaultWriteOptions()
+	db.wo = &pebble.WriteOptions{Sync: false}
 }
 
 func (db *Store) Close() {
+	if db.closed {
+		log.Print("closing unopened pebble instance")
+		return
+	}
 	db.rdb.Close()
 	db.closed = true
 }
 
 func (db *Store) Destroy() error {
 	// log.Printf("WARN: destroy path %s", db.dbpath)
-	return rocksdb.DestroyDb(db.dbpath, db.options)
+	return fmt.Errorf("destroy db not implemented...")
 }
 
-func (db *Store) Options() *rocksdb.Options {
+func (db *Store) Options() *pebble.Options {
 	return db.options
 }
 
+func (db *Store) rawGet(key []byte) ([]byte, error) {
+	value, closer, err := db.rdb.Get(key)
+	if closer != nil {
+		valueCopy := make([]byte, len(value))
+		copy(valueCopy, value)
+		value = valueCopy
+		closer.Close()
+	}
+	if err != pebble.ErrNotFound || len(value) == 0 {
+		return nil, nil
+	}
+	return value, err
+}
+
 func (db *Store) Get(key []byte) ([]byte, error) {
-	return db.rdb.GetBytes(db.ro, key)
+	return db.rawGet(key)
 }
 
 func (db *Store) Put(key, value []byte) error {
-	return db.rdb.Put(db.wo, key, value)
+	if len(key) == 0 {
+		return errors.New("empty key")
+	}
+	return db.rdb.Set(key, value, pebble.NoSync)
 }
 
 func (db *Store) Delete(key []byte) error {
-	return db.rdb.Delete(db.wo, key)
+	if len(key) == 0 {
+		return errors.New("empty key")
+	}
+	return db.rdb.Delete(key, pebble.NoSync)
 }
 
 // func (db *Store) Iterator(key []byte) *rocksdb.Iterator {
-func (db *Store) Iterator() *rocksdb.Iterator {
-	return db.rdb.NewIterator(db.ro)
+func (db *Store) Iterator() *pebble.Iterator {
+	return db.rdb.NewIter(nil)
 }
 
 func (db *Store) NextId() flake.Id {

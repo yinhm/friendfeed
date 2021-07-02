@@ -283,27 +283,18 @@ func GetFeedinfo(rdb *Store, uuidStr string) (*pb.Feedinfo, error) {
 }
 
 func ForwardTableScan(db *Store, prefix Key, fn ScanCallback) (n int, err error) {
-	iter := db.Iterator()
+	opts := prefixIteratorOptions(prefix.Bytes())
+	iter := newIterator(db.rdb, opts)
 	defer iter.Close()
-
-	iter.Seek(prefix.Bytes())
-	for ; iter.ValidForPrefix(prefix.Bytes()); iter.Next() {
-		kSlice := iter.Key()
-		vSlice := iter.Value()
-		defer kSlice.Free()
-		defer vSlice.Free()
-
-		if err = fn(n, kSlice.Data(), vSlice.Data()); err != nil {
-			if serr, ok := err.(*Error); ok {
-				if serr.Code == StopIteration {
-					return n, nil // rewrote err
-				}
-			}
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if err = fn(n, key, value); err != nil {
 			return
 		}
 		n++
 	}
-	return
+	return n, nil
 }
 
 func GetOAuthUser(mdb *Store, provider, userId string) (Key, *pb.OAuthUser, error) {
