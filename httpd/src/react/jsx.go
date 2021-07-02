@@ -1,6 +1,7 @@
 package react
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,13 +34,12 @@ func NewJSXWithOption(opt *Option) (*JSX, error) {
 	return &JSX{pool: pool, opt: opt}, nil
 }
 
+//go:embed assets/JSXTransformer.js
+var jsxSource []byte
+
 func DefaultJSXOption() *Option {
-	src, err := Asset("assets/JSXTransformer.js")
-	if err != nil {
-		panic(err)
-	}
 	return &Option{
-		Source:           src,
+		Source:           jsxSource,
 		PoolSize:         10,
 		GlobalObjectName: "self",
 	}

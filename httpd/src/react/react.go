@@ -1,6 +1,7 @@
 package react
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,14 +37,13 @@ func NewReactWithOption(opt *Option) (*React, error) {
 	return &React{pool: pool, opt: opt}, nil
 }
 
+//go:embed assets/react.js
+var reactSource []byte
+
 // Returns a default option for react.
 func DefaultReactOption() *Option {
-	src, err := Asset("assets/react.js")
-	if err != nil {
-		panic(err)
-	}
 	return &Option{
-		Source:           src,
+		Source:           reactSource,
 		PoolSize:         10,
 		GlobalObjectName: "self",
 	}
