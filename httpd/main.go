@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/gplus"
 	"github.com/markbates/goth/providers/twitter"
 )
@@ -134,7 +135,8 @@ func Serve(s *server.Server) {
 	r.HTMLRender = NewFriendRender()
 	// session
 	store := sessions.NewCookieStore([]byte(options.SecretKey))
-	r.Use(sessions.Sessions("ffsession", store))
+	r.Use(sessions.Sessions("ffdbsess", store))
+	gothic.Store = store
 
 	// Serve static assets
 	if options.Debug {
