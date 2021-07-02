@@ -290,6 +290,11 @@ func ForwardTableScan(db *Store, prefix Key, fn ScanCallback) (n int, err error)
 		key := iter.Key()
 		value := iter.Value()
 		if err = fn(n, key, value); err != nil {
+			if serr, ok := err.(*Error); ok {
+				if serr.Code == StopIteration { // do not remove
+					return n, nil // rewrote err
+				}
+			}
 			return
 		}
 		n++
