@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
+	store "github.com/yinhm/friendfeed/storage"
 )
 
 var (
@@ -27,7 +28,7 @@ type ProtoMessageFunc func() proto.Message
 
 type Table struct {
 	db      *Store
-	prefix  Key
+	prefix  store.Key
 	preSize int
 
 	// Deprecated: need more clean api.
@@ -37,7 +38,7 @@ type Table struct {
 	NewMessage ProtoMessageFunc
 }
 
-func NewTable(prefix Key) *Table {
+func NewTable(prefix store.Key) *Table {
 	return &Table{
 		prefix:  prefix,
 		preSize: prefix.Len(),
@@ -72,20 +73,20 @@ func (t *Table) NewKey(name string) string {
 	return hex.EncodeToString(u[:])
 }
 
-func (t *Table) prefixKey(key Key) Key {
+func (t *Table) prefixKey(key store.Key) store.Key {
 	return NewKeyFrom(t.prefix, key)
 }
 
-func (t *Table) removePrefixKey(key Key) Key {
+func (t *Table) removePrefixKey(key store.Key) store.Key {
 	return key[t.preSize:]
 }
 
-func (t *Table) toStringKey(key Key) string {
+func (t *Table) toStringKey(key store.Key) string {
 	return t.removePrefixKey(key).String()
 }
 
 func (t *Table) Get(key string, msg proto.Message) error {
-	k := t.prefixKey(KeyFromString(key))
+	k := t.prefixKey(store.KeyFromString(key))
 	raw, err := t.db.Get(k)
 	if err != nil {
 		return err
