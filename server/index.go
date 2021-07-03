@@ -41,7 +41,7 @@ func NewFeedIndex(id string, uuid1 *uuid.UUID) *FeedIndex {
 }
 
 // key to dump index cache to db
-func (f *FeedIndex) Key() store.Key {
+func (f *FeedIndex) Key() store.IKey {
 	return store.NewUUIDKey(store.TableIndexCache, *f.Uuid)
 }
 

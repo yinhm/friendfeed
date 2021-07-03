@@ -15,7 +15,7 @@ import (
 
 func (s *ApiServer) RefetchJobTicker() {
 	t := time.Tick(2 * time.Minute)
-	for _ = range t {
+	for range t {
 		log.Printf("refetch user feeds.")
 		s.RefetchUserFeed()
 	}
@@ -23,7 +23,7 @@ func (s *ApiServer) RefetchJobTicker() {
 
 func (s *ApiServer) IndexJobTicker() {
 	t := time.Tick(5 * time.Minute)
-	for _ = range t {
+	for range t {
 		log.Printf("dump index to db.")
 		for _, idx := range s.cached {
 			idx.dump(s.mdb)
@@ -170,7 +170,7 @@ func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
 		}
-		return &store.Error{"ok", store.StopIteration}
+		return &store.Error{Msg: "ok", Code: store.StopIteration}
 	})
 
 	if job == nil {
@@ -204,7 +204,7 @@ func (s *ApiServer) FinishJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob
 	return job, nil
 }
 
-func (s *ApiServer) ListJobQueue(prefix store.Key) (jobs []*pb.FeedJob, err error) {
+func (s *ApiServer) ListJobQueue(prefix store.IKey) (jobs []*pb.FeedJob, err error) {
 	log.Println("listing running job...")
 	store.ForwardTableScan(s.mdb, prefix, func(i int, key, value []byte) error {
 		job := &pb.FeedJob{}
