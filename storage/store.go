@@ -17,33 +17,33 @@ import (
 	"github.com/yinhm/friendfeed/storage/flake"
 )
 
-type PrefixTable uint32
+type KeyPrefix uint32
 
 const (
-	TableFeed     PrefixTable = 1
-	TableFeedinfo PrefixTable = 2
-	TableEntry    PrefixTable = 3
+	TableFeed     KeyPrefix = 1
+	TableFeedinfo KeyPrefix = 2
+	TableEntry    KeyPrefix = 3
 
 	// TODO: obsoleted TableEntryIndex, FixMaxEntryIndex
 	// WARN: TableEntryIndex > TableEntry for FixMaxEntryIndex
-	TableEntryIndex PrefixTable = 4
+	TableEntryIndex KeyPrefix = 4
 	// TableEntryIndex NOT working, BackwardFetchFeed broken
 	// duplicate a reverse index
-	TableReverseEntryIndex PrefixTable = 5
-	TableIndexCache        PrefixTable = 6
+	TableReverseEntryIndex KeyPrefix = 5
+	TableIndexCache        KeyPrefix = 6
 
-	TableProfile      PrefixTable = 100
-	TableService      PrefixTable = 101
-	TableSubscription PrefixTable = 102
-	TableSubscriber   PrefixTable = 103
-	TableOAuthTwitter PrefixTable = 104
-	TableOAuthGoogle  PrefixTable = 105
+	TableProfile      KeyPrefix = 100
+	TableService      KeyPrefix = 101
+	TableSubscription KeyPrefix = 102
+	TableSubscriber   KeyPrefix = 103
+	TableOAuthTwitter KeyPrefix = 104
+	TableOAuthGoogle  KeyPrefix = 105
 
-	TableJobFeed    PrefixTable = 200
-	TableJobRunning PrefixTable = 201
-	TableJobHistory PrefixTable = 202
+	TableJobFeed    KeyPrefix = 200
+	TableJobRunning KeyPrefix = 201
+	TableJobHistory KeyPrefix = 202
 
-	TableMax PrefixTable = 1e8
+	TableMax KeyPrefix = 1e8
 
 	defaultWorkerId     = 1
 	defaultDatacenterId = 1
@@ -276,23 +276,23 @@ type Key interface {
 	Len() int
 }
 
-// PrefixTable
-func (p PrefixTable) Bytes() []byte {
+// KeyPrefix
+func (p KeyPrefix) Bytes() []byte {
 	buf := make([]byte, p.Len())
 	binary.BigEndian.PutUint32(buf, uint32(p))
 	return buf
 }
 
-func (p PrefixTable) Len() int {
+func (p KeyPrefix) Len() int {
 	return int(unsafe.Sizeof(p))
 }
 
 // Exists for satisfying Key interface
-func (p PrefixTable) Prefix() Key {
+func (p KeyPrefix) Prefix() Key {
 	return p
 }
 
-func (p PrefixTable) String() string {
+func (p KeyPrefix) String() string {
 	return hex.EncodeToString(p.Bytes())
 }
 
@@ -307,17 +307,17 @@ func (p PrefixTable) String() string {
 // |  table   |  string  |
 // +----------+----------+
 type MetaKey struct {
-	PrefixTable
+	KeyPrefix
 	Meta string
 }
 
-func NewMetaKey(prefix PrefixTable, meta string) *MetaKey {
+func NewMetaKey(prefix KeyPrefix, meta string) *MetaKey {
 	return &MetaKey{prefix, meta}
 }
 
 func (k *MetaKey) Bytes() []byte {
 	var preBytes [4]byte
-	binary.BigEndian.PutUint32(preBytes[:], uint32(k.PrefixTable))
+	binary.BigEndian.PutUint32(preBytes[:], uint32(k.KeyPrefix))
 
 	var buf bytes.Buffer
 	buf.Write(preBytes[:])
@@ -326,11 +326,11 @@ func (k *MetaKey) Bytes() []byte {
 }
 
 func (k *MetaKey) Len() int {
-	return k.PrefixTable.Len() + len(k.Meta)
+	return k.KeyPrefix.Len() + len(k.Meta)
 }
 
 func (k *MetaKey) Prefix() Key {
-	return k.PrefixTable
+	return k.KeyPrefix
 }
 
 func (k *MetaKey) String() string {
@@ -344,18 +344,18 @@ func (k *MetaKey) String() string {
 // |  table   | flake id |
 // +----------+----------+
 type FlakeKey struct {
-	PrefixTable
+	KeyPrefix
 	Id flake.Id
 }
 
-func NewFlakeKey(prefix PrefixTable, id flake.Id) *FlakeKey {
+func NewFlakeKey(prefix KeyPrefix, id flake.Id) *FlakeKey {
 	return &FlakeKey{prefix, id}
 }
 
 func (k *FlakeKey) Bytes() []byte {
 	buf := new(bytes.Buffer)
 	// nothing we can do if cannot allocate memory
-	if err := binary.Write(buf, binary.BigEndian, k.PrefixTable); err != nil {
+	if err := binary.Write(buf, binary.BigEndian, k.KeyPrefix); err != nil {
 		panic(err)
 	}
 	if err := binary.Write(buf, binary.BigEndian, k.Id); err != nil {
@@ -365,11 +365,11 @@ func (k *FlakeKey) Bytes() []byte {
 }
 
 func (k *FlakeKey) Len() int {
-	return k.PrefixTable.Len() + len(k.Id)
+	return k.KeyPrefix.Len() + len(k.Id)
 }
 
 func (k *FlakeKey) Prefix() Key {
-	return k.PrefixTable
+	return k.KeyPrefix
 }
 
 func (k *FlakeKey) String() string {
@@ -384,18 +384,18 @@ func (k *FlakeKey) String() string {
 // |  table   |   uuid   |
 // +----------+----------+
 type UUIDKey struct {
-	PrefixTable
+	KeyPrefix
 	uuid uuid.UUID //[16]byte
 }
 
-func NewUUIDKey(prefix PrefixTable, id uuid.UUID) *UUIDKey {
+func NewUUIDKey(prefix KeyPrefix, id uuid.UUID) *UUIDKey {
 	return &UUIDKey{prefix, id}
 }
 
 func (k *UUIDKey) Bytes() []byte {
 	var buf bytes.Buffer
 	var tb [4]byte
-	binary.BigEndian.PutUint32(tb[:], uint32(k.PrefixTable))
+	binary.BigEndian.PutUint32(tb[:], uint32(k.KeyPrefix))
 	buf.Write(tb[:])
 	buf.Write(k.uuid[:])
 	return buf.Bytes()
@@ -406,7 +406,7 @@ func (k *UUIDKey) Len() int {
 }
 
 func (k *UUIDKey) Prefix() Key {
-	return k.PrefixTable
+	return k.KeyPrefix
 }
 
 func (k *UUIDKey) String() string {
@@ -425,14 +425,14 @@ type UUIDFlakeKey struct {
 	Id flake.Id
 }
 
-func NewUUIDFlakeKey(prefix PrefixTable, uuid uuid.UUID, id flake.Id) *UUIDFlakeKey {
+func NewUUIDFlakeKey(prefix KeyPrefix, uuid uuid.UUID, id flake.Id) *UUIDFlakeKey {
 	uk := UUIDKey{prefix, uuid}
 	return &UUIDFlakeKey{uk, id}
 }
 
 func (k *UUIDFlakeKey) Bytes() []byte {
 	var preBytes [4]byte
-	binary.BigEndian.PutUint32(preBytes[:], uint32(k.PrefixTable))
+	binary.BigEndian.PutUint32(preBytes[:], uint32(k.KeyPrefix))
 
 	var buf bytes.Buffer
 	buf.Write(preBytes[:])

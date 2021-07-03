@@ -303,7 +303,7 @@ func ForwardTableScan(db *Store, prefix Key, fn ScanCallback) (n int, err error)
 }
 
 func GetOAuthUser(mdb *Store, provider, userId string) (Key, *pb.OAuthUser, error) {
-	var pt PrefixTable
+	var pt KeyPrefix
 	switch provider {
 	case "google":
 		pt = TableOAuthGoogle
@@ -360,7 +360,7 @@ func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 }
 
 func BindOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
-	var pt PrefixTable
+	var pt KeyPrefix
 	switch u.Provider {
 	case "google":
 		pt = TableOAuthGoogle

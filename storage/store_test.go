@@ -401,9 +401,9 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 //-------------------------
 // testing keys
 //-------------------------
-func TestPrefixTable(t *testing.T) {
+func TestKeyPrefix(t *testing.T) {
 	// Giving prefix table, convert to bytes
-	var p1 PrefixTable
+	var p1 KeyPrefix
 	assert.Equal(t, 4, p1.Len())
 
 	p := TableFeed
@@ -430,7 +430,7 @@ func TestFlakeKey(t *testing.T) {
 	assert.Equal(t, "00000001"+suffix, key.String())
 	assert.Equal(t, "00000001", hex.EncodeToString(key.Prefix().Bytes()))
 
-	key.PrefixTable = TableFeedinfo
+	key.KeyPrefix = TableFeedinfo
 	assert.Equal(t, "00000002"+suffix, key.String())
 	assert.Equal(t, "00000002", hex.EncodeToString(key.Prefix().Bytes()))
 
@@ -473,7 +473,7 @@ func TestUUIDFlakeKey(t *testing.T) {
 	assert.Equal(t, hex.EncodeToString(key.Prefix().Bytes()), "00000001"+uid)
 	assert.Equal(t, string(key.Prefix().Bytes()), string(key.UUIDKey.Bytes()))
 
-	key.UUIDKey.PrefixTable = TableFeedinfo
+	key.UUIDKey.KeyPrefix = TableFeedinfo
 	assert.Equal(t, key.String(), "00000002"+uid+suffix)
 	assert.Equal(t, hex.EncodeToString(key.Prefix().Bytes()), "00000002"+uid)
 
