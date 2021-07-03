@@ -235,7 +235,7 @@ func (db *Store) Delete(key []byte) error {
 }
 
 // func (db *Store) Iterator(key []byte) *rocksdb.Iterator {
-func (db *Store) Iterator() *iterator {
+func (db *Store) Iterator() *Iterator {
 	opts := &pebble.IterOptions{}
 	return newIterator(db.rdb, opts)
 }

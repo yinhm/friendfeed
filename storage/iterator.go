@@ -6,7 +6,7 @@ import (
 )
 
 // iterator is a wrapper around a pebble.Iterator
-type iterator struct {
+type Iterator struct {
 	// Underlying iterator for the DB.
 	iter    *pebble.Iterator
 	options pebble.IterOptions
@@ -32,8 +32,8 @@ func prefixIteratorOptions(prefix []byte) *pebble.IterOptions {
 }
 
 // Instantiates a new Pebble iterator wrapper
-func newIterator(db pebble.Reader, opts *pebble.IterOptions) *iterator {
-	p := &iterator{
+func newIterator(db pebble.Reader, opts *pebble.IterOptions) *Iterator {
+	p := &Iterator{
 		options: *opts,
 	}
 
@@ -44,31 +44,31 @@ func newIterator(db pebble.Reader, opts *pebble.IterOptions) *iterator {
 	return p
 }
 
-func (p *iterator) Next() {
+func (p *Iterator) Next() {
 	p.iter.Next()
 }
 
-func (p *iterator) Prev() {
+func (p *Iterator) Prev() {
 	p.iter.Prev()
 }
 
-func (p *iterator) SeekGE(key []byte) {
+func (p *Iterator) SeekGE(key []byte) {
 	p.iter.SeekGE(key)
 }
 
-func (p *iterator) SeekLT(key []byte) {
+func (p *Iterator) SeekLT(key []byte) {
 	p.iter.SeekLT(key)
 }
 
-func (p *iterator) First() {
+func (p *Iterator) First() {
 	p.iter.First()
 }
 
-func (p *iterator) Last() {
+func (p *Iterator) Last() {
 	p.iter.Last()
 }
 
-func (p *iterator) UnsafeKey() Key {
+func (p *Iterator) UnsafeKey() Key {
 	if !p.Valid() {
 		return Key{}
 	}
@@ -76,42 +76,42 @@ func (p *iterator) UnsafeKey() Key {
 }
 
 // UnsafeRawKey returns the raw key from the underlying pebble.Iterator.
-func (p *iterator) UnsafeRawKey() []byte {
+func (p *Iterator) UnsafeRawKey() []byte {
 	return p.iter.Key()
 }
 
-func (p *iterator) Valid() bool {
+func (p *Iterator) Valid() bool {
 	return p.iter.Valid()
 }
 
-func (p *iterator) Error() error {
+func (p *Iterator) Error() error {
 	return p.iter.Error()
 }
 
-func (p *iterator) Key() Key {
+func (p *Iterator) Key() Key {
 	key := p.UnsafeKey()
 	return key.Copy()
 }
 
-func (p *iterator) UnsafeValue() []byte {
+func (p *Iterator) UnsafeValue() []byte {
 	if !p.Valid() {
 		return nil
 	}
 	return p.iter.Value()
 }
 
-func (p *iterator) Value() []byte {
+func (p *Iterator) Value() []byte {
 	value := p.UnsafeValue()
 	valueCopy := make([]byte, len(value))
 	copy(valueCopy, value)
 	return valueCopy
 }
 
-func (p *iterator) ValueProto(msg proto.Message) error {
+func (p *Iterator) ValueProto(msg proto.Message) error {
 	raw := p.UnsafeValue()
 	return proto.Unmarshal(raw, msg)
 }
 
-func (p *iterator) Close() error {
+func (p *Iterator) Close() error {
 	return p.iter.Close()
 }

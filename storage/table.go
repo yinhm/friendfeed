@@ -282,7 +282,7 @@ func GetFeedinfo(rdb *Store, uuidStr string) (*pb.Feedinfo, error) {
 	return info, nil
 }
 
-func ForwardTableScan(db *Store, prefix Key, fn ScanCallback) (n int, err error) {
+func ForwardTableScan(db *Store, prefix IKey, fn ScanCallback) (n int, err error) {
 	opts := prefixIteratorOptions(prefix.Bytes())
 	iter := newIterator(db.rdb, opts)
 	defer iter.Close()
@@ -302,7 +302,7 @@ func ForwardTableScan(db *Store, prefix Key, fn ScanCallback) (n int, err error)
 	return n, nil
 }
 
-func GetOAuthUser(mdb *Store, provider, userId string) (Key, *pb.OAuthUser, error) {
+func GetOAuthUser(mdb *Store, provider, userId string) (IKey, *pb.OAuthUser, error) {
 	var pt KeyPrefix
 	switch provider {
 	case "google":
