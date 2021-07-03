@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"log"
 
-	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
+	uuid "github.com/satori/go.uuid"
 	store "github.com/yinhm/friendfeed/storage"
 )
 

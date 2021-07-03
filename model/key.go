@@ -3,9 +3,8 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
-	"log"
 
-	"github.com/gofrs/uuid"
+	uuid "github.com/satori/go.uuid"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
@@ -17,10 +16,8 @@ import (
 // |  table   |   uuid   |
 // +----------+----------+
 func NewUUIDKey(t store.KeyPrefix) store.Key {
-	u, err := uuid.NewV4()
-	if err != nil {
-		log.Fatalf("failed to generate UUID: %v", err)
-	}
+	// blank key
+	u := uuid.NewV4()
 
 	b := KeyPrefixToBytes(t)
 	return NewKeyFrom(b, u[:])
