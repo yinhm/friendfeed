@@ -89,6 +89,7 @@ func (s *ApiServer) Shutdown() {
 	}
 
 	idx := s.cached["public"]
+	logger.Debug("dump index to db...")
 	idx.dump(s.mdb)
 	idx.doneCh <- struct{}{}
 

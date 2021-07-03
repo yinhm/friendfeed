@@ -193,7 +193,7 @@ func (db *Store) Put(key, value []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	return db.rdb.Set(key, value, pebble.NoSync)
+	return db.rdb.Set(key, value, pebble.Sync)
 }
 
 func (db *Store) Set(key, value []byte) error {
@@ -204,7 +204,7 @@ func (db *Store) Delete(key []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	return db.rdb.Delete(key, pebble.NoSync)
+	return db.rdb.Delete(key, pebble.Sync)
 }
 
 func (db *Store) Iterator() *Iterator {
