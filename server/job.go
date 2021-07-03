@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
-	uuid "github.com/satori/go.uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"

@@ -24,7 +24,7 @@ import (
 
 	"github.com/ChimeraCoder/anaconda"
 	ttext "github.com/cupcake/text-entities-go"
-	uuid "github.com/satori/go.uuid"
+	"github.com/gofrs/uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"

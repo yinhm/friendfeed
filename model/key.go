@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/gofrs/uuid"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
@@ -16,9 +16,8 @@ import (
 // |  table   |   uuid   |
 // +----------+----------+
 func NewUUIDKey(t store.KeyPrefix) store.Key {
-	// blank key
-	u := uuid.NewV4()
-
+	// blank uuid
+	u := uuid.Must(uuid.NewV4())
 	b := KeyPrefixToBytes(t)
 	return NewKeyFrom(b, u[:])
 }

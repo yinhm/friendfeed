@@ -18,9 +18,9 @@ import (
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/gofrs/uuid"
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
-	uuid "github.com/satori/go.uuid"
 	"github.com/yinhm/friendfeed/ff"
 	"github.com/yinhm/friendfeed/httpd/src/react"
 	pb "github.com/yinhm/friendfeed/proto"
@@ -353,7 +353,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 
 	profile, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
-		glog.Error("fetch feed error:", err)
+		glog.Error("fetch feed error: %s", err)
 		return
 	}
 

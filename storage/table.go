@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
-	uuid "github.com/satori/go.uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 )
 
@@ -364,7 +364,7 @@ func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 		if u.Uuid != "" && v.Uuid != "" {
 			uuid1, _ := uuid.FromString(u.Uuid)
 			uuid2, _ := uuid.FromString(v.Uuid)
-			if !uuid.Equal(uuid1, uuid2) {
+			if uuid1 != uuid2 {
 				return nil, fmt.Errorf("user mismatch")
 			}
 		}

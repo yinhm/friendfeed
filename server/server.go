@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
-	uuid "github.com/satori/go.uuid"
 	"github.com/yinhm/friendfeed/media"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
@@ -387,7 +387,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 		entries = append(entries, entry)
 		if i > int(req.PageSize+req.Start) {
-			return &store.Error{"ok", store.StopIteration}
+			return &store.Error{Msg: "ok", Code: store.StopIteration}
 		}
 		return nil
 	})

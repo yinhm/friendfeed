@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/yinhm/friendfeed/storage/flake"
 )

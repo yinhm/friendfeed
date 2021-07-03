@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
-	queue "github.com/eapache/queue"
-	uuid "github.com/satori/go.uuid"
+	"github.com/eapache/queue"
+	"github.com/gofrs/uuid"
+	"github.com/golang/glog"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
@@ -128,6 +129,7 @@ func (f *FeedIndex) load(db *store.Store) error {
 	defer f.Unlock()
 
 	key := f.Key()
+	glog.Infof("local cache: ", key.String())
 	rawdata, err := db.Get(key.Bytes())
 	if err != nil {
 		return err
