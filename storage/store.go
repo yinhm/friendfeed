@@ -269,8 +269,8 @@ func (db *Store) TimeTravelReverseId(t time.Time) flake.Id {
 //
 // Key interface
 
-type Key interface {
-	Prefix() Key
+type IKey interface {
+	Prefix() IKey
 	Bytes() []byte
 	String() string
 	Len() int
@@ -288,7 +288,7 @@ func (p KeyPrefix) Len() int {
 }
 
 // Exists for satisfying Key interface
-func (p KeyPrefix) Prefix() Key {
+func (p KeyPrefix) Prefix() IKey {
 	return p
 }
 
@@ -329,7 +329,7 @@ func (k *MetaKey) Len() int {
 	return k.KeyPrefix.Len() + len(k.Meta)
 }
 
-func (k *MetaKey) Prefix() Key {
+func (k *MetaKey) Prefix() IKey {
 	return k.KeyPrefix
 }
 
@@ -368,7 +368,7 @@ func (k *FlakeKey) Len() int {
 	return k.KeyPrefix.Len() + len(k.Id)
 }
 
-func (k *FlakeKey) Prefix() Key {
+func (k *FlakeKey) Prefix() IKey {
 	return k.KeyPrefix
 }
 
@@ -405,7 +405,7 @@ func (k *UUIDKey) Len() int {
 	return int(unsafe.Sizeof(k.uuid)) + k.Prefix().Len()
 }
 
-func (k *UUIDKey) Prefix() Key {
+func (k *UUIDKey) Prefix() IKey {
 	return k.KeyPrefix
 }
 
@@ -445,7 +445,7 @@ func (k *UUIDFlakeKey) Len() int {
 	return k.UUIDKey.Len() + int(unsafe.Sizeof(k.Id))
 }
 
-func (k *UUIDFlakeKey) Prefix() Key {
+func (k *UUIDFlakeKey) Prefix() IKey {
 	return &k.UUIDKey
 }
 

@@ -1,4 +1,4 @@
-package model
+package store
 
 import (
 	"encoding/hex"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUUIDKey(t *testing.T) {
+func TestUUIDKey2(t *testing.T) {
 	uuid1 := new(uuid.UUID)
 	assert.Equal(t, uuid1.String(), "00000000-0000-0000-0000-000000000000")
 
@@ -19,18 +19,4 @@ func TestUUIDKey(t *testing.T) {
 	u1 := uuid.NewV5(uuid.NamespaceURL, "tarrier")
 	u2 := uuid.NewV5(uuid.NamespaceURL, "tarrier")
 	assert.Equal(t, u1, u2)
-}
-
-func TestFarmKey(t *testing.T) {
-	farmHash := "00000065eab3360472a0425ab5f214afc8ed5d7a"
-	key := KeyFromString(farmHash)
-
-	ks := key.String()
-	assert.Equal(t, ks, farmHash)
-	assert.Equal(t, 20, key.Len())
-	assert.Equal(t, 20, len(key))
-
-	// ks = "config1"
-	// key = KeyFromString(ks)
-	// assert.Equal(t, ks, key.String())
 }
