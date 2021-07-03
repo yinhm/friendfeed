@@ -1,51 +1,19 @@
 package store
 
 import (
-	"bytes"
-	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"time"
-	"unsafe"
 
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/golang/glog"
-	uuid "github.com/satori/go.uuid"
 	"github.com/yinhm/friendfeed/storage/flake"
 )
 
-type KeyPrefix uint32
-
 const (
-	TableFeed     KeyPrefix = 1
-	TableFeedinfo KeyPrefix = 2
-	TableEntry    KeyPrefix = 3
-
-	// TODO: obsoleted TableEntryIndex, FixMaxEntryIndex
-	// WARN: TableEntryIndex > TableEntry for FixMaxEntryIndex
-	TableEntryIndex KeyPrefix = 4
-	// TableEntryIndex NOT working, BackwardFetchFeed broken
-	// duplicate a reverse index
-	TableReverseEntryIndex KeyPrefix = 5
-	TableIndexCache        KeyPrefix = 6
-
-	TableProfile      KeyPrefix = 100
-	TableService      KeyPrefix = 101
-	TableSubscription KeyPrefix = 102
-	TableSubscriber   KeyPrefix = 103
-	TableOAuthTwitter KeyPrefix = 104
-	TableOAuthGoogle  KeyPrefix = 105
-
-	TableJobFeed    KeyPrefix = 200
-	TableJobRunning KeyPrefix = 201
-	TableJobHistory KeyPrefix = 202
-
-	TableMax KeyPrefix = 1e8
-
 	defaultWorkerId     = 1
 	defaultDatacenterId = 1
 )
@@ -272,192 +240,4 @@ func (db *Store) TimeTravelReverseId(t time.Time) flake.Id {
 	gen := flake.NewGeneratorFromTime(reverseTime)
 	fid, _ := gen.NextId()
 	return fid
-}
-
-// All keys should partitioned by 4bytes table prefix
-//
-// Key interface
-
-type IKey interface {
-	Prefix() IKey
-	Bytes() []byte
-	String() string
-	Len() int
-}
-
-// KeyPrefix
-func (p KeyPrefix) Bytes() []byte {
-	buf := make([]byte, p.Len())
-	binary.BigEndian.PutUint32(buf, uint32(p))
-	return buf
-}
-
-func (p KeyPrefix) Len() int {
-	return int(unsafe.Sizeof(p))
-}
-
-// Exists for satisfying Key interface
-func (p KeyPrefix) Prefix() IKey {
-	return p
-}
-
-func (p KeyPrefix) String() string {
-	return hex.EncodeToString(p.Bytes())
-}
-
-// --------------------------------------------------
-//
-// Meta key, used to store meta info.
-//
-// Defined as following:
-// +----------+----------+
-// |  4bytes  |   ?bytes |
-// +----------+----------+
-// |  table   |  string  |
-// +----------+----------+
-type MetaKey struct {
-	KeyPrefix
-	Meta string
-}
-
-func NewMetaKey(prefix KeyPrefix, meta string) *MetaKey {
-	return &MetaKey{prefix, meta}
-}
-
-func (k *MetaKey) Bytes() []byte {
-	var preBytes [4]byte
-	binary.BigEndian.PutUint32(preBytes[:], uint32(k.KeyPrefix))
-
-	var buf bytes.Buffer
-	buf.Write(preBytes[:])
-	buf.Write([]byte(k.Meta))
-	return buf.Bytes()
-}
-
-func (k *MetaKey) Len() int {
-	return k.KeyPrefix.Len() + len(k.Meta)
-}
-
-func (k *MetaKey) Prefix() IKey {
-	return k.KeyPrefix
-}
-
-func (k *MetaKey) String() string {
-	return hex.EncodeToString(k.Prefix().Bytes()) + k.Meta
-}
-
-// Defined as following:
-// +----------+----------+
-// |  4bytes  |  16bytes |
-// +----------+----------+
-// |  table   | flake id |
-// +----------+----------+
-type FlakeKey struct {
-	KeyPrefix
-	Id flake.Id
-}
-
-func NewFlakeKey(prefix KeyPrefix, id flake.Id) *FlakeKey {
-	return &FlakeKey{prefix, id}
-}
-
-func (k *FlakeKey) Bytes() []byte {
-	buf := new(bytes.Buffer)
-	// nothing we can do if cannot allocate memory
-	if err := binary.Write(buf, binary.BigEndian, k.KeyPrefix); err != nil {
-		panic(err)
-	}
-	if err := binary.Write(buf, binary.BigEndian, k.Id); err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
-}
-
-func (k *FlakeKey) Len() int {
-	return k.KeyPrefix.Len() + len(k.Id)
-}
-
-func (k *FlakeKey) Prefix() IKey {
-	return k.KeyPrefix
-}
-
-func (k *FlakeKey) String() string {
-	return hex.EncodeToString(k.Bytes())
-}
-
-// UUID Key.
-//
-// +----------+----------+
-// |  4bytes  |  16bytes |
-// +----------+----------+
-// |  table   |   uuid   |
-// +----------+----------+
-type UUIDKey struct {
-	KeyPrefix
-	uuid uuid.UUID //[16]byte
-}
-
-func NewUUIDKey(prefix KeyPrefix, id uuid.UUID) *UUIDKey {
-	return &UUIDKey{prefix, id}
-}
-
-func (k *UUIDKey) Bytes() []byte {
-	var buf bytes.Buffer
-	var tb [4]byte
-	binary.BigEndian.PutUint32(tb[:], uint32(k.KeyPrefix))
-	buf.Write(tb[:])
-	buf.Write(k.uuid[:])
-	return buf.Bytes()
-}
-
-func (k *UUIDKey) Len() int {
-	return int(unsafe.Sizeof(k.uuid)) + k.Prefix().Len()
-}
-
-func (k *UUIDKey) Prefix() IKey {
-	return k.KeyPrefix
-}
-
-func (k *UUIDKey) String() string {
-	return hex.EncodeToString(k.Bytes())
-}
-
-// UUID Flake Key.
-//
-// +----------+----------+----------+
-// |  4bytes  |  16bytes |  16bytes |
-// +----------+----------+----------+
-// |  table   |   uuid   | flake id |
-// +----------+----------+----------+
-type UUIDFlakeKey struct {
-	UUIDKey
-	Id flake.Id
-}
-
-func NewUUIDFlakeKey(prefix KeyPrefix, uuid uuid.UUID, id flake.Id) *UUIDFlakeKey {
-	uk := UUIDKey{prefix, uuid}
-	return &UUIDFlakeKey{uk, id}
-}
-
-func (k *UUIDFlakeKey) Bytes() []byte {
-	var preBytes [4]byte
-	binary.BigEndian.PutUint32(preBytes[:], uint32(k.KeyPrefix))
-
-	var buf bytes.Buffer
-	buf.Write(preBytes[:])
-	buf.Write(k.uuid[:])
-	buf.Write(k.Id[:])
-	return buf.Bytes()
-}
-
-func (k *UUIDFlakeKey) Len() int {
-	return k.UUIDKey.Len() + int(unsafe.Sizeof(k.Id))
-}
-
-func (k *UUIDFlakeKey) Prefix() IKey {
-	return &k.UUIDKey
-}
-
-func (k *UUIDFlakeKey) String() string {
-	return hex.EncodeToString(k.Bytes())
 }

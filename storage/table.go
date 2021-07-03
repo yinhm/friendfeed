@@ -10,6 +10,33 @@ import (
 	pb "github.com/yinhm/friendfeed/proto"
 )
 
+const (
+	TableFeed     KeyPrefix = 1
+	TableFeedinfo KeyPrefix = 2
+	TableEntry    KeyPrefix = 3
+
+	// TODO: obsoleted TableEntryIndex, FixMaxEntryIndex
+	// WARN: TableEntryIndex > TableEntry for FixMaxEntryIndex
+	TableEntryIndex KeyPrefix = 4
+	// TableEntryIndex NOT working, BackwardFetchFeed broken
+	// duplicate a reverse index
+	TableReverseEntryIndex KeyPrefix = 5
+	TableIndexCache        KeyPrefix = 6
+
+	TableProfile      KeyPrefix = 100
+	TableService      KeyPrefix = 101
+	TableSubscription KeyPrefix = 102
+	TableSubscriber   KeyPrefix = 103
+	TableOAuthTwitter KeyPrefix = 104
+	TableOAuthGoogle  KeyPrefix = 105
+
+	TableJobFeed    KeyPrefix = 200
+	TableJobRunning KeyPrefix = 201
+	TableJobHistory KeyPrefix = 202
+
+	TableMax KeyPrefix = 1e8
+)
+
 // TODO: refactor, introduce another interface above proto.Message?
 
 type ScanCallback func(int, []byte, []byte) error
