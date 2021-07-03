@@ -32,6 +32,7 @@ require (
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.14
 	github.com/robfig/go-cache v0.0.0-20130306151617-9fc39e0dbf62 // indirect
+	github.com/sirupsen/logrus v1.8.1
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stretchr/testify v1.7.0
 	github.com/ugorji/go v1.2.6 // indirect
@@ -39,7 +40,7 @@ require (
 	golang.org/x/exp v0.0.0-20210625193404-fa9d1d177d71
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/oauth2 v0.0.0-20210622215436-a8dc77f794b6
-	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // indirect
+	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // direct
 	google.golang.org/api v0.48.0
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.27.0 // indirect

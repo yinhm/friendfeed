@@ -11,11 +11,15 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
+	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/media"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/grpclog"
 )
+
+var logger *logrus.Logger
 
 // server implementation.
 type ApiServer struct {
@@ -30,6 +34,24 @@ type ApiServer struct {
 
 	// cached feed
 	cached map[string]*FeedIndex
+}
+
+func init() {
+	logger = logrus.StandardLogger()
+	logrus.SetLevel(logrus.InfoLevel)
+	logrus.SetOutput(os.Stdout)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: time.RFC3339,
+		DisableSorting:  true,
+	})
+	grpclog.SetLogger(logger)
+}
+
+// SetLevel sets the standard logger level.
+func SetLogLevel(level logrus.Level) {
+	logrus.SetLevel(level)
 }
 
 func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
@@ -293,9 +315,11 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 }
 
 func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
+	logger.Infof("FetchFeed: %s", req.Id)
 	s.RLock()
 	if _, ok := s.cached[req.Id]; ok {
 		s.RUnlock()
+		logger.Debugf("cachedFeed: %s", req.Id)
 		return s.cachedFeed(req)
 	}
 	s.RUnlock()
@@ -327,6 +351,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
+			logger.Debugf("cachedFeed: entry data missing: %s", req.Id)
 			return nil, fmt.Errorf("entry data missing")
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
@@ -363,7 +388,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	uuid1, _ := uuid.FromString(profile.Uuid)
 	preKey := store.NewUUIDKey(store.TableReverseEntryIndex, uuid1)
-	log.Println("forward seeking:", preKey.String())
+	logger.Infof("ForwardFetchFeed: %s", preKey.String())
 
 	start := req.Start
 	var entries []*pb.Entry
@@ -411,10 +436,13 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 }
 
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {
+	logger.Infof("FetchEntry: %s", req.Uuid)
 	entry, err := store.GetEntry(s.rdb, req.Uuid)
 	if err != nil {
+		logger.Debug(err)
 		return nil, err
 	}
+	logger.Debugf("entry: %s", entry)
 	err = fmtEntryProfile(s.mdb, entry)
 	if err != nil {
 		return nil, err

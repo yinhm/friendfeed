@@ -201,8 +201,8 @@ func GetEntry(rdb *Store, uuidStr string) (*pb.Entry, error) {
 
 	key := NewUUIDKey(TableEntry, uuid1)
 	rawdata, err := rdb.Get(key.Bytes())
-	if err != nil {
-		return nil, err
+	if err != nil || len(rawdata) == 0 {
+		return nil, fmt.Errorf("entry not found: %s", key.String())
 	}
 
 	entry := new(pb.Entry)

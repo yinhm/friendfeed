@@ -9,7 +9,6 @@ import (
 
 	"github.com/eapache/queue"
 	"github.com/gofrs/uuid"
-	"github.com/golang/glog"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
@@ -129,7 +128,7 @@ func (f *FeedIndex) load(db *store.Store) error {
 	defer f.Unlock()
 
 	key := f.Key()
-	glog.Infof("local cache: ", key.String())
+	logger.Debugf("load local cache: %s", key.String())
 	rawdata, err := db.Get(key.Bytes())
 	if err != nil {
 		return err
@@ -142,6 +141,7 @@ func (f *FeedIndex) load(db *store.Store) error {
 	dec := gob.NewDecoder(buf)
 	err = dec.Decode(&f.bufq)
 	if err != nil {
+		logger.Debugf("error while loading cache: %s", err)
 		return err
 	}
 	return nil
