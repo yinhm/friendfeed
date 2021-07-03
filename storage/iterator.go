@@ -3,7 +3,7 @@ package store
 import (
 	"github.com/cockroachdb/pebble"
 	"github.com/golang/protobuf/proto"
-	store "github.com/yinhm/friendfeed/model"
+	"github.com/yinhm/friendfeed/model"
 )
 
 // iterator is a wrapper around a pebble.Iterator
@@ -69,9 +69,9 @@ func (p *iterator) Last() {
 	p.iter.Last()
 }
 
-func (p *iterator) UnsafeKey() store.Key {
+func (p *iterator) UnsafeKey() model.Key {
 	if !p.Valid() {
-		return store.Key{}
+		return model.Key{}
 	}
 	return p.iter.Key()
 }
@@ -89,7 +89,7 @@ func (p *iterator) Error() error {
 	return p.iter.Error()
 }
 
-func (p *iterator) Key() store.Key {
+func (p *iterator) Key() model.Key {
 	key := p.UnsafeKey()
 	return key.Copy()
 }
