@@ -68,7 +68,6 @@ func NewStore(dbpath string) *Store {
 	db := new(Store)
 	db.dbpath = dbpath
 	db.options = NewStoreOptions()
-	db.initReadOptions()
 	db.initWriteOptions()
 
 	// TODO: shared cache for meta store
@@ -95,7 +94,6 @@ func NewMetaStore(dbpath string) *Store {
 	db := new(Store)
 	db.dbpath = dbpath
 	db.options = NewMetaStoreOptions()
-	db.initReadOptions()
 	db.initWriteOptions()
 
 	// TODO: shared cache
@@ -188,10 +186,6 @@ func NewMetaStoreOptions() *pebble.Options {
 	opts.Levels[6].FilterPolicy = nil
 
 	return opts
-}
-
-func (db *Store) initReadOptions() {
-	// db.ro = rocksdb.NewDefaultReadOptions()
 }
 
 func (db *Store) initWriteOptions() {
