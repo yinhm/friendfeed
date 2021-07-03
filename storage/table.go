@@ -283,7 +283,7 @@ func GetFeedinfo(rdb *Store, uuidStr string) (*pb.Feedinfo, error) {
 }
 
 func ForwardTableScan(db *Store, prefix IKey, fn ScanCallback) (n int, err error) {
-	opts := prefixIteratorOptions(prefix.Bytes())
+	opts := PrefixIteratorOptions(prefix.Bytes())
 	iter := newIterator(db.rdb, opts)
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {

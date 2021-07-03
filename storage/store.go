@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"time"
 	"unsafe"
 
@@ -198,8 +199,8 @@ func (db *Store) Close() {
 }
 
 func (db *Store) Destroy() error {
-	// log.Printf("WARN: destroy path %s", db.dbpath)
-	return fmt.Errorf("destroy db not implemented...")
+	log.Printf("WARN: destroy path %s", db.dbpath)
+	return os.RemoveAll(db.dbpath)
 }
 
 func (db *Store) Options() *pebble.Options {
@@ -227,6 +228,10 @@ func (db *Store) Put(key, value []byte) error {
 	return db.rdb.Set(key, value, pebble.NoSync)
 }
 
+func (db *Store) Set(key, value []byte) error {
+	return db.Put(key, value)
+}
+
 func (db *Store) Delete(key []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
@@ -234,9 +239,13 @@ func (db *Store) Delete(key []byte) error {
 	return db.rdb.Delete(key, pebble.NoSync)
 }
 
-// func (db *Store) Iterator(key []byte) *rocksdb.Iterator {
 func (db *Store) Iterator() *Iterator {
 	opts := &pebble.IterOptions{}
+	return newIterator(db.rdb, opts)
+}
+
+func (db *Store) NewIterator(prefix Key) *Iterator {
+	opts := PrefixIteratorOptions(prefix)
 	return newIterator(db.rdb, opts)
 }
 

@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/hex"
+	"log"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
@@ -16,6 +17,11 @@ var (
 	TStock  *Table
 )
 
+const (
+	TableConfig store.KeyPrefix = 300
+	TableStock  store.KeyPrefix = 301
+)
+
 func init() {
 	TableInited = false
 
@@ -23,11 +29,20 @@ func init() {
 	TStock = NewTable(KeyPrefixToBytes(TableStock))
 }
 
+func InitTables(db *store.Store) {
+	if TableInited {
+		log.Fatalf("table inited")
+	}
+	TConfig.InitStore(db)
+	TStock.InitStore(db)
+	TableInited = true
+}
+
 // func() proto.Message { return new(pb.LoginReq)
 type ProtoMessageFunc func() proto.Message
 
 type Table struct {
-	db      *Store
+	db      *store.Store
 	prefix  store.Key
 	preSize int
 
@@ -45,7 +60,7 @@ func NewTable(prefix store.Key) *Table {
 	}
 }
 
-func (t *Table) InitStore(store *Store) {
+func (t *Table) InitStore(store *store.Store) {
 	t.db = store
 }
 
@@ -95,7 +110,7 @@ func (t *Table) Get(key string, msg proto.Message) error {
 }
 
 func (t *Table) Put(key string, msg proto.Message) error {
-	k := t.prefixKey(KeyFromString(key))
+	k := t.prefixKey(store.KeyFromString(key))
 	bytes, err := proto.Marshal(msg)
 	if err != nil {
 		return err
@@ -104,7 +119,7 @@ func (t *Table) Put(key string, msg proto.Message) error {
 }
 
 func (t *Table) Delete(key string) error {
-	k := t.prefixKey(KeyFromString(key))
+	k := t.prefixKey(store.KeyFromString(key))
 	return t.db.Delete(k)
 }
 
@@ -113,14 +128,13 @@ func (t *Table) Keys(ks ...string) (keys []string, err error) {
 	buf.Write(t.prefix)
 	if len(ks) > 0 {
 		for _, k := range ks {
-			buf.Write(KeyFromString(k)[:])
+			buf.Write(store.KeyFromString(k)[:])
 		}
 	}
 	buf.Write(SeekZero())
 	start := buf.Bytes()
 
-	opts := prefixIteratorOptions(start)
-	iter := t.db.bdb.NewIter(opts)
+	iter := t.db.NewIterator(start)
 	for iter.First(); iter.Valid(); iter.Next() {
 		keys = append(keys, t.toStringKey(iter.Key()))
 	}
@@ -129,8 +143,7 @@ func (t *Table) Keys(ks ...string) (keys []string, err error) {
 }
 
 func (t *Table) Iter(fn func(raw []byte) error) error {
-	opts := prefixIteratorOptions(t.prefix)
-	iter := newIterator(t.db.bdb, opts)
+	iter := t.db.NewIterator(t.prefix)
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()
@@ -145,11 +158,10 @@ func (t *Table) Iter(fn func(raw []byte) error) error {
 func (t *Table) Find(fHash string, fn func(raw []byte) error) error {
 	var buf bytes.Buffer
 	buf.Write(t.prefix)
-	buf.Write(KeyFromString(fHash)[:])
+	buf.Write(store.KeyFromString(fHash)[:])
 	kp := buf.Bytes()
 
-	opts := prefixIteratorOptions(kp)
-	iter := newIterator(t.db.bdb, opts)
+	iter := t.db.NewIterator(kp)
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()

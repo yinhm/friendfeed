@@ -93,7 +93,7 @@ func (s *DBTestSuite) TestIteration() {
 	err = s.mdb.Put([]byte(key2), []byte("value2"))
 	assert.Nil(s.T(), err)
 
-	opts := prefixIteratorOptions(prefix)
+	opts := PrefixIteratorOptions(prefix)
 	iter := newIterator(s.mdb.rdb, opts)
 	defer iter.Close()
 

@@ -24,7 +24,7 @@ func keyUpperBound(b []byte) []byte {
 	return nil // no upper-bound
 }
 
-func prefixIteratorOptions(prefix []byte) *pebble.IterOptions {
+func PrefixIteratorOptions(prefix []byte) *pebble.IterOptions {
 	return &pebble.IterOptions{
 		LowerBound: prefix,
 		UpperBound: keyUpperBound(prefix),

@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	pb "github.com/yinhm/friendfeed/proto"
+	store "github.com/yinhm/friendfeed/storage"
 )
 
 type TableTestSuite struct {
 	suite.Suite
 
-	db *Store
+	db *store.Store
 }
 
 func TestTableTestSuite(t *testing.T) {
@@ -22,26 +23,26 @@ func TestTableTestSuite(t *testing.T) {
 
 func (s *TableTestSuite) SetupSuite() {
 	dbpath := os.TempDir() + "/testmcsdb"
-	s.db = NewStore(dbpath)
+	s.db = store.NewStore(dbpath)
 
 	InitTables(s.db)
 }
 
 func (s *TableTestSuite) TearDownSuite() {
 	s.db.Close()
-	err := os.RemoveAll(s.db.path)
+	err := s.db.Destroy()
 	if err != nil {
 		log.Println("can not remove test db.")
 	}
 }
 
 func (s *TableTestSuite) TestTableFarm() {
-	key := KeyFromString(TStock.NewKey("000001"))
+	key := store.KeyFromString(TStock.NewKey("000001"))
 	assert.Equal(s.T(), 16, len(key))
 
 	/// 000000657398ab337c5642fbbcb46f85bae90436
 	farmHash := "eab3360472a0425ab5f214afc8ed5d7a"
-	assert.Equal(s.T(), 16, len(KeyFromString(farmHash)))
+	assert.Equal(s.T(), 16, len(store.KeyFromString(farmHash)))
 
 	p := &pb.Feed{
 		Name: "000001",

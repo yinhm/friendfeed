@@ -16,7 +16,7 @@ import (
 // +----------+----------+
 // |  table   |   uuid   |
 // +----------+----------+
-func NewUUIDKey(t KeyPrefix) store.Key {
+func NewUUIDKey(t store.KeyPrefix) store.Key {
 	u, err := uuid.NewV4()
 	if err != nil {
 		log.Fatalf("failed to generate UUID: %v", err)
@@ -26,7 +26,7 @@ func NewUUIDKey(t KeyPrefix) store.Key {
 	return NewKeyFrom(b, u[:])
 }
 
-func NewPrefixKeyFrom(t KeyPrefix, u []byte) store.Key {
+func NewPrefixKeyFrom(t store.KeyPrefix, u []byte) store.Key {
 	b := KeyPrefixToBytes(t)
 	return NewKeyFrom(b, u)
 }
@@ -39,15 +39,15 @@ func NewKeyFrom(bs ...[]byte) store.Key {
 	return buf.Bytes()
 }
 
-func KeyPrefixToBytes(t KeyPrefix) []byte {
+func KeyPrefixToBytes(t store.KeyPrefix) []byte {
 	var bytes [4]byte
 	binary.BigEndian.PutUint32(bytes[:], uint32(t))
 	return bytes[:]
 }
 
-func NewStockKey() store.Key {
-	return NewUUIDKey(TableStock)
-}
+// func NewStockKey() store.Key {
+// 	return NewUUIDKey(TableStock)
+// }
 
 // Agent Key.
 //
