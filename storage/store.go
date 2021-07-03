@@ -82,9 +82,7 @@ func NewStore(dbpath string) *Store {
 		log.Fatalf("Can not open db: %s", err)
 	}
 	db.rdb = rdb
-
-	idGen := flake.NewGenerator()
-	db.idGen = idGen
+	db.idGen = flake.NewGenerator()
 	db.closed = false
 
 	return db
@@ -108,9 +106,7 @@ func NewMetaStore(dbpath string) *Store {
 		log.Fatalf("Can not open db: %s", err)
 	}
 	db.rdb = rdb
-
-	idGen := flake.NewGenerator()
-	db.idGen = idGen
+	db.idGen = flake.NewGenerator()
 
 	return db
 }
