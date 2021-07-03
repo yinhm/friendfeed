@@ -3,7 +3,7 @@ package store
 import (
 	"github.com/cockroachdb/pebble"
 	"github.com/golang/protobuf/proto"
-	"github.com/yinhm/friendfeed/store"
+	store "github.com/yinhm/friendfeed/model"
 )
 
 // iterator is a wrapper around a pebble.Iterator
