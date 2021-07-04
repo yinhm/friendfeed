@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cockroachdb/pebble"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -207,20 +208,23 @@ func (s *DBTestSuite) TestIterationReopen() {
 func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	// Giving meta store
 	// First iteration: populate data
+	batch := s.mdb.rdb.NewBatch()
 	for i := 0; i < 1000; i++ {
 		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value1"))
+		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
 	for i := 0; i < 1000; i++ {
 		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value2"))
+		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
 	for i := 0; i < 1000; i++ {
 		key := NewFlakeKey(TableMax, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value3"))
+		batch.Set(key.Bytes(), []byte("value3"), pebble.NoSync)
 	}
+	batch.Commit(pebble.Sync)
+	batch.Close()
 
 	key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
 	it := s.mdb.Iterator()
@@ -305,20 +309,23 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	// 	0xFF, 0xFF, 0xFF, 0xFF,
 	// }
 	// s.mdb.Put(maxKey, []byte(""))
+	batch := s.mdb.rdb.NewBatch()
 	for i := 0; i < 1000; i++ {
 		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value1"))
+		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
 	for i := 0; i < 1000; i++ {
 		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value2"))
+		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
 	for i := 0; i < 1000; i++ {
 		key := NewFlakeKey(TableMax, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value3"))
+		batch.Set(key.Bytes(), []byte("value3"), pebble.NoSync)
 	}
+	batch.Commit(pebble.Sync)
+	batch.Close()
 
 	key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
 	it := s.mdb.Iterator()
