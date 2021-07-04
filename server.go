@@ -61,6 +61,7 @@ func main() {
 
 	if config.debug {
 		server.SetLogLevel(logrus.DebugLevel)
+		server.SetLogFile(logf)
 		log.Printf("verbose log mode enabled\n")
 	}
 
