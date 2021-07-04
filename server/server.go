@@ -16,7 +16,9 @@ import (
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/status"
 )
 
 var logger *logrus.Logger
@@ -377,6 +379,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 	}
 	return feed, nil
 }
+
 func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
 	if req.PageSize <= 0 || req.PageSize >= 100 {
 		req.PageSize = 50
@@ -384,7 +387,8 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	profile, err := store.GetProfile(s.mdb, req.Id)
 	if err != nil {
-		return nil, err
+		logger.Debugf("ForwardFetchFeed: %s, err: %s", req.Id, err)
+		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
 
 	uuid1, _ := uuid.FromString(profile.Uuid)
@@ -450,11 +454,8 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 	}
 
 	profile, err := store.GetProfile(s.mdb, entry.From.Id)
-	if err != nil {
-		return nil, err
-	}
-	if profile == nil {
-		return nil, fmt.Errorf("404")
+	if err != nil || profile == nil {
+		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
 
 	feed := &pb.Feed{

@@ -28,6 +28,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Server struct {
@@ -703,16 +704,14 @@ func (s *Server) PublicHandler(c *gin.Context) {
 
 func RequestError(c *gin.Context, err error) bool {
 	if err != nil {
-		if grpc.Code(err) == codes.DeadlineExceeded {
+		errStatus, _ := status.FromError(err)
+		if codes.DeadlineExceeded == errStatus.Code() {
 			c.String(http.StatusServiceUnavailable, "Server busy, try later.")
+		} else if codes.NotFound == errStatus.Code() {
+			c.HTML(404, "404.html", pongo2.Context{})
 		} else {
-			// TODO: hacky error code
-			if err.Error() == "rpc error: code = 2 desc = \"404\"" {
-				c.HTML(404, "404.html", pongo2.Context{})
-			} else {
-				msg := "Server error, user may not exists or not mirrored."
-				c.String(http.StatusInternalServerError, msg)
-			}
+			msg := "Server error, user may not exists or not mirrored."
+			c.String(http.StatusInternalServerError, msg)
 		}
 		return true
 	}

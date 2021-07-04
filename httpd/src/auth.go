@@ -28,6 +28,9 @@ func LoginRequired() gin.HandlerFunc {
 			next := url.QueryEscape(c.Request.URL.RequestURI())
 			http.Redirect(c.Writer, c.Request, loginUrl+"?next="+next, http.StatusFound)
 		}
+		if CurrentUserUuid(c) == "" {
+			LogoutHandler(c)
+		}
 	}
 }
 
