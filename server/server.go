@@ -101,6 +101,12 @@ func (s *ApiServer) Shutdown() {
 	s.mdb = nil
 }
 
+func (s *ApiServer) Destroy() {
+	logger.Warn("Destroy db...")
+	s.rdb.Destroy()
+	s.mdb.Destroy()
+}
+
 func (s *ApiServer) FetchFeedinfo(ctx context.Context, req *pb.ProfileRequest) (*pb.Feedinfo, error) {
 	if req.Uuid == "" {
 		return nil, fmt.Errorf("bad request")

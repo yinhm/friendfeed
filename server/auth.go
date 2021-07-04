@@ -61,6 +61,7 @@ func (s *ApiServer) BindUserFeed(ctx context.Context, user *pb.OAuthUser) (*pb.O
 }
 
 func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*pb.Profile, error) {
+	logger.Debugf("FetchProfile: %s", req.Uuid)
 	uuid1, err := uuid.FromString(req.Uuid)
 	if err != nil {
 		return nil, err
