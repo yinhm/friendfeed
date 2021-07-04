@@ -353,3 +353,20 @@ func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	}
 	assert.Equal(s.T(), index.bufq[len(index.bufq)-1], "last")
 }
+
+func (s *RpcTestSuite) TestNewProfile() {
+	ctx := context.Background()
+
+	req := &pb.OAuthUser{
+		Uuid:              "",
+		Name:              "demo",
+		NickName:          "demouser",
+		UserId:            "6666666",
+		AccessToken:       "",
+		AccessTokenSecret: "",
+		Provider:          "Twitter",
+	}
+	profile, err := s.srv.PutOAuth(ctx, req)
+	assert.Nil(s.T(), err)
+	assert.NotEmpty(s.T(), profile.Uuid)
+}
