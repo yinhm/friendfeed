@@ -89,12 +89,14 @@ func (s *Server) AuthCallback(c *gin.Context) {
 
 	authinfo := &pb.OAuthUser{
 		UserId:            u.UserID,
-		Name:              u.Name,
-		NickName:          u.NickName,
+		Name:              u.NickName, // gothic use screen_name as nickname
+		NickName:          u.Name,
 		Email:             u.Email,
 		AccessToken:       u.AccessToken,
 		AccessTokenSecret: u.AccessTokenSecret,
 		Provider:          provider,
+		AvatarUrl:         u.AvatarURL,
+		Description:       u.Description,
 	}
 
 	profile, err := s.CurrentUser(c)
@@ -108,19 +110,15 @@ func (s *Server) AuthCallback(c *gin.Context) {
 		return
 	}
 
-	// Only allow login from google
-	// Twitter only for importing feed
-	if provider == "google" {
-		sess := sessions.Default(c)
-		sess.Set("user_id", u.UserID)
-		sess.Set("uuid", profile.Uuid)
-		sess.Save()
-	}
+	// Old behavior allow google only
+	// Now allow twitter login aswell
+	log.Printf("login: user_id=%s, uuid=%s", u.UserID, profile.Uuid)
+	sess := sessions.Default(c)
+	sess.Set("user_id", u.UserID)
+	sess.Set("uuid", profile.Uuid)
+	sess.Save()
 
 	next := extractNextPath(c.Request.URL.Query().Get("state"))
-	if next == "/" && provider == "twitter" {
-		next = "/account/import"
-	}
 	http.Redirect(c.Writer, c.Request, next, http.StatusFound)
 }
 

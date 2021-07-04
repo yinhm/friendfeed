@@ -10,50 +10,64 @@ import (
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	// TODO: create profile on oauth?
+	profile := new(pb.Profile)
+	// create profile on oauth for twitter user
+	if authinfo.Uuid == "" {
+		uuidFrom := "twitter-" + authinfo.UserId
+		uuid1 := uuid.NewV5(uuid.NamespaceURL, uuidFrom)
+
+		profile.Uuid = uuid1.String()
+		profile.Id = authinfo.Name // userid may better, but use name anyway
+		profile.Name = authinfo.NickName
+		profile.Type = "user"
+		profile.Private = false
+		profile.Picture = authinfo.AvatarUrl
+		profile.Description = authinfo.Description
+		store.UpdateProfile(s.mdb, profile)
+
+		authinfo.Uuid = profile.Uuid
+		logger.Debugf("New profile: <%s, %s>", uuidFrom, profile.Uuid)
+	}
+
 	user, err := store.PutOAuthUser(s.mdb, authinfo)
 	if err != nil {
 		return nil, err
 	}
 
 	// exists user
-	if user.Uuid != "" {
-		uuid1, err := uuid.FromString(user.Uuid)
-		if err != nil {
-			return nil, err
-		}
-		profile, err := store.GetProfileFromUuid(s.mdb, uuid1)
-		if err != nil {
-			return nil, err
-		}
-
-		// build services if profile present
-		if authinfo.Provider == "twitter" {
-			feedinfo, err := store.GetFeedinfo(s.rdb, profile.Uuid)
-			if err != nil {
-				return nil, err
-			}
-			// WARN: goth user.NickName == screen_name which is twitter id
-			service := &pb.Service{
-				Id:       "twitter",
-				Name:     "Twitter",
-				Icon:     "/static/images/icons/twitter.png",
-				Profile:  "https://twitter.com/" + user.NickName,
-				Username: user.Name,
-				Oauth:    user,
-				Created:  time.Now().Unix(),
-				Updated:  time.Now().Unix(),
-			}
-			feedinfo.Services = append(feedinfo.Services, service)
-			err = store.SaveFeedinfo(s.rdb, profile.Uuid, feedinfo)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return profile, nil
+	uuid1, err := uuid.FromString(user.Uuid)
+	if err != nil {
+		return nil, err
+	}
+	profile, err = store.GetProfileFromUuid(s.mdb, uuid1)
+	if err != nil {
+		return nil, err
 	}
 
-	return new(pb.Profile), nil
+	// build services if profile present
+	if authinfo.Provider == "twitter" {
+		feedinfo, err := store.GetFeedinfo(s.rdb, profile.Uuid)
+		if err != nil {
+			return nil, err
+		}
+		// WARN: goth user.NickName == screen_name which is twitter id
+		service := &pb.Service{
+			Id:       "twitter",
+			Name:     "Twitter",
+			Icon:     "/static/images/icons/twitter.png",
+			Profile:  "https://twitter.com/" + user.NickName,
+			Username: user.Name,
+			Oauth:    user,
+			Created:  time.Now().Unix(),
+			Updated:  time.Now().Unix(),
+		}
+		feedinfo.Services = append(feedinfo.Services, service)
+		err = store.SaveFeedinfo(s.rdb, profile.Uuid, feedinfo)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return profile, nil
 }
 
 func (s *ApiServer) BindUserFeed(ctx context.Context, user *pb.OAuthUser) (*pb.OAuthUser, error) {
