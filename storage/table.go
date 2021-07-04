@@ -164,7 +164,7 @@ func UpdateProfile(mdb *Store, profile *pb.Profile) error {
 	return mdb.Put(key.Bytes(), bytes)
 }
 
-func GetProfile(mdb *Store, id string) (*pb.Profile, error) {
+func GetProfileFromUserId(mdb *Store, id string) (*pb.Profile, error) {
 	rawdata, err := mdb.Get([]byte(id))
 	if err != nil || string(rawdata) == "" {
 		return nil, fmt.Errorf("GetProfile error: missing id->uuid map")

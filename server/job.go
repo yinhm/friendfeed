@@ -389,7 +389,7 @@ func (s *ApiServer) RedoFailedJob() error {
 }
 
 func (s *ApiServer) TestJob() error {
-	profile, _ := store.GetProfile(s.mdb, "yinhm")
+	profile, _ := store.GetProfileFromUserId(s.mdb, "yinhm")
 	feedinfo, _ := store.GetFeedinfo(s.rdb, profile.Uuid)
 	// only sync twitter service
 	graph := BuildGraph(feedinfo)
@@ -416,7 +416,7 @@ func (s *ApiServer) TestJob() error {
 }
 
 func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
-	profile, err := store.GetProfile(s.mdb, feedId)
+	profile, err := store.GetProfileFromUserId(s.mdb, feedId)
 	if err != nil {
 		return false, err
 	}
@@ -435,7 +435,7 @@ func (s *ApiServer) FixComment() error {
 	for _, e := range feed.Entries {
 		for _, cmt := range e.Comments {
 			// date, _ := time.Parse(time.RFC3339, cmt.Date)
-			profile, _ := store.GetProfile(s.mdb, cmt.From.Id)
+			profile, _ := store.GetProfileFromUserId(s.mdb, cmt.From.Id)
 			fixedName := e.Id + profile.Uuid + cmt.Date
 			uuid1 := uuid.NewV5(uuid.NamespaceURL, fixedName)
 

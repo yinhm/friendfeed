@@ -24,7 +24,7 @@ func FormatEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
 
 func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	// refetch user profile
-	profile, err := store.GetProfile(mdb, entry.From.Id)
+	profile, err := store.GetProfileFromUserId(mdb, entry.From.Id)
 	if err != nil {
 		return err
 	}

@@ -391,7 +391,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		req.PageSize = 50
 	}
 
-	profile, err := store.GetProfile(s.mdb, req.Id)
+	profile, err := store.GetProfileFromUserId(s.mdb, req.Id)
 	if err != nil {
 		logger.Debugf("ForwardFetchFeed: %s, err: %s", req.Id, err)
 		return nil, status.Errorf(codes.NotFound, "profile not found")
@@ -459,7 +459,7 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		return nil, err
 	}
 
-	profile, err := store.GetProfile(s.mdb, entry.From.Id)
+	profile, err := store.GetProfileFromUserId(s.mdb, entry.From.Id)
 	if err != nil || profile == nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
@@ -519,7 +519,7 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 		return nil, err
 	}
 
-	profile, err := store.GetProfile(s.mdb, req.Comment.From.Id)
+	profile, err := store.GetProfileFromUserId(s.mdb, req.Comment.From.Id)
 	if err != nil || profile == nil {
 		return nil, err
 	}
@@ -538,7 +538,7 @@ func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequ
 		return nil, err
 	}
 
-	profile, err := store.GetProfile(s.mdb, req.User)
+	profile, err := store.GetProfileFromUserId(s.mdb, req.User)
 	if err != nil || profile == nil {
 		return nil, err
 	}

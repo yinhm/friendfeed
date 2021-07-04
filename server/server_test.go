@@ -261,7 +261,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 	assert.Equal(s.T(), got.Uuid, feedinfo.Uuid)
 	assert.Equal(s.T(), got.RemoteKey, feedinfo.RemoteKey)
 
-	profile, err := store.GetProfile(s.srv.mdb, feedinfo.Id)
+	profile, err := store.GetProfileFromUserId(s.srv.mdb, feedinfo.Id)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, feedinfo.Uuid)
 	assert.Equal(s.T(), profile.RemoteKey, feedinfo.RemoteKey)
