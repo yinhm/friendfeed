@@ -11,34 +11,35 @@ import (
 )
 
 var (
-	TableInited bool
+	tableInited bool
 
-	TConfig *Table
-	TStock  *Table
+	Config *Table
+	Topic  *Table
+	Stock  *Table
 )
 
 const (
 	TableConfig store.KeyPrefix = 300
-	TableStock  store.KeyPrefix = 301
+	TableTopic  store.KeyPrefix = 301
+	TableStock  store.KeyPrefix = 302
 )
 
 func init() {
-	TableInited = false
-
-	TConfig = NewTable(KeyPrefixToBytes(TableConfig))
-	TStock = NewTable(KeyPrefixToBytes(TableStock))
+	Config = NewTable(KeyPrefixToBytes(TableConfig))
+	Topic = NewTable(KeyPrefixToBytes(TableTopic))
+	Stock = NewTable(KeyPrefixToBytes(TableStock))
 }
 
 func InitTables(db *store.Store) {
-	if TableInited {
+	if tableInited {
 		log.Fatalf("table inited")
 	}
-	TConfig.InitStore(db)
-	TStock.InitStore(db)
-	TableInited = true
+	Config.InitStore(db)
+	Topic.InitStore(db)
+	Stock.InitStore(db)
+	tableInited = true
 }
 
-// func() proto.Message { return new(pb.LoginReq)
 type ProtoMessageFunc func() proto.Message
 
 type Table struct {
@@ -46,10 +47,6 @@ type Table struct {
 	prefix  store.Key
 	preSize int
 
-	// Deprecated: need more clean api.
-	// fn = func() proto.Message {
-	// 	return new(pb.Farm)
-	// }
 	NewMessage ProtoMessageFunc
 }
 

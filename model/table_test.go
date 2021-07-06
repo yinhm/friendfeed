@@ -37,7 +37,7 @@ func (s *TableTestSuite) TearDownSuite() {
 }
 
 func (s *TableTestSuite) TestTableFarm() {
-	key := store.KeyFromString(TStock.NewKey("000001"))
+	key := store.KeyFromString(Stock.NewKey("000001"))
 	assert.Equal(s.T(), 16, len(key))
 
 	/// 000000657398ab337c5642fbbcb46f85bae90436
@@ -48,11 +48,11 @@ func (s *TableTestSuite) TestTableFarm() {
 		Name: "000001",
 	}
 
-	err := TStock.Put(farmHash, p)
+	err := Stock.Put(farmHash, p)
 	assert.Nil(s.T(), err)
 
 	farm := new(pb.Feed)
-	err = TStock.Get(farmHash, farm)
+	err = Stock.Get(farmHash, farm)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "000001", farm.Name)
 }
