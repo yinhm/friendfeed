@@ -112,7 +112,6 @@ func (s *Server) AuthCallback(c *gin.Context) {
 
 	// Old behavior allow google only
 	// Now allow twitter login aswell
-	log.Printf("login: user_id=%s, uuid=%s", u.UserID, profile.Uuid)
 	sess := sessions.Default(c)
 	sess.Set("user_id", u.UserID)
 	sess.Set("uuid", profile.Uuid)
