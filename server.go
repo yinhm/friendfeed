@@ -38,9 +38,11 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
 	// Block until a signal is received or we got an error
 	select {
 	case signal := <-sigCh:
-		log.Printf("Got signal %s, waiting for shutdown...", signal)
-		rpcSrv.Stop()
+		log.Printf("Signal %s received, shutdown server...", signal)
 		apiSrv.Shutdown()
+		log.Println("api server stoped.")
+		rpcSrv.Stop()
+		log.Println("rpc server stoped.")
 		return
 	}
 }
