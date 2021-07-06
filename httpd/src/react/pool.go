@@ -2,14 +2,13 @@ package react
 
 import (
 	"errors"
-	"fmt"
 
-	"gopkg.in/olebedev/go-duktape.v3"
+	"github.com/dop251/goja"
 )
 
 type Pool struct {
 	size int
-	ch   chan *duktape.Context
+	ch   chan *goja.Runtime
 }
 
 type Option struct {
@@ -35,30 +34,33 @@ func (opt *Option) Validate() error {
 
 func NewPool(opt *Option) (*Pool, error) {
 	pool := &Pool{size: opt.PoolSize}
-	pool.ch = make(chan *duktape.Context, opt.PoolSize)
+	pool.ch = make(chan *goja.Runtime, opt.PoolSize)
 	for i := 0; i < pool.size; i++ {
-		vm, err := newVM(opt.Source, opt.GlobalObjectName)
-		if err != nil {
-			return nil, err
-		}
+		vm := newVM(opt.Source, opt.GlobalObjectName)
 		pool.ch <- vm
 	}
 	return pool, nil
 }
 
-func newVM(src []byte, objName string) (*duktape.Context, error) {
-	vm := duktape.New()
-	source := fmt.Sprintf(`var %v = %v || {}, console = {log:print,warn:print,error:print,info:print}; `, objName, objName) + string(src)
-	if err := vm.PevalString(source); err != nil {
-		return nil, errors.New(vm.SafeToString(-1))
+func newVM(src []byte, objName string) *goja.Runtime {
+	vm := goja.New()
+	// define console.{log|error|warn} so loading babel doesn't error
+	vm.Set("console", map[string]func(goja.FunctionCall) goja.Value{
+		"log":   logFunc,
+		"error": logFunc,
+		"warn":  logFunc,
+	})
+	_, err := vm.RunScript("react.js", string(src))
+	if err != nil {
+		panic(err)
 	}
-	return vm, nil
+	return vm
 }
 
-func (pl *Pool) Get() *duktape.Context {
+func (pl *Pool) Get() *goja.Runtime {
 	return <-pl.ch
 }
 
-func (pl *Pool) Put(vm *duktape.Context) {
+func (pl *Pool) Put(vm *goja.Runtime) {
 	pl.ch <- vm
 }

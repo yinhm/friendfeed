@@ -59,14 +59,11 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 
 	// TODO: caching if we have more components
 	if debug {
-		component, err := jsx.TransformFile("./templates/_feed.jsx", map[string]interface{}{
-			"harmony":     true,
-			"strip_types": true,
-		})
+		component, err := jsx.TransformFile("./templates/_feed.jsx")
 		if err != nil {
 			panic(err)
 		}
-		err = rc.Load(component)
+		err = rc.Load([]byte(component))
 		if err != nil {
 			panic(err)
 		}
@@ -354,7 +351,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 
 	profile, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
-		glog.Error("fetch feed error: %s", err)
+		glog.Errorf("fetch feed error: %s", err)
 		return
 	}
 

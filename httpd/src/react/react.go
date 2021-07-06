@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"runtime"
+
+	"github.com/dop251/goja"
 )
 
 type React struct {
@@ -44,7 +47,7 @@ var reactSource []byte
 func DefaultReactOption() *Option {
 	return &Option{
 		Source:           reactSource,
-		PoolSize:         10,
+		PoolSize:         runtime.NumCPU(),
 		GlobalObjectName: "self",
 	}
 }
@@ -75,31 +78,11 @@ func (rc *React) RenderComponent(name string, params interface{}) (string, error
 			)`, objName, objName, objName, name, string(j))
 	}
 
-	if err := vm.PevalString(js); err != nil {
-		return "", errors.New(vm.SafeToString(-1))
+	v, err := vm.RunString(js)
+	if err != nil {
+		return "", errors.New("Can not render component")
 	}
-	v := vm.SafeToString(-1)
-	vm.Pop()
-	return v, nil
-}
-
-// Run javascript code and returns its result value.
-// src: javascript source
-func (rc *React) RunScript(src string) (string, error) {
-	vm := rc.pool.Get()
-	defer rc.pool.Put(vm)
-
-	js := `
-	(function() {
-		return %v
-	})();
-	`
-	if err := vm.PevalString(fmt.Sprintf(js, src)); err != nil {
-		return "", errors.New(vm.SafeToString(-1))
-	}
-	ret := vm.SafeToString(-1)
-	vm.Pop()
-	return ret, nil
+	return v.String(), nil
 }
 
 // Load javascript code.
@@ -109,8 +92,14 @@ func (rc *React) Load(src []byte) error {
 		vm := rc.pool.Get()
 		defer rc.pool.Put(vm)
 
-		if err := vm.PevalString(string(src)); err != nil {
-			panic(vm.SafeToString(-1))
+		vm.RunString("var self = this")
+
+		prog, err := goja.Compile("react.js", string(src), false)
+		if err != nil {
+			return err
+		}
+		if _, err := vm.RunProgram(prog); err != nil {
+			return fmt.Errorf("unable to load react.js: %s", err)
 		}
 	}
 	return nil
