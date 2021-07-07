@@ -207,6 +207,14 @@ func (db *Store) Delete(key []byte) error {
 	return db.rdb.Delete(key, pebble.Sync)
 }
 
+func (db *Store) Exist(key []byte) bool {
+	data, err := db.Get(key)
+	if err != nil || len(data) == 0 {
+		return false
+	}
+	return true
+}
+
 func (db *Store) Iterator() *Iterator {
 	opts := &pebble.IterOptions{}
 	return newIterator(db.rdb, opts)

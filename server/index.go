@@ -4,6 +4,7 @@ package server
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -25,7 +26,7 @@ type FeedIndex struct {
 	dirty  bool
 }
 
-func NewFeedIndex(id string, uuid1 *uuid.UUID) *FeedIndex {
+func NewFeedIndex(db *store.Store, id string, uuid1 *uuid.UUID) *FeedIndex {
 	iq := queue.New()
 	index := &FeedIndex{
 		Id:     id,
@@ -36,7 +37,7 @@ func NewFeedIndex(id string, uuid1 *uuid.UUID) *FeedIndex {
 		doneCh: make(chan struct{}, 1),
 		dirty:  false,
 	}
-	go index.Serve()
+	go index.Serve(db)
 	return index
 }
 
@@ -45,7 +46,7 @@ func (f *FeedIndex) Key() store.IKey {
 	return store.NewUUIDKey(store.TableIndexCache, *f.Uuid)
 }
 
-func (f *FeedIndex) Serve() {
+func (f *FeedIndex) Serve(db *store.Store) {
 	timeout := 1 * time.Second
 	for {
 		select {
@@ -55,7 +56,7 @@ func (f *FeedIndex) Serve() {
 			// channel act as congestion control now,
 			// if timeout rebuild frontpage faster.
 		case <-time.After(timeout):
-			f.rebuild()
+			f.rebuild(db)
 		case <-f.doneCh:
 			// close(f.itemCh)
 			close(f.doneCh)
@@ -78,7 +79,7 @@ func (f *FeedIndex) remove(i int) {
 	f.bufq = f.bufq[:len(f.bufq)-1]
 }
 
-func (f *FeedIndex) rebuild() {
+func (f *FeedIndex) rebuild(db *store.Store) {
 	if !f.dirty {
 		return
 	}
@@ -95,6 +96,14 @@ func (f *FeedIndex) rebuild() {
 	i := 0
 	for j := 0; j < f.iq.Length(); j++ {
 		item := f.iq.Get(f.iq.Length() - j - 1).(string)
+
+		// skip deleted entry
+		kb, _ := hex.DecodeString(item)
+		if db != nil && !db.Exist([]byte(kb)) {
+			logger.Debugf("skip key: %s", string(item))
+			continue
+		}
+
 		if _, ok := index[item]; !ok {
 			index[item] = struct{}{}
 			f.bufq[i] = item
@@ -115,6 +124,14 @@ func (f *FeedIndex) rebuild() {
 		if item == "" {
 			break
 		}
+
+		// skip deleted entry
+		kb, _ := hex.DecodeString(item)
+		if db != nil && !db.Exist([]byte(kb)) {
+			logger.Debugf("skip key: %s", string(item))
+			continue
+		}
+
 		if _, ok := index[item]; !ok {
 			index[item] = struct{}{}
 			f.bufq[i] = item

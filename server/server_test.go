@@ -342,7 +342,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	// Given FeedIndex, load and dump to db
 	uuid1 := "c6f8dca854f011ddb489003048343a40"
-	index := NewFeedIndex("public", new(uuid.UUID))
+	index := NewFeedIndex(nil, "public", new(uuid.UUID))
 	err := index.load(s.srv.mdb)
 	assert.Nil(s.T(), err)
 
@@ -351,7 +351,7 @@ func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 		index.Push(uuid1)
 	}
 
-	index.rebuild()
+	index.rebuild(nil)
 	assert.Equal(s.T(), index.bufq[0], "c6f8dca854f011ddb489003048343a40")
 	index.bufq[len(index.bufq)-1] = "last"
 

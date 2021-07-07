@@ -11,14 +11,14 @@ import (
 func TestFeedIndex(t *testing.T) {
 	// Given feed index, push and rebuild
 	uuid1 := "c6f8dca854f011ddb489003048343a40"
-	index := NewFeedIndex("public", new(uuid.UUID))
+	index := NewFeedIndex(nil, "public", new(uuid.UUID))
 
 	for i := 0; i < 10; i++ {
 		// index.itemCh <- uuid
 		index.Push(uuid1)
 	}
 
-	index.rebuild()
+	index.rebuild(nil)
 	assert.Equal(t, len(index.bufq), MinQueue)
 	assert.Equal(t, index.bufq[0], "c6f8dca854f011ddb489003048343a40")
 	for i := 1; i < len(index.bufq); i++ {
@@ -30,7 +30,7 @@ func TestFeedIndex(t *testing.T) {
 		index.Push(uuid1)
 	}
 
-	index.rebuild()
+	index.rebuild(nil)
 	for i := 0; i < len(index.bufq); i++ {
 		assert.NotEqual(t, index.bufq[i], "")
 		assert.NotEqual(t, index.bufq[i], "c6f8dca854f011ddb489003048343a40")

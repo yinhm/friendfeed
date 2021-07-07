@@ -65,7 +65,7 @@ func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
 	mdb := store.NewMetaStore(dbpath + "/meta")
 
 	cached := make(map[string]*FeedIndex)
-	cached["public"] = NewFeedIndex("public", new(uuid.UUID))
+	cached["public"] = NewFeedIndex(rdb, "public", new(uuid.UUID))
 	cached["public"].load(mdb)
 
 	srv := &ApiServer{
