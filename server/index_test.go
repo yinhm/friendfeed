@@ -36,5 +36,9 @@ func TestFeedIndex(t *testing.T) {
 		assert.NotEqual(t, index.bufq[i], "c6f8dca854f011ddb489003048343a40")
 	}
 
+	index.remove(5)
+	assert.Equal(t, MinQueue-1, len(index.bufq))
+	assert.Equal(t, 500, cap(index.bufq))
+
 	index.doneCh <- struct{}{}
 }

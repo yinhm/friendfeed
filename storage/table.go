@@ -213,6 +213,19 @@ func GetEntry(rdb *Store, uuidStr string) (*pb.Entry, error) {
 	return entry, nil
 }
 
+func DeleteEntry(rdb *Store, uuidStr string) error {
+	uuid1, err := uuid.FromString(uuidStr)
+	if err != nil {
+		return err
+	}
+
+	key := NewUUIDKey(TableEntry, uuid1)
+	if err = rdb.Delete(key.Bytes()); err != nil {
+		return fmt.Errorf("entry not found: %s", key.String())
+	}
+	return nil
+}
+
 // id: target id or user id, eg: foobar
 func GetArchiveHistory(mdb *Store, id string) (*pb.FeedJob, error) {
 	key := NewMetaKey(TableJobHistory, id)

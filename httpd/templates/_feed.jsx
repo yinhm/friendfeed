@@ -60,6 +60,21 @@ var Entry = React.createClass({
     this.setState(newdata);
   },
 
+  // handleEdit: function(child) {
+  //   console.log("edit entry")
+  // },
+
+  handleDelete: function(child) {
+    console.log("handle delete");
+    var self = this;
+    var entry = this.state.entry;
+    $.postJSON("/a/delete", {entry: entry.id}, function(data) {
+      console.log(data);
+      console.log("entry deleted... how to do?")
+      // self.setState({likes: likes});
+    });
+  },
+
   handleNewComment: function(child) {
     var btn = this;
     if (this.state.new_comment_form) {
@@ -236,7 +251,9 @@ var Entry = React.createClass({
           <EntryInfo entry={entry}
                      onNewComment={this.handleNewComment}
                      onLike={this.handleLike}
-                     onUnlike={this.handleUnlike}/>
+                     onUnlike={this.handleUnlike}
+                     onEdit={this.handleEdit}
+                     onDelete={this.handleDelete}/>
           <EntryLikes likes={this.state.likes}
                       expandLikes={this.expandLikes} />
           {comments}
@@ -389,7 +406,7 @@ var EntryInfo = React.createClass({
             btn = <EntryCommandEdit />;
             break;
           case "delete":
-            btn = <EntryCommandDelete />;
+            btn = <EntryCommandDelete onDelete={self.props.onDelete} />;
             break;
           default:
             break;
@@ -456,17 +473,30 @@ var EntryCommandComment = React.createClass({
 });
 
 var EntryCommandEdit = React.createClass({
+
+  handleClick: function(event) {
+    event.preventDefault();
+    console.log("entry command edit")
+  },
+
   render: function() {
     return (
-      <a href="#" className="editcommand">Edit</a>
+      <a href="#" className="editcommand" onClick={this.handleClick}>Edit</a>
     );
   }
 });
 
 var EntryCommandDelete = React.createClass({
+
+  handleClick: function(event) {
+    event.preventDefault();
+    console.log("entry command delete")
+    this.props.onDelete(this);
+  },
+
   render: function() {
     return (
-      <a href="#" className="deletecommand">Delete</a>
+      <a href="#" className="deletecommand" onClick={this.handleClick}>Delete</a>
     );
   }
 });

@@ -364,8 +364,9 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
-			logger.Debugf("cachedFeed: entry data missing: %s", req.Id)
-			return nil, fmt.Errorf("entry data missing")
+			logger.Warnf("cachedFeed: entry data missing: %s", req.Id)
+			logger.Warn("FIXME: rebuild index system")
+			continue
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
@@ -416,7 +417,10 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
 		if err != nil || len(rawdata) == 0 {
-			return fmt.Errorf("entry data missing")
+			logger.Warnf("entry missing %s", string(v))
+			// slient delete the key from index
+			s.rdb.Delete(k)
+			return nil
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
@@ -488,6 +492,21 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 	}
 	s.spread(key)
 	return entry, nil
+}
+
+func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.EntryRequest, error) {
+	entry, err := store.GetEntry(s.rdb, req.Uuid)
+	if err != nil {
+		return nil, err
+	}
+	if entry.ProfileUuid != req.User {
+		return nil, status.Errorf(codes.PermissionDenied, "no perm")
+	}
+	err = store.DeleteEntry(s.rdb, req.Uuid)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
 }
 
 func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Entry, error) {

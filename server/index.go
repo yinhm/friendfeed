@@ -73,6 +73,11 @@ func (f *FeedIndex) Push(uuid string) {
 	f.itemCh <- uuid
 }
 
+func (f *FeedIndex) remove(i int) {
+	copy(f.bufq[i:], f.bufq[i+1:])
+	f.bufq = f.bufq[:len(f.bufq)-1]
+}
+
 func (f *FeedIndex) rebuild() {
 	if !f.dirty {
 		return

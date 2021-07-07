@@ -323,6 +323,20 @@ func (s *RpcTestSuite) TestPostProfile() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), feed.Id, "yinhm")
 	assert.Equal(s.T(), len(feed.Entries), 1)
+
+	// delete entry
+	dReq := &pb.EntryRequest{
+		Uuid: entry.Id,
+		User: entry.ProfileUuid,
+	}
+	_, err = s.srv.DeleteEntry(context.Background(), dReq)
+	assert.Nil(s.T(), err)
+
+	// refetch feed
+	feed, err = s.srv.FetchFeed(context.Background(), req)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), feed.Id, "yinhm")
+	assert.Equal(s.T(), len(feed.Entries), 0)
 }
 
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {

@@ -31,6 +31,7 @@ service Api {
   // Entry page return Feed as well
   rpc FetchEntry(EntryRequest) returns (Feed) {}
   rpc PostEntry(Entry) returns (Entry) {}
+  rpc DeleteEntry(EntryRequest) returns (EntryRequest) {}
   rpc LikeEntry(LikeRequest) returns (Entry) {}
   rpc CommentEntry(CommentRequest) returns (Entry) {}
   rpc DeleteComment(CommentDeleteRequest) returns (Entry) {}
@@ -135,6 +136,7 @@ message FeedRequest {
 
 message EntryRequest {
   string uuid = 1;
+  string user = 2;
 }
 
 message ProfileRequest {

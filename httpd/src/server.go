@@ -495,6 +495,30 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
+func (s *Server) EntryDeleteHandler(c *gin.Context) {
+	c.Request.ParseForm()
+	entryId := c.Request.Form.Get("entry")
+	if entryId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+		return
+	}
+
+	uuid := CurrentUserUuid(c)
+	req := &pb.EntryRequest{
+		Uuid: entryId,
+		User: uuid,
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	_, err := s.client.DeleteEntry(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+	c.JSON(200, entryId)
+}
+
 func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
 	req := &pb.EntryRequest{Uuid: uuid}
