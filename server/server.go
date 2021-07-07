@@ -62,7 +62,8 @@ func SetLogFile(f *os.File) {
 
 func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
 	rdb := store.NewStore(dbpath)
-	mdb := store.NewMetaStore(dbpath + "/meta")
+	// mdb := store.NewMetaStore(dbpath + "/meta")
+	mdb := rdb
 
 	cached := make(map[string]*FeedIndex)
 	cached["public"] = NewFeedIndex(rdb, "public", new(uuid.UUID))
