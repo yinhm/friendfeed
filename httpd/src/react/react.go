@@ -80,7 +80,7 @@ func (rc *React) RenderComponent(name string, params interface{}) (string, error
 
 	v, err := vm.RunString(js)
 	if err != nil {
-		return "", errors.New("Can not render component")
+		return "", fmt.Errorf("RenderComponent: %s", err)
 	}
 	return v.String(), nil
 }

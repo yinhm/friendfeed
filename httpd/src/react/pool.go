@@ -50,6 +50,7 @@ func newVM(src []byte, objName string) *goja.Runtime {
 		"error": logFunc,
 		"warn":  logFunc,
 	})
+	vm.RunString("var self = this")
 	_, err := vm.RunScript("react.js", string(src))
 	if err != nil {
 		panic(err)
