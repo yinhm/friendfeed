@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/hex"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
@@ -68,18 +69,28 @@ func (t *Table) Get(db *store.Store, key string, msg proto.Message) error {
 	return proto.Unmarshal(raw, msg)
 }
 
-func (t *Table) Put(db *store.Store, key string, msg proto.Message) error {
+func (t *Table) Put(db *store.Store, key string, msg proto.Message) (store.Key, error) {
 	k := t.prefixKey(store.KeyFromString(key))
 	bytes, err := proto.Marshal(msg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return db.Set(k, bytes)
+	return k, db.Set(k, bytes)
 }
 
 func (t *Table) Delete(db *store.Store, key string) error {
 	k := t.prefixKey(store.KeyFromString(key))
 	return db.Delete(k)
+}
+
+// Reverse Entry index:
+// K-> | table | user uuid | maxtime - ts-flake |
+// V-> |      +++++   indexed key   ++++++      |
+// value are prefixed key which point to data
+func (t *Table) Index(db *store.Store, uuid1 uuid.UUID, oldtime time.Time, idxKey store.Key) error {
+	flakeid := db.TimeTravelReverseId(oldtime)
+	k := store.NewUUIDFlakeKey(TableReverseEntryIndex, uuid1, flakeid)
+	return db.Put(k.Bytes(), idxKey)
 }
 
 func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {

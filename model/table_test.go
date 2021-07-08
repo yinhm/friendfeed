@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	pb "github.com/yinhm/friendfeed/proto"
@@ -48,11 +49,66 @@ func (s *TableTestSuite) TestTableFarm() {
 		Name: "000001",
 	}
 
-	err := Stock.Put(s.db, farmHash, p)
+	_, err := Stock.Put(s.db, farmHash, p)
 	assert.Nil(s.T(), err)
 
 	farm := new(pb.Feed)
 	err = Stock.Get(s.db, farmHash, farm)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "000001", farm.Name)
+}
+
+func (s *TableTestSuite) TestPutEntry() {
+	p := &pb.Profile{
+		Uuid: "c6f8dca854f011ddb489003048343a40",
+		Id:   "yinhm",
+		Name: "yinhm",
+		Type: "user",
+	}
+
+	feed := &pb.Feed{
+		Id:   "yinhm",
+		Name: "yinhm",
+		Type: "user",
+	}
+
+	e := &pb.Entry{
+		Body:        "张无忌对张三丰说：“太师父，武当山的生活太寂寞了，只有清风和明月两个朋友能陪我玩。”张三丰叹了口气：“已经很不错啦，至少还有清风明月呢。想当年我在少林寺的时候，也是只有两个朋友，其中一个也叫清风……”“那另一个呢？”“叫心相印。”…",
+		Id:          "2b43a9066074d120ed2e45494eea1797",
+		Date:        "2012-09-07T07:40:22Z",
+		Url:         "http://friendfeed.com/yinhm/2b43a906/rt-trojansj",
+		From:        feed,
+		ProfileUuid: "c6f8dca854f011ddb489003048343a40",
+	}
+
+	// put entry
+	_, err := PutEntry(s.db, e)
+	assert.Nil(s.T(), err)
+
+	// put exists entry
+	_, err = PutEntry(s.db, e)
+	assert.Nil(s.T(), err)
+
+	uuid1, _ := uuid.FromString(p.Uuid)
+	key := store.NewUUIDKey(TableReverseEntryIndex, uuid1)
+	n, err := store.ForwardTableScan(s.db, key, func(i int, k, v []byte) error {
+		return nil
+	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, n)
+
+	// // produce duplicated entry issue when server moved
+	// oldNewWorkerId := flake.NewWorkerId
+	// flake.NewWorkerId = flake.NewRandWorkerId
+	// _, err = PutEntry(s.db, e)
+	// assert.Nil(s.T(), err)
+
+	// n, err = store.ForwardTableScan(s.db, key, func(i int, k, v []byte) error {
+	// 	return nil
+	// })
+	// assert.Nil(s.T(), err)
+	// assert.Equal(s.T(), 1, n)
+
+	// // restore NewWorkerId func otherwise will break other tests
+	// flake.NewWorkerId = oldNewWorkerId
 }
