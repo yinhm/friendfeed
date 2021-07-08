@@ -3,16 +3,17 @@ import ReactDOM from 'react-dom';
 import ReactDOMServer from 'react-dom/server';
 import './index.css';
 // import App from './App';
-import Feed from './App';
+import {Feed} from './App';
 import reportWebVitals from './reportWebVitals';
 
 var path = window.location.pathname + window.location.search;
+var feedData = window.app_props.feed;
 ReactDOM.render(
   <React.StrictMode>
     {/* <App /> */}
-    <Feed url={path} />
+    <Feed url={path} feed={feedData} />
   </React.StrictMode>,
-  document.getElementById('root')
+  document.getElementById('feed')
 );
 
 

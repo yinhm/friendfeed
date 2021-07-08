@@ -26,13 +26,17 @@ function getJSON(url) {
 }
 
 function postJSON(url, data) {
+  const params = new URLSearchParams();
+  for ( var key in data ) {
+    params.append(key, data[key]);
+  }
   return fetch(url, {
-    body: JSON.stringify(data),
+    body: params,
     cache: 'no-cache',
     credentials: 'same-origin', // include, same-origin, *omit
     headers: {
       'user-agent': 'Mozilla/4.0 MDN',
-      'content-type': 'application/json'
+      'Content-Type': 'application/x-www-form-urlencoded'
     },
     method: 'POST', // *GET, POST, PUT, DELETE, etc.
     mode: 'cors', // no-cors, cors, *same-origin
@@ -60,9 +64,11 @@ function intersperse(arr, sep) {
 
 class Entry extends React.Component {
 
-  getInitialState() {
-    // var comments = this.props.entry.comments
-    return {
+  constructor(props) {
+    dprint("init entry");
+    dprint(props);
+    super(props);
+    this.state = {
       entry: this.props.entry,
       comments: this.props.entry.comments,
       likes: this.props.entry.likes,
@@ -74,6 +80,11 @@ class Entry extends React.Component {
   }
 
   UNSAFE_componentWillReceiveProps(nextProps){
+  // componentDidUpdate(prevProps, prevState, snapshot) {
+    dprint("UNSAFE_componentWillReceiveProps...")
+    dprint(nextProps);
+
+    var nextProps = this.props;
     var newdata = {
       entry: nextProps.entry,
     }
@@ -95,11 +106,18 @@ class Entry extends React.Component {
     this.setState(newdata);
   }
 
+  // The new static getDerivedStateFromProps lifecycle is invoked after a component
+  // is instantiated as well as before it is re-rendered. It can return an object to
+  // update state, or null to indicate that the new props do not require any state updates.
+  static getDerivedStateFromProps(props, state) {
+    
+  }
+
   // handleEdit: function(child) {
   //   console.log("edit entry")
   // },
 
-  handleDelete(child) {
+  handleDelete = () => {
     console.log("handle delete");
     var entry = this.state.entry;
     postJSON("/a/delete", {entry: entry.id})
@@ -109,7 +127,7 @@ class Entry extends React.Component {
       });
   }
 
-  handleNewComment(child) {
+  handleNewComment = () => {
     if (this.state.new_comment_form) {
       // focus
       React.findDOMNode(this.refs.commentInput).focus();
@@ -119,9 +137,8 @@ class Entry extends React.Component {
     }
   }
 
-  submitComment(event, id, comment) {
+  submitComment = (id, comment, event) => {
     event.preventDefault();
-    var self = this;
     var comments = this.state.comments || [];
     var args = {
       entry: this.props.entry.id,
@@ -131,7 +148,7 @@ class Entry extends React.Component {
       args.id = id;
     }
     postJSON("/a/comment", args)
-      .then(function(comment) {
+      .then(comment => { // arrow function
         if (id) {
           var cmts = comments.map(function(cmt, index) {
             if (id === cmt.id) {
@@ -139,10 +156,10 @@ class Entry extends React.Component {
             }
             return cmt;
           });
-          self.setState({comments: cmts});
+          this.setState({comments: cmts});
         } else {
           comments.push(comment);
-          self.setState({
+          this.setState({
             comments: comments,
             new_comment_form: false
           });
@@ -150,7 +167,7 @@ class Entry extends React.Component {
       });
   }
 
-  cancelComment(id, body) {
+  cancelComment = (id, body, event) => {
     if (id) {
       var comments = [];
       this.state.comments.forEach(function(cmt, index) {
@@ -168,29 +185,27 @@ class Entry extends React.Component {
     }
   }
 
-  expandComments(event) {
-    var self = this;
+  expandComments = () => {
     getJSON("/a/entry/" + this.props.entry.id)
-      .then(function(data) {
-        self.setState({
+      .then(data => { // arrow function
+        this.setState({
           expanded_comments: true,
           comments: data
         });
       });
   }
 
-  expandLikes() {
-    var self = this;
+  expandLikes = () => {
     getJSON("/a/expandlikes/" + this.props.entry.id)
-      .then(function(data) {
-        self.setState({
+      .then(data => { // arrow function
+        this.setState({
           expanded_likes: true,
           likes: data
         });
       });
   }
 
-  editComment(comment) {
+  editComment = (comment) => {
     var comments = [];
     this.state.comments.forEach(function(cmt, index) {
       if (comment.id && comment.id === cmt.id) {
@@ -201,7 +216,7 @@ class Entry extends React.Component {
     this.setState({comments: comments});
   }
 
-  deleteComment(comment) {
+  deleteComment = (comment) => {
     if (!comment.id) {
       return comment;
     }
@@ -213,31 +228,29 @@ class Entry extends React.Component {
     return null;
   }
 
-  handleLike() {
-    var self = this;
+  handleLike = () => {
     var entry = this.state.entry;
     postJSON("/a/like", {entry: entry.id})
-      .then(function(likes) {
+      .then(likes => { // arrow function
         entry.commands.forEach(function(cmd, index) {
           if (cmd === "like") {
             entry.commands[index] = "unlike";
           }
         });
-        self.setState({likes: likes});
+        this.setState({likes: likes});
       });
   }
 
-  handleUnlike() {
-    var self = this;
+  handleUnlike = () => {
     var entry = this.state.entry;
     postJSON("/a/like/delete", {entry: entry.id})
-      .then(function(likes) {
+      .then(likes => { // arrow function
         entry.commands.forEach(function(cmd, index) {
           if (cmd === "unlike") {
             entry.commands[index] = "like";
           }
         });
-        self.setState({likes: likes});
+        this.setState({likes: likes});
       });
   }
 
@@ -404,26 +417,25 @@ function EntryInfo(props) {
   }
 
   if (entry.commands) {
-    var self = this;
     infos = entry.commands.map(function(cmd, idx) {
       var btn = null
       var liked = false;
       switch (cmd) {
         case "comment":
-          btn = <EntryCommandComment onNewComment={self.props.onNewComment} />;
+          btn = <EntryCommandComment onNewComment={props.onNewComment} />;
           break;
         case "like":
-          btn = <EntryCommandLike onLike={self.props.onLike} liked={liked} />;
+          btn = <EntryCommandLike onLike={props.onLike} liked={liked} />;
           break;
         case "unlike":
           liked = true;
-          btn = <EntryCommandLike onUnlike={self.props.onUnlike} liked={liked} />;
+          btn = <EntryCommandLike onUnlike={props.onUnlike} liked={liked} />;
           break;
         case "edit":
           btn = <EntryCommandEdit />;
           break;
         case "delete":
-          btn = <EntryCommandDelete onDelete={self.props.onDelete} />;
+          btn = <EntryCommandDelete onDelete={props.onDelete} />;
           break;
         default:
           break;
@@ -447,12 +459,12 @@ function EntryInfo(props) {
 
 class EntryCommandLike extends React.Component{
 
-  handleLike(event) {
+  handleLike = (event) => {
     event.preventDefault();
     this.props.onLike();
   }
 
-  handleUnlike(event) {
+  handleUnlike = (event) => {
     event.preventDefault();
     this.props.onUnlike();
   }
@@ -460,13 +472,13 @@ class EntryCommandLike extends React.Component{
   render() {
     if (this.props.liked) {
       return (
-        <a href="#nofollow" onClick={this.handleUnlike}>
+        <a href="#nolink" onClick={this.handleUnlike}>
           Unlike
         </a>
       );
     } else {
       return (
-        <a href="#nofollow" onClick={this.handleLike}>
+        <a href="#nolink" onClick={this.handleLike}>
           Like
         </a>
       );
@@ -476,35 +488,35 @@ class EntryCommandLike extends React.Component{
 
 class EntryCommandComment extends React.Component{
 
-  handleClick(event) {
+  handleClick = (event) => {
     event.preventDefault();
     this.props.onNewComment(this);
   }
 
   render() {
     return (
-      <a href="#nofollow" onClick={this.handleClick}>Comment</a>
+      <a href="#nolink" onClick={this.handleClick}>Comment</a>
     );
   }
 }
 
 class EntryCommandEdit extends React.Component{
 
-  handleClick(event) {
+  handleClick = (event) => {
     event.preventDefault();
     console.log("entry command edit")
   }
 
   render() {
     return (
-      <a href="#nofollow" className="editcommand" onClick={this.handleClick}>Edit</a>
+      <a href="#nolink" className="editcommand" onClick={this.handleClick}>Edit</a>
     );
   }
 }
 
 class EntryCommandDelete extends React.Component{
 
-  handleClick(event) {
+  handleClick = (event) => {
     event.preventDefault();
     console.log("entry command delete")
     this.props.onDelete(this);
@@ -512,34 +524,35 @@ class EntryCommandDelete extends React.Component{
 
   render() {
     return (
-      <a href="#nofollow" className="deletecommand" onClick={this.handleClick}>Delete</a>
+      <a href="#nolink" className="deletecommand" onClick={this.handleClick}>Delete</a>
     );
   }
 }
 
 class EntryCommentForm extends React.Component{
 
-  getInitialState() {
-    return {value: this.props.commentBody};
+  constructor(props) {
+    super(props);
+    this.state = props;
   }
 
-  handleChange(event) {
+  handleChange = (event) => {
     this.setState({value: event.target.value});
   }
 
-  onSubmitComment(event) {
+  onSubmitComment = (event) =>  {
     event.preventDefault();
     if (!this.state.value) {
       return;
     }
-    this.props.onSubmitComment(this.props.commentId, this.state.value);
+    this.props.onSubmitComment(this.props.commentId, this.state.value, event);
     this.setState({value: ''});
   }
 
-  onCancelComment(event) {
+  onCancelComment = (event) => {
     event.preventDefault();
     var comment = this.state.value;
-    this.props.onCancelComment(this.props.commentId, comment);
+    this.props.onCancelComment(this.props.commentId, comment, event);
   }
 
   render() {
@@ -564,7 +577,7 @@ class EntryLike extends React.Component{
     return {expanded: false};
   }
 
-  expandLikes(event) {
+  expandLikes= (event) => {
     if (this.state.expanded) {
       return;
     }
@@ -578,7 +591,7 @@ class EntryLike extends React.Component{
     var like = this.props.like;
     if (like.placeholder) {
       return (
-        <a href="#nofollow" onClick={this.expandLikes}>{like.body}</a>
+        <a href="#nolink" onClick={this.expandLikes}>{like.body}</a>
       );
     } else {
       return (
@@ -623,26 +636,27 @@ function EntryLikes(props) {
 
 class EntryComment extends React.Component{
 
-  getInitialState() {
-    return {comment: this.props.comment};
+  constructor(props) {
+    super(props);
+    this.state = props;
   }
 
   UNSAFE_componentWillReceiveProps(nextProps){
     this.setState({comment: nextProps.comment});
   }
 
-  expandComments(event) {
+  expandComments = (event) => {
     event.preventDefault();
     this.props.expandComments();
   }
 
-  editComment(event) {
+  editComment = (event) => {
     event.preventDefault();
     this.props.editComment(this.state.comment);
-    // this.setState({comment: comment});
+    // this.setState({comment: this.state.comment});
   }
 
-  deleteComment(event) {
+  deleteComment = (event) => {
     event.preventDefault();
     var comment = this.props.deleteComment(this.state.comment);
     this.setState({comment: comment});
@@ -664,9 +678,9 @@ class EntryComment extends React.Component{
       cmds = (
         <span className="commands">
           {" ( "}
-          <a href="#nofollow" onClick={this.editComment}>Edit</a>
+          <a href="#nolink" onClick={this.editComment}>Edit</a>
           {" | "}
-          <a href="#nofollow" onClick={this.deleteComment}>Delete</a>
+          <a href="#nolink" onClick={this.deleteComment}>Delete</a>
           {" )"}
         </span>
       );
@@ -675,11 +689,11 @@ class EntryComment extends React.Component{
     if (comment.placeholder) {
       return (
         <div className="comment placeholder">
-          <a href="#nofollow" onClick={this.expandComments}>{comment.body}</a>
+          <a href="#nolink" onClick={this.expandComments}>{comment.body}</a>
         </div>
       );
     } else {
-      var body = `${comment.body} - <a href="/feed/${comment.from.id}">${comment.from.name}</a>"`;
+      var body = `${comment.body} - <a href="/feed/${comment.from.id}">${comment.from.name}</a>`;
       return (
         <div onFocus={this.showCommands}
              className="comment" title={comment.date}>
@@ -713,36 +727,25 @@ export class Feed extends React.Component{
 
   refreshInterval = 30 * 1000
 
-  loadFeeds() {
+  loadFeeds = () => {
     getJSON(this.props.url)
-      .then(function(data) {
+      .then(data => { // allow function
         this.setState(data);
       })
       .catch(error => console.error(error))
-      .bind(this)
   }
 
-  // Set the initial component state
-  getInitialState(props){
-    return props || this.props;
+  constructor(props) {
+    super(props);
+    this.state = props;
   }
 
-  UNSAFE_componentWillReceiveProps(nextProps){
-    dprint("componentWillReceiveProps");
-    this.setState(this.getInitialState(nextProps));
-  }
+  // UNSAFE_componentWillReceiveProps(nextProps){
+  //   dprint("componentWillReceiveProps");
+  //   this.setState(this.getInitialState(nextProps));
+  // }
 
   componentDidMount() {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    if (window.app_props) {
-      dprint("Loading feeds...");
-      this.setState(window.app_props);
-    } else {
-      dprint("Fetching feeds...");
-      this.loadFeeds();
-    }
     setInterval(this.loadFeeds, this.refreshInterval);
   }
 
@@ -769,7 +772,7 @@ export class Feed extends React.Component{
   }
 }
 
-function App() {
+export function App() {
   return (
     <div className="App">
       <header className="App-header">
@@ -789,5 +792,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

@@ -3,7 +3,7 @@ tmp_dir = "/tmp"
 
 [build]
   bin = "./httpd"
-  cmd = "gulp; go build"
+  cmd = "cd appr && yarn build && cd ..; go build"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "node_modules", "appr"]
   exclude_file = []
@@ -12,7 +12,7 @@ tmp_dir = "/tmp"
   follow_symlink = false
   full_bin = "./httpd -p=8080 -s='randombitsreplacedlkjsa' -c='/srv/ffdb/config.json' -d"
   include_dir = []
-  include_ext = ["go", "tpl", "tmpl", "html", 'jsx']
+  include_ext = ["go", "tpl", "tmpl", "html", 'jsx', 'js']
   kill_delay = "0s"
   log = "build-errors.log"
   send_interrupt = false

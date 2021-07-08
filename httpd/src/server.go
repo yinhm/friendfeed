@@ -6,7 +6,6 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -22,7 +21,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/ff"
-	"github.com/yinhm/friendfeed/httpd/src/react"
 	pb "github.com/yinhm/friendfeed/proto"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
@@ -38,8 +36,6 @@ type Server struct {
 	secretKey  string
 	httpclient *http.Client
 	cache      *cache.InMemoryStore
-	jsx        *react.JSX
-	rc         *react.React
 }
 
 func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug bool) *Server {
@@ -54,30 +50,6 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 
 	cacheStore := cache.NewInMemoryStore(time.Second)
 
-	rc, _ := react.NewReact()
-	jsx, _ := react.NewJSX()
-
-	// TODO: caching if we have more components
-	if debug {
-		component, err := jsx.TransformFile("./templates/_feed.jsx")
-		if err != nil {
-			panic(err)
-		}
-		err = rc.Load([]byte(component))
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		component, err := assets.ReadFile("static/js/bundle.min.js")
-		if err != nil {
-			panic(err)
-		}
-		err = rc.Load(component)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	return &Server{
 		debug:      debug,
 		client:     c,
@@ -85,8 +57,6 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 		secretKey:  secretKey,
 		httpclient: httpclient,
 		cache:      cacheStore,
-		jsx:        jsx,
-		rc:         rc,
 	}
 }
 
@@ -108,16 +78,11 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 }
 
 func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
-	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" {
+	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
+		c.Request.Header.Get("Content-Type") == "application/json" {
 		c.JSON(200, data)
 	} else {
-		feed_body, err := s.rc.RenderComponent("Feed", data)
-		if err != nil {
-			log.Println(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-		data["feed_body"] = feed_body
+		data["feed_body"] = ""
 		encoded, _ := json.Marshal(data)
 		data["app_props"] = string(encoded)
 		s.HTML(c, 200, "_feed.html", data)
