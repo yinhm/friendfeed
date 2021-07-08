@@ -25,7 +25,7 @@ func (s *TableTestSuite) SetupSuite() {
 	dbpath := os.TempDir() + "/testmcsdb"
 	s.db = store.NewStore(dbpath)
 
-	InitTables(s.db)
+	// InitTables(s.db)
 }
 
 func (s *TableTestSuite) TearDownSuite() {
@@ -48,11 +48,11 @@ func (s *TableTestSuite) TestTableFarm() {
 		Name: "000001",
 	}
 
-	err := Stock.Put(farmHash, p)
+	err := Stock.Put(s.db, farmHash, p)
 	assert.Nil(s.T(), err)
 
 	farm := new(pb.Feed)
-	err = Stock.Get(farmHash, farm)
+	err = Stock.Get(s.db, farmHash, farm)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "000001", farm.Name)
 }

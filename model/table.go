@@ -10,7 +10,6 @@ import (
 )
 
 type Table struct {
-	db      *store.Store
 	prefix  store.Key
 	preSize int
 
@@ -22,10 +21,6 @@ func NewTable(prefix store.Key) *Table {
 		prefix:  prefix,
 		preSize: prefix.Len(),
 	}
-}
-
-func (t *Table) InitStore(store *store.Store) {
-	t.db = store
 }
 
 // UUID Key.
@@ -64,30 +59,30 @@ func (t *Table) toStringKey(key store.Key) string {
 	return t.removePrefixKey(key).String()
 }
 
-func (t *Table) Get(key string, msg proto.Message) error {
+func (t *Table) Get(db *store.Store, key string, msg proto.Message) error {
 	k := t.prefixKey(store.KeyFromString(key))
-	raw, err := t.db.Get(k)
+	raw, err := db.Get(k)
 	if err != nil {
 		return err
 	}
 	return proto.Unmarshal(raw, msg)
 }
 
-func (t *Table) Put(key string, msg proto.Message) error {
+func (t *Table) Put(db *store.Store, key string, msg proto.Message) error {
 	k := t.prefixKey(store.KeyFromString(key))
 	bytes, err := proto.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	return t.db.Set(k, bytes)
+	return db.Set(k, bytes)
 }
 
-func (t *Table) Delete(key string) error {
+func (t *Table) Delete(db *store.Store, key string) error {
 	k := t.prefixKey(store.KeyFromString(key))
-	return t.db.Delete(k)
+	return db.Delete(k)
 }
 
-func (t *Table) Keys(ks ...string) (keys []string, err error) {
+func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	var buf bytes.Buffer
 	buf.Write(t.prefix)
 	if len(ks) > 0 {
@@ -98,7 +93,7 @@ func (t *Table) Keys(ks ...string) (keys []string, err error) {
 	buf.Write(SeekZero())
 	start := buf.Bytes()
 
-	iter := t.db.NewIterator(start)
+	iter := db.NewIterator(start)
 	for iter.First(); iter.Valid(); iter.Next() {
 		keys = append(keys, t.toStringKey(iter.Key()))
 	}
@@ -106,8 +101,8 @@ func (t *Table) Keys(ks ...string) (keys []string, err error) {
 	return keys, err
 }
 
-func (t *Table) Iter(fn func(raw []byte) error) error {
-	iter := t.db.NewIterator(t.prefix)
+func (t *Table) Iter(db *store.Store, fn func(raw []byte) error) error {
+	iter := db.NewIterator(t.prefix)
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()
@@ -119,13 +114,13 @@ func (t *Table) Iter(fn func(raw []byte) error) error {
 }
 
 // find agents etc in farm
-func (t *Table) Find(fHash string, fn func(raw []byte) error) error {
+func (t *Table) Find(db *store.Store, fHash string, fn func(raw []byte) error) error {
 	var buf bytes.Buffer
 	buf.Write(t.prefix)
 	buf.Write(store.KeyFromString(fHash)[:])
 	kp := buf.Bytes()
 
-	iter := t.db.NewIterator(kp)
+	iter := db.NewIterator(kp)
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()
