@@ -2,17 +2,17 @@ root = "."
 tmp_dir = "/tmp"
 
 [build]
-  bin = "./httpd"
-  cmd = "go build"
+  bin = ""
+  cmd = "yarn build"
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "node_modules", "appr"]
+  exclude_dir = ["build", "tmp", "node_modules"]
   exclude_file = []
   exclude_regex = []
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = "./httpd -p=8080 -s='randombitsreplacedlkjsa' -c='/srv/ffdb/config.json' -d"
+  full_bin = "yarn start"
   include_dir = []
-  include_ext = ["go", "tpl", "tmpl", "html", 'jsx', 'js']
+  include_ext = ["tpl", "tmpl", "html", 'jsx', 'js']
   kill_delay = "0s"
   log = "build-errors.log"
   send_interrupt = false

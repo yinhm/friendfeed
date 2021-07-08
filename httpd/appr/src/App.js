@@ -530,6 +530,7 @@ class EntryCommentForm extends React.Component{
   constructor(props) {
     super(props);
     this.state = props;
+    this.state.value = props.commentBody;
   }
 
   handleChange = (event) => {
