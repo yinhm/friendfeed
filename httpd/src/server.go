@@ -334,7 +334,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		"next_start":  req.Start + req.PageSize,
 		"show_paging": true,
 	}
-	s.HTML(c, 200, "feed.html", data)
+	s.renderFeed(c, data)
 }
 
 func (s *Server) FeedHandler(c *gin.Context) {
@@ -376,7 +376,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		"next_start":  req.Start + req.PageSize,
 		"show_paging": true,
 	}
-	s.HTML(c, 200, "feed.html", data)
+	s.renderFeed(c, data)
 }
 
 func contains(slice []string, item string) bool {
