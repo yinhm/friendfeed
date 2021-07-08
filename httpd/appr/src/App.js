@@ -65,8 +65,6 @@ function intersperse(arr, sep) {
 class Entry extends React.Component {
 
   constructor(props) {
-    dprint("init entry");
-    dprint(props);
     super(props);
     this.state = {
       entry: this.props.entry,
@@ -83,8 +81,6 @@ class Entry extends React.Component {
   // componentDidUpdate(prevProps, prevState, snapshot) {
     dprint("UNSAFE_componentWillReceiveProps...")
     dprint(nextProps);
-
-    var nextProps = this.props;
     var newdata = {
       entry: nextProps.entry,
     }
