@@ -1,66 +1,8 @@
-import logo from './logo.svg';
 import './App.css';
 import React from 'react';
+import InlineToolbarEditor from './editor';
+import {dprint, getJSON, postJSON, intersperse} from './utils';
 
-
-function dprint(msg) {
-  if (typeof window !== 'undefined' && window.console && window.console.log) {
-    window.console.log(msg);
-  }
-}
-
-function getJSON(url) {
-  return fetch(url, {
-    cache: 'no-cache',
-    credentials: 'same-origin', // include, same-origin, *omit
-    headers: {
-      'user-agent': 'Mozilla/4.0 MDN',
-      'content-type': 'application/json'
-    },
-    method: 'GET',
-    mode: 'cors', // no-cors, cors, *same-origin
-    redirect: 'follow',
-    referrer: 'no-referrer',
-  })
-  .then(response => response.json()) // parses response to JSON
-}
-
-function postJSON(url, data) {
-  const params = new URLSearchParams();
-  for ( var key in data ) {
-    params.append(key, data[key]);
-  }
-  return fetch(url, {
-    body: params,
-    cache: 'no-cache',
-    credentials: 'same-origin', // include, same-origin, *omit
-    headers: {
-      'user-agent': 'Mozilla/4.0 MDN',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    method: 'POST', // *GET, POST, PUT, DELETE, etc.
-    mode: 'cors', // no-cors, cors, *same-origin
-    redirect: 'follow', // manual, *follow, error
-    referrer: 'no-referrer', // *client, no-referrer
-  })
-  .then(response => response.json()) // parses response to JSON
-}
-
-/* intersperse: Return an array with the separator interspersed between
- * each element of the input array.
- *
- * > _([1,2,3]).intersperse(0)
- * [1,0,2,0,3]
- */
-function intersperse(arr, sep) {
-    if (arr.length === 0) {
-        return [];
-    }
-
-    return arr.slice(1).reduce(function(xs, x, i) {
-        return xs.concat([sep, x]);
-    }, [arr[0]]);
-}
 
 class Entry extends React.Component {
 
@@ -761,6 +703,7 @@ export class Feed extends React.Component{
 
     return (
       <div className="feed">
+        <InlineToolbarEditor />
         {entryNodes}
         <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
                    next={this.state.next_start} />
@@ -769,23 +712,31 @@ export class Feed extends React.Component{
   }
 }
 
-export function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          编辑 <code>src/App.js</code> 重新载入.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+export class App extends React.Component {
+
+  constructor(props) {
+    super(props);
+    this.state = {url: "/", feedData:{}};
+  }
+
+  // NOT WORK??
+  // componentDidMount() {
+  //   console.log("app, componentDidMount")
+  //   this.setState({
+  //     url: window.location.pathname + window.location.search,
+  //     feedData: window.app_props.feed
+  //   });
+  //   console.log(this.state.url);
+  //   console.log(this.state.feedData);
+  // }
+
+  render() {
+    var url = window.location.pathname + window.location.search;
+    var feedData = window.app_props.feed;
+    return (
+      <div className="App">
+        <Feed url={url} feed={feedData} />
+      </div>
+    );
+  }
 }

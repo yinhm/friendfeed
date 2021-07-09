@@ -28,7 +28,13 @@
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <div id="root">
+    <div className="App">
+      <header className="App-header">
+        <div id="feed"></div>
+      </header>
+    </div>
+    </div>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
@@ -40,7 +46,6 @@
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
 
-{% block scripts %}
 <script>
 window.app_props = {"feed":{"uuid":"Public","id":"Public","name":"Everyone's feed","sup_id":"0000-00","type":"group","entries":[{"id":"1992954a-5b10-59cf-a358-43cd67d51688","date":"16 hours ago","body":"ttt43","rawBody":"ttt43","from":{"id":"yinhm","name":"heming","picture":"http://pbs.twimg.com/profile_images/858726912989945856/sd97d3u7_normal.jpg","type":"user"},"commands":["comment","edit","delete"],"profile_uuid":"4e580875-46c3-58fe-a436-bcc17d7e2509"},{"id":"fb364a1b-8923-5b49-80b0-ab147c6b1dd8","date":"16 hours ago","body":"ttt2","rawBody":"ttt2","from":{"id":"yinhm","name":"heming","picture":"http://pbs.twimg.com/profile_images/858726912989945856/sd97d3u7_normal.jpg","type":"user"},"commands":["comment","edit","delete"],"profile_uuid":"4e580875-46c3-58fe-a436-bcc17d7e2509"}]},"feed_body":"","name":"Public","next_start":30,"prev_start":0,"show_paging":true,"show_share":true,"title":"Public"};
 </script>
