@@ -184,7 +184,6 @@ a:hover {
 }
 
 .header,
-.sharebox,
 .share,
 .feed {
     margin-right: 210px;
@@ -236,23 +235,8 @@ a:hover {
 }
 
 /* sharebox */
-.submit{
-    font-size:15px;
-    font-weight:bold;
-    display: inline-block;
-}
-
-.sharebox div.to li.addedit a{
-  display:none;
-  margin-left:4px;
-}
-
-.sharebox div.to:hover li.addedit a{
-  display:inline;
-}
-
-.sharebox div.to:hover ul.active li.addedit a{
-  display:none;
+.sharebox {
+    display: flow-root;
 }
 
 .sharebox form lable.title{
@@ -285,54 +269,11 @@ a:hover {
     }
 }
 
-.sharebox form .submit{
-    margin-right:0;
-    margin-left:15px;
-}
-
 .sharebox .max_chars{
     font-size:16px;
     font-weight:bold;
 }
 
-.sharebox .l_tolist{
-    border:1px solid #BDBDBB;
-    padding-bottom:2px;
-    margin-left:40px;
-    height:auto!important;
-    height:1%;
-    overflow:hidden;
-    margin-bottom:4px;
-    background-color:#FFF;
-}
-
-.sharebox .l_toinput{
-    padding:3px 0 2px;
-    border:none;
-}
-.sharebox .l_tolist li{
-    float:left;
-    line-height:22px;
-}
-
-ul.l_tolist li.l_tocard{
-    border:1px solid #ccc;
-    background:#eee;
-    padding:0 4px 0px;
-    white-space:nowrap;
-    margin:2px 2px;
-    -border-radius:6px;
-    -moz-border-radius:6px;
-    -webkit-border-radius:6px;
-    border-radius:6px;
-}
-.sharebox .l_tolist_input{
-    margin:2px 2px;
-}
-.sharebox .l_toinput{
-    padding:3px 0 2px;
-    border-width:0px;
-}
 .sharebox .insert,
 .sharebox .post{
     float:left;
@@ -344,6 +285,12 @@ ul.l_tolist li.l_tocard{
     overflow:hidden;
     position:relative;
 }
+.sharebox .submit{
+    font-size:15px;
+    font-weight:bold;
+    margin-right:0;
+    margin-left:15px;
+}
 
 
 /* @draft-js-plugin/editor */
@@ -353,7 +300,7 @@ ul.l_tolist li.l_tocard{
   cursor: text;
   padding: 16px;
   border-radius: 2px;
-  margin-bottom: 2em;
+  margin-bottom: 1em;
   background: #fefefe;
   overflow:auto;
 }
