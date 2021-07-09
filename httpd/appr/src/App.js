@@ -690,11 +690,8 @@ export class Feed extends React.Component{
 
   onPostEntry = (formData) => {
     // on post
-    postForm("/a/share", formData)
+    return postForm("/a/share", formData)
       .then(data => {
-        console.log(data);
-        console.log("entry posted...");
-
         var new_state = Object.assign({}, this.state);
         new_state.feed.entries.unshift(data);
         this.setState(new_state);

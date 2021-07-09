@@ -441,9 +441,10 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
 
 	from := &pb.Feed{
-		Id:   profile.Id,
-		Name: profile.Name,
-		Type: profile.Type,
+		Id:      profile.Id,
+		Name:    profile.Name,
+		Type:    profile.Type,
+		Picture: profile.Picture,
 	}
 
 	entry := &pb.Entry{

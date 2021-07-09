@@ -103,6 +103,10 @@ export default class InlineToolbarEditor extends Component {
     this.setState({
       editorState,
     });
+    // var plainText = this.state.editorState.getPlainText("");
+    // if (plainText == "" || plainText.length < 10) {
+    //   // disable submit?
+    // }
   };
 
   focus = () => {
@@ -113,10 +117,20 @@ export default class InlineToolbarEditor extends Component {
     var content = this.state.editorState.getCurrentContent();
     const htmlBody = convertToHTML(content);
 
+    var plainText = content.getPlainText("");
+    if (plainText === "" || plainText.length < 8) {
+      return;
+    }
+
     var formData = new FormData();
     formData.set("feedid", this.props.feedId || "");
     formData.set("body", htmlBody);
-    this.props.postEntry(formData);
+    this.props.postEntry(formData)
+      .then(() => {
+        this.setState({
+          editorState: createEditorStateWithText(text),
+        });
+      }).catch(error => console.error(error));
   }
 
   render() {
