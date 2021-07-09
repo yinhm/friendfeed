@@ -414,12 +414,17 @@ func (s *Server) EntryHandler(c *gin.Context) {
 // TODO: allow cross post to multiply feeds
 func (s *Server) EntryPostHandler(c *gin.Context) {
 	var form struct {
-		FeedId string `form:"feedid" binding:"required"`
+		FeedId string `form:"feedid"`
 		Body   string `form:"body" binding:"required"`
 	}
-	c.MustBindWith(&form, binding.FormMultipart)
+	if err := c.MustBindWith(&form, binding.FormMultipart); err != nil {
+		return
+	}
 
-	if !s.feedWritable(c, form.FeedId) {
+	if form.FeedId == "" {
+		user, _ := s.CurrentUser(c)
+		form.FeedId = user.Id
+	} else if !s.feedWritable(c, form.FeedId) {
 		c.AbortWithStatus(401)
 		return
 	}
@@ -456,8 +461,22 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	if RequestError(c, err) {
 		return
 	}
-	// c.JSON(200, gin.H{"entry": entry})
-	c.Redirect(http.StatusFound, "/")
+
+	// rebuild entry graph...
+	graph, err := s.CurrentGraph(c)
+	if err != nil {
+		return
+	}
+	entry.RebuildCommand(profile, graph)
+	basetime, _ := time.Parse(time.RFC3339, entry.Date)
+	entry.Date = util.FormatTime(basetime)
+	// if format {
+	// 	e.FormatComments(int32(0))
+	// 	e.FormatLikes(int32(0))
+	// }
+	entry.RebuildCommentsCommand(profile, graph)
+	c.JSON(200, entry)
+	// c.Redirect(http.StatusFound, "/")
 }
 
 func (s *Server) EntryDeleteHandler(c *gin.Context) {

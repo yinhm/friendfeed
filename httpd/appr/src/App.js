@@ -1,7 +1,7 @@
 import './App.css';
 import React from 'react';
 import InlineToolbarEditor from './editor';
-import {dprint, getJSON, postJSON, intersperse} from './utils';
+import {dprint, getJSON, postJSON, postForm, intersperse} from './utils';
 
 
 class Entry extends React.Component {
@@ -160,7 +160,7 @@ class Entry extends React.Component {
     }
     var data = {entry: this.state.entry.id, comment: comment.id}
     postJSON("/a/comment/delete", data)
-      .then(function(data) {
+      .then(data => {
         comment.body = "comment deleted";
       });
     return null;
@@ -688,6 +688,19 @@ export class Feed extends React.Component{
     setInterval(this.loadFeeds, this.refreshInterval);
   }
 
+  onPostEntry = (formData) => {
+    // on post
+    postForm("/a/share", formData)
+      .then(data => {
+        console.log(data);
+        console.log("entry posted...");
+
+        var new_state = Object.assign({}, this.state);
+        new_state.feed.entries.unshift(data);
+        this.setState(new_state);
+      }).catch(error => console.error(error));
+  }
+
   render() {
     if (!this.state.feed || !this.state.feed.entries) {
       return null;
@@ -703,7 +716,7 @@ export class Feed extends React.Component{
 
     return (
       <div className="feed">
-        <InlineToolbarEditor />
+        <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
         {entryNodes}
         <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
                    next={this.state.next_start} />

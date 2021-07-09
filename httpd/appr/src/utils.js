@@ -40,6 +40,27 @@ export function postJSON(url, data) {
     }).then(response => response.json()) // parses response to JSON
 }
 
+// Warning: When using FormData to submit POST requests using XMLHttpRequest or 
+// the Fetch_API with the multipart/form-data Content-Type (e.g. when uploading 
+// Files and Blobs to the server), do not explicitly set the Content-Type header 
+// on the request. Doing so will prevent the browser from being able to set the 
+// Content-Type header with the boundary expression it will use to delimit form 
+// fields in the request body.
+export function postForm(url, formData) {
+    return fetch(url, {
+        body: formData,
+        cache: 'no-cache',
+        credentials: 'same-origin', // include, same-origin, *omit
+        headers: {
+            'user-agent': 'Mozilla/4.0 MDN',
+        },
+        method: 'POST', // *GET, POST, PUT, DELETE, etc.
+        mode: 'cors', // no-cors, cors, *same-origin
+        redirect: 'follow', // manual, *follow, error
+        referrer: 'no-referrer', // *client, no-referrer
+    }).then(response => response.json()) // parses response to JSON
+}
+
 /* intersperse: Return an array with the separator interspersed between
  * each element of the input array.
  *

@@ -17,6 +17,7 @@ import {
   CodeBlockButton,
 } from '@draft-js-plugins/buttons';
 import '@draft-js-plugins/inline-toolbar/lib/plugin.css';
+import { convertToHTML } from 'draft-convert';
 
 
 class HeadlinesPicker extends Component {
@@ -74,16 +75,21 @@ class HeadlinesButton extends Component {
   }
 }
 
+
 const inlineToolbarPlugin = createInlineToolbarPlugin();
 const { InlineToolbar } = inlineToolbarPlugin;
 const plugins = [inlineToolbarPlugin];
-const text =
-  'In this editor a toolbar shows up once you select part of the text …';
+const text = ""
+
 
 export default class InlineToolbarEditor extends Component {
   state = {
     editorState: createEditorStateWithText(text),
   };
+
+  constructor(props) {
+    super(props);
+  }
 
   componentDidMount() {
     // fixing issue with SSR https://github.com/facebook/draft-js/issues/2332#issuecomment-761573306
@@ -104,7 +110,13 @@ export default class InlineToolbarEditor extends Component {
   };
 
   postEntry = () => {
-    console.log(this.state.editorState);
+    var content = this.state.editorState.getCurrentContent();
+    const htmlBody = convertToHTML(content);
+
+    var formData = new FormData();
+    formData.set("feedid", this.props.feedId || "");
+    formData.set("body", htmlBody);
+    this.props.postEntry(formData);
   }
 
   render() {
