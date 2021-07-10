@@ -13,6 +13,7 @@ export class Entry extends React.Component {
       new_comment_form: false,
       expanded_likes: false,
       expanded_comments: false,
+      is_deleted: false,
       comment_preserve: null
     };
   }
@@ -56,9 +57,10 @@ export class Entry extends React.Component {
   handleDelete = () => {
     var entry = this.state.entry;
     postJSON("/a/delete", {entry: entry.id})
-      .then(function(data) {
-        console.log(data);
-        console.log("entry deleted... how to do?");
+      .then(data => {
+        var new_state = Object.assign({}, this.state);
+        new_state.is_deleted = true;
+        this.setState(new_state);
       });
   }
 
@@ -191,6 +193,16 @@ export class Entry extends React.Component {
 
   render() {
     var entry = this.state.entry;
+
+    if (this.state.is_deleted) {
+        return (
+        <div className="entry" data-eid={entry.id}>
+          <div className="body">
+              entry deleted.
+          </div>
+        </div>
+        )
+    }
 
     var medias = "";
     if (entry.thumbnails) {
