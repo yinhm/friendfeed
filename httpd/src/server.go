@@ -314,13 +314,13 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		PageSize: 30,
 	}
 
-	profile, feed, err := s.FetchFeed(c, req)
+	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		glog.Errorf("fetch feed error: %s", err)
 		return
 	}
 
-	showShare := profile.Uuid != ""
+	showShare := s.feedWritable(c, "Home")
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0
@@ -406,9 +406,13 @@ func (s *Server) EntryHandler(c *gin.Context) {
 		"title":       title,
 		"name":        entry.From.Name,
 		"feed":        feed,
+		"show_header": false,
+		"show_share":  false,
+		"show_direct": false,
 		"show_paging": false,
 	}
-	s.HTML(c, 200, "feed.html", data)
+	s.renderFeed(c, data)
+	// s.HTML(c, 200, "feed.html", data)
 }
 
 // TODO: allow cross post to multiply feeds
@@ -685,12 +689,12 @@ func (s *Server) PublicHandler(c *gin.Context) {
 		PageSize: 30,
 	}
 
-	profile, feed, err := s.FetchFeed(c, req)
+	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}
 
-	showShare := profile.Uuid != ""
+	showShare := s.feedWritable(c, "public")
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0

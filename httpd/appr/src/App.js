@@ -71,12 +71,26 @@ export class Feed extends React.Component{
       );
     });
 
-    return (
-      <div className="feed">
+    var editorNodes = "";
+    if (this.state.show_share) {
+      editorNodes = (
         <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
-        {entryNodes}
+      )
+    }
+
+    var feedPaginNodes = ""
+    if (this.state.show_paging) {
+      feedPaginNodes = (
         <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
                    next={this.state.next_start} />
+      )
+    }
+
+    return (
+      <div className="feed">
+        {editorNodes}
+        {entryNodes}
+        {feedPaginNodes}
       </div>
     );
   }
@@ -102,10 +116,14 @@ export class App extends React.Component {
 
   render() {
     var url = window.location.pathname + window.location.search;
+    var appData = window.app_props;
     var feedData = window.app_props.feed;
     return (
       <div className="App">
-        <Feed url={url} feed={feedData} />
+        <Feed url={url} feed={feedData}
+                        show_header={appData.show_header}
+                        show_paging={appData.show_paging}
+                        show_share={appData.show_share} />
       </div>
     );
   }

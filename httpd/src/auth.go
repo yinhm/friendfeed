@@ -179,6 +179,9 @@ func (s *Server) feedWritable(c *gin.Context, feedId string) bool {
 	if err != nil {
 		return false
 	}
+	if feedId == "Home" || feedId == "public" {
+		return true
+	}
 	if user.Id == feedId {
 		return true
 	}

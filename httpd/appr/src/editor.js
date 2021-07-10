@@ -87,9 +87,9 @@ export default class InlineToolbarEditor extends Component {
     editorState: createEditorStateWithText(text),
   };
 
-  constructor(props) {
-    super(props);
-  }
+  // constructor(props) {
+  //   super(props);
+  // }
 
   componentDidMount() {
     // fixing issue with SSR https://github.com/facebook/draft-js/issues/2332#issuecomment-761573306
