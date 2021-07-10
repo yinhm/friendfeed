@@ -3,11 +3,11 @@ body {
     color: black;
     margin: 0;
     font-family: Arial, sans-serif;
-    font-size: 15px;
+    font-size: 16px;
 }
 
 .page {
-    max-width: 925px;
+    max-width: 960px;
     padding: 25px;
     margin: auto;
     position: relative;
@@ -93,7 +93,7 @@ a:hover {
 }
 
 .entry .body {
-    margin-left: 60px;
+    margin-left: 69px;
 }
 
 @media (max-width: 600px) {
@@ -186,7 +186,7 @@ a:hover {
 .header,
 .share,
 .feed {
-    margin-right: 210px;
+    margin-right: 220px;
 }
 
 @media (max-width: 600px) {
