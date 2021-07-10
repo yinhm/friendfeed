@@ -65,24 +65,18 @@ export class Feed extends React.Component{
     }
 
     var feed = this.state.feed;
-    var entryNodes = feed.entries.map(function(entry, index){
+    var entryNodes = feed.entries.map((entry, index) => {
       return (
-        <Entry entry={entry} key={entry.id}>
+        <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_editing}>
         </Entry>
       );
     });
 
     var editorNodes = "";
     if (this.state.show_share === true) {
-      if (this.state.onpage_editing === true) {
-        editorNodes = (
-          <OnPageEditor feedId={feed.Id} postEntry={this.onPostEntry} />
-        )
-      } else {
-        editorNodes = (
-          <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
-        )
-      }
+      editorNodes = (
+        <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
+      )
     }
 
     var feedPaginNodes = ""

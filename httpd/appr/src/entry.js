@@ -10,6 +10,7 @@ export class Entry extends React.Component {
       entry: this.props.entry,
       comments: this.props.entry.comments,
       likes: this.props.entry.likes,
+      onpage_edit: this.props.onpage_edit,
       new_comment_form: false,
       expanded_likes: false,
       expanded_comments: false,
