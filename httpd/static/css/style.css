@@ -121,6 +121,7 @@ a:hover {
 .entry .title,
 .entry .info {
     margin-top: 2px;
+    line-height: 135%;
 }
 
 .entry .info,
@@ -290,6 +291,30 @@ a:hover {
     font-weight:bold;
     margin-right:0;
     margin-left:15px;
+}
+
+div.entry code {
+    font-family: monospace, sans-serif;
+    background-color: #eeffcc;
+    color: #333333;
+    line-height: 130%;
+    padding: 3px;
+    margin: 0 3px;
+}
+
+div.entry pre {
+    font-family: monospace, sans-serif;
+    font-size: 14px;
+    line-height: 130%;
+    padding: 5px;
+    background-color: #eeffcc;
+    color: #333333;
+    margin: 0;
+    border-radius: 2px;
+    border: 1px solid #ac9;
+    overflow: auto;
+    overflow-y: hidden;
+    display: block;
 }
 
 
