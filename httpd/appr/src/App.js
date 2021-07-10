@@ -1,7 +1,8 @@
 import React from 'react';
 import { Entry } from './entry';
-import InlineToolbarEditor from './editor';
 import { getJSON, postForm } from './utils';
+import InlineToolbarEditor from './editor';
+import OnPageEditor from './medium';
 
 
 function FeedPagin(props) {
@@ -73,9 +74,15 @@ export class Feed extends React.Component{
 
     var editorNodes = "";
     if (this.state.show_share === true) {
-      editorNodes = (
-        <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
-      )
+      if (this.state.onpage_editing === true) {
+        editorNodes = (
+          <OnPageEditor feedId={feed.Id} postEntry={this.onPostEntry} />
+        )
+      } else {
+        editorNodes = (
+          <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
+        )
+      }
     }
 
     var feedPaginNodes = ""

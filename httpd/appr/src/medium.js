@@ -1,5 +1,5 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
+// import ReactDOM from 'react-dom';
 
 import {
     Editor,
@@ -7,7 +7,7 @@ import {
 } from 'medium-draft';
 
 
-export class MediumEditor extends React.Component {
+export default class OnPageEditor extends React.Component {
     constructor(props) {
         super(props);
         this.state = {

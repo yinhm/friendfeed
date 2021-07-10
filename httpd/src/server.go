@@ -403,13 +403,14 @@ func (s *Server) EntryHandler(c *gin.Context) {
 		title = rawBody.Slice(0, 42)
 	}
 	data := pongo2.Context{
-		"title":       title,
-		"name":        entry.From.Name,
-		"feed":        feed,
-		"show_header": false,
-		"show_share":  false,
-		"show_direct": false,
-		"show_paging": false,
+		"title":          title,
+		"name":           entry.From.Name,
+		"feed":           feed,
+		"show_header":    false,
+		"show_share":     false,
+		"show_direct":    false,
+		"show_paging":    false,
+		"onpage_editing": true,
 	}
 	s.renderFeed(c, data)
 	// s.HTML(c, 200, "feed.html", data)
