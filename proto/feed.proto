@@ -288,7 +288,9 @@ message Entry {
   string id = 1;
   string url = 2;
   string date = 3;
+  string title = 17;
   string body = 4;
+  // FIXME: use bytes
   string rawBody = 5;
   string rawLink = 6;
   Feed from = 7;
