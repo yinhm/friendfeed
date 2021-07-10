@@ -72,14 +72,14 @@ export class Feed extends React.Component{
     });
 
     var editorNodes = "";
-    if (this.state.show_share) {
+    if (this.state.show_share === true) {
       editorNodes = (
         <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
       )
     }
 
     var feedPaginNodes = ""
-    if (this.state.show_paging) {
+    if (this.state.show_paging === true) {
       feedPaginNodes = (
         <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
                    next={this.state.next_start} />
