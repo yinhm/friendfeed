@@ -56,7 +56,6 @@ class Entry extends React.Component {
   // },
 
   handleDelete = () => {
-    console.log("handle delete");
     var entry = this.state.entry;
     postJSON("/a/delete", {entry: entry.id})
       .then(function(data) {
@@ -456,7 +455,6 @@ class EntryCommandDelete extends React.Component{
 
   handleClick = (event) => {
     event.preventDefault();
-    console.log("entry command delete")
     this.props.onDelete(this);
   }
 
