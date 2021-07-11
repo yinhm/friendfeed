@@ -50,7 +50,7 @@ export class Entry extends React.Component {
     if (!state.expanded_likes) {
       new_state.likes = nextProps.entry.likes;
     }
-    return new_state
+    return new_state;
   }
 
   // handleEdit: function(child) {
@@ -87,7 +87,7 @@ export class Entry extends React.Component {
     if (id) {
       args.id = id;
     }
-    postJSON("/a/comment", args)
+    return postJSON("/a/comment", args)
       .then(comment => { // arrow function
         if (id) {
           var cmts = comments.map(function(cmt, index) {
@@ -594,8 +594,11 @@ class EntryComment extends React.Component{
     this.state = props;
   }
 
-  UNSAFE_componentWillReceiveProps(nextProps){
-    this.setState({comment: nextProps.comment});
+  static getDerivedStateFromProps(nextProps, state) {
+    if (state.comment !== nextProps.comment) {
+      return {comment: nextProps.comment}
+    }
+    return null;
   }
 
   expandComments = (event) => {
