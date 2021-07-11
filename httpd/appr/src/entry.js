@@ -1,4 +1,6 @@
 import React from 'react';
+import { FeedContext } from './context'
+import { EntryContent } from './content'
 import {dprint, getJSON, postJSON, intersperse} from './utils';
 
 
@@ -8,9 +10,9 @@ export class Entry extends React.Component {
     super(props);
     this.state = {
       entry: this.props.entry,
+      onpage_edit: this.props.onpage_edit,
       comments: this.props.entry.comments,
       likes: this.props.entry.likes,
-      onpage_edit: this.props.onpage_edit,
       new_comment_form: false,
       expanded_likes: false,
       expanded_comments: false,
@@ -194,6 +196,8 @@ export class Entry extends React.Component {
 
   render() {
     var entry = this.state.entry;
+    var edit_mode = this.state.onpage_edit || false;
+    var bodyClass = edit_mode? 'editBody' : 'body';
 
     if (this.state.is_deleted) {
         return (
@@ -242,10 +246,18 @@ export class Entry extends React.Component {
 
     return (
       <div className="entry" data-eid={entry.id}>
-        <EntryPicture feed={entry.from} />
-        <div className="body">
-          <EntryAuthor from={entry.from} to={entry.to} />
-          <EntryTitle body={entry.body} />
+        { edit_mode !== true &&
+          <EntryPicture feed={entry.from} />
+        }
+        <div className={bodyClass}>
+          {edit_mode !== true &&
+            <EntryAuthor from={entry.from} to={entry.to} />
+          }
+          <FeedContext.Consumer>
+            { config =>
+              <EntryContent body={entry.body} config={config} />
+            }
+          </FeedContext.Consumer>
           {medias}
           <EntryInfo entry={entry}
                      onNewComment={this.handleNewComment}
@@ -343,13 +355,6 @@ function EntryMediaBox(props) {
   return (
     <div className="media">
       {medias}
-    </div>
-  );
-}
-
-function EntryTitle(props) {
-  return (
-    <div className="title" dangerouslySetInnerHTML={{__html: props.body}}>
     </div>
   );
 }

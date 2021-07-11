@@ -2,7 +2,7 @@ import React from 'react';
 import { Entry } from './entry';
 import { getJSON, postForm } from './utils';
 import InlineToolbarEditor from './editor';
-import OnPageEditor from './medium';
+import { FeedContext } from './context'
 
 
 function FeedPagin(props) {
@@ -64,10 +64,17 @@ export class Feed extends React.Component{
       return null;
     }
 
+    var config = {
+      show_header: this.state.show_header,
+      show_paging: this.state.show_paging,
+      show_share: this.state.show_share,
+      onpage_edit: this.state.onpage_edit || false,
+    }
+
     var feed = this.state.feed;
     var entryNodes = feed.entries.map((entry, index) => {
       return (
-        <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_editing}>
+        <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_edit}>
         </Entry>
       );
     });
@@ -89,9 +96,11 @@ export class Feed extends React.Component{
 
     return (
       <div className="feed">
-        {editorNodes}
-        {entryNodes}
-        {feedPaginNodes}
+        <FeedContext.Provider value={config}>
+          {editorNodes}
+          {entryNodes}
+          {feedPaginNodes}
+        </FeedContext.Provider>
       </div>
     );
   }
@@ -120,12 +129,11 @@ export class App extends React.Component {
     var appData = window.app_props;
     var feedData = window.app_props.feed;
     return (
-      <div className="App">
-        <Feed url={url} feed={feedData}
-                        show_header={appData.show_header}
-                        show_paging={appData.show_paging}
-                        show_share={appData.show_share} />
-      </div>
+      <Feed url={url} feed={feedData}
+        show_header={appData.show_header}
+        show_paging={appData.show_paging}
+        show_share={appData.show_share}
+        onpage_edit={appData.onpage_edit} />
     );
   }
 }
