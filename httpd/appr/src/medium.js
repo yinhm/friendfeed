@@ -8,6 +8,7 @@ import {
 } from 'medium-draft';
 import mediumDraftImporter from 'medium-draft/lib/importer';
 import mediumDraftExporter from 'medium-draft/lib/exporter';
+import { convertToHTML } from 'draft-convert';
 
 
 export default class OnPageEditor extends React.Component {
@@ -31,7 +32,7 @@ export default class OnPageEditor extends React.Component {
     }
 
     updateEntry = debounce(400, () => {
-        var content = mediumDraftExporter(this.state.editorState.getCurrentContent());
+        var content = convertToHTML(this.state.editorState.getCurrentContent());
         console.log(content);
     })
 

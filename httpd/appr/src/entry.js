@@ -21,36 +21,36 @@ export class Entry extends React.Component {
     };
   }
 
-  UNSAFE_componentWillReceiveProps(nextProps){
-  // componentDidUpdate(prevProps, prevState, snapshot) {
-    dprint("UNSAFE_componentWillReceiveProps...")
-    dprint(nextProps);
-    var newdata = {
+  // The new static getDerivedStateFromProps lifecycle is invoked after a component
+  // is instantiated as well as before it is re-rendered. It can return an object to
+  // update state, or null to indicate that the new props do not require any state updates.
+  static getDerivedStateFromProps(nextProps, state) {
+    var new_state = {
       entry: nextProps.entry,
     }
-    if (!this.state.expanded_comments && nextProps.entry.comments) {
+
+    if (state.onpage_edit) {
+      console.log("do no update state when on-page edit");
+      return null;
+    }
+
+    // allow partial updating
+    if (!state.expanded_comments && nextProps.entry.comments) {
       var safe_update = true;
-      var comments = this.state.comments || [];
+      var comments = state.comments || [];
       comments.forEach(function(cmt) {
         if (cmt.is_editing) {
           safe_update = false;
         }
       });
       if (safe_update) {
-        newdata.comments = nextProps.entry.comments;
+        new_state.comments = nextProps.entry.comments;
       }
     }
-    if (!this.state.expanded_likes) {
-      newdata.likes = nextProps.entry.likes;
+    if (!state.expanded_likes) {
+      new_state.likes = nextProps.entry.likes;
     }
-    this.setState(newdata);
-  }
-
-  // The new static getDerivedStateFromProps lifecycle is invoked after a component
-  // is instantiated as well as before it is re-rendered. It can return an object to
-  // update state, or null to indicate that the new props do not require any state updates.
-  static getDerivedStateFromProps(props, state) {
-    
+    return new_state
   }
 
   // handleEdit: function(child) {

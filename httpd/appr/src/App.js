@@ -25,11 +25,11 @@ function FeedPagin(props) {
 
 export class Feed extends React.Component{
 
-  refreshInterval = 30 * 1000
+  refreshInterval = 20 * 1000
 
   loadFeeds = () => {
     getJSON(this.props.url)
-      .then(data => { // allow function
+      .then(data => { // arrow function
         this.setState(data);
       })
       .catch(error => console.error(error))
@@ -46,7 +46,14 @@ export class Feed extends React.Component{
   // }
 
   componentDidMount() {
-    setInterval(this.loadFeeds, this.refreshInterval);
+    this.refreshFeed = setInterval(
+      () => this.loadFeeds(),
+      this.refreshInterval
+    );
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.refreshFeed);
   }
 
   onPostEntry = (formData) => {
@@ -69,6 +76,7 @@ export class Feed extends React.Component{
       show_paging: this.state.show_paging,
       show_share: this.state.show_share,
       onpage_edit: this.state.onpage_edit || false,
+      feed_id: this.state.feed.id,
     }
 
     var feed = this.state.feed;
