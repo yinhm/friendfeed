@@ -1,7 +1,7 @@
 import React from 'react';
 import { FeedContext } from './context'
 import { EntryContent } from './content'
-import {dprint, getJSON, postJSON, intersperse} from './utils';
+import {dprint, getJSON, postJSON, postForm, intersperse} from './utils';
 
 
 export class Entry extends React.Component {
@@ -13,6 +13,7 @@ export class Entry extends React.Component {
       onpage_edit: this.props.onpage_edit,
       comments: this.props.entry.comments,
       likes: this.props.entry.likes,
+      self_updating: false,
       new_comment_form: false,
       expanded_likes: false,
       expanded_comments: false,
@@ -21,20 +22,33 @@ export class Entry extends React.Component {
     };
   }
 
+  updateState(newState) {
+    newState.self_updating = true;
+    this.setState(newState);
+  }
+
   // The new static getDerivedStateFromProps lifecycle is invoked after a component
   // is instantiated as well as before it is re-rendered. It can return an object to
   // update state, or null to indicate that the new props do not require any state updates.
   static getDerivedStateFromProps(nextProps, state) {
-    var new_state = {
-      entry: nextProps.entry,
+    // allways return self state, safe?
+    if (state.self_updating) {
+      console.log("no update top due to self-updating performed");
+      // reset self-updating, no merge props here
+      state.self_updating = false;
+      return state;
     }
+
+    var new_state = Object.assign({}, state);
 
     if (state.onpage_edit) {
-      console.log("do no update state when on-page edit");
-      return null;
+      console.log("no update entry content when on-page editing");
+    } else {
+      new_state.entry = nextProps.entry
     }
 
-    // allow partial updating
+    // compare props from top component
+    // merge partial data if state not change
     if (!state.expanded_comments && nextProps.entry.comments) {
       var safe_update = true;
       var comments = state.comments || [];
@@ -53,9 +67,11 @@ export class Entry extends React.Component {
     return new_state;
   }
 
-  // handleEdit: function(child) {
-  //   console.log("edit entry")
-  // },
+  handleEdit = (event) => {
+    console.log("edit entry")
+    // var onpageEdit = !this.state.onpage_edit;
+    this.setState({onpage_edit: true});
+  }
 
   handleDelete = () => {
     var entry = this.state.entry;
@@ -63,7 +79,7 @@ export class Entry extends React.Component {
       .then(data => {
         var new_state = Object.assign({}, this.state);
         new_state.is_deleted = true;
-        this.setState(new_state);
+        this.updateState(new_state);
       });
   }
 
@@ -73,7 +89,7 @@ export class Entry extends React.Component {
       React.findDOMNode(this.refs.commentInput).focus();
     } else {
       // make form
-      this.setState({new_comment_form: true});
+      this.updateState({new_comment_form: true});
     }
   }
 
@@ -92,14 +108,15 @@ export class Entry extends React.Component {
         if (id) {
           var cmts = comments.map(function(cmt, index) {
             if (id === cmt.id) {
+              comment.is_editing = false;
               return comment;
             }
             return cmt;
           });
-          this.setState({comments: cmts});
+          this.updateState({comments: cmts});
         } else {
           comments.push(comment);
-          this.setState({
+          this.updateState({
             comments: comments,
             new_comment_form: false
           });
@@ -116,12 +133,12 @@ export class Entry extends React.Component {
         }
         comments.push(cmt);
       });
-      this.setState({comments: comments});
+      this.updateState({comments: comments});
     } else {
       if (body) {
-        this.setState({comment_preserve: body});
+        this.updateState({comment_preserve: body});
       }
-      this.setState({new_comment_form: false});
+      this.updateState({new_comment_form: false});
     }
   }
 
@@ -138,7 +155,7 @@ export class Entry extends React.Component {
   expandLikes = () => {
     getJSON("/a/expandlikes/" + this.props.entry.id)
       .then(data => { // arrow function
-        this.setState({
+        this.updateState({
           expanded_likes: true,
           likes: data
         });
@@ -153,7 +170,7 @@ export class Entry extends React.Component {
       }
       comments.push(cmt);
     });
-    this.setState({comments: comments});
+    this.updateState({comments: comments});
   }
 
   deleteComment = (comment) => {
@@ -164,6 +181,14 @@ export class Entry extends React.Component {
     postJSON("/a/comment/delete", data)
       .then(data => {
         comment.body = "comment deleted";
+        var comments = [];
+        this.state.comments.forEach(function(cmt, index) {
+          if (comment.id && comment.id !== cmt.id) {
+            comments.push(cmt);
+          }
+        });
+
+        this.updateState({comments: comments});
       });
     return null;
   }
@@ -177,7 +202,7 @@ export class Entry extends React.Component {
             entry.commands[index] = "unlike";
           }
         });
-        this.setState({likes: likes});
+        this.updateState({likes: likes});
       });
   }
 
@@ -190,8 +215,22 @@ export class Entry extends React.Component {
             entry.commands[index] = "like";
           }
         });
-        this.setState({likes: likes});
+        this.updateState({likes: likes});
       });
+  }
+
+  onPostEntry = (formData) => {
+    // on post
+    return postForm("/a/share", formData)
+      .then(entry => {
+        var new_state = Object.assign({}, this.state);
+        new_state.self_updating = true;
+        if (this.state.entry.id == entry.id) {
+          console.log("update failed, new entry created?")
+        }
+        new_state.entry = entry;
+        this.updateState(new_state);
+      }).catch(error => console.error(error));
   }
 
   render() {
@@ -255,7 +294,12 @@ export class Entry extends React.Component {
           }
           <FeedContext.Consumer>
             { config =>
-              <EntryContent body={entry.body} config={config} />
+              <EntryContent
+                id={entry.id}
+                body={entry.body}
+                config={config}
+                onpage={edit_mode}
+                onPostEntry={this.onPostEntry} />
             }
           </FeedContext.Consumer>
           {medias}
@@ -385,7 +429,7 @@ function EntryInfo(props) {
           btn = <EntryCommandLike onUnlike={props.onUnlike} liked={liked} />;
           break;
         case "edit":
-          btn = <EntryCommandEdit />;
+          btn = <EntryCommandEdit onEdit={props.onEdit} />;
           break;
         case "delete":
           btn = <EntryCommandDelete onDelete={props.onDelete} />;
@@ -457,7 +501,7 @@ class EntryCommandEdit extends React.Component{
 
   handleClick = (event) => {
     event.preventDefault();
-    console.log("entry command edit")
+    this.props.onEdit(event);
   }
 
   render() {

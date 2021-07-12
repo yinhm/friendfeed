@@ -8,19 +8,21 @@ export function EntryContent(props) {
 
     const onPostEntry = () => {
         console.log("on-page post enry");
+        // this.props.postEntry(props.body);
     }
 
-    if (props.config.onpage_edit === true) {
+    if (props.onpage || props.config.onpage_edit === true) {
         // return (
         //     <OnPageEditor 
         //         content={props.body} />
         // );
         
         return (
-            <InlineToolbarEditor 
+            <InlineToolbarEditor
+                id={props.id}
                 feedId={props.config.feed_id}
                 content={props.body}
-                postEntry={onPostEntry} />
+                postEntry={props.onPostEntry} />
         );
     }
     return (

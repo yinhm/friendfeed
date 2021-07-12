@@ -70,6 +70,7 @@ export default class InlineToolbarEditor extends Component {
     }
 
     var formData = new FormData();
+    formData.set("id", this.props.id || "");
     formData.set("feedid", this.props.feedId || "");
     formData.set("body", htmlBody);
     this.props.postEntry(formData)
