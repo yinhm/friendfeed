@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gofrs/uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	"github.com/yinhm/friendfeed/util"
+	"golang.org/x/exp/utf8string"
 )
 
 func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
@@ -25,6 +27,36 @@ func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
 		return nil, err
 	}
 	return feed, nil
+}
+
+func (s *Server) EntryHandler(c *gin.Context) {
+	uuid := c.Params.ByName("uuid")
+	req := &pb.EntryRequest{Uuid: uuid}
+	_, feed, err := s.FetchFeed(c, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	entry := feed.Entries[0]
+	rawBody := utf8string.NewString(entry.RawBody)
+	title := rawBody.String()
+	if rawBody.RuneCount() > 42 {
+		title = rawBody.Slice(0, 42)
+	}
+	data := pongo2.Context{
+		"title":       title,
+		"name":        entry.From.Name,
+		"feed":        feed,
+		"show_header": false,
+		"show_share":  false,
+		"show_direct": false,
+		"show_paging": false,
+		"onpage_edit": true,
+	}
+	log.Printf("%s", entry.Body)
+	log.Printf("%s", entry.RawBody)
+	s.renderFeed(c, data)
+	// s.HTML(c, 200, "feed.html", data)
 }
 
 // TODO: allow cross post to multiply feeds
@@ -66,11 +98,8 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 			return
 		}
 	}
-	body := util.DefaultSanitize(form.Body)
-	body = util.EntityToLink(body)
-
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
+	entry.RawBody = form.Body
+	entry.Body = util.EntityToLink(util.DefaultSanitize(form.Body))
 
 	from := &pb.Feed{
 		Id:      profile.Id,
@@ -78,16 +107,14 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		Type:    profile.Type,
 		Picture: profile.Picture,
 	}
-
-	entry.Body = body
-	entry.RawBody = form.Body
 	entry.From = from
 	// To:      []*pb.Feed{from},
 	// Thumbnails: thumbnails,
 	entry.ProfileUuid = profile.Uuid
 
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
 	entry, err := s.client.PostEntry(ctx, entry)
-	log.Println(err)
 	if RequestError(c, err) {
 		return
 	}

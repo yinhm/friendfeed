@@ -225,7 +225,8 @@ export class Entry extends React.Component {
       .then(entry => {
         var new_state = Object.assign({}, this.state);
         new_state.self_updating = true;
-        if (this.state.entry.id == entry.id) {
+        new_state.onpage_edit = false;
+        if (this.state.entry.id !== entry.id) {
           console.log("update failed, new entry created?")
         }
         new_state.entry = entry;
@@ -297,6 +298,7 @@ export class Entry extends React.Component {
               <EntryContent
                 id={entry.id}
                 body={entry.body}
+                rawBody={entry.rawBody}
                 config={config}
                 onpage={edit_mode}
                 onPostEntry={this.onPostEntry} />

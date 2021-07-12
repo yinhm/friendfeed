@@ -21,7 +21,7 @@ export function EntryContent(props) {
             <InlineToolbarEditor
                 id={props.id}
                 feedId={props.config.feed_id}
-                content={props.body}
+                content={props.rawBody}
                 postEntry={props.onPostEntry} />
         );
     }

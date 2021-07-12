@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/exp/utf8string"
-
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/contrib/sessions"
@@ -386,34 +384,6 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
-}
-
-func (s *Server) EntryHandler(c *gin.Context) {
-	uuid := c.Params.ByName("uuid")
-	req := &pb.EntryRequest{Uuid: uuid}
-	_, feed, err := s.FetchFeed(c, req)
-	if RequestError(c, err) {
-		return
-	}
-
-	entry := feed.Entries[0]
-	rawBody := utf8string.NewString(entry.RawBody)
-	title := rawBody.String()
-	if rawBody.RuneCount() > 42 {
-		title = rawBody.Slice(0, 42)
-	}
-	data := pongo2.Context{
-		"title":       title,
-		"name":        entry.From.Name,
-		"feed":        feed,
-		"show_header": false,
-		"show_share":  false,
-		"show_direct": false,
-		"show_paging": false,
-		"onpage_edit": true,
-	}
-	s.renderFeed(c, data)
-	// s.HTML(c, 200, "feed.html", data)
 }
 
 func (s *Server) ExpandCommentHandler(c *gin.Context) {
