@@ -48,6 +48,7 @@ type Error struct {
 
 func (e *Error) Error() string { return e.Msg }
 
+// deprecated: use model.PutEntry instead
 func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 	uuid1, err := uuid.FromString(entry.ProfileUuid)
 	if err != nil {

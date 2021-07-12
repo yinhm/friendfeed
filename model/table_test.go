@@ -49,11 +49,11 @@ func (s *TableTestSuite) TestTableFarm() {
 		Name: "000001",
 	}
 
-	_, err := Stock.Put(s.db, farmHash, p)
+	_, err := Stock.Put(s.db, store.KeyFromString(farmHash), p)
 	assert.Nil(s.T(), err)
 
 	farm := new(pb.Feed)
-	err = Stock.Get(s.db, farmHash, farm)
+	err = Stock.Get(s.db, store.KeyFromString(farmHash), farm)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "000001", farm.Name)
 }
@@ -81,13 +81,25 @@ func (s *TableTestSuite) TestPutEntry() {
 		ProfileUuid: "c6f8dca854f011ddb489003048343a40",
 	}
 
-	// put entry
-	_, err := PutEntry(s.db, e)
+	// put new entry
+	sKey, err := store.PutEntry(s.db, e, false)
 	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "000000032b43a9066074d120ed2e45494eea1797", sKey.String())
 
 	// put exists entry
-	_, err = PutEntry(s.db, e)
+	eKey, err := PutEntry(s.db, e)
 	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "000000032b43a9066074d120ed2e45494eea1797", eKey.String())
+	mEntry := new(pb.Entry)
+	// nil????
+	err = Entry.Get(s.db, store.KeyFromString("000000032b43a9066074d120ed2e45494eea1797"), mEntry)
+	assert.NotNil(s.T(), err)
+	err = Entry.Get(s.db, store.KeyFromString("2b43a9066074d120ed2e45494eea1797"), mEntry)
+	assert.Nil(s.T(), err)
+
+	sEntry, err := store.GetEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), mEntry.Id, sEntry.Id)
 
 	uuid1, _ := uuid.FromString(p.Uuid)
 	key := store.NewUUIDKey(TableReverseEntryIndex, uuid1)

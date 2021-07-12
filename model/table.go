@@ -3,6 +3,8 @@ package model
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -48,38 +50,39 @@ func (t *Table) NewKey(name string) string {
 	return hex.EncodeToString(u[:])
 }
 
-func (t *Table) prefixKey(key store.Key) store.Key {
+func (t *Table) prefixAppend(key store.Key) store.Key {
 	return NewKeyFrom(t.prefix, key)
 }
 
-func (t *Table) removePrefixKey(key store.Key) store.Key {
+func (t *Table) prefixRemove(key store.Key) store.Key {
 	return key[t.preSize:]
 }
 
 func (t *Table) toStringKey(key store.Key) string {
-	return t.removePrefixKey(key).String()
+	return t.prefixRemove(key).String()
 }
 
-func (t *Table) Get(db *store.Store, key string, msg proto.Message) error {
-	k := t.prefixKey(store.KeyFromString(key))
+func (t *Table) Get(db *store.Store, key store.Key, msg proto.Message) error {
+	k := t.prefixAppend(key)
 	raw, err := db.Get(k)
-	if err != nil {
-		return err
+	if raw == nil || err != nil {
+		return fmt.Errorf("Get key <%s> error: %s", key, err)
 	}
 	return proto.Unmarshal(raw, msg)
 }
 
-func (t *Table) Put(db *store.Store, key string, msg proto.Message) (store.Key, error) {
-	k := t.prefixKey(store.KeyFromString(key))
+func (t *Table) Put(db *store.Store, key store.Key, msg proto.Message) (store.Key, error) {
+	k := t.prefixAppend(key)
 	bytes, err := proto.Marshal(msg)
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("db.Set(%s,...), %v", k.String(), msg)
 	return k, db.Set(k, bytes)
 }
 
-func (t *Table) Delete(db *store.Store, key string) error {
-	k := t.prefixKey(store.KeyFromString(key))
+func (t *Table) Delete(db *store.Store, key store.Key) error {
+	k := t.prefixAppend(key)
 	return db.Delete(k)
 }
 

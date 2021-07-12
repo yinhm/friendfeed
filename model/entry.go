@@ -1,6 +1,7 @@
 package model
 
 import (
+	"log"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -13,7 +14,9 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	// | table | entry uuid |
 
 	// just force update
-	key, err := Entry.Put(db, entry.Id, entry)
+	uuidEntryKey := uuid.Must(uuid.FromString(entry.Id))
+	log.Printf("PutEntry: %s", uuidEntryKey.String())
+	key, err := Entry.Put(db, uuidEntryKey.Bytes(), entry)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +31,7 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = ReverseEntryIndex.Index(db, userUuid, oldtime, key)
+	err = ReverseEntryIndex.Index(db, userUuid, oldtime, key[:])
 	if err != nil {
 		return nil, err
 	}

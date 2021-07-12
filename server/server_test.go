@@ -368,7 +368,7 @@ func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	assert.Equal(s.T(), index.bufq[len(index.bufq)-1], "last")
 }
 
-func (s *RpcTestSuite) TestNewProfile() {
+func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	ctx := context.Background()
 
 	req := &pb.OAuthUser{
@@ -383,4 +383,33 @@ func (s *RpcTestSuite) TestNewProfile() {
 	profile, err := s.srv.PutOAuth(ctx, req)
 	assert.Nil(s.T(), err)
 	assert.NotEmpty(s.T(), profile.Uuid)
+
+	from := &pb.Feed{
+		Id:   "demo",
+		Name: "yinhm",
+		Type: "user",
+	}
+
+	entry := &pb.Entry{
+		Body:        "张无忌对张三丰说：“太师父，武当山的生活太寂寞了，只有清风和明月两个朋友能陪我玩。”张三丰叹了口气：“已经很不错啦，至少还有清风明月呢。想当年我在少林寺的时候，也是只有两个朋友，其中一个也叫清风……”“那另一个呢？”“叫心相印。”…",
+		Date:        "2012-09-07T07:40:22Z",
+		Url:         "http://friendfeed.com/yinhm/2b43a906/rt-trojansj",
+		From:        from,
+		ProfileUuid: profile.Uuid,
+	}
+
+	// new entry id
+	dt := time.Now().UTC()
+	name := profile.Uuid + "/" + dt.Format(time.RFC3339)
+	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
+	entry.Id = uuid1.String()
+
+	entry, err = s.srv.PostEntry(context.Background(), entry)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), len(entry.Id), 36)
+
+	entryReq := &pb.EntryRequest{Uuid: entry.Id}
+	feed, err := s.srv.FetchEntry(context.Background(), entryReq)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), feed.Entries[0].Id, entry.Id)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/media"
+	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
@@ -232,10 +233,11 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 			return err
 		}
 		entryCount++
-		key, err := store.PutEntry(s.rdb, entry, false) // always use false
+		// key, err := store.PutEntry(s.rdb, entry, false) // always use false
+		key, err := model.PutEntry(s.rdb, entry)
 		if err == nil {
 			// no error or new key
-			s.spread(key)
+			s.spread(key.String())
 		}
 		// Retuen if not force update and all entries are exists
 		// TODO: client dead lock???
@@ -362,6 +364,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		}
 
 		kb, _ := hex.DecodeString(key)
+		logger.Debugf("index.key: <%s>", key)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
@@ -372,6 +375,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
 		}
+		logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
 		FormatFeedEntry(s.mdb, req, entry)
 		entries = append(entries, entry)
 		found++
@@ -462,7 +466,7 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		logger.Debug(err)
 		return nil, err
 	}
-	logger.Debugf("entry: %s", entry)
+	logger.Debugf("entry: %s", entry.RawBody)
 	err = fmtEntryProfile(s.mdb, entry)
 	if err != nil {
 		return nil, err
@@ -487,11 +491,12 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 }
 
 func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, error) {
-	key, err := store.PutEntry(s.rdb, entry, false) // always use false
+	// key, err := store.PutEntry(s.rdb, entry, false) // always use false
+	key, err := model.PutEntry(s.rdb, entry) // always use false
 	if err != nil {
 		return nil, err
 	}
-	s.spread(key)
+	s.spread(key.String())
 	return entry, nil
 }
 
@@ -529,7 +534,7 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 		var key *store.UUIDKey
 		key, entry, err = store.Like(s.rdb, profile, entry)
 		if err == nil {
-			s.spread(key)
+			s.spread(key.String())
 		}
 	} else {
 		entry, err = store.DeleteLike(s.rdb, profile, entry)
@@ -552,7 +557,7 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	s.spread(key)
+	s.spread(key.String())
 	return entry, nil
 }
 
@@ -570,9 +575,9 @@ func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequ
 	return store.DeleteComment(s.rdb, profile, entry, req.Comment)
 }
 
-func (s *ApiServer) spread(key *store.UUIDKey) {
-	if key != nil {
-		s.cached["public"].Push(key.String())
+func (s *ApiServer) spread(key string) {
+	if key != "" {
+		s.cached["public"].Push(key)
 	}
 	// TODO: spread to friends?
 }
