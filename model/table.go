@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -77,7 +76,7 @@ func (t *Table) Put(db *store.Store, key store.Key, msg proto.Message) (store.Ke
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("db.Set(%s,...), %v", k.String(), msg)
+	// log.Printf("db.Set(%s,...), %v", k.String(), msg)
 	return k, db.Set(k, bytes)
 }
 

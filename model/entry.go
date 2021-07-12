@@ -1,7 +1,6 @@
 package model
 
 import (
-	"log"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -15,7 +14,6 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 
 	// just force update
 	uuidEntryKey := uuid.Must(uuid.FromString(entry.Id))
-	log.Printf("PutEntry: %s", uuidEntryKey.String())
 	key, err := Entry.Put(db, uuidEntryKey.Bytes(), entry)
 	if err != nil {
 		return nil, err

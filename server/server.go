@@ -375,7 +375,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
 		}
-		logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
+		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
 		FormatFeedEntry(s.mdb, req, entry)
 		entries = append(entries, entry)
 		found++
@@ -466,7 +466,7 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		logger.Debug(err)
 		return nil, err
 	}
-	logger.Debugf("entry: %s", entry.RawBody)
+	// logger.Debugf("entry: %s", entry.RawBody)
 	err = fmtEntryProfile(s.mdb, entry)
 	if err != nil {
 		return nil, err
