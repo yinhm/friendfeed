@@ -24,6 +24,7 @@ function FeedPagin(props) {
 }
 
 export class Feed extends React.Component{
+  static contextType  = FeedContext;
 
   refreshInterval = 20 * 1000
 
@@ -71,13 +72,17 @@ export class Feed extends React.Component{
       return null;
     }
 
-    var config = {
-      show_header: this.state.show_header,
-      show_paging: this.state.show_paging,
-      show_share: this.state.show_share,
-      onpage_edit: this.state.onpage_edit || false,
-      feed_id: this.state.feed.id,
-    }
+    var config = this.context;
+    config.show_header = this.state.show_header;
+    config.show_paging = this.state.show_paging;
+    config.show_share = this.state.show_share;
+    config.onpage_edit = this.state.onpage_edit || false;
+    config.feed_id = this.state.feed.id;
+    config.toggleEditor = () => {
+      console.log("toggle editor");
+      config.onpage_edit = false;
+    };
+    console.log(config);
 
     var feed = this.state.feed;
     var entryNodes = feed.entries.map((entry, index) => {

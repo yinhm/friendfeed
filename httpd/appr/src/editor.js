@@ -26,8 +26,7 @@ const inlineToolbarPlugin = createInlineToolbarPlugin();
 const { InlineToolbar } = inlineToolbarPlugin;
 const plugins = [inlineToolbarPlugin];
 
-export default class InlineToolbarEditor extends Component {
-  state = {
+export default class InlineToolbarEditor extends Component {state = {
     editorState: EditorState.createEmpty(),
   };
  
@@ -128,6 +127,9 @@ class HeadlinesPicker extends Component {
     setTimeout(() => {
       window.addEventListener('click', this.onWindowClick);
     });
+
+    let value = this.context;
+    console.log(value);
   }
 
   componentWillUnmount() {
@@ -177,3 +179,4 @@ class HeadlinesButton extends Component {
     );
   }
 }
+

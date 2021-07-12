@@ -1,5 +1,4 @@
 import React from 'react';
-import { FeedContext } from './context'
 import { EntryContent } from './content'
 import {dprint, getJSON, postJSON, postForm, intersperse} from './utils';
 
@@ -293,17 +292,12 @@ export class Entry extends React.Component {
           {edit_mode !== true &&
             <EntryAuthor from={entry.from} to={entry.to} />
           }
-          <FeedContext.Consumer>
-            { config =>
-              <EntryContent
-                id={entry.id}
-                body={entry.body}
-                rawBody={entry.rawBody}
-                config={config}
-                onpage={edit_mode}
-                onPostEntry={this.onPostEntry} />
-            }
-          </FeedContext.Consumer>
+          <EntryContent
+            id={entry.id}
+            body={entry.body}
+            rawBody={entry.rawBody}
+            onpage={edit_mode}
+            onPostEntry={this.onPostEntry} />
           {medias}
           <EntryInfo entry={entry}
                      onNewComment={this.handleNewComment}

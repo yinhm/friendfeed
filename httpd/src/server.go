@@ -318,7 +318,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		return
 	}
 
-	showShare := s.feedWritable(c, "Home")
+	showShare := s.feedWritable(c, "home")
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0

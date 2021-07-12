@@ -1,17 +1,20 @@
-import React from 'react';
-import OnPageEditor from './medium';
+import React, { useContext } from 'react';
 import InlineToolbarEditor from './editor';
-import { convertToHTML, convertFromHTML } from 'draft-convert';
+import { FeedContext } from './context'
 
 
 export function EntryContent(props) {
+    const feedCfg = useContext(FeedContext);
 
-    const onPostEntry = () => {
-        console.log("on-page post enry");
-        // this.props.postEntry(props.body);
+    console.log(feedCfg);  
+
+    const onPostEntry = (formData) => {
+        var f = props.onPostEntry(formData);
+        feedCfg.toggleEditor();
+        return f;
     }
 
-    if (props.onpage || props.config.onpage_edit === true) {
+    if (props.onpage || feedCfg.onpage_edit === true) {
         // return (
         //     <OnPageEditor 
         //         content={props.body} />
@@ -20,9 +23,9 @@ export function EntryContent(props) {
         return (
             <InlineToolbarEditor
                 id={props.id}
-                feedId={props.config.feed_id}
+                feedId={feedCfg.feed_id}
                 content={props.rawBody}
-                postEntry={props.onPostEntry} />
+                postEntry={onPostEntry} />
         );
     }
     return (
