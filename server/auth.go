@@ -6,7 +6,6 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
-	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
 )
 
@@ -30,7 +29,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		logger.Debugf("New profile: <%s, %s>", uuidFrom, profile.Uuid)
 	}
 
-	user, err := store.PutOAuthUser(s.mdb, authinfo)
+	user, err := model.PutOAuthUser(s.mdb, authinfo)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +71,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 }
 
 func (s *ApiServer) BindUserFeed(ctx context.Context, user *pb.OAuthUser) (*pb.OAuthUser, error) {
-	return store.BindOAuthUser(s.mdb, user)
+	return model.BindOAuthUser(s.mdb, user)
 }
 
 func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*pb.Profile, error) {

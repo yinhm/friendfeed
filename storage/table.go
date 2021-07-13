@@ -331,6 +331,7 @@ func GetFeedinfo(rdb *Store, uuidStr string) (*pb.Feedinfo, error) {
 	return info, nil
 }
 
+// Deprecated: use model.GetOAuthUser
 func GetOAuthUser(mdb *Store, provider, userId string) (IKey, *pb.OAuthUser, error) {
 	var pt KeyPrefix
 	switch provider {
@@ -357,6 +358,7 @@ func GetOAuthUser(mdb *Store, provider, userId string) (IKey, *pb.OAuthUser, err
 	return key, v, nil
 }
 
+// Deprecated: use model.PutOAuthUser
 func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	key, v, err := GetOAuthUser(mdb, u.Provider, u.UserId)
 	if err != nil {
@@ -388,6 +390,7 @@ func PutOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	return u, nil
 }
 
+// Deprecated: use model.BindOAuthUser
 func BindOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	var pt KeyPrefix
 	switch u.Provider {
