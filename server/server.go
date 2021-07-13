@@ -532,13 +532,13 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 	}
 
 	if req.Like {
-		var key *store.UUIDKey
-		key, entry, err = store.Like(s.rdb, profile, entry)
+		var key store.Key
+		key, entry, err = model.Like(s.rdb, profile, entry)
 		if err == nil {
 			s.spread(key.String())
 		}
 	} else {
-		entry, err = store.DeleteLike(s.rdb, profile, entry)
+		entry, err = model.DeleteLike(s.rdb, profile, entry)
 	}
 	return entry, err
 }
@@ -554,7 +554,7 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 		return nil, err
 	}
 
-	key, entry, err := store.Comment(s.rdb, profile, entry, req.Comment)
+	key, entry, err := model.Comment(s.rdb, profile, entry, req.Comment)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +573,7 @@ func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequ
 		return nil, err
 	}
 
-	return store.DeleteComment(s.rdb, profile, entry, req.Comment)
+	return model.DeleteComment(s.rdb, profile, entry, req.Comment)
 }
 
 func (s *ApiServer) spread(key string) {

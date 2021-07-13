@@ -439,6 +439,7 @@ func BindOAuthUser(mdb *Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	return u, nil
 }
 
+// Deprecated:
 func Like(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*UUIDKey, *pb.Entry, error) {
 	var err error
 	var key *UUIDKey
@@ -464,6 +465,7 @@ func Like(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*UUIDKey, *pb.Entry
 	return key, entry, err
 }
 
+// Deprecated:
 func DeleteLike(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
 	var err error
 	index := -1
@@ -480,6 +482,7 @@ func DeleteLike(rdb *Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, er
 	return entry, err
 }
 
+// Deprecated:
 func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (*UUIDKey, *pb.Entry, error) {
 	var err error
 
@@ -504,6 +507,7 @@ func Comment(rdb *Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comme
 	return key, entry, err
 }
 
+// Deprecated:
 func DeleteComment(rdb *Store, profile *pb.Profile, entry *pb.Entry, commentId string) (*pb.Entry, error) {
 	var err error
 	index := -1
