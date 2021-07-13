@@ -504,7 +504,7 @@ func (s *DBTestSuite) TestPutEntry() {
 
 	uuid1, _ := uuid.FromString(p.Uuid)
 	key := NewUUIDKey(TableReverseEntryIndex, uuid1)
-	n, err := ForwardTableScan(s.rdb, key, func(i int, k, v []byte) error {
+	n, err := s.rdb.ForwardScan(key, func(i int, k, v []byte) error {
 		return nil
 	})
 	assert.Nil(s.T(), err)
@@ -518,7 +518,7 @@ func (s *DBTestSuite) TestPutEntry() {
 	_, err = PutEntry(s.rdb, e, true)
 	assert.Nil(s.T(), err)
 
-	n, err = ForwardTableScan(s.rdb, key, func(i int, k, v []byte) error {
+	n, err = s.rdb.ForwardScan(key, func(i int, k, v []byte) error {
 		return nil
 	})
 	assert.Nil(s.T(), err)

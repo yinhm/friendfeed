@@ -249,3 +249,23 @@ func (db *Store) TimeTravelReverseId(t time.Time) flake.Id {
 	fid, _ := gen.NextId()
 	return fid
 }
+
+func (db *Store) ForwardScan(prefix IKey, fn ScanCallback) (n int, err error) {
+	opts := PrefixIteratorOptions(prefix.Bytes())
+	iter := newIterator(db.rdb, opts)
+	defer iter.Close()
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if err = fn(n, key, value); err != nil {
+			if serr, ok := err.(*Error); ok {
+				if serr.Code == StopIteration { // do not remove
+					return n, nil // rewrote err
+				}
+			}
+			return
+		}
+		n++
+	}
+	return n, nil
+}

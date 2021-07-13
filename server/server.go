@@ -414,7 +414,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	start := req.Start
 	var entries []*pb.Entry
-	_, err = store.ForwardTableScan(s.rdb, preKey, func(i int, k, v []byte) error {
+	_, err = s.rdb.ForwardScan(preKey, func(i int, k, v []byte) error {
 		if start > 0 {
 			start--
 			return nil // continue

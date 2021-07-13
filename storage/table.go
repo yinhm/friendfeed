@@ -331,26 +331,6 @@ func GetFeedinfo(rdb *Store, uuidStr string) (*pb.Feedinfo, error) {
 	return info, nil
 }
 
-func ForwardTableScan(db *Store, prefix IKey, fn ScanCallback) (n int, err error) {
-	opts := PrefixIteratorOptions(prefix.Bytes())
-	iter := newIterator(db.rdb, opts)
-	defer iter.Close()
-	for iter.First(); iter.Valid(); iter.Next() {
-		key := iter.Key()
-		value := iter.Value()
-		if err = fn(n, key, value); err != nil {
-			if serr, ok := err.(*Error); ok {
-				if serr.Code == StopIteration { // do not remove
-					return n, nil // rewrote err
-				}
-			}
-			return
-		}
-		n++
-	}
-	return n, nil
-}
-
 func GetOAuthUser(mdb *Store, provider, userId string) (IKey, *pb.OAuthUser, error) {
 	var pt KeyPrefix
 	switch provider {
