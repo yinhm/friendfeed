@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -35,4 +36,30 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	}
 
 	return key, nil
+}
+
+func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
+	uuid1, err := uuid.FromString(uuidStr)
+	if err != nil {
+		return nil, err
+	}
+
+	entry := new(pb.Entry)
+	err = Entry.Get(db, uuid1.Bytes(), entry)
+	if err != nil {
+		return nil, fmt.Errorf("entry not found: %s", uuidStr)
+	}
+	return entry, nil
+}
+
+func DeleteEntry(db *store.Store, uuidStr string) error {
+	uuid1, err := uuid.FromString(uuidStr)
+	if err != nil {
+		return err
+	}
+
+	if err = Entry.Delete(db, uuid1.Bytes()); err != nil {
+		return err
+	}
+	return nil
 }

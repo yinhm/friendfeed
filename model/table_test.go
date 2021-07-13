@@ -109,6 +109,17 @@ func (s *TableTestSuite) TestPutEntry() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 1, n)
 
+	// model, entry get -> delete -> get
+	entry, err := GetEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "c6f8dca854f011ddb489003048343a40", entry.ProfileUuid)
+	err = DeleteEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
+	assert.Nil(s.T(), err)
+	_, err = GetEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
+	assert.NotNil(s.T(), err)
+	err = DeleteEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
+	assert.Nil(s.T(), err) // blind delete
+
 	// // produce duplicated entry issue when server moved
 	// oldNewWorkerId := flake.NewWorkerId
 	// flake.NewWorkerId = flake.NewRandWorkerId

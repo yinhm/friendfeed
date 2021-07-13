@@ -1,12 +1,15 @@
 package model
 
 import (
+	"errors"
+
 	"github.com/golang/protobuf/proto"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
-// FIXME: use go generate
+var ErrNotFound = errors.New("db: key not found or no value")
 
+// FIXME: use go generate
 type ProtoMessageFunc func() proto.Message
 
 const (
@@ -26,8 +29,7 @@ const (
 	TableService      store.KeyPrefix = 101
 	TableSubscription store.KeyPrefix = 102
 	TableSubscriber   store.KeyPrefix = 103
-	TableOAuthTwitter store.KeyPrefix = 104
-	TableOAuthGoogle  store.KeyPrefix = 105
+	TableOAuth        store.KeyPrefix = 104
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -53,8 +55,7 @@ var (
 	Service      = NewTable(KeyPrefixToBytes(TableService))
 	Subscription = NewTable(KeyPrefixToBytes(TableSubscription))
 	Subscriber   = NewTable(KeyPrefixToBytes(TableSubscriber))
-	OAuthTwitter = NewTable(KeyPrefixToBytes(TableOAuthTwitter))
-	OAuthGoogle  = NewTable(KeyPrefixToBytes(TableOAuthGoogle))
+	OAuth        = NewTable(KeyPrefixToBytes(TableOAuth))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))

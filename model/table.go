@@ -64,8 +64,12 @@ func (t *Table) toStringKey(key store.Key) string {
 func (t *Table) Get(db *store.Store, key store.Key, msg proto.Message) error {
 	k := t.prefixAppend(key)
 	raw, err := db.Get(k)
-	if raw == nil || err != nil {
+	// log.Printf("db.Get(%s,...), %v", k.String(), raw)
+	if err != nil {
 		return fmt.Errorf("Get key <%s> error: %s", key, err)
+	}
+	if raw == nil {
+		return ErrNotFound
 	}
 	return proto.Unmarshal(raw, msg)
 }
@@ -80,6 +84,7 @@ func (t *Table) Put(db *store.Store, key store.Key, msg proto.Message) (store.Ke
 	return k, db.Set(k, bytes)
 }
 
+// blind delete, no error if not exists
 func (t *Table) Delete(db *store.Store, key store.Key) error {
 	k := t.prefixAppend(key)
 	return db.Delete(k)

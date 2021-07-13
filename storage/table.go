@@ -120,6 +120,7 @@ func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 	return key, nil
 }
 
+// Deprecated: use model.UpdateProfile instead
 func UpdateProfile(mdb *Store, profile *pb.Profile) error {
 	bytes, err := proto.Marshal(profile)
 	if err != nil {
@@ -165,6 +166,7 @@ func UpdateProfile(mdb *Store, profile *pb.Profile) error {
 	return mdb.Put(key.Bytes(), bytes)
 }
 
+// Deprecated: use model.GetProfileFromUserId instead
 func GetProfileFromUserId(mdb *Store, id string) (*pb.Profile, error) {
 	rawdata, err := mdb.Get([]byte(id))
 	if err != nil || string(rawdata) == "" {
@@ -177,6 +179,7 @@ func GetProfileFromUserId(mdb *Store, id string) (*pb.Profile, error) {
 	return GetProfileFromUuid(mdb, uuid1)
 }
 
+// Deprecated: use model.GetProfileFromUuid instead
 func GetProfileFromUuid(mdb *Store, uuid1 uuid.UUID) (*pb.Profile, error) {
 	key := NewUUIDKey(TableProfile, uuid1)
 	rawdata, err := mdb.Get(key.Bytes())
@@ -194,6 +197,7 @@ func GetProfileFromUuid(mdb *Store, uuid1 uuid.UUID) (*pb.Profile, error) {
 	return v, nil
 }
 
+// Deprecated: use model.PutEntry instead
 func GetEntry(rdb *Store, uuidStr string) (*pb.Entry, error) {
 	uuid1, err := uuid.FromString(uuidStr)
 	if err != nil {
@@ -214,6 +218,7 @@ func GetEntry(rdb *Store, uuidStr string) (*pb.Entry, error) {
 	return entry, nil
 }
 
+// Deprecated: use model.PutEntry instead
 func DeleteEntry(rdb *Store, uuidStr string) error {
 	uuid1, err := uuid.FromString(uuidStr)
 	if err != nil {
