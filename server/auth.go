@@ -47,7 +47,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 
 	// build services if profile present
 	if authinfo.Provider == "twitter" {
-		feedinfo, err := store.GetFeedinfo(s.rdb, profile.Uuid)
+		feedinfo, err := model.GetFeedinfo(s.rdb, profile.Uuid)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			Updated:  time.Now().Unix(),
 		}
 		feedinfo.Services = append(feedinfo.Services, service)
-		err = store.SaveFeedinfo(s.rdb, profile.Uuid, feedinfo)
+		err = model.PutFeedinfo(s.rdb, profile.Uuid, feedinfo)
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +85,7 @@ func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*
 }
 
 func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {
-	feedinfo, err := store.GetFeedinfo(s.rdb, req.User)
+	feedinfo, err := model.GetFeedinfo(s.rdb, req.User)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (
 			feedinfo.Services = append(feedinfo.Services[:i], feedinfo.Services[i+1:]...)
 		}
 	}
-	if err := store.SaveFeedinfo(s.rdb, feedinfo.Uuid, feedinfo); err != nil {
+	if err := model.PutFeedinfo(s.rdb, feedinfo.Uuid, feedinfo); err != nil {
 		return nil, err
 	}
 	return feedinfo, nil

@@ -233,6 +233,7 @@ func DeleteEntry(rdb *Store, uuidStr string) error {
 }
 
 // id: target id or user id, eg: foobar
+// Obsoleted
 func GetArchiveHistory(mdb *Store, id string) (*pb.FeedJob, error) {
 	key := NewMetaKey(TableJobHistory, id)
 	rawdata, err := mdb.Get(key.Bytes())
@@ -268,6 +269,7 @@ func GetArchiveHistory(mdb *Store, id string) (*pb.FeedJob, error) {
 // }
 
 // uuid -> feedinfo
+// Deprecated: use model.SaveFeedinfo
 func SaveFeedinfo(rdb *Store, uuidStr string, info *pb.Feedinfo) error {
 	uuid1, err := uuid.FromString(uuidStr)
 	if err != nil {
@@ -308,6 +310,7 @@ func SaveFeedinfo(rdb *Store, uuidStr string, info *pb.Feedinfo) error {
 }
 
 // TODO: move feedinfo to mdb?
+// Deprecated: use model.GetFeedinfo
 func GetFeedinfo(rdb *Store, uuidStr string) (*pb.Feedinfo, error) {
 	uuid1, err := uuid.FromString(uuidStr)
 	if err != nil {

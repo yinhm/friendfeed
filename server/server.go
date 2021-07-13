@@ -117,7 +117,7 @@ func (s *ApiServer) FetchFeedinfo(ctx context.Context, req *pb.ProfileRequest) (
 	if req.Uuid == "" {
 		return nil, fmt.Errorf("bad request")
 	}
-	return store.GetFeedinfo(s.rdb, req.Uuid)
+	return model.GetFeedinfo(s.rdb, req.Uuid)
 }
 
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {
@@ -146,7 +146,7 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	// save all feed info in one key for simplicity
 	// TODO: refactor?
 	in.Entries = []*pb.Entry{}
-	if err := store.SaveFeedinfo(s.rdb, profile.Uuid, in); err != nil {
+	if err := model.PutFeedinfo(s.rdb, profile.Uuid, in); err != nil {
 		return nil, err
 	}
 
@@ -187,7 +187,7 @@ func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb
 	if req.Uuid == "" {
 		return nil, fmt.Errorf("bad request")
 	}
-	feedinfo, err := store.GetFeedinfo(s.rdb, req.Uuid)
+	feedinfo, err := model.GetFeedinfo(s.rdb, req.Uuid)
 	if err != nil {
 		return nil, err
 	}

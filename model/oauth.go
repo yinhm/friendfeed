@@ -58,7 +58,8 @@ func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 }
 
 // bind uuid to exists oauth user
-// Deprecated: only used in FriendFeedImportHandler which is obsoleted?
+// Deprecated: only used in FriendFeedImportHandler
+// Obsoleted
 func BindOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	// retrieve "Twitter:bob"
 	key, msg, err := GetOAuthUser(db, u.Provider, u.UserId)
