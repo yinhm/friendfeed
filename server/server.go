@@ -287,10 +287,11 @@ func (s *ApiServer) ForceArchiveFeed(stream pb.Api_ForceArchiveFeedServer) error
 		}
 		entryCount++
 		// save db
-		key, err := store.PutEntry(s.rdb, entry, true)
+		key, err := model.PutEntry(s.rdb, entry)
 		if err != nil {
 			log.Println("db error:", err)
 		} else {
+			// TODO: spread?
 			s.cached["public"].Push(key.String())
 		}
 
