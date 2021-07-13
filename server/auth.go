@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
@@ -23,7 +24,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		profile.Private = false
 		profile.Picture = authinfo.AvatarUrl
 		profile.Description = authinfo.Description
-		store.UpdateProfile(s.mdb, profile)
+		model.UpdateProfile(s.mdb, profile)
 
 		authinfo.Uuid = profile.Uuid
 		logger.Debugf("New profile: <%s, %s>", uuidFrom, profile.Uuid)
@@ -39,7 +40,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	if err != nil {
 		return nil, err
 	}
-	profile, err = store.GetProfileFromUuid(s.mdb, uuid1)
+	profile, err = model.GetProfileFromUuid(s.mdb, uuid1)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	return store.GetProfileFromUuid(s.mdb, uuid1)
+	return model.GetProfileFromUuid(s.mdb, uuid1)
 }
 
 func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {

@@ -139,7 +139,7 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	// profile.Picture = s.ArchiveProfilePicture(profile.Id)
 	// log.Println("profile pic:", profile.Picture)
 
-	if err := store.UpdateProfile(s.mdb, profile); err != nil {
+	if err := model.UpdateProfile(s.mdb, profile); err != nil {
 		return nil, err
 	}
 
@@ -402,7 +402,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		req.PageSize = 50
 	}
 
-	profile, err := store.GetProfileFromUserId(s.mdb, req.Id)
+	profile, err := model.GetProfileFromUserId(s.mdb, req.Id)
 	if err != nil {
 		logger.Debugf("ForwardFetchFeed: %s, err: %s", req.Id, err)
 		return nil, status.Errorf(codes.NotFound, "profile not found")
@@ -462,7 +462,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {
 	logger.Infof("FetchEntry: %s", req.Uuid)
-	entry, err := store.GetEntry(s.rdb, req.Uuid)
+	entry, err := model.GetEntry(s.rdb, req.Uuid)
 	if err != nil {
 		logger.Debug(err)
 		return nil, err
@@ -473,7 +473,7 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		return nil, err
 	}
 
-	profile, err := store.GetProfileFromUserId(s.mdb, entry.From.Id)
+	profile, err := model.GetProfileFromUserId(s.mdb, entry.From.Id)
 	if err != nil || profile == nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
@@ -502,14 +502,14 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 }
 
 func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.EntryRequest, error) {
-	entry, err := store.GetEntry(s.rdb, req.Uuid)
+	entry, err := model.GetEntry(s.rdb, req.Uuid)
 	if err != nil {
 		return nil, err
 	}
 	if entry.ProfileUuid != req.User {
 		return nil, status.Errorf(codes.PermissionDenied, "no perm")
 	}
-	err = store.DeleteEntry(s.rdb, req.Uuid)
+	err = model.DeleteEntry(s.rdb, req.Uuid)
 	if err != nil {
 		return nil, err
 	}
@@ -517,7 +517,7 @@ func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.
 }
 
 func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Entry, error) {
-	entry, err := store.GetEntry(s.rdb, req.Entry)
+	entry, err := model.GetEntry(s.rdb, req.Entry)
 	if err != nil {
 		return nil, err
 	}
@@ -526,7 +526,7 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 	if err != nil {
 		return nil, err
 	}
-	profile, err := store.GetProfileFromUuid(s.mdb, uuid1)
+	profile, err := model.GetProfileFromUuid(s.mdb, uuid1)
 	if err != nil || profile == nil {
 		return nil, err
 	}
@@ -544,12 +544,12 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 }
 
 func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*pb.Entry, error) {
-	entry, err := store.GetEntry(s.rdb, req.Entry)
+	entry, err := model.GetEntry(s.rdb, req.Entry)
 	if err != nil {
 		return nil, err
 	}
 
-	profile, err := store.GetProfileFromUserId(s.mdb, req.Comment.From.Id)
+	profile, err := model.GetProfileFromUserId(s.mdb, req.Comment.From.Id)
 	if err != nil || profile == nil {
 		return nil, err
 	}
@@ -563,12 +563,12 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 }
 
 func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequest) (*pb.Entry, error) {
-	entry, err := store.GetEntry(s.rdb, req.Entry)
+	entry, err := model.GetEntry(s.rdb, req.Entry)
 	if err != nil {
 		return nil, err
 	}
 
-	profile, err := store.GetProfileFromUserId(s.mdb, req.User)
+	profile, err := model.GetProfileFromUserId(s.mdb, req.User)
 	if err != nil || profile == nil {
 		return nil, err
 	}

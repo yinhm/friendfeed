@@ -10,6 +10,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
@@ -261,7 +262,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 	assert.Equal(s.T(), got.Uuid, feedinfo.Uuid)
 	assert.Equal(s.T(), got.RemoteKey, feedinfo.RemoteKey)
 
-	profile, err := store.GetProfileFromUserId(s.srv.mdb, feedinfo.Id)
+	profile, err := model.GetProfileFromUserId(s.srv.mdb, feedinfo.Id)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, feedinfo.Uuid)
 	assert.Equal(s.T(), profile.RemoteKey, feedinfo.RemoteKey)

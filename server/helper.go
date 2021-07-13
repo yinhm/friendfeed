@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
 )
@@ -24,7 +25,7 @@ func FormatEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
 
 func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	// refetch user profile
-	profile, err := store.GetProfileFromUserId(mdb, entry.From.Id)
+	profile, err := model.GetProfileFromUserId(mdb, entry.From.Id)
 	if err != nil {
 		return err
 	}
