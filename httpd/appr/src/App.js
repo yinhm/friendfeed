@@ -38,7 +38,11 @@ export class Feed extends React.Component{
 
   constructor(props) {
     super(props);
-    this.state = props;
+    // supress warnning:
+    // It is not recommended to assign props directly to
+    // state because updates to props won't be reflected
+    // in state. In most cases, it is better to use props directly.
+    this.state = {...props}
   }
 
   // UNSAFE_componentWillReceiveProps(nextProps){
@@ -82,7 +86,6 @@ export class Feed extends React.Component{
       console.log("toggle editor");
       config.onpage_edit = false;
     };
-    console.log(config);
 
     var feed = this.state.feed;
     var entryNodes = feed.entries.map((entry, index) => {

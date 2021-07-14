@@ -6,8 +6,6 @@ import { FeedContext } from './context'
 export function EntryContent(props) {
     const feedCfg = useContext(FeedContext);
 
-    console.log(feedCfg);  
-
     const onPostEntry = (formData) => {
         var f = props.onPostEntry(formData);
         feedCfg.toggleEditor();

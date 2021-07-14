@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
-import Editor, { createEditorStateWithText } from '@draft-js-plugins/editor';
 import { EditorState } from 'draft-js';
+import Editor, { createEditorStateWithText,
+  composeDecorators } from '@draft-js-plugins/editor';
 
 import createInlineToolbarPlugin, {
   Separator,
@@ -18,13 +19,35 @@ import {
   BlockquoteButton,
   CodeBlockButton,
 } from '@draft-js-plugins/buttons';
+import createImagePlugin from '@draft-js-plugins/image';
+import createFocusPlugin from '@draft-js-plugins/focus';
+import createBlockDndPlugin from '@draft-js-plugins/drag-n-drop';
+import createHashtagPlugin from '@draft-js-plugins/hashtag';
 import '@draft-js-plugins/inline-toolbar/lib/plugin.css';
+import '@draft-js-plugins/hashtag/lib/plugin.css';
 import { convertToHTML, convertFromHTML } from 'draft-convert';
 
 
 const inlineToolbarPlugin = createInlineToolbarPlugin();
 const { InlineToolbar } = inlineToolbarPlugin;
-const plugins = [inlineToolbarPlugin];
+
+const focusPlugin = createFocusPlugin();
+const blockDndPlugin = createBlockDndPlugin();
+const hashtagPlugin = createHashtagPlugin();
+
+const decorator = composeDecorators(
+  focusPlugin.decorator,
+  blockDndPlugin.decorator
+);
+const imagePlugin = createImagePlugin({ decorator });
+const plugins = [
+  inlineToolbarPlugin,
+  blockDndPlugin,
+  focusPlugin,
+  imagePlugin,
+  hashtagPlugin
+];
+
 
 export default class InlineToolbarEditor extends Component {state = {
     editorState: EditorState.createEmpty(),
@@ -82,7 +105,7 @@ export default class InlineToolbarEditor extends Component {state = {
 
   render() {
     return (
-      <div class="sharebox" id="shareform" onClick={this.focus}>
+      <div className="sharebox" id="shareform" onClick={this.focus}>
         <div className="editor" onClick={this.focus}>
           <Editor
             editorKey="InlineToolbarEditor"
@@ -113,9 +136,9 @@ export default class InlineToolbarEditor extends Component {state = {
             }
           </InlineToolbar>
         </div>
-        <div class="post">
-          <span class="max_info"></span>
-          <input class="submit" type="submit" value="发布" onClick={this.postEntry} />
+        <div className="post">
+          <span className="max_info"></span>
+          <input className="submit" type="submit" value="发布" onClick={this.postEntry} />
         </div>
       </div>
     );
@@ -127,9 +150,6 @@ class HeadlinesPicker extends Component {
     setTimeout(() => {
       window.addEventListener('click', this.onWindowClick);
     });
-
-    let value = this.context;
-    console.log(value);
   }
 
   componentWillUnmount() {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { EntryContent } from './content'
-import {dprint, getJSON, postJSON, postForm, intersperse} from './utils';
+import {getJSON, postJSON, postForm, intersperse} from './utils';
 
 
 export class Entry extends React.Component {
