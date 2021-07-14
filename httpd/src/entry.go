@@ -37,10 +37,10 @@ func (s *Server) EntryHandler(c *gin.Context) {
 	}
 
 	entry := feed.Entries[0]
-	rawBody := utf8string.NewString(entry.RawBody)
-	title := rawBody.String()
-	if rawBody.RuneCount() > 42 {
-		title = rawBody.Slice(0, 42)
+	title := htmlSanitizer.Sanitize(entry.Body)
+	titleUtf8 := utf8string.NewString(title)
+	if titleUtf8.RuneCount() > 42 {
+		title = titleUtf8.Slice(0, 42)
 	}
 	data := pongo2.Context{
 		"title":       title,

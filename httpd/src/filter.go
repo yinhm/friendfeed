@@ -5,11 +5,16 @@ import (
 	"time"
 
 	"github.com/flosch/pongo2"
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/yinhm/friendfeed/util"
 )
 
+var htmlSanitizer *bluemonday.Policy
+
 func init() {
 	pongo2.RegisterFilter("timesince", timeSince)
+
+	htmlSanitizer = bluemonday.StripTagsPolicy()
 }
 
 func timeSince(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
