@@ -121,7 +121,8 @@ a:hover {
 .entry .content,
 .entry .info {
     margin-top: 2px;
-    line-height: 135%;
+    /* line-height: 135%; */
+    line-height: 1.7;
 }
 
 .entry .info,
@@ -367,4 +368,14 @@ div.entry pre {
 .md-RichEditor-root {
     padding: 0px !important;
     margin-bottom: 30px;
+}
+
+.md-RichEditor-root code {
+    background-color: #faf594;
+
+}
+
+.hashtag {
+    color: #1CA782;
+    font-family: cursive;
 }

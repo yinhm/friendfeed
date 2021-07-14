@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -53,8 +52,6 @@ func (s *Server) EntryHandler(c *gin.Context) {
 		"show_paging": false,
 		"onpage_edit": true,
 	}
-	log.Printf("%s", entry.Body)
-	log.Printf("%s", entry.RawBody)
 	s.renderFeed(c, data)
 	// s.HTML(c, 200, "feed.html", data)
 }
