@@ -1,48 +1,80 @@
-import React from 'react';
-import { convertToRaw } from 'draft-js';
-import { debounce } from 'throttle-debounce'
+import React, { useRef, useState, useEffect } from 'react';
+import { EditorState } from 'draft-js';
 
 import {
     Editor,
-    createEditorState,
+    // createEditorStateWithText
 } from 'medium-draft';
-import mediumDraftImporter from 'medium-draft/lib/importer';
-import mediumDraftExporter from 'medium-draft/lib/exporter';
-import { convertToHTML } from 'draft-convert';
+import {stateFromHTML} from 'draft-js-import-html';
+import {stateToHTML} from 'draft-js-export-html';
 
 
-export default class OnPageEditor extends React.Component {
-    constructor(props) {
-        super(props);
+const options = {};
 
-        this.state = {
-            editorState: createEditorState(convertToRaw(mediumDraftImporter(props.content))),
-        };
 
-        this.editorRef = React.createRef();
-    }
+const OnPageEditor = (props) => {
+    const [editorState, setEditorState] = useState(
+        EditorState.createEmpty()
+    );
+    const editor = useRef();
 
-    componentDidMount() {
-        this.editorRef.current.focus();
-    }
+    useEffect(() => {
+        var content = props.content || "";
+        var rawState = stateFromHTML(content);
+        // fixing issue with SSR https://github.com/facebook/draft-js/issues/2332#issuecomment-761573306
+        setEditorState(EditorState.createWithContent(rawState));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    onChange = (editorState) => {
-        this.setState({ editorState });
-        this.updateEntry();
-    }
+    const onChange = (value) => {
+        setEditorState(value);
+    };
 
-    updateEntry = debounce(400, () => {
-        var content = convertToHTML(this.state.editorState.getCurrentContent());
-        console.log(content);
-    })
+    // updateEntry = debounce(400, () => {
+    //     var content = stateToHTML(this.state.editorState.getCurrentContent());
+    //     console.log(content);
+    // })
 
-    render() {
-        const { editorState } = this.state;
-        return (
-            <Editor
-                ref={this.editorRef}
-                editorState={editorState}
-                onChange={this.onChange} />
-        );
-    }
+    const focus = () => {
+        editor.current.focus();
+    };
+
+    const postEntry = () => {
+        var content = editorState.getCurrentContent();
+        const htmlBody = stateToHTML(content, options);
+
+        var plainText = content.getPlainText("");
+        if (plainText === "" || plainText.length < 8) {
+            return;
+        }
+
+        var formData = new FormData();
+        formData.set("id", props.id || "");
+        formData.set("feedid", props.feedId || "");
+        formData.set("body", htmlBody);
+        props.postEntry(formData)
+            .then(() => {
+                // setEditorState(createEditorStateWithText(""));
+            }).catch(error => console.error(error));
+    };
+
+    return (
+        <div className="sharebox" id="shareform" onClick={focus}>
+            <div className="editor" onClick={focus}>
+                <Editor
+                    editorState={editorState}
+                    onChange={onChange}
+                    ref={(element) => {
+                        editor.current = element;
+                    }}
+                />
+            </div>
+            <div className="post">
+                <span className="max_info"></span>
+                <input className="submit" type="submit" value="发布" onClick={postEntry} />
+            </div>
+        </div>
+    );
 };
+
+export default OnPageEditor;

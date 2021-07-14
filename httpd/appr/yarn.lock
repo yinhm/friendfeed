@@ -1291,6 +1291,15 @@
     "@draft-js-plugins/buttons" "^4.0.0"
     "@draft-js-plugins/utils" "^4.0.0"
 
+"@draft-js-plugins/linkify@^4.1.1":
+  version "4.1.1"
+  resolved "https://registry.nlark.com/@draft-js-plugins/linkify/download/@draft-js-plugins/linkify-4.1.1.tgz#dcf2a4dcfa2b58ae717932bfb6c95e94f3b606ba"
+  integrity sha1-3PKk3PorWK5xeTK/tslelPO2Bro=
+  dependencies:
+    clsx "^1.0.4"
+    linkify-it "^3.0.2"
+    tlds "^1.221.1"
+
 "@draft-js-plugins/utils@^4.0.0", "@draft-js-plugins/utils@^4.2.0":
   version "4.2.0"
   resolved "https://registry.nlark.com/@draft-js-plugins/utils/download/@draft-js-plugins/utils-4.2.0.tgz#ee3c643c94d548fd9460541881a7554c5b077988"
@@ -4351,14 +4360,32 @@ dotenv@8.2.0:
   resolved "https://registry.nlark.com/dotenv/download/dotenv-8.2.0.tgz?cache=0&sync_timestamp=1621629308355&other_urls=https%3A%2F%2Fregistry.nlark.com%2Fdotenv%2Fdownload%2Fdotenv-8.2.0.tgz#97e619259ada750eea3e4ea3e26bceea5424b16a"
   integrity sha1-l+YZJZradQ7qPk6j4mvO6lQksWo=
 
-draft-convert@^2.1.11:
-  version "2.1.11"
-  resolved "https://registry.nlark.com/draft-convert/download/draft-convert-2.1.11.tgz#09797151ac7ed9c8f7898d116ba9f36869997bdf"
-  integrity sha1-CXlxUax+2cj3iY0Ra6nzaGmZe98=
+draft-js-export-html@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.npm.taobao.org/draft-js-export-html/download/draft-js-export-html-1.4.1.tgz#7cdad970c6f7f2cdd19ce4c1f5073fdf0f313b4d"
+  integrity sha1-fNrZcMb38s3RnOTB9Qc/3w8xO00=
   dependencies:
-    "@babel/runtime" "^7.5.5"
-    immutable "~3.7.4"
-    invariant "^2.2.1"
+    draft-js-utils "^1.4.0"
+
+draft-js-import-element@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.npm.taobao.org/draft-js-import-element/download/draft-js-import-element-1.4.0.tgz#8760acbfeb60ed824a1c8319ec049f702681df66"
+  integrity sha1-h2Csv+tg7YJKHIMZ7ASfcCaB32Y=
+  dependencies:
+    draft-js-utils "^1.4.0"
+    synthetic-dom "^1.4.0"
+
+draft-js-import-html@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.npm.taobao.org/draft-js-import-html/download/draft-js-import-html-1.4.1.tgz#c222a3a40ab27dee5874fcf78526b64734fe6ea4"
+  integrity sha1-wiKjpAqyfe5YdPz3hSa2RzT+bqQ=
+  dependencies:
+    draft-js-import-element "^1.4.0"
+
+draft-js-utils@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.npm.taobao.org/draft-js-utils/download/draft-js-utils-1.4.0.tgz#c60af198108f69b0f1df3572555b23836819d1cf"
+  integrity sha1-xgrxmBCPabDx3zVyVVsjg2gZ0c8=
 
 draft-js@^0.10.0:
   version "0.10.5"
@@ -5985,13 +6012,6 @@ internal-slot@^1.0.3:
     has "^1.0.3"
     side-channel "^1.0.4"
 
-invariant@^2.2.1:
-  version "2.2.4"
-  resolved "https://registry.npm.taobao.org/invariant/download/invariant-2.2.4.tgz#610f3c92c9359ce1db616e538008d23ff35158e6"
-  integrity sha1-YQ88ksk1nOHbYW5TgAjSP/NRWOY=
-  dependencies:
-    loose-envify "^1.0.0"
-
 ip-regex@^2.1.0:
   version "2.1.0"
   resolved "https://registry.npm.taobao.org/ip-regex/download/ip-regex-2.1.0.tgz#fa78bf5d2e6913c911ce9f819ee5146bb6d844e9"
@@ -7057,6 +7077,13 @@ lines-and-columns@^1.1.6:
   version "1.1.6"
   resolved "https://registry.npm.taobao.org/lines-and-columns/download/lines-and-columns-1.1.6.tgz#1c00c743b433cd0a4e80758f7b64a57440d9ff00"
   integrity sha1-HADHQ7QzzQpOgHWPe2SldEDZ/wA=
+
+linkify-it@^3.0.2:
+  version "3.0.2"
+  resolved "https://registry.npm.taobao.org/linkify-it/download/linkify-it-3.0.2.tgz#f55eeb8bc1d3ae754049e124ab3bb56d97797fb8"
+  integrity sha1-9V7ri8HTrnVASeEkqzu1bZd5f7g=
+  dependencies:
+    uc.micro "^1.0.1"
 
 load-json-file@^4.0.0:
   version "4.0.0"
@@ -10571,6 +10598,11 @@ symbol-tree@^3.2.4:
   resolved "https://registry.npm.taobao.org/symbol-tree/download/symbol-tree-3.2.4.tgz#430637d248ba77e078883951fb9aa0eed7c63fa2"
   integrity sha1-QwY30ki6d+B4iDlR+5qg7tfGP6I=
 
+synthetic-dom@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.npm.taobao.org/synthetic-dom/download/synthetic-dom-1.4.0.tgz#d988d7a4652458e2fc8706a875417af913e4dd34"
+  integrity sha1-2YjXpGUkWOL8hwaodUF6+RPk3TQ=
+
 table@^6.0.9:
   version "6.7.1"
   resolved "https://registry.nlark.com/table/download/table-6.7.1.tgz?cache=0&sync_timestamp=1620957183690&other_urls=https%3A%2F%2Fregistry.nlark.com%2Ftable%2Fdownload%2Ftable-6.7.1.tgz#ee05592b7143831a8c94f3cee6aae4c1ccef33e2"
@@ -10718,6 +10750,11 @@ timsort@^0.3.0:
   version "0.3.0"
   resolved "https://registry.npm.taobao.org/timsort/download/timsort-0.3.0.tgz#405411a8e7e6339fe64db9a234de11dc31e02bd4"
   integrity sha1-QFQRqOfmM5/mTbmiNN4R3DHgK9Q=
+
+tlds@^1.221.1:
+  version "1.221.1"
+  resolved "https://registry.nlark.com/tlds/download/tlds-1.221.1.tgz?cache=0&sync_timestamp=1619538298456&other_urls=https%3A%2F%2Fregistry.nlark.com%2Ftlds%2Fdownload%2Ftlds-1.221.1.tgz#6cf6bff5eaf30c5618c5801c3f425a6dc61ca0ad"
+  integrity sha1-bPa/9erzDFYYxYAcP0JabcYcoK0=
 
 tmpl@1.0.x:
   version "1.0.4"
@@ -10930,6 +10967,11 @@ ua-parser-js@^0.7.18:
   version "0.7.28"
   resolved "https://registry.npm.taobao.org/ua-parser-js/download/ua-parser-js-0.7.28.tgz#8ba04e653f35ce210239c64661685bf9121dec31"
   integrity sha1-i6BOZT81ziECOcZGYWhb+RId7DE=
+
+uc.micro@^1.0.1:
+  version "1.0.6"
+  resolved "https://registry.nlark.com/uc.micro/download/uc.micro-1.0.6.tgz#9c411a802a409a91fc6cf74081baba34b24499ac"
+  integrity sha1-nEEagCpAmpH8bPdAgbq6NLJEmaw=
 
 unbox-primitive@^1.0.1:
   version "1.0.1"
