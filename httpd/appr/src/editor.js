@@ -1,6 +1,6 @@
 /* eslint-disable react/no-multi-comp */
 import React, { useRef, useState, useEffect } from 'react';
-import { EditorState } from 'draft-js';
+import { EditorState, convertFromRaw, convertToRaw } from 'draft-js';
 
 import Editor, {
     createEditorStateWithText,
@@ -72,7 +72,14 @@ const InlineToolbarEditor = (props) => {
 
     useEffect(() => {
         var content = props.content || "";
-        var rawState = stateFromHTML(content);
+        // detect content
+        var rawState;
+        try {
+            var raw = JSON.parse(content)
+            rawState = convertFromRaw(raw);
+        } catch (e) {
+            rawState = stateFromHTML(content);
+        }
         // fixing issue with SSR https://github.com/facebook/draft-js/issues/2332#issuecomment-761573306
         setEditorState(EditorState.createWithContent(rawState));
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,6 +96,7 @@ const InlineToolbarEditor = (props) => {
     const postEntry = () => {
         var content = editorState.getCurrentContent();
         const htmlBody = stateToHTML(content, options);
+        const rawBody = JSON.stringify(convertToRaw(content))
 
         var plainText = content.getPlainText("");
         if (plainText === "" || plainText.length < 8) {
@@ -99,6 +107,7 @@ const InlineToolbarEditor = (props) => {
         formData.set("id", props.id || "");
         formData.set("feedid", props.feedId || "");
         formData.set("body", htmlBody);
+        formData.set("rawBody", rawBody);
         props.postEntry(formData)
             .then(() => {
                 setEditorState(createEditorStateWithText(""));

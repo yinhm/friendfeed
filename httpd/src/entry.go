@@ -59,9 +59,10 @@ func (s *Server) EntryHandler(c *gin.Context) {
 // TODO: allow cross post to multiply feeds
 func (s *Server) EntryPostHandler(c *gin.Context) {
 	var form struct {
-		Id     string `form:"id"`
-		FeedId string `form:"feedid"`
-		Body   string `form:"body" binding:"required"`
+		Id      string `form:"id"`
+		FeedId  string `form:"feedid"`
+		Body    string `form:"body" binding:"required"`
+		RawBody string `form:"rawBody"`
 	}
 	if err := c.MustBindWith(&form, binding.FormMultipart); err != nil {
 		return
@@ -95,7 +96,11 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 			return
 		}
 	}
-	entry.RawBody = form.Body
+	if form.RawBody != "" {
+		entry.RawBody = form.RawBody
+	} else {
+		entry.RawBody = form.Body
+	}
 	entry.Body = util.EntityToLink(util.DefaultSanitize(form.Body))
 
 	from := &pb.Feed{

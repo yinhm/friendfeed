@@ -30,7 +30,7 @@ require (
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/markbates/goth v1.67.1
 	github.com/mattn/go-isatty v0.0.13 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.14
+	github.com/microcosm-cc/bluemonday v1.0.15
 	github.com/robfig/go-cache v0.0.0-20130306151617-9fc39e0dbf62 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/smartystreets/goconvey v1.6.4

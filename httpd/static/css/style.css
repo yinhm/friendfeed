@@ -318,6 +318,13 @@ div.entry pre {
     display: block;
 }
 
+div.content p,
+div.content ol,
+div.content ul,
+div.content pre {
+    margin-block-start: 0.5em;
+    margin-block-end: 0.3em;
+}
 
 /* @draft-js-plugin/editor */
 .editor {
