@@ -1,59 +1,60 @@
 <!doctype html>
+
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
-  <title>{{ title|escape }} - FriendFeed</title>
-  <meta name="viewport" content="initial-scale=1, maximum-scale=1" />
-  <link rel="stylesheet" href="/static/css/style.css?v=21">
-  <link rel="stylesheet" href="/static/css/medium-draft.css">
-  </head>
-  <body>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>{{ title|escape }} - FriendFeed</title>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1" />
+    <link rel="stylesheet" href="/static/css/style.css?v=22">
+    <link rel="stylesheet" href="/static/css/medium-draft.css">
+</head>
+
+<body>
     <div class="page">
 
-      <div class="menu">
-        <div class="section">
-	  <h3><a href="/">Friends</a></h3>
-	  <ul>
-	    <li><a href="/">Homepage</a></li>
-            {% if current_user %}
-	    <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
-	    <li><a href="/public">Public</a></li>
-            {% endif %}
-	    <!-- <li><a href="/summary/1">Best of day</a></li> -->
-	  </ul>
-	</div>
+        <div class="menu">
+            <div class="section">
+                <h3><a href="/">Friends</a></h3>
+                <ul>
+                    <li><a href="/">Homepage</a></li>
+                    {% if current_user %}
+                    <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
+                    <li><a href="/public">Public</a></li>
+                    {% endif %}
+                    <!-- <li><a href="/summary/1">Best of day</a></li> -->
+                </ul>
+            </div>
 
-        <div class="section">
-	  <h3>Login</h3>
-	  <ul>
-            {% if current_user %}
-	    <li><a href="/logout">Logout</a></li>
-            {% else %}
-            <li><a href="/auth/twitter">Twitter</a></li>
-            <li><a href="/auth/google">Google</a></li>
-            {% endif %}
-	  </ul>
-	</div>
+            <div class="section">
+                <h3>Login</h3>
+                <ul>
+                    {% if current_user %}
+                    <li><a href="/logout">Logout</a></li>
+                    {% else %}
+                    <li><a href="/auth/twitter">Twitter</a></li>
+                    <li><a href="/auth/google">Google</a></li>
+                    {% endif %}
+                </ul>
+            </div>
 
-        <div class="section">
-	  <h3>Service</h3>
-          <ul>
-            <li><a href="/account/import">Import</a></li>
-          </ul>
-	</div>
-      </div>
+            <div class="section">
+                <h3>Service</h3>
+                <ul>
+                    <li><a href="/account/import">Import</a></li>
+                </ul>
+            </div>
+        </div>
 
-      
-      {% block content %}
-      {% endblock %}
+
+        {% block content %} {% endblock %}
 
 
     </div>
 
-    {% block scripts %}
-    {% endblock %}
+    {% block scripts %} {% endblock %}
     <script src="/static/js/jquery-1.11.2.min.js"></script>
     <script src="/appr/build/static/js/2.chunk.js"></script>
     <script src="/appr/build/static/js/main.chunk.js"></script>
     <script src="/static/js/application.js"></script>
-  </body>
+</body>
+
 </html>
