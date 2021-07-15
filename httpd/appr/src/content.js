@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import InlineToolbarEditor from './editor';
-// import OnPageEditor from './medium';
+import OnPageEditor from './medium';
 import { FeedContext } from './context'
 
 
@@ -14,13 +14,8 @@ export function EntryContent(props) {
     }
 
     if (props.onpage || feedCfg.onpage_edit === true) {
-        // return (
-        //     <OnPageEditor 
-        //         content={props.body} />
-        // );
-        
         return (
-            <InlineToolbarEditor
+            <OnPageEditor
                 id={props.id}
                 feedId={feedCfg.feed_id}
                 content={props.rawBody}

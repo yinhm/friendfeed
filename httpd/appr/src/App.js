@@ -2,6 +2,7 @@ import React from 'react';
 import { Entry } from './entry';
 import { getJSON, postForm } from './utils';
 import InlineToolbarEditor from './editor';
+import OnPageEditor from './medium';
 import { FeedContext } from './context'
 
 
@@ -98,7 +99,7 @@ export class Feed extends React.Component{
     var editorNodes = "";
     if (this.state.show_share === true) {
       editorNodes = (
-        <InlineToolbarEditor feedId={feed.Id} postEntry={this.onPostEntry} />
+        <OnPageEditor feedId={feed.Id} postEntry={this.onPostEntry} />
       )
     }
 
