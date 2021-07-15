@@ -124,6 +124,7 @@ const components = createSlatePluginsComponents({
 
 const OnPageEditor = (props) => {
     const [content, setContent] = useState("");
+    const editor = useStoreEditorRef(useEventEditorId('focus'));
 
     useEffect(() => {
         // setContent("test content");
@@ -134,11 +135,11 @@ const OnPageEditor = (props) => {
     };
 
     const postEntry = () => {
-
-        // const html = serializeHTMLFromNodes({
-        //     plugins,
-        //     nodes,
-        // })
+        const body = serializeHTMLFromNodes(editor, {
+            plugins: plugins,
+            nodes: editor.children,
+        });
+        console.log(body);
     };
 
     return (
