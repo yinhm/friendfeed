@@ -5,6 +5,7 @@ import {
   createDeserializeHTMLPlugin,
   serializeHTMLFromNodes,
   deserializeHTMLToDocumentFragment,
+  useSlatePluginsActions,
 } from '@udecode/slate-plugins';
 
 
@@ -21,6 +22,12 @@ const editableProps = {
     placeholder: '开始记录...',
     style: {
         padding: '15px',
+        boxSizing: "border-box",
+        border: "1px solid #ddd",
+        cursor: "text",
+        borderRadius: "2px",
+        marginBottom: "1em",
+        overflow: "auto",
     },
 };
 
@@ -35,7 +42,9 @@ const OnPageEditor = ({
     content = "",
     postEntry
 }) => {
+    const eid = `{id}-editor`;
     const [value, setValue] = useState(null);
+    const { setEnabled, resetEditor } = useSlatePluginsActions(id);
 
     const plugins = useMemo(() => {
         const p = [...defaultPlugins];
@@ -69,6 +78,7 @@ const OnPageEditor = ({
       }, [value]);    
 
     const onChange = (slateValue) => {
+        console.log(JSON.stringify(slateValue));
         setValue(slateValue);
     };
 
@@ -95,7 +105,11 @@ const OnPageEditor = ({
         formData.set("rawBody", rawBody);
         postEntry(formData)
             .then(() => {
-                setValue(initialValue);
+                // editor.moveToRangeOfDocument().insertBlock("");
+                // not working;
+                resetEditor(eid);
+                setValue(initialValueEmpty);
+                console.log("set empty");
             }).catch(error => console.error(error));
     };
 
@@ -103,7 +117,7 @@ const OnPageEditor = ({
         <div className="sharebox" id="shareform">
             <InlineToolbarElements />
             <SlatePlugins
-                id={id || "inline-editor"}
+                id={eid}
                 plugins={plugins}
                 components={components}
                 options={options}
