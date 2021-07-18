@@ -34,7 +34,7 @@ import {
   createSelectOnBackspacePlugin,
   createUnderlinePlugin,
   createResetNodePlugin,
-  createTrailingBlockPlugin,
+//   createTrailingBlockPlugin,
   BalloonToolbar,
   ELEMENT_BLOCKQUOTE,
   ELEMENT_CODE_BLOCK,
@@ -84,19 +84,14 @@ export const components = createSlatePluginsComponents({
 
 export const initialValueEmpty = [
     {
-        children: [
-            {
-                type: 'paragraph',
-                children: [{ text: '' }],
-            },
-        ],
+        type: ELEMENT_PARAGRAPH,
+        children: [{ text: '' }]
     },
 ];
 
 export const editor = createEditorPlugins();
 
 export const options = createSlatePluginsOptions({});
-
 
 const resetBlockTypesCommonRule = {
     types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
@@ -152,7 +147,7 @@ export const defaultPlugins = [
     createResetNodePlugin(optionsResetBlockTypePlugin),
     // createSoftBreakPlugin(optionsSoftBreakPlugin),
     // createExitBreakPlugin(optionsExitBreakPlugin),
-    createTrailingBlockPlugin({ type: ELEMENT_PARAGRAPH }),
+    // createTrailingBlockPlugin({ type: ELEMENT_PARAGRAPH }),
 ];
 
 

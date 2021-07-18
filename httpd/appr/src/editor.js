@@ -69,14 +69,16 @@ const OnPageEditor = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [content]);
 
+    // TODO:
+    // automatic save
     useEffect(() => {
-        if (editorValue) {
-          const html = serializeHTMLFromNodes(editor, {
-            plugins,
-            nodes: editorValue,
-          });
-          console.log(html);
-        }
+        // if (editorValue) {
+        //   const html = serializeHTMLFromNodes(editor, {
+        //     plugins,
+        //     nodes: editorValue,
+        //   });
+        //   console.log(html);
+        // }
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [editorValue]);
 
