@@ -110,11 +110,8 @@ const OnPageEditor = ({
         formData.set("rawBody", rawBody);
         postEntry(formData)
             .then(() => {
-                // editor.moveToRangeOfDocument().insertBlock("");
-                // not working;
                 resetEditor(eid);
                 setValue(initialValueEmpty);
-                console.log("set empty");
             }).catch(error => console.error(error));
     };
 
