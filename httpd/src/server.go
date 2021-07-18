@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ type Server struct {
 	secretKey  string
 	httpclient *http.Client
 	cache      *cache.InMemoryStore
+	assets     embed.FS
 }
 
 func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug bool) *Server {
@@ -55,6 +57,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 		secretKey:  secretKey,
 		httpclient: httpclient,
 		cache:      cacheStore,
+		assets:     assets,
 	}
 }
 
@@ -72,6 +75,18 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		data["current_user"] = profile
 	}
 	data["dev"] = s.debug
+
+	var jsFiles []string
+	files, err := s.assets.ReadDir("appr/build/static/js")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, fileName := range files {
+		if !fileName.IsDir() && strings.HasSuffix(fileName.Name(), "js") {
+			jsFiles = append(jsFiles, fileName.Name())
+		}
+	}
+	data["jsFiles"] = jsFiles
 	c.HTML(code, name, data)
 }
 
