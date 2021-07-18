@@ -34,7 +34,10 @@ import {
   createSelectOnBackspacePlugin,
   createUnderlinePlugin,
   createResetNodePlugin,
-//   createTrailingBlockPlugin,
+  createSoftBreakPlugin,
+  createExitBreakPlugin,
+  createTrailingBlockPlugin,
+  KEYS_HEADING,
   BalloonToolbar,
   ELEMENT_BLOCKQUOTE,
   ELEMENT_CODE_BLOCK,
@@ -113,6 +116,37 @@ const optionsResetBlockTypePlugin = {
     ],
 };
 
+const optionsSoftBreakPlugin = {
+    rules: [
+        { hotkey: 'shift+enter' },
+        {
+            hotkey: 'enter',
+            query: {
+                allow: [ELEMENT_CODE_BLOCK, ELEMENT_BLOCKQUOTE],
+            },
+        },
+    ],
+};
+
+export const optionsExitBreakPlugin = {
+    rules: [
+        {
+            hotkey: 'mod+enter',
+        },
+        {
+            hotkey: 'mod+shift+enter',
+            before: true,
+        },
+        {
+            hotkey: 'enter',
+            query: {
+                start: true,
+                end: true,
+                allow: KEYS_HEADING,
+            },
+        },
+    ],
+};
 
 export const defaultPlugins = [
     // editor
@@ -145,9 +179,9 @@ export const defaultPlugins = [
 
     // reset
     createResetNodePlugin(optionsResetBlockTypePlugin),
-    // createSoftBreakPlugin(optionsSoftBreakPlugin),
-    // createExitBreakPlugin(optionsExitBreakPlugin),
-    // createTrailingBlockPlugin({ type: ELEMENT_PARAGRAPH }),
+    createSoftBreakPlugin(optionsSoftBreakPlugin),
+    createExitBreakPlugin(optionsExitBreakPlugin),
+    createTrailingBlockPlugin({ type: ELEMENT_PARAGRAPH }),
 ];
 
 

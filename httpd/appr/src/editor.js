@@ -27,7 +27,7 @@ const editableProps = {
         cursor: "text",
         borderRadius: "2px",
         marginBottom: "1em",
-        overflow: "auto",
+        minHeight: "60px",
     },
 };
 
