@@ -128,7 +128,7 @@ const optionsSoftBreakPlugin = {
     ],
 };
 
-export const optionsExitBreakPlugin = {
+const optionsExitBreakPlugin = {
     rules: [
         {
             hotkey: 'mod+enter',
