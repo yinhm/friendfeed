@@ -68,7 +68,7 @@ export class Feed extends React.Component{
         var new_state = Object.assign({}, this.state);
         new_state.feed.entries.unshift(data);
         this.setState(new_state);
-      }).catch(error => console.error(error));
+      });
   }
 
   render() {

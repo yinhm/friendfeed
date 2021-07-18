@@ -230,7 +230,7 @@ export class Entry extends React.Component {
         }
         new_state.entry = entry;
         this.updateState(new_state);
-      }).catch(error => console.error(error));
+      });
   }
 
   render() {

@@ -43,8 +43,8 @@ const OnPageEditor = ({
     postEntry
 }) => {
     const eid = `{id}-editor`;
-    const [value, setValue] = useState(null);
-    const { resetEditor } = useSlatePluginsActions(eid);
+    const [editorValue, setEditorValue] = useState(null);
+    const { setValue, resetEditor } = useSlatePluginsActions(eid);
 
     const plugins = useMemo(() => {
         const p = [...defaultPlugins];
@@ -70,33 +70,33 @@ const OnPageEditor = ({
     }, [content]);
 
     useEffect(() => {
-        if (value) {
+        if (editorValue) {
           const html = serializeHTMLFromNodes(editor, {
             plugins,
-            nodes: value,
+            nodes: editorValue,
           });
           console.log(html);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [value]);    
+      }, [editorValue]);
 
     const onChange = (slateValue) => {
         console.log(JSON.stringify(slateValue));
-        setValue(slateValue);
+        setEditorValue(slateValue);
     };
 
     const onPostEntry = () => {
-        if (!value) {
+        if (!editorValue) {
             return
         }
         
         const htmlBody = serializeHTMLFromNodes(editor, {
             plugins,
-            nodes: value,
+            nodes: editorValue,
         });
-        const rawBody = JSON.stringify(value)
+        const rawBody = JSON.stringify(editorValue)
 
-        var plainText = serializePlainText(value);
+        var plainText = serializePlainText(editorValue);
         if (plainText.length < 8) {
             return;
         }
