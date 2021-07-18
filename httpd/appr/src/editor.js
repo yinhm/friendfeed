@@ -1,213 +1,141 @@
-/* eslint-disable react/no-multi-comp */
-import React, { useRef, useState, useEffect } from 'react';
-import { EditorState, convertFromRaw, convertToRaw } from 'draft-js';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Node } from 'slate'
+import {
+  SlatePlugins,
+  createDeserializeHTMLPlugin,
+  serializeHTMLFromNodes,
+  deserializeHTMLToDocumentFragment,
+  useSlatePluginsActions,
+} from '@udecode/slate-plugins';
 
-import Editor, {
-    createEditorStateWithText,
-    composeDecorators
-} from '@draft-js-plugins/editor';
-
-import createInlineToolbarPlugin, {
-    Separator,
-} from '@draft-js-plugins/inline-toolbar';
 
 import {
-    ItalicButton,
-    BoldButton,
-    UnderlineButton,
-    CodeButton,
-    HeadlineOneButton,
-    HeadlineTwoButton,
-    HeadlineThreeButton,
-    UnorderedListButton,
-    OrderedListButton,
-    BlockquoteButton,
-    CodeBlockButton,
-} from '@draft-js-plugins/buttons';
-import createImagePlugin from '@draft-js-plugins/image';
-import createFocusPlugin from '@draft-js-plugins/focus';
-import createBlockDndPlugin from '@draft-js-plugins/drag-n-drop';
-import createHashtagPlugin from '@draft-js-plugins/hashtag';
-import createLinkifyPlugin from '@draft-js-plugins/linkify';
-import '@draft-js-plugins/inline-toolbar/lib/plugin.css';
-import '@draft-js-plugins/hashtag/lib/plugin.css';
-// import editorStyles from './editorStyles.css';
-import {stateFromHTML} from 'draft-js-import-html';
-import {stateToHTML} from 'draft-js-export-html';
+    InlineToolbarElements,
+    initialValueEmpty,
+    defaultPlugins,
+    components,
+    editor,
+    options,
+} from './options';
 
-
-const inlineToolbarPlugin = createInlineToolbarPlugin();
-const { InlineToolbar } = inlineToolbarPlugin;
-
-const focusPlugin = createFocusPlugin();
-const blockDndPlugin = createBlockDndPlugin();
-const hashtagPlugin = createHashtagPlugin();
-const linkifyPlugin = createLinkifyPlugin();
-const decorator = composeDecorators(
-    focusPlugin.decorator,
-    blockDndPlugin.decorator
-);
-const imagePlugin = createImagePlugin({ decorator });
-
-const plugins = [
-    inlineToolbarPlugin,
-    blockDndPlugin,
-    focusPlugin,
-    imagePlugin,
-    linkifyPlugin,
-    hashtagPlugin
-];
-
-let options = {
-    // inlineStyles: {
-    //     'code-block': { element: 'pre' },
-    // },
+const editableProps = {
+    placeholder: '开始记录...',
+    style: {
+        padding: '15px',
+        boxSizing: "border-box",
+        border: "1px solid #ddd",
+        cursor: "text",
+        borderRadius: "2px",
+        marginBottom: "1em",
+        overflow: "auto",
+    },
 };
 
-const InlineToolbarEditor = (props) => {
-    const [editorState, setEditorState] = useState(
-        EditorState.createEmpty()
-    );
-    const editor = useRef();
+const serializePlainText = nodes => {
+    return nodes.map(n => Node.string(n)).join('\n')
+}
 
-    useEffect(() => {
-        var content = props.content || "";
-        // detect content
-        var rawState;
-        try {
-            var raw = JSON.parse(content)
-            rawState = convertFromRaw(raw);
-        } catch (e) {
-            rawState = stateFromHTML(content);
-        }
-        // fixing issue with SSR https://github.com/facebook/draft-js/issues/2332#issuecomment-761573306
-        setEditorState(EditorState.createWithContent(rawState));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
+const OnPageEditor = ({
+    id = "",
+    feedId = "",
+    content = "",
+    postEntry
+}) => {
+    const eid = `{id}-editor`;
+    const [value, setValue] = useState(null);
+    const { resetEditor } = useSlatePluginsActions(eid);
+
+    const plugins = useMemo(() => {
+        const p = [...defaultPlugins];
+        p.push(createDeserializeHTMLPlugin({ plugins: p }));
+        return p;
     }, []);
 
-    const onChange = (value) => {
-        setEditorState(value);
+    const initialValue = useMemo(() => {
+        if (content) {
+            try {
+                // how to test content is raw?
+                return JSON.parse(content);
+            } catch (e) {
+                // fail safe to html parse
+                return deserializeHTMLToDocumentFragment(editor, {
+                    plugins,
+                    element: content,
+                });
+            }
+        }
+        return initialValueEmpty;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [content]);
+
+    useEffect(() => {
+        if (value) {
+          const html = serializeHTMLFromNodes(editor, {
+            plugins,
+            nodes: value,
+          });
+          console.log(html);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [value]);    
+
+    const onChange = (slateValue) => {
+        console.log(JSON.stringify(slateValue));
+        setValue(slateValue);
     };
 
-    const focus = () => {
-        editor.current.focus();
-    };
+    const onPostEntry = () => {
+        if (!value) {
+            return
+        }
+        
+        const htmlBody = serializeHTMLFromNodes(editor, {
+            plugins,
+            nodes: value,
+        });
+        const rawBody = JSON.stringify(value)
 
-    const postEntry = () => {
-        var content = editorState.getCurrentContent();
-        const htmlBody = stateToHTML(content, options);
-        const rawBody = JSON.stringify(convertToRaw(content))
-
-        var plainText = content.getPlainText("");
-        if (plainText === "" || plainText.length < 8) {
+        var plainText = serializePlainText(value);
+        if (plainText.length < 8) {
             return;
         }
 
         var formData = new FormData();
-        formData.set("id", props.id || "");
-        formData.set("feedid", props.feedId || "");
+        formData.set("id", id);
+        formData.set("feedid", feedId);
         formData.set("body", htmlBody);
         formData.set("rawBody", rawBody);
-        props.postEntry(formData)
+        postEntry(formData)
             .then(() => {
-                setEditorState(createEditorStateWithText(""));
+                // editor.moveToRangeOfDocument().insertBlock("");
+                // not working;
+                resetEditor(eid);
+                setValue(initialValueEmpty);
+                console.log("set empty");
             }).catch(error => console.error(error));
     };
 
     return (
-        <div className="sharebox" id="shareform" onClick={focus}>
-            <div className="editor" onClick={focus}>
-                <Editor
-                    editorState={editorState}
-                    onChange={onChange}
-                    plugins={plugins}
-                    ref={(element) => {
-                        editor.current = element;
-                    }}
-                />
-                <InlineToolbar>
-                    {
-                        // may be use React.Fragment instead of div to improve perfomance after React 16
-                        (externalProps) => (
-                            <div>
-                                <BoldButton {...externalProps} />
-                                <ItalicButton {...externalProps} />
-                                <UnderlineButton {...externalProps} />
-                                <CodeButton {...externalProps} />
-                                <Separator {...externalProps} />
-                                <HeadlinesButton {...externalProps} />
-                                <UnorderedListButton {...externalProps} />
-                                <OrderedListButton {...externalProps} />
-                                <BlockquoteButton {...externalProps} />
-                                <CodeBlockButton {...externalProps} />
-                            </div>
-                        )
-                    }
-                </InlineToolbar>
-            </div>
+        <div className="sharebox" id="shareform">
+            <InlineToolbarElements />
+            <SlatePlugins
+                id={eid}
+                plugins={plugins}
+                components={components}
+                options={options}
+                editableProps={editableProps}
+                initialValue={initialValue}
+                onChange={(newValue) => {
+                    onChange(newValue);
+                }}
+            />
             <div className="post">
                 <span className="max_info"></span>
-                <input className="submit" type="submit" value="发布" onClick={postEntry} />
+                <input className="submit" type="submit" value="发布" onClick={onPostEntry} />
             </div>
         </div>
     );
-};
+}
 
-const HeadlinesPicker = (props) => {
-    const onWindowClick = () =>
-        // Call `onOverrideContent` again with `undefined`
-        // so the toolbar can show its regular content again.
-        props.onOverrideContent(undefined);
-
-    useEffect(() => {
-        const timeout = setTimeout(() => {
-            window.addEventListener('click', onWindowClick);
-        });
-
-        return () => {
-            if (timeout) {
-                clearTimeout(timeout);
-            }
-
-            window.removeEventListener('click', onWindowClick);
-        };
-    });
-
-    const buttons = [HeadlineOneButton, HeadlineTwoButton, HeadlineThreeButton];
-    return (
-        <div>
-            {buttons.map((
-                Button,
-                i // eslint-disable-next-line
-            ) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <Button key={i} {...props} />
-            ))}
-        </div>
-    );
-};
-
-const HeadlinesButton = ({ onOverrideContent }) => {
-    // When using a click event inside overridden content, mouse down
-    // events needs to be prevented so the focus stays in the editor
-    // and the toolbar remains visible  onMouseDown = (event) => event.preventDefault()
-    const onMouseDown = (event) => event.preventDefault();
-
-    const onClick = () =>
-        // A button can call `onOverrideContent` to replace the content
-        // of the toolbar. This can be useful for displaying sub
-        // menus or requesting additional information from the user.
-        onOverrideContent(HeadlinesPicker);
-
-    return (
-        <div
-            onMouseDown={onMouseDown}
-            className="headlineButtonWrapper">
-            <button onClick={onClick} className="headlineButton">
-                H
-            </button>
-        </div>
-    );
-};
-
-export default InlineToolbarEditor;
+export default OnPageEditor
