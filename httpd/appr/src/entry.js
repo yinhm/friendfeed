@@ -43,7 +43,8 @@ export class Entry extends React.Component {
     if (state.onpage_edit) {
       console.log("no update entry content when on-page editing");
     } else {
-      new_state.entry = nextProps.entry
+      new_state.entry = nextProps.entry;
+      new_state.onpage_edit = state.onpage_edit;
     }
 
     // compare props from top component
@@ -223,7 +224,6 @@ export class Entry extends React.Component {
     return postForm("/a/share", formData)
       .then(entry => {
         var new_state = Object.assign({}, this.state);
-        new_state.self_updating = true;
         new_state.onpage_edit = false;
         if (this.state.entry.id !== entry.id) {
           console.log("update failed, new entry created?")

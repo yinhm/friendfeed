@@ -50,7 +50,7 @@ func (s *Server) EntryHandler(c *gin.Context) {
 		"show_share":  false,
 		"show_direct": false,
 		"show_paging": false,
-		"onpage_edit": true,
+		"onpage_edit": false,
 	}
 	s.renderFeed(c, data)
 	// s.HTML(c, 200, "feed.html", data)

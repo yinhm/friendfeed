@@ -26,7 +26,7 @@ import (
 	"github.com/markbates/goth/providers/twitter"
 )
 
-//go:embed static templates appr/build/static/js
+//go:embed static templates
 var assetsFS embed.FS
 
 var options struct {
