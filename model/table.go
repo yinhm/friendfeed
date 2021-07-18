@@ -96,7 +96,7 @@ func (t *Table) Delete(db *store.Store, key store.Key) error {
 // value are prefixed key which point to data
 func (t *Table) Index(db *store.Store, uuid1 uuid.UUID, oldtime time.Time, idxKey store.Key) error {
 	flakeid := db.TimeTravelReverseId(oldtime)
-	k := store.NewUUIDFlakeKey(TableReverseEntryIndex, uuid1, flakeid)
+	k := store.NewUUIDFlakeKey(TableEntryIndex, uuid1, flakeid)
 	return db.Put(k.Bytes(), idxKey)
 }
 

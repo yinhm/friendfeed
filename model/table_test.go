@@ -102,7 +102,7 @@ func (s *TableTestSuite) TestPutEntry() {
 	assert.Equal(s.T(), mEntry.Id, sEntry.Id)
 
 	uuid1, _ := uuid.FromString(p.Uuid)
-	key := store.NewUUIDKey(TableReverseEntryIndex, uuid1)
+	key := store.NewUUIDKey(TableEntryIndex, uuid1)
 	n, err := s.db.ForwardScan(key, func(i int, k, v []byte) error {
 		return nil
 	})

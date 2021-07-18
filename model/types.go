@@ -17,13 +17,13 @@ const (
 	TableFeedinfo store.KeyPrefix = 2
 	TableEntry    store.KeyPrefix = 3
 
-	// TODO: obsoleted TableEntryIndex, FixMaxEntryIndex
-	// WARN: TableEntryIndex > TableEntry for FixMaxEntryIndex
-	TableEntryIndex store.KeyPrefix = 4
-	// TableEntryIndex NOT working, BackwardFetchFeed broken
-	// duplicate a reverse index
-	TableReverseEntryIndex store.KeyPrefix = 5
-	TableIndexCache        store.KeyPrefix = 6
+	// Prev iter was broken on rocksdb when this was coded,
+	// this index was actually a manually reverse index.
+	// Don't know is that prev iter works well on pepple,
+	// may change later?
+	// TableEntryIndex store.KeyPrefix = 4
+	TableEntryIndex store.KeyPrefix = 5
+	TableIndexCache store.KeyPrefix = 6
 
 	TableProfile      store.KeyPrefix = 100
 	TableService      store.KeyPrefix = 101
@@ -44,13 +44,12 @@ const (
 
 var (
 	// init tables
-	Feed              = NewTable(KeyPrefixToBytes(TableFeed))
-	Feedinfo          = NewTable(KeyPrefixToBytes(TableFeedinfo))
-	Entry             = NewTable(KeyPrefixToBytes(TableEntry))
-	EntryIndex        = NewTable(KeyPrefixToBytes(TableEntryIndex))
-	ReverseEntryIndex = NewTable(KeyPrefixToBytes(TableReverseEntryIndex))
-	IndexCache        = NewTable(KeyPrefixToBytes(TableIndexCache))
-	Profile           = NewTable(KeyPrefixToBytes(TableProfile))
+	Feed       = NewTable(KeyPrefixToBytes(TableFeed))
+	Feedinfo   = NewTable(KeyPrefixToBytes(TableFeedinfo))
+	Entry      = NewTable(KeyPrefixToBytes(TableEntry))
+	EntryIndex = NewTable(KeyPrefixToBytes(TableEntryIndex))
+	IndexCache = NewTable(KeyPrefixToBytes(TableIndexCache))
+	Profile    = NewTable(KeyPrefixToBytes(TableProfile))
 
 	Service      = NewTable(KeyPrefixToBytes(TableService))
 	Subscription = NewTable(KeyPrefixToBytes(TableSubscription))

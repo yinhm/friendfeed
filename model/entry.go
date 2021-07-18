@@ -30,7 +30,7 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = ReverseEntryIndex.Index(db, userUuid, oldtime, key[:])
+	err = EntryIndex.Index(db, userUuid, oldtime, key[:])
 	if err != nil {
 		return nil, err
 	}
