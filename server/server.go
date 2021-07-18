@@ -409,7 +409,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	}
 
 	uuid1, _ := uuid.FromString(profile.Uuid)
-	preKey := store.NewUUIDKey(store.TableReverseEntryIndex, uuid1)
+	preKey := store.NewUUIDKey(model.TableEntryIndex, uuid1)
 	logger.Infof("ForwardFetchFeed: %s", preKey.String())
 
 	start := req.Start

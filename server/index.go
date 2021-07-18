@@ -10,6 +10,7 @@ import (
 
 	"github.com/eapache/queue"
 	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/model"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
@@ -43,7 +44,7 @@ func NewFeedIndex(db *store.Store, id string, uuid1 *uuid.UUID) *FeedIndex {
 
 // key to dump index cache to db
 func (f *FeedIndex) Key() store.IKey {
-	return store.NewUUIDKey(store.TableIndexCache, *f.Uuid)
+	return store.NewUUIDKey(model.TableIndexCache, *f.Uuid)
 }
 
 func (f *FeedIndex) Serve(db *store.Store) {

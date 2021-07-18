@@ -33,7 +33,7 @@ func (s *ApiServer) IndexJobTicker() {
 }
 
 func (s *ApiServer) RefetchUserFeed() error {
-	prefix := store.TableProfile
+	prefix := model.TableProfile
 	j := 0
 	n, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		profile := &pb.Profile{}
@@ -74,7 +74,7 @@ func (s *ApiServer) RefetchUserFeed() error {
 }
 
 func (s *ApiServer) RefetchFriendFeed() error {
-	prefix := store.TableProfile
+	prefix := model.TableProfile
 	j := 0
 	n, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		profile := &pb.Profile{}
@@ -123,7 +123,7 @@ func (s *ApiServer) RefetchFriendFeed() error {
 
 func (s *ApiServer) EnqueJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob, error) {
 	// Time ordered job queue
-	key := store.NewFlakeKey(store.TableJobFeed, s.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.mdb.NextId())
 
 	job.Key = key.String()
 	job.Created = time.Now().Unix()
@@ -147,7 +147,7 @@ func (s *ApiServer) GetFeedJob(ctx context.Context, in *pb.Worker) (*pb.FeedJob,
 	}
 
 	// Time ordered running job
-	key := store.NewFlakeKey(store.TableJobRunning, s.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobRunning, s.mdb.NextId())
 
 	job.Key = key.String()
 	job.Worker = in.Id
@@ -165,7 +165,7 @@ func (s *ApiServer) GetFeedJob(ctx context.Context, in *pb.Worker) (*pb.FeedJob,
 func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
 	var job *pb.FeedJob
 
-	key := store.NewFlakeKey(store.TableJobFeed, s.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.mdb.NextId())
 	s.mdb.ForwardScan(key.Prefix(), func(i int, k, v []byte) error {
 		job = &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
@@ -192,7 +192,7 @@ func (s *ApiServer) FinishJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob
 	}
 
 	// indicating the feed of the target id is archived
-	key := store.NewMetaKey(store.TableJobHistory, job.TargetId)
+	key := store.NewMetaKey(model.TableJobHistory, job.TargetId)
 	job.Key = key.String()
 	job.Status = "done"
 	job.Updated = time.Now().Unix()
@@ -253,7 +253,7 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 }
 
 func (s *ApiServer) DebugJobs() {
-	jobs, err := s.ListJobQueue(store.TableJobFeed)
+	jobs, err := s.ListJobQueue(model.TableJobFeed)
 	if err != nil {
 		log.Println("err: ", err)
 	}
@@ -263,7 +263,7 @@ func (s *ApiServer) DebugJobs() {
 }
 
 func (s *ApiServer) DebugRunningJobs() {
-	jobs, err := s.ListJobQueue(store.TableJobRunning)
+	jobs, err := s.ListJobQueue(model.TableJobRunning)
 	if err != nil {
 		log.Println("err: ", err)
 	}
@@ -275,7 +275,7 @@ func (s *ApiServer) DebugRunningJobs() {
 func (s *ApiServer) PurgeJobs() error {
 	log.Println("purging all jobs...")
 
-	prefix := store.TableJobFeed
+	prefix := model.TableJobFeed
 	_, err := s.mdb.ForwardScan(prefix, func(i int, key, value []byte) error {
 		return s.mdb.Delete(key)
 	})
@@ -283,7 +283,7 @@ func (s *ApiServer) PurgeJobs() error {
 		return err
 	}
 
-	prefix = store.TableJobRunning
+	prefix = model.TableJobRunning
 	_, err = s.mdb.ForwardScan(prefix, func(i int, key, value []byte) error {
 		return s.mdb.Delete(key)
 	})
@@ -297,7 +297,7 @@ func (s *ApiServer) PurgeJobs() error {
 func (s *ApiServer) FixJobs() error {
 	log.Println("purging all jobs...")
 
-	prefix := store.TableJobFeed
+	prefix := model.TableJobFeed
 	_, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
@@ -312,7 +312,7 @@ func (s *ApiServer) FixJobs() error {
 		return err
 	}
 
-	prefix = store.TableJobRunning
+	prefix = model.TableJobRunning
 	_, err = s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
@@ -333,7 +333,7 @@ func (s *ApiServer) FixJobs() error {
 func (s *ApiServer) FixTooMuchJobs() error {
 	log.Println("too much jobs: purging peridoc jobs...")
 
-	prefix := store.TableJobFeed
+	prefix := model.TableJobFeed
 	_, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
@@ -348,7 +348,7 @@ func (s *ApiServer) FixTooMuchJobs() error {
 		return err
 	}
 
-	prefix = store.TableJobRunning
+	prefix = model.TableJobRunning
 	_, err = s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
@@ -369,7 +369,7 @@ func (s *ApiServer) FixTooMuchJobs() error {
 func (s *ApiServer) RedoFailedJob() error {
 	log.Println("redo failed jobs...")
 
-	prefix := store.TableJobRunning
+	prefix := model.TableJobRunning
 	_, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {

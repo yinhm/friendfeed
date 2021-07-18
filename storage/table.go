@@ -37,17 +37,6 @@ const (
 	TableMax KeyPrefix = 1e8
 )
 
-// TODO: refactor, introduce another interface above proto.Message?
-
-type ScanCallback func(int, []byte, []byte) error
-
-type Error struct {
-	Msg  string
-	Code ErrorCode
-}
-
-func (e *Error) Error() string { return e.Msg }
-
 // Deprecated: use model.PutEntry instead
 func PutEntry(rdb *Store, entry *pb.Entry, update bool) (*UUIDKey, error) {
 	uuid1, err := uuid.FromString(entry.ProfileUuid)

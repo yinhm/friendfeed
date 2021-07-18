@@ -18,6 +18,15 @@ const (
 	defaultDatacenterId = 1
 )
 
+type ScanCallback func(int, []byte, []byte) error
+
+type Error struct {
+	Msg  string
+	Code ErrorCode
+}
+
+func (e *Error) Error() string { return e.Msg }
+
 type Store struct {
 	dbpath  string
 	rdb     *pebble.DB
