@@ -44,7 +44,7 @@ const OnPageEditor = ({
 }) => {
     const eid = `{id}-editor`;
     const [value, setValue] = useState(null);
-    const { setEnabled, resetEditor } = useSlatePluginsActions(id);
+    const { resetEditor } = useSlatePluginsActions(eid);
 
     const plugins = useMemo(() => {
         const p = [...defaultPlugins];
@@ -66,6 +66,7 @@ const OnPageEditor = ({
             }
         }
         return initialValueEmpty;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [content]);
 
     useEffect(() => {
@@ -74,7 +75,9 @@ const OnPageEditor = ({
             plugins,
             nodes: value,
           });
+          console.log(html);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [value]);    
 
     const onChange = (slateValue) => {

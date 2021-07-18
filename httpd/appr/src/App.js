@@ -1,7 +1,7 @@
 import React from 'react';
 import { Entry } from './entry';
 import { getJSON, postForm } from './utils';
-import InlineToolbarEditor from './editor';
+// import InlineToolbarEditor from './editor';
 import OnPageEditor from './medium';
 import { FeedContext } from './context'
 
