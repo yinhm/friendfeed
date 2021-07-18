@@ -26,7 +26,7 @@ func UrlToLink(body string) string {
 func EntityToLink(body string) string {
 	tags := text.ExtractHashtags(body)
 	for _, tag := range tags {
-		new := fmt.Sprintf("<a href=\"/hashtag/%s\">%s</a>", tag, tag)
+		new := fmt.Sprintf("<a href=\"/tag/%s\">%s</a>", tag, tag)
 		body = strings.Replace(body, tag, new, -1)
 	}
 	return body
