@@ -42,7 +42,7 @@ const OnPageEditor = ({
     content = "",
     postEntry
 }) => {
-    const eid = `{id}-editor`;
+    const eid = id + "editor";
     const [editorValue, setEditorValue] = useState(null);
     const { setValue, resetEditor } = useSlatePluginsActions(eid);
 
@@ -81,7 +81,7 @@ const OnPageEditor = ({
       }, [editorValue]);
 
     const onChange = (slateValue) => {
-        console.log(JSON.stringify(slateValue));
+        // console.log(JSON.stringify(slateValue));
         setEditorValue(slateValue);
     };
 
@@ -117,7 +117,7 @@ const OnPageEditor = ({
     };
 
     return (
-        <div className="sharebox" id="shareform">
+        <div className="sharebox">
             <InlineToolbarElements />
             <SlatePlugins
                 id={eid}

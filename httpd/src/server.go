@@ -81,7 +81,7 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		var jsFiles []string
 		files, err := ioutil.ReadDir("appr/build/static/js")
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 		for _, fileName := range files {
 			if !fileName.IsDir() && strings.HasSuffix(fileName.Name(), "js") {
