@@ -186,6 +186,9 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 		format = true
 	case *pb.EntryRequest:
 		feed, err = s.client.FetchEntry(ctx, req.(*pb.EntryRequest))
+	case *pb.SearchRequest:
+		feed, err = s.client.Search(ctx, req.(*pb.SearchRequest))
+		format = true
 	}
 	if err != nil {
 		return

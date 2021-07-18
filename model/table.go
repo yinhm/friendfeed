@@ -90,14 +90,14 @@ func (t *Table) Delete(db *store.Store, key store.Key) error {
 	return db.Delete(k)
 }
 
-// Reverse Entry index:
+// Reversed Entry index:
 // K-> | table | user uuid | maxtime - ts-flake |
 // V-> |      +++++   indexed key   ++++++      |
 // value are prefixed key which point to data
-func (t *Table) Index(db *store.Store, uuid1 uuid.UUID, oldtime time.Time, idxKey store.Key) error {
+func (t *Table) Index(db *store.Store, uuid1 uuid.UUID, oldtime time.Time, entryKey store.Key) error {
 	flakeid := db.TimeTravelReverseId(oldtime)
 	k := store.NewUUIDFlakeKey(TableEntryIndex, uuid1, flakeid)
-	return db.Put(k.Bytes(), idxKey)
+	return db.Put(k.Bytes(), entryKey)
 }
 
 func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {

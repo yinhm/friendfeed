@@ -8,10 +8,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/search"
 	server "github.com/yinhm/friendfeed/server"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
@@ -41,6 +43,8 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
 		log.Printf("Signal %s received, shutdown server...", signal)
 		apiSrv.Shutdown()
 		log.Println("api server stoped.")
+		search.Indexer.Close()
+		log.Println("index server closed.")
 		rpcSrv.Stop()
 		log.Println("rpc server stoped.")
 		return
@@ -75,6 +79,9 @@ func main() {
 
 	rpcServer := grpc.NewServer()
 	apiServer := server.NewApiServer(config.dbpath, config.config)
+
+	// index service
+	search.InitIndexService(filepath.Join(config.dbpath, "index"))
 
 	go apiServer.RefetchJobTicker()
 	go apiServer.IndexJobTicker()

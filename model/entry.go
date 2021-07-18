@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/search"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
@@ -25,7 +26,7 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 		return nil, err
 	}
 
-	// index entry
+	// index entry key
 	oldtime, err := time.Parse(time.RFC3339, entry.Date)
 	if err != nil {
 		return nil, err
@@ -34,6 +35,9 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// index entry body
+	search.Indexer.Index(key.String(), entry.Body)
 
 	return key, nil
 }

@@ -9,12 +9,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blevesearch/bleve/v2"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/search"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -581,4 +583,63 @@ func (s *ApiServer) spread(key string) {
 		s.cached["public"].Push(key)
 	}
 	// TODO: spread to friends?
+}
+
+func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {
+	logger.Infof("Search: %s", req.Query)
+	bReq := bleve.NewSearchRequest(bleve.NewQueryStringQuery(req.Query))
+	bReq.Highlight = bleve.NewHighlight()
+	res, err := search.Indexer.Search(bReq)
+	if err != nil {
+		logger.Debug(err)
+		return nil, err
+	}
+
+	start := req.Start
+
+	var entries []*pb.Entry
+	found := 0
+	for i, hit := range res.Hits {
+		if start > 0 {
+			start--
+			continue
+		}
+
+		rv := fmt.Sprintf("%d. %s, (%f)\n", i+res.Request.From+1, hit.ID, hit.Score)
+		// for fragmentField, fragments := range hit.Fragments {
+		// 	rv += fmt.Sprintf("%s: ", fragmentField)
+		// 	for _, fragment := range fragments {
+		// 		rv += fmt.Sprintf("%s", fragment)
+		// 	}
+		// }
+		fmt.Printf("%s\n", rv)
+
+		logger.Debugf("search.index.key: <%s>", hit.ID)
+		entry := new(pb.Entry)
+		entry, err := model.GetEntry(s.rdb, hit.ID)
+		if err != nil {
+			logger.Warnf("search: entry data missing: %s", hit.ID)
+			continue
+		}
+		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
+		if err := fmtEntryProfile(s.mdb, entry); err != nil {
+			logger.Warnf("search: entry format error: %s", hit.ID)
+			continue
+		}
+		entries = append(entries, entry)
+		found++
+		if found > int(req.PageSize) {
+			break
+		}
+	}
+
+	feed := &pb.Feed{
+		Uuid:    "Search",
+		Id:      "Search",
+		Name:    "Search result",
+		Type:    "group",
+		Private: false,
+		Entries: entries[:],
+	}
+	return feed, nil
 }
