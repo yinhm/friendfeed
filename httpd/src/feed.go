@@ -32,6 +32,7 @@ func (s *Server) SearchHandler(c *gin.Context) {
 		"prev_start":  prevStart,
 		"next_start":  req.Start + req.PageSize,
 		"show_paging": true,
+		"query":       query,
 	}
 	s.renderFeed(c, data)
 }

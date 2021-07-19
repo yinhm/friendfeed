@@ -9,12 +9,16 @@ function FeedPagin(props) {
   var prev = null;
   var next = null;
   var sep = null;
+  var url = "?"
+  if (props.query && props.query !== "") {
+    url = '?q=' + props.query + '&';
+  }
   if (props.show) {
     if (props.next > 30) {
-      prev = <a href={'?start='+props.prev}>&laquo; Prev</a>;
+      prev = <a href={url+'start='+props.prev}>&laquo; Prev</a>;
       sep = " ";
     }
-    next = <a href={'?start='+props.next}>Next &raquo;</a>;
+    next = <a href={url+'start='+props.next}>Next &raquo;</a>;
   }
   return (
     <div className="pager bottom">
@@ -106,7 +110,7 @@ export class Feed extends React.Component{
     if (this.state.show_paging === true) {
       feedPaginNodes = (
         <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
-                   next={this.state.next_start} />
+                   next={this.state.next_start} query={this.state.query} />
       )
     }
 
@@ -149,6 +153,9 @@ export class App extends React.Component {
         show_header={appData.show_header}
         show_paging={appData.show_paging}
         show_share={appData.show_share}
+        prev_start={appData.prev_start}
+        next_start={appData.next_start}
+        query={appData.query}
         onpage_edit={appData.onpage_edit} />
     );
   }
