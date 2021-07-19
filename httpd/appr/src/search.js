@@ -4,12 +4,8 @@ import React, { useState } from 'react';
 export function Search(props) {
     const [value, setValue] = useState("");
 
-    // const doQuery = (event) => {
-    //     var value = event.target.value;
-    // }
-
     return (
-        <div class="section">
+        <div className="section">
             <h3>Search</h3>
             <form action="/search">
                 <input name="q" type="search"

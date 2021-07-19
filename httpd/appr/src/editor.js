@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Node } from 'slate'
+import { ReactEditor } from 'slate-react';
+import { Node, Editor, Transforms } from 'slate'
 import {
   SlatePlugins,
   createDeserializeHTMLPlugin,
   serializeHTMLFromNodes,
   deserializeHTMLToDocumentFragment,
   useSlatePluginsActions,
+  useStoreEditorRef,
 } from '@udecode/slate-plugins';
 
 
@@ -43,6 +45,8 @@ const OnPageEditor = ({
     postEntry
 }) => {
     const eid = id + "editor";
+    const editorRef = useStoreEditorRef(eid);
+    const [focused, setFocused] = useState(false);
     const [editorValue, setEditorValue] = useState(null);
     const { setValue, resetEditor } = useSlatePluginsActions(eid);
 
@@ -72,6 +76,11 @@ const OnPageEditor = ({
     // TODO:
     // automatic save
     useEffect(() => {
+        if (editorRef && !focused && id !== "") {
+            ReactEditor.focus(editorRef);
+            Transforms.select(editorRef, Editor.end(editorRef, []));
+            setFocused(true);
+        }
         // if (editorValue) {
         //   const html = serializeHTMLFromNodes(editor, {
         //     plugins,
@@ -80,7 +89,7 @@ const OnPageEditor = ({
         //   console.log(html);
         // }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [editorValue]);
+      }, [editorRef, editorValue]);
 
     const onChange = (slateValue) => {
         // console.log(JSON.stringify(slateValue));
