@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import './App.css';
 import {App} from './App';
+import {Search} from './search';
 import reportWebVitals from './reportWebVitals';
 
 ReactDOM.render(
@@ -13,6 +14,12 @@ ReactDOM.render(
   document.getElementById('feed')
 );
 
+ReactDOM.render(
+  <React.StrictMode>
+    <Search />
+  </React.StrictMode>,
+  document.getElementById('search')
+);
 
 // export function RenderFeedComponent(props) {
 //   const body = ReactDOMServer.renderToString(

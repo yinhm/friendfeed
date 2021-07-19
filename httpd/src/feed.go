@@ -7,9 +7,11 @@ import (
 )
 
 func (s *Server) SearchHandler(c *gin.Context) {
+	reqQuery := c.Request.URL.Query()
+	query := reqQuery.Get("q")
 	start := ParseStart(c.Request)
 	req := &pb.SearchRequest{
-		Query:    "孤独",
+		Query:    query,
 		Start:    int32(start),
 		PageSize: 30,
 	}
@@ -31,6 +33,5 @@ func (s *Server) SearchHandler(c *gin.Context) {
 		"next_start":  req.Start + req.PageSize,
 		"show_paging": true,
 	}
-	// s.HTML(c, 200, "_feed.html", data)
 	s.renderFeed(c, data)
 }

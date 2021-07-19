@@ -37,7 +37,7 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	}
 
 	// index entry body
-	search.Indexer.Index(key.String(), entry.Body)
+	search.Indexer.Index(entry.Id, entry.Body)
 
 	return key, nil
 }

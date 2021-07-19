@@ -236,6 +236,11 @@ a:hover {
     margin-bottom: 15px;
 }
 
+.menu .section input[type="search"] {
+    width: 80%;
+    padding: 2px;
+}
+
 
 /* sharebox */
 
