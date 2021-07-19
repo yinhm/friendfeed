@@ -173,6 +173,7 @@ func Serve(s *server.Server) {
 
 	r.GET("/public", s.PublicHandler)
 	r.GET("/search", s.SearchHandler)
+	r.GET("/tag/:name", s.TagHandler)
 
 	r.NoRoute(NotFoundHandler)
 

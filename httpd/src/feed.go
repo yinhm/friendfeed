@@ -36,3 +36,32 @@ func (s *Server) SearchHandler(c *gin.Context) {
 	}
 	s.renderFeed(c, data)
 }
+
+func (s *Server) TagHandler(c *gin.Context) {
+	name := c.Params.ByName("name")
+	start := ParseStart(c.Request)
+	req := &pb.SearchRequest{
+		Query:    "#" + name,
+		Start:    int32(start),
+		PageSize: 30,
+	}
+
+	_, feed, err := s.FetchFeed(c, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	prevStart := req.Start - req.PageSize
+	if prevStart < 0 {
+		prevStart = 0
+	}
+	data := pongo2.Context{
+		"title":       feed.Id,
+		"name":        feed.Id,
+		"feed":        feed,
+		"prev_start":  prevStart,
+		"next_start":  req.Start + req.PageSize,
+		"show_paging": true,
+	}
+	s.renderFeed(c, data)
+}
