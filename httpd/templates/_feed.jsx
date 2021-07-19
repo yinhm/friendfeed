@@ -729,9 +729,9 @@ var Feed = React.createClass({
     if (typeof window === 'undefined') {
       return;
     }
-    if (window.app_props) {
+    if (window.appData) {
       dprint("Loading feeds...");
-      this.setState(window.app_props);
+      this.setState(window.appData);
     } else {
       dprint("Fetching feeds...");
       this.loadFeeds();

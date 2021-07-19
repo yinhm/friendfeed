@@ -100,7 +100,7 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 	} else {
 		data["feed_body"] = ""
 		encoded, _ := json.Marshal(data)
-		data["app_props"] = string(encoded)
+		data["appData"] = string(encoded)
 		s.HTML(c, 200, "_feed.html", data)
 	}
 }

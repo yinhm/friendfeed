@@ -138,7 +138,7 @@ export class App extends React.Component {
   //   console.log("app, componentDidMount")
   //   this.setState({
   //     url: window.location.pathname + window.location.search,
-  //     feedData: window.app_props.feed
+  //     feedData: window.appData.feed
   //   });
   //   console.log(this.state.url);
   //   console.log(this.state.feedData);
@@ -146,8 +146,8 @@ export class App extends React.Component {
 
   render() {
     var url = window.location.pathname + window.location.search;
-    var appData = window.app_props;
-    var feedData = window.app_props.feed;
+    var appData = window.appData;
+    var feedData = window.appData.feed;
     return (
       <Feed url={url} feed={feedData}
         show_header={appData.show_header}
