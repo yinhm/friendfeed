@@ -13,6 +13,8 @@ var ErrNotFound = errors.New("db: key not found or no value")
 type ProtoMessageFunc func() proto.Message
 
 const (
+	TableMeta store.KeyPrefix = 0
+
 	TableFeed     store.KeyPrefix = 1
 	TableFeedinfo store.KeyPrefix = 2
 	TableEntry    store.KeyPrefix = 3
@@ -23,7 +25,6 @@ const (
 	// may change later?
 	// TableEntryIndex store.KeyPrefix = 4
 	TableEntryIndex store.KeyPrefix = 5
-	TableIndexCache store.KeyPrefix = 6
 
 	TableProfile      store.KeyPrefix = 100
 	TableService      store.KeyPrefix = 101
@@ -51,8 +52,6 @@ var (
 	Feedinfo   = NewTable(KeyPrefixToBytes(TableFeedinfo))
 	Entry      = NewTable(KeyPrefixToBytes(TableEntry))
 	EntryIndex = NewTable(KeyPrefixToBytes(TableEntryIndex))
-	// FIXME: dont need to define a table for cache
-	IndexCache = NewTable(KeyPrefixToBytes(TableIndexCache))
 	Profile    = NewTable(KeyPrefixToBytes(TableProfile))
 
 	// TODO: rename to follow, follower

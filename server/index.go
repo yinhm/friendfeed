@@ -42,9 +42,8 @@ func NewFeedIndex(db *store.Store, id string, uuid1 *uuid.UUID) *FeedIndex {
 	return index
 }
 
-// key to dump index cache to db
 func (f *FeedIndex) Key() store.Key {
-	return model.NewUUIDKey(model.TableIndexCache, *f.Uuid)
+	return model.NewUUIDKey(model.TableMeta, *f.Uuid)
 }
 
 func (f *FeedIndex) Serve(db *store.Store) {
