@@ -125,12 +125,12 @@ func Serve(s *server.Server) {
 	if options.Debug {
 		log.Println("==> debug mode")
 		r.Static("/static", "./static")
-		r.Static("/appr/build/static", "./appr/build/static")
+		r.Static("/app/build/static", "./app/build/static")
 	} else {
 		r.GET("/static/*path", func(c *gin.Context) {
 			c.FileFromFS(c.Request.URL.Path, http.FS(assetsFS))
 		})
-		r.GET("/appr/build/static/*path", func(c *gin.Context) {
+		r.GET("/app/build/static/*path", func(c *gin.Context) {
 			c.FileFromFS(c.Request.URL.Path, http.FS(assetsFS))
 		})
 	}

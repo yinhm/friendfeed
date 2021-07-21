@@ -77,7 +77,7 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 
 	if s.debug {
 		var jsFiles []string
-		files, err := ioutil.ReadDir("appr/build/static/js")
+		files, err := ioutil.ReadDir("app/build/static/js")
 		if err != nil {
 			log.Println(err)
 		}
