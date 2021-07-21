@@ -19,7 +19,7 @@ const MinQueue = 500
 type FeedIndex struct {
 	sync.Mutex
 	Id     string
-	Uuid   *uuid.UUID
+	Uuid   uuid.UUID
 	bufq   []string
 	iq     *queue.Queue
 	itemCh chan string
@@ -27,7 +27,7 @@ type FeedIndex struct {
 	dirty  bool
 }
 
-func NewFeedIndex(db *store.Store, id string, uuid1 *uuid.UUID) *FeedIndex {
+func NewFeedIndex(db *store.Store, id string, uuid1 uuid.UUID) *FeedIndex {
 	iq := queue.New()
 	index := &FeedIndex{
 		Id:     id,
@@ -43,7 +43,7 @@ func NewFeedIndex(db *store.Store, id string, uuid1 *uuid.UUID) *FeedIndex {
 }
 
 func (f *FeedIndex) Key() store.Key {
-	return model.NewUUIDKey(model.TableMeta, *f.Uuid)
+	return model.NewUUIDKey(model.TableMeta, f.Uuid)
 }
 
 func (f *FeedIndex) Serve(db *store.Store) {

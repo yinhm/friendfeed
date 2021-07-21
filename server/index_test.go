@@ -11,7 +11,7 @@ import (
 func TestFeedIndex(t *testing.T) {
 	// Given feed index, push and rebuild
 	uuid1 := "c6f8dca854f011ddb489003048343a40"
-	index := NewFeedIndex(nil, "public", new(uuid.UUID))
+	index := NewFeedIndex(nil, "public", uuid.Must(uuid.NewV4()))
 
 	for i := 0; i < 10; i++ {
 		// index.itemCh <- uuid

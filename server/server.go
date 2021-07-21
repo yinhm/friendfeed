@@ -69,7 +69,8 @@ func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
 	mdb := rdb
 
 	cached := make(map[string]*FeedIndex)
-	cached["public"] = NewFeedIndex(rdb, "public", new(uuid.UUID))
+	uuid1 := uuid.NewV5(uuid.NamespaceURL, "index:public:cache")
+	cached["public"] = NewFeedIndex(rdb, "public", uuid1)
 	cached["public"].load(mdb)
 
 	srv := &ApiServer{
