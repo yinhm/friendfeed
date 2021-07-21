@@ -214,9 +214,6 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 	return
 }
 
-func (s *Server) AccountHandler(c *gin.Context) {
-}
-
 func (s *Server) HomeHandler(c *gin.Context) {
 	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
@@ -506,7 +503,9 @@ func (s *Server) PublicHandler(c *gin.Context) {
 func RequestError(c *gin.Context, err error) bool {
 	if err != nil {
 		errStatus, _ := status.FromError(err)
-		if codes.DeadlineExceeded == errStatus.Code() {
+		if codes.Unavailable == errStatus.Code() {
+			c.String(http.StatusServiceUnavailable, "Server Unavailable.")
+		} else if codes.DeadlineExceeded == errStatus.Code() {
 			c.String(http.StatusServiceUnavailable, "Server busy, try later.")
 		} else if codes.NotFound == errStatus.Code() {
 			c.HTML(404, "404.html", pongo2.Context{})

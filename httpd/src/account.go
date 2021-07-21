@@ -11,19 +11,22 @@ import (
 	pb "github.com/yinhm/friendfeed/proto"
 )
 
+func (s *Server) AccountHandler(c *gin.Context) {
+}
+
 func (s *Server) ImportHandler(c *gin.Context) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
-		c.String(http.StatusBadRequest, "no profile yet")
+		c.String(http.StatusBadRequest, "please login first")
 		return
 	}
 	req := &pb.ProfileRequest{Uuid: uuid}
 	graph, err := s.client.FetchGraph(ctx, req)
 	if err != nil {
-		c.String(http.StatusBadRequest, "no profile yet")
+		RequestError(c, err)
 		return
 	}
 
