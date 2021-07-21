@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -57,6 +58,7 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 	}
 	_, err := s.client.DeleteService(ctx, req)
 	if err != nil {
+		log.Printf("Error on deleting: %s, %s", uuid, err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

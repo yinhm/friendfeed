@@ -1,12 +1,15 @@
 package server
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
@@ -44,12 +47,24 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		return nil, err
 	}
 
-	// build services if profile present
-	if authinfo.Provider == "twitter" {
-		feedinfo, err := model.GetFeedinfo(s.rdb, profile.Uuid)
-		if err != nil {
-			return nil, err
+	// (re)build services if profile present
+	if strings.ToLower(authinfo.Provider) == "twitter" {
+		feedinfo := new(pb.Feedinfo)
+		if info, err := model.GetFeedinfo(s.rdb, profile.Uuid); err != nil {
+			// new feedinfo
+			feedinfo = &pb.Feedinfo{
+				Uuid:        profile.Uuid,
+				Id:          profile.Id,
+				Name:        profile.Name,
+				Type:        profile.Type,
+				Private:     profile.Private,
+				Picture:     profile.Picture,
+				Description: profile.Description,
+			}
+		} else {
+			feedinfo = info
 		}
+
 		// WARN: goth user.NickName == screen_name which is twitter id
 		service := &pb.Service{
 			Id:       "twitter",
@@ -57,11 +72,21 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			Icon:     "/static/images/icons/twitter.png",
 			Profile:  "https://twitter.com/" + user.NickName,
 			Username: user.Name,
-			Oauth:    user,
-			Created:  time.Now().Unix(),
-			Updated:  time.Now().Unix(),
+			// Oauth:    user,
+			Created: time.Now().Unix(),
+			Updated: time.Now().Unix(),
 		}
-		feedinfo.Services = append(feedinfo.Services, service)
+
+		updated := false
+		for _, item := range feedinfo.Services {
+			if item.Id == service.Id {
+				item = service // update?
+				updated = true
+			}
+		}
+		if !updated {
+			feedinfo.Services = append(feedinfo.Services, service)
+		}
 		err = model.PutFeedinfo(s.rdb, profile.Uuid, feedinfo)
 		if err != nil {
 			return nil, err
@@ -88,10 +113,16 @@ func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (
 	if err != nil {
 		return nil, err
 	}
+	logger.Debugf("DeleteService: <%s, %s>, \n %v", req.User, req.Service, feedinfo.Uuid)
+
+	if len(feedinfo.Services) == 0 {
+		return nil, status.Errorf(codes.NotFound, "service not found")
+	}
 
 	for i, item := range feedinfo.Services {
 		if item.Id == req.Service {
 			feedinfo.Services = append(feedinfo.Services[:i], feedinfo.Services[i+1:]...)
+			break
 		}
 	}
 	if err := model.PutFeedinfo(s.rdb, feedinfo.Uuid, feedinfo); err != nil {

@@ -44,13 +44,17 @@ const (
 
 var (
 	// init tables
-	Feed       = NewTable(KeyPrefixToBytes(TableFeed))
+	Feed = NewTable(KeyPrefixToBytes(TableFeed))
+	// TODO:
+	// Feedinfo should be generated from Profile and Feed?
 	Feedinfo   = NewTable(KeyPrefixToBytes(TableFeedinfo))
 	Entry      = NewTable(KeyPrefixToBytes(TableEntry))
 	EntryIndex = NewTable(KeyPrefixToBytes(TableEntryIndex))
+	// FIXME: dont need to define a table for cache
 	IndexCache = NewTable(KeyPrefixToBytes(TableIndexCache))
 	Profile    = NewTable(KeyPrefixToBytes(TableProfile))
 
+	// TODO: rename to follow, follower
 	Service      = NewTable(KeyPrefixToBytes(TableService))
 	Subscription = NewTable(KeyPrefixToBytes(TableSubscription))
 	Subscriber   = NewTable(KeyPrefixToBytes(TableSubscriber))

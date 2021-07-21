@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/search"
 	store "github.com/yinhm/friendfeed/storage"
 )
 
@@ -26,6 +27,7 @@ func (s *TableTestSuite) SetupSuite() {
 	dbpath := os.TempDir() + "/testmcsdb"
 	s.db = store.NewStore(dbpath)
 
+	search.InitMockIndexService(dbpath)
 	// InitTables(s.db)
 }
 

@@ -9,6 +9,7 @@ require (
 	github.com/ChimeraCoder/tokenbucket v0.0.0-20131201223612-c5a927568de7 // indirect
 	github.com/azr/backoff v0.0.0-20160115115103-53511d3c7330 // indirect
 	github.com/blevesearch/bleve/v2 v2.0.6
+	github.com/blevesearch/bleve_index_api v1.0.0
 	github.com/boj/redistore v0.0.0-20180917114910-cd5dcc76aeff // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b // indirect
 	github.com/cockroachdb/pebble v0.0.0-20210622171231-4fcf40933159

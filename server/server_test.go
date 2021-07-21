@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/search"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
 )
@@ -34,6 +36,9 @@ func (s *RpcTestSuite) SetupTest() {
 	s.dbpath = os.TempDir() + "/fftestdb"
 	s.mcFile = "../conf/example.config.json"
 	s.srv = NewApiServer(s.dbpath, s.mcFile)
+
+	search.InitMockIndexService(filepath.Join(s.dbpath, "index"))
+
 	s.job = &pb.FeedJob{
 		Id:        "foobar",
 		RemoteKey: "pwd",
@@ -413,4 +418,24 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	feed, err := s.srv.FetchEntry(context.Background(), entryReq)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), feed.Entries[0].Id, entry.Id)
+
+	// Feed
+	_, err = model.GetFeedinfo(s.srv.rdb, profile.Uuid)
+	assert.Nil(s.T(), err)
+
+	// delete service
+	dReq := &pb.ServiceRequest{
+		User:    profile.Uuid,
+		Service: "twitter",
+	}
+	_, err = s.srv.DeleteService(context.Background(), dReq)
+	assert.Nil(s.T(), err)
+
+	// FetchGraph panic
+	// panic: runtime error: invalid memory address or nil pointer dereference
+	gReq := &pb.ProfileRequest{
+		Uuid: profile.Uuid,
+	}
+	_, err = s.srv.FetchGraph(context.Background(), gReq)
+	assert.Nil(s.T(), err)
 }

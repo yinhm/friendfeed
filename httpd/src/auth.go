@@ -99,6 +99,8 @@ func (s *Server) AuthCallback(c *gin.Context) {
 		Description:       u.Description,
 	}
 
+	// FIXME: WTF
+	// user should not been logged yet
 	profile, err := s.CurrentUser(c)
 	if err != nil {
 		c.AbortWithError(500, err)

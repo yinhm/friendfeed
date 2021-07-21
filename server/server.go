@@ -367,7 +367,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		}
 
 		kb, _ := hex.DecodeString(key)
-		logger.Debugf("index.key: <%s>", key)
+		// logger.Debugf("index.key: <%s>", key)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
