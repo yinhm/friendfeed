@@ -3,12 +3,9 @@ package server
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/flosch/pongo2"
-	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/yinhm/friendfeed/ff"
 	pb "github.com/yinhm/friendfeed/proto"
 )
 
@@ -63,61 +60,4 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 		return
 	}
 	c.Redirect(http.StatusFound, "/account/import")
-}
-
-func (s *Server) FriendFeedImportHandler(c *gin.Context) {
-	c.Request.ParseForm()
-
-	username := c.Request.Form.Get("username")
-	remoteKey := c.Request.Form.Get("remote_key")
-	if username == "" {
-		c.String(400, "Unknown feed")
-		return
-	}
-
-	// group feed not supported
-	apiv1 := ff.NewV1Client(s.httpclient, username, remoteKey)
-	v1profile, resp, err := apiv1.V1Profile(username, "user")
-	if err != nil {
-		c.String(resp.StatusCode, err.Error())
-		return
-	}
-
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	sess := sessions.Default(c)
-	userId := sess.Get("user_id").(string)
-	provider := sess.Get("provider").(string)
-
-	oauthUser := &pb.OAuthUser{
-		Uuid:      v1profile.Id,
-		UserId:    userId,
-		Provider:  provider,
-		RemoteKey: remoteKey,
-	}
-
-	_, err = s.client.BindUserFeed(ctx, oauthUser)
-	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	targetId := username
-	job := &pb.FeedJob{
-		Id:        username,
-		RemoteKey: remoteKey,
-		TargetId:  targetId,
-		Start:     0,
-		PageSize:  100,
-		Created:   time.Now().Unix(),
-		Updated:   time.Now().Unix(),
-	}
-	_, err = s.client.EnqueJob(ctx, job)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "server error")
-		return
-	}
-
-	http.Redirect(c.Writer, c.Request, "/feed/"+username, http.StatusFound)
 }

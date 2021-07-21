@@ -12,7 +12,6 @@ import (
 
 	"cloud.google.com/go/storage"
 	gcs "cloud.google.com/go/storage"
-	"github.com/yinhm/friendfeed/ff"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -213,9 +212,6 @@ func (c *GoogleStorage) FromUrl(filename, src, mimetype string) (*Object, error)
 	parsed, err := url.Parse(src)
 	if err != nil {
 		return nil, fmt.Errorf("Can not parse: %s", src)
-	}
-	if !ff.IsMediaServer(parsed.Host) {
-		return nil, fmt.Errorf("Skip non-ff: %s", src)
 	}
 	newpath := strings.TrimLeft(parsed.Path, "/")
 	if filename == "" {

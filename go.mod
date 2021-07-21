@@ -27,7 +27,6 @@ require (
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
 	github.com/golang/protobuf v1.5.2
-	github.com/google/go-querystring v1.1.0
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
