@@ -26,11 +26,11 @@ const (
 	// TableEntryIndex store.KeyPrefix = 4
 	TableEntryIndex store.KeyPrefix = 5
 
-	TableProfile      store.KeyPrefix = 100
-	TableService      store.KeyPrefix = 101
-	TableSubscription store.KeyPrefix = 102
-	TableSubscriber   store.KeyPrefix = 103
-	TableOAuth        store.KeyPrefix = 104
+	TableProfile  store.KeyPrefix = 100
+	TableService  store.KeyPrefix = 101
+	TableFollow   store.KeyPrefix = 102
+	TableFollower store.KeyPrefix = 103
+	TableOAuth    store.KeyPrefix = 104
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -45,6 +45,7 @@ const (
 
 var (
 	// init tables
+
 	// Never used
 	// Feed = NewTable(KeyPrefixToBytes(TableFeed))
 	// TODO:
@@ -54,11 +55,10 @@ var (
 	EntryIndex = NewTable(KeyPrefixToBytes(TableEntryIndex))
 	Profile    = NewTable(KeyPrefixToBytes(TableProfile))
 
-	// TODO: rename to follow, follower
-	Service      = NewTable(KeyPrefixToBytes(TableService))
-	Subscription = NewTable(KeyPrefixToBytes(TableSubscription))
-	Subscriber   = NewTable(KeyPrefixToBytes(TableSubscriber))
-	OAuth        = NewTable(KeyPrefixToBytes(TableOAuth))
+	Service  = NewTable(KeyPrefixToBytes(TableService))
+	Follow   = NewTable(KeyPrefixToBytes(TableFollow))
+	follower = NewTable(KeyPrefixToBytes(TableFollower))
+	OAuth    = NewTable(KeyPrefixToBytes(TableOAuth))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))
