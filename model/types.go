@@ -44,7 +44,8 @@ const (
 
 var (
 	// init tables
-	Feed = NewTable(KeyPrefixToBytes(TableFeed))
+	// Never used
+	// Feed = NewTable(KeyPrefixToBytes(TableFeed))
 	// TODO:
 	// Feedinfo should be generated from Profile and Feed?
 	Feedinfo   = NewTable(KeyPrefixToBytes(TableFeedinfo))
