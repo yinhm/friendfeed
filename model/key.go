@@ -15,11 +15,16 @@ import (
 // +----------+----------+
 // |  table   |   uuid   |
 // +----------+----------+
-func NewUUIDKey(t store.KeyPrefix) store.Key {
-	// blank uuid
+
+// blank uuid
+func NewBlankUUIDKey(t store.KeyPrefix) store.Key {
 	u := uuid.Must(uuid.NewV4())
 	b := KeyPrefixToBytes(t)
 	return NewKeyFrom(b, u[:])
+}
+
+func NewUUIDKey(t store.KeyPrefix, u uuid.UUID) store.Key {
+	return NewPrefixKeyFrom(t, u[:])
 }
 
 func NewPrefixKeyFrom(t store.KeyPrefix, u []byte) store.Key {

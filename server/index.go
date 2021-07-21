@@ -43,8 +43,8 @@ func NewFeedIndex(db *store.Store, id string, uuid1 *uuid.UUID) *FeedIndex {
 }
 
 // key to dump index cache to db
-func (f *FeedIndex) Key() store.IKey {
-	return store.NewUUIDKey(model.TableIndexCache, *f.Uuid)
+func (f *FeedIndex) Key() store.Key {
+	return model.NewUUIDKey(model.TableIndexCache, *f.Uuid)
 }
 
 func (f *FeedIndex) Serve(db *store.Store) {
@@ -152,7 +152,7 @@ func (f *FeedIndex) load(db *store.Store) error {
 
 	key := f.Key()
 	logger.Debugf("load local cache: %s", key.String())
-	rawdata, err := db.Get(key.Bytes())
+	rawdata, err := db.Get(key)
 	if err != nil {
 		return err
 	}
@@ -180,5 +180,5 @@ func (f *FeedIndex) dump(db *store.Store) error {
 	if err != nil {
 		return err
 	}
-	return db.Put(f.Key().Bytes(), buf.Bytes())
+	return db.Put(f.Key(), buf.Bytes())
 }
