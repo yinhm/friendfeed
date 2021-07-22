@@ -108,7 +108,6 @@ func (s *Server) FeedHandler(c *gin.Context) {
 
 	showHeader := feed.Id != "Home" && !strings.HasPrefix(feed.Id, "e/")
 	showShare := feed.Id == "Home" || contains(feed.Commands, "post")
-	showDirect := contains(feed.Commands, "dm")
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0
@@ -116,11 +115,9 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	data := pongo2.Context{
 		"show_header": showHeader,
 		"show_share":  showShare,
-		"show_direct": showDirect,
 		"title":       feed.Id,
 		"name":        feed.Id,
 		"feed":        feed,
-		"ff_username": "me",
 		"prev_start":  prevStart,
 		"next_start":  req.Start + req.PageSize,
 		"show_paging": true,
