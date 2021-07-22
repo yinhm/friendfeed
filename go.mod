@@ -23,7 +23,6 @@ require (
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
 	github.com/golang/protobuf v1.5.2
-	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/markbates/goth v1.67.1
@@ -32,6 +31,8 @@ require (
 	github.com/robfig/go-cache v0.0.0-20130306151617-9fc39e0dbf62 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/smartystreets/goconvey v1.6.4
+	github.com/spf13/cobra v1.2.1
+	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/ugorji/go v1.2.6 // indirect
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e // indirect
@@ -43,6 +44,5 @@ require (
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.27.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	launchpad.net/goyaml v0.0.0-20140305200416-000000000051 // indirect
 )
