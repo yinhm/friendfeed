@@ -40,6 +40,7 @@ func (s *ApiServer) RefetchUserFeed() error {
 		if err := proto.Unmarshal(v, profile); err != nil {
 			return err
 		}
+		// log.Printf("RefetchUserFeed proifile: <%s, %s>", profile.Uuid, profile.Id)
 
 		feedinfo, _ := model.GetFeedinfo(s.rdb, profile.Uuid)
 		// only sync twitter service

@@ -32,6 +32,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		logger.Debugf("New profile: <%s, %s>", uuidFrom, profile.Uuid)
 	}
 
+	// logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, "twitter", authinfo.UserId)
 	user, err := model.PutOAuthUser(s.mdb, authinfo)
 	if err != nil {
 		return nil, err
@@ -72,15 +73,15 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			Icon:     "/static/images/icons/twitter.png",
 			Profile:  "https://twitter.com/" + user.NickName,
 			Username: user.Name,
-			// Oauth:    user,
-			Created: time.Now().Unix(),
-			Updated: time.Now().Unix(),
+			Oauth:    user,
+			Created:  time.Now().Unix(),
+			Updated:  time.Now().Unix(),
 		}
 
 		updated := false
-		for _, item := range feedinfo.Services {
+		for i, item := range feedinfo.Services {
 			if item.Id == service.Id {
-				item = service // update?
+				feedinfo.Services[i] = service
 				updated = true
 			}
 		}
@@ -91,6 +92,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		if err != nil {
 			return nil, err
 		}
+		logger.Debugf("PutFeedinfo: %s \n %v>", profile.Uuid, feedinfo)
 	}
 	return profile, nil
 }

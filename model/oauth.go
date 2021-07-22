@@ -9,13 +9,15 @@ import (
 	store "github.com/yinhm/friendfeed/storage"
 )
 
-// example id: "Twitter:bob"
+// example id: "twitter:233666"
+// Make sure combinated id never change
+// for example twitter user change its username
 func _oauthUserIdFrom(provider, userId string) store.Key {
 	id := strings.ToLower(fmt.Sprintf("%s:%s", provider, userId))
 	return []byte(id)
 }
 
-// return OAuth info for user like "Twitter:bob"
+// return OAuth info for user like "twitter:233666"
 func GetOAuthUser(db *store.Store, provider, userId string) (store.Key, *pb.OAuthUser, error) {
 	internalUserId := _oauthUserIdFrom(provider, userId)
 

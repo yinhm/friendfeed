@@ -18,12 +18,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/url"
 	"strings"
 	"time"
 
-	"github.com/ChimeraCoder/anaconda"
 	ttext "github.com/cupcake/text-entities-go"
+	"github.com/dghubble/go-twitter/twitter"
+	"github.com/dghubble/oauth1"
 	"github.com/gofrs/uuid"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
@@ -46,7 +46,7 @@ type TwitterConfig struct {
 
 func init() {
 	flag.StringVar(&config.address, "addr", "localhost:8901", "RPC Server Url")
-	flag.StringVar(&config.file, "c", "/srv/ff/config.json", "config file")
+	flag.StringVar(&config.file, "c", "/srv/ffdb/config.json", "config file")
 	flag.StringVar(&config.command, "cmd", "", "cmd execution")
 	flag.StringVar(&config.arg1, "arg1", "", "pass argument to command")
 	flag.StringVar(&config.username, "u", "", "debug user feed")
@@ -78,6 +78,7 @@ func randhash() string {
 type FeedAgent struct {
 	client pb.ApiClient
 	worker *pb.Worker
+	tcCfg  *TwitterConfig
 }
 
 func NewFeedAgent(conn *grpc.ClientConn) *FeedAgent {
@@ -117,8 +118,7 @@ func (fa *FeedAgent) Start() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	anaconda.SetConsumerKey(tc.ApiKey)
-	anaconda.SetConsumerSecret(tc.ApiSecret)
+	fa.tcCfg = tc
 
 	// run feed mirror job forever
 	for {
@@ -192,12 +192,21 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 	if authinfo == nil {
 		return 0, fmt.Errorf("skip job: no authinfo")
 	}
-	api := anaconda.NewTwitterApi(authinfo.AccessToken, authinfo.AccessTokenSecret)
-	defer api.Close()
 
-	v := url.Values{}
-	v.Set("screen_name", authinfo.NickName) // goth user.NickName == screen_name
-	tweets, _ := api.GetUserTimeline(v)
+	config := oauth1.NewConfig(fa.tcCfg.ApiKey, fa.tcCfg.ApiSecret)
+	token := oauth1.NewToken(authinfo.AccessToken, authinfo.AccessTokenSecret)
+	// OAuth1 http.Client will automatically authorize Requests
+	httpClient := config.Client(oauth1.NoContext, token)
+	// Twitter client
+	api := twitter.NewClient(httpClient)
+
+	// user timeline
+	params := &twitter.UserTimelineParams{ScreenName: "yinhm", Count: 10}
+	tweets, _, err := api.Timelines.UserTimeline(params)
+	if err != nil {
+		log.Printf("UserTimeline: %s", err)
+		return 0, fmt.Errorf("UserTimeline: %s", err)
+	}
 
 	n := 0
 	for i := len(tweets) - 1; i >= 0; i-- {
@@ -205,14 +214,16 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 
 		// skip reply status
 		if tweet.InReplyToStatusID != 0 {
+			// fmt.Printf("skip reply: %s\n", tweet.IDStr)
 			continue
 		}
 
-		url := "https://twitter.com/" + tweet.User.ScreenName + "/status/" + tweet.IdStr
-		// deterministic uuid or feed will be polluted
+		url := "https://twitter.com/" + tweet.User.ScreenName + "/status/" + tweet.IDStr
+		// deterministic uuid otherwise feed will be polluted
 		uuid1 := uuid.NewV5(uuid.NamespaceURL, url)
 		tt, err := tweet.CreatedAtTime()
 		if err != nil || tt.Before(updated) {
+			fmt.Printf("skip updated: %s\n", tt)
 			continue
 		}
 
@@ -223,24 +234,26 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 		}
 
 		var thumbnails []*pb.Thumbnail
-		for _, media := range tweet.Entities.Media {
-			if media.Type != "photo" {
-				continue
-			}
+		if tweet.ExtendedEntities != nil {
+			for _, media := range tweet.ExtendedEntities.Media {
+				if media.Type != "photo" {
+					continue
+				}
 
-			url := ""
-			if media.Media_url_https != "" {
-				url = media.Media_url_https
-			} else {
-				url = media.Media_url
+				url := ""
+				if media.MediaURLHttps != "" {
+					url = media.MediaURLHttps
+				} else {
+					url = media.MediaURL
+				}
+				thumb := &pb.Thumbnail{
+					Url:    url,
+					Link:   media.ExpandedURL,
+					Width:  int32(media.Sizes.Small.Width),
+					Height: int32(media.Sizes.Small.Height),
+				}
+				thumbnails = append(thumbnails, thumb)
 			}
-			thumb := &pb.Thumbnail{
-				Url:    url,
-				Link:   media.Expanded_url,
-				Width:  int32(media.Sizes.Small.W),
-				Height: int32(media.Sizes.Small.H),
-			}
-			thumbnails = append(thumbnails, thumb)
 		}
 
 		body := tweet.Text
@@ -272,6 +285,8 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 			ProfileUuid: job.Profile.Uuid,
 		}
 
+		// fmt.Printf("stream.send: %s\n", uuid1.String())
+
 		if err := stream.Send(entry); err != nil {
 			log.Printf("%v.Send(%v) = %v", stream, entry, err)
 			return n, err
@@ -285,7 +300,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 func main() {
 	flag.Parse()
 
-	conn, err := grpc.Dial(config.address)
+	conn, err := grpc.Dial(config.address, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Connection error: %v", err)
 	}
