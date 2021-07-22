@@ -334,6 +334,8 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 	return nil
 }
 
+// FetchFeed returns builded feed which populated data
+// from user profile and entries scaned from EntryIndex.
 func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
 	logger.Infof("FetchFeed: %s", req.Id)
 	s.RLock()
@@ -440,7 +442,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 		entries = append(entries, entry)
 		if i > int(req.PageSize+req.Start) {
-			return &store.Error{Msg: "ok", Code: store.StopIteration}
+			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
 		}
 		return nil
 	})
