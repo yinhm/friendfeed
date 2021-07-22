@@ -130,7 +130,7 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		Name:        in.Name,
 		Type:        in.Type,
 		Private:     in.Private,
-		SupId:       in.SupId,
+		Picture:     in.Picture,
 		Description: in.Description,
 	}
 	// remote key only present when id == target_id

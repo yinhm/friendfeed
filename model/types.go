@@ -9,7 +9,7 @@ import (
 
 var ErrNotFound = errors.New("db: key not found or no value")
 
-// FIXME: use go generate
+// FIX : use go generate
 type ProtoMessageFunc func() proto.Message
 
 const (
@@ -31,6 +31,7 @@ const (
 	TableFollow   store.KeyPrefix = 102
 	TableFollower store.KeyPrefix = 103
 	TableOAuth    store.KeyPrefix = 104
+	TableFile     store.KeyPrefix = 105
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -59,6 +60,7 @@ var (
 	Follow   = NewTable(KeyPrefixToBytes(TableFollow))
 	follower = NewTable(KeyPrefixToBytes(TableFollower))
 	OAuth    = NewTable(KeyPrefixToBytes(TableOAuth))
+	File     = NewTable(KeyPrefixToBytes(TableFile))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))

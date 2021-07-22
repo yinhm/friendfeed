@@ -42,12 +42,13 @@ func init() {
 	flag.StringVar(&options.Rpc, "rpc", "localhost:8901", "Rpc Server Address")
 	flag.UintVar(&options.Port, "p", 8080, "HTTP server listen port")
 	flag.StringVar(&options.SecretKey, "s", "randombitsreplacedlkjsa", "Key used to encryption cookies")
-	flag.StringVar(&options.ConfigFile, "c", "/srv/ff/config.json", "Config file")
+	flag.StringVar(&options.ConfigFile, "c", "/srv/ffdb/config.json", "Config file")
 
 	// babel.Init(runtime.NumCPU())
 }
 
 type Config struct {
+	MediaPath          string `json:"media_path"`
 	GAuthKeyFile       string `json:"gauth_key_file"`
 	TwitterApiKey      string `json:"twitter_api_key"`
 	TwitterApiSecret   string `json:"twitter_api_secret"`
@@ -174,6 +175,8 @@ func Serve(s *server.Server) {
 	r.GET("/public", s.PublicHandler)
 	r.GET("/search", s.SearchHandler)
 	r.GET("/tag/:name", s.TagHandler)
+
+	r.Static("/file", config.MediaPath)
 
 	r.NoRoute(NotFoundHandler)
 
