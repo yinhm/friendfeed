@@ -51,8 +51,6 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 	// for _, item := range info.Subscriptions {
 	// 	graph.Subscriptions[item.Id] = item
 	// }
-	// FIXME: hardcoded superadmin
-	graph.Admins["yinhm"] = &pb.Profile{Id: "yinhm"}
 	for _, item := range info.Admins {
 		graph.Admins[item.Id] = item
 	}

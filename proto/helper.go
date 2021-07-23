@@ -10,9 +10,15 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 
 	appended := false
 	commands := []string{"comment"}
-	if _, ok := graph.Admins[profile.Id]; ok {
+	if profile.IsSuper {
 		commands = append(commands, "edit", "delete")
 		appended = true
+	}
+	if _, ok := graph.Admins[profile.Id]; ok {
+		if !appended {
+			commands = append(commands, "edit", "delete")
+			appended = true
+		}
 	}
 	// FIXME: subscriptions may huge
 	// if _, ok := graph.Subscriptions[author]; ok {
