@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
+	"strings"
 
 	"github.com/gofrs/uuid"
 	store "github.com/yinhm/friendfeed/storage"
@@ -65,4 +66,14 @@ func KeyPrefixToBytes(t store.KeyPrefix) []byte {
 func SeekZero() []byte {
 	u := new(uuid.UUID)
 	return u[:]
+}
+
+// deterministic unique key from
+// Example combination:
+// twitter:foobar
+// bing:wallpaper
+// SH:600519
+func UniqueKeyFrom(ids ...string) uuid.UUID {
+	uniqueName := strings.ToLower(strings.Join(ids, ";"))
+	return uuid.NewV5(uuid.NamespaceURL, uniqueName)
 }

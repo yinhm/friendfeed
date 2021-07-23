@@ -1,11 +1,8 @@
 package server
 
 import (
-	"fmt"
 	"math/rand"
-	"strings"
 
-	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
@@ -67,9 +64,7 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 }
 
 func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
-	uniqueName := fmt.Sprintf("bing:wallpaper")
-	uuid1 := uuid.NewV5(uuid.NamespaceURL, strings.ToLower(uniqueName))
-
+	uuid1 := model.UniqueKeyFrom("bing", "wallpaper")
 	profile, err := model.GetProfileFromUuid(db, uuid1)
 	if err != nil {
 		logger.Debugf("RandomPictureFromWallpaper: %s", err)

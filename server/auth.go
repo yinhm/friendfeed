@@ -16,6 +16,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	profile := new(pb.Profile)
 	// create profile on oauth for twitter user
 	if authinfo.Uuid == "" {
+		// TODO: move to model.UniqueKeyFrom
 		uuidFrom := "twitter-" + authinfo.UserId
 		uuid1 := uuid.NewV5(uuid.NamespaceURL, uuidFrom)
 

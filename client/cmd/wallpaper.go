@@ -9,12 +9,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/disintegration/imaging"
-	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
+	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
 )
@@ -58,8 +57,7 @@ type BingWallpaper struct {
 }
 
 func downloadBingWallpaper() error {
-	uniqueName := fmt.Sprintf("bing:wallpaper")
-	uuid1 := uuid.NewV5(uuid.NamespaceURL, strings.ToLower(uniqueName))
+	uuid1 := model.UniqueKeyFrom("bing", "wallpaper")
 
 	feedinfo := &pb.Feedinfo{
 		Uuid:        uuid1.String(),
@@ -106,8 +104,7 @@ func downloadBingWallpaper() error {
 			return err
 		}
 
-		uniqueName := fmt.Sprintf("bing:wallpaper:%s", img.UrlBase)
-		uuid1 := uuid.NewV5(uuid.NamespaceURL, strings.ToLower(uniqueName))
+		uuid1 := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
 		outFile := fmt.Sprintf("%x", uuid1)
 		outFile = outFile[:2] + "/" + outFile[2:]
 		outFile = outFile[:1] + "/" + outFile[1:]

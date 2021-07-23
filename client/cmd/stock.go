@@ -3,12 +3,11 @@ package cmd
 import (
 	"fmt"
 	"log"
-	"strings"
 
-	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
 	"github.com/yinhm/ctdx"
 	"github.com/yinhm/ctdx/comm"
+	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
 )
@@ -86,16 +85,13 @@ func sync(agent *FeedAgent) error {
 			continue
 		}
 
-		uniqueName := fmt.Sprintf("%s:%s", mktName, strCode)
-		uuid := uuid.NewV5(uuid.NamespaceURL, strings.ToLower(uniqueName))
-
 		feedinfo := &pb.Feedinfo{
-			Uuid:        uuid.String(),
+			Uuid:        model.UniqueKeyFrom(mktName, strCode).String(),
 			Id:          strCode,
 			Name:        name,
 			Type:        "sys",
 			Private:     false,
-			Description: uniqueName,
+			Description: fmt.Sprintf("<%s, %s>", mktName, strCode),
 		}
 		_, err := agent.client.PostFeedinfo(context.Background(), feedinfo)
 		if err != nil {
