@@ -337,12 +337,12 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		}
 
 		kb, _ := hex.DecodeString(key)
-		// logger.Debugf("index.key: <%s>", key)
+		logger.Debugf("index.key: <%s>", key)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
-			logger.Warnf("cachedFeed: entry data missing: %s", req.Id)
-			logger.Warn("FIXME: rebuild index system")
+			logger.Warnf("index cached: data missing: <%s, %s>", req.Id, key)
+			s.cached[req.Id].markDirty()
 			continue
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
@@ -396,9 +396,10 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
 		if err != nil || len(rawdata) == 0 {
-			logger.Warnf("entry missing %s", string(v))
+			logger.Debugf("user feed: entry missing %s", fmt.Sprintf("<%x, %x>", k, v))
 			// slient delete the key from index
 			s.rdb.Delete(k)
+			logger.Debugf("deleting %s", k)
 			return nil
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {

@@ -100,6 +100,12 @@ func (t *Table) Index(db *store.Store, uuid1 uuid.UUID, oldtime time.Time, entry
 	return db.Put(k.Bytes(), entryKey)
 }
 
+func (t *Table) RemoveIndex(db *store.Store, uuid1 uuid.UUID, oldtime time.Time) error {
+	flakeid := db.TimeTravelReverseId(oldtime)
+	k := store.NewUUIDFlakeKey(TableEntryIndex, uuid1, flakeid)
+	return db.Delete(k.Bytes())
+}
+
 func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	var buf bytes.Buffer
 	buf.Write(t.prefix)

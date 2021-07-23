@@ -181,3 +181,9 @@ func (f *FeedIndex) dump(db *store.Store) error {
 	}
 	return db.Put(f.Key(), buf.Bytes())
 }
+
+func (f *FeedIndex) markDirty() {
+	f.Lock()
+	f.dirty = true
+	f.Unlock()
+}

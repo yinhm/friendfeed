@@ -64,8 +64,27 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		return err
 	}
 
+	entry, err := GetEntry(db, uuidStr)
+	if err != nil {
+		return err
+	}
+
+	// delete entry from user feed
+	// index entry key
+	oldtime, err := time.Parse(time.RFC3339, entry.Date)
+	if err != nil {
+		return err
+	}
+	profileUuid, err := uuid.FromString(entry.ProfileUuid)
+	if err != nil {
+		return err
+	}
+	EntryIndex.RemoveIndex(db, profileUuid, oldtime)
+
 	if err = Entry.Delete(db, uuid1.Bytes()); err != nil {
 		return err
 	}
+
+	// delete entry from public index??
 	return nil
 }
