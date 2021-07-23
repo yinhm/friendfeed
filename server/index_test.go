@@ -38,7 +38,7 @@ func TestFeedIndex(t *testing.T) {
 
 	index.remove(5)
 	assert.Equal(t, MinQueue-1, len(index.bufq))
-	assert.Equal(t, 500, cap(index.bufq))
+	assert.Equal(t, 1000, cap(index.bufq))
 
 	index.doneCh <- struct{}{}
 }

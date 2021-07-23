@@ -35,7 +35,7 @@ func (s *ApiServer) IndexJobTicker() {
 func (s *ApiServer) RefetchUserFeed() error {
 	prefix := model.TableProfile
 	j := 0
-	n, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+	n, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
 		profile := &pb.Profile{}
 		if err := proto.Unmarshal(v, profile); err != nil {
 			return err
@@ -77,7 +77,7 @@ func (s *ApiServer) RefetchUserFeed() error {
 func (s *ApiServer) RefetchFriendFeed() error {
 	prefix := model.TableProfile
 	j := 0
-	n, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+	n, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
 		profile := &pb.Profile{}
 		if err := proto.Unmarshal(v, profile); err != nil {
 			return err
@@ -167,7 +167,7 @@ func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
 	var job *pb.FeedJob
 
 	key := store.NewFlakeKey(model.TableJobFeed, s.mdb.NextId())
-	s.mdb.ForwardScan(key.Prefix(), func(i int, k, v []byte) error {
+	s.mdb.ForwardScan(key.Prefix().Bytes(), func(i int, k, v []byte) error {
 		job = &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
@@ -208,7 +208,7 @@ func (s *ApiServer) FinishJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob
 
 func (s *ApiServer) ListJobQueue(prefix store.IKey) (jobs []*pb.FeedJob, err error) {
 	log.Println("listing running job...")
-	s.mdb.ForwardScan(prefix, func(i int, key, value []byte) error {
+	s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(value, job); err != nil {
 			return err
@@ -279,7 +279,7 @@ func (s *ApiServer) PurgeJobs() error {
 	log.Println("purging all jobs...")
 
 	prefix := model.TableJobFeed
-	_, err := s.mdb.ForwardScan(prefix, func(i int, key, value []byte) error {
+	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
 		return s.mdb.Delete(key)
 	})
 	if err != nil {
@@ -287,7 +287,7 @@ func (s *ApiServer) PurgeJobs() error {
 	}
 
 	prefix = model.TableJobRunning
-	_, err = s.mdb.ForwardScan(prefix, func(i int, key, value []byte) error {
+	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
 		return s.mdb.Delete(key)
 	})
 
@@ -301,7 +301,7 @@ func (s *ApiServer) FixJobs() error {
 	log.Println("purging all jobs...")
 
 	prefix := model.TableJobFeed
-	_, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
@@ -316,7 +316,7 @@ func (s *ApiServer) FixJobs() error {
 	}
 
 	prefix = model.TableJobRunning
-	_, err = s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
@@ -337,7 +337,7 @@ func (s *ApiServer) FixTooMuchJobs() error {
 	log.Println("too much jobs: purging peridoc jobs...")
 
 	prefix := model.TableJobFeed
-	_, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
@@ -352,7 +352,7 @@ func (s *ApiServer) FixTooMuchJobs() error {
 	}
 
 	prefix = model.TableJobRunning
-	_, err = s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
@@ -373,7 +373,7 @@ func (s *ApiServer) RedoFailedJob() error {
 	log.Println("redo failed jobs...")
 
 	prefix := model.TableJobRunning
-	_, err := s.mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err

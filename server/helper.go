@@ -1,6 +1,12 @@
 package server
 
 import (
+	"fmt"
+	"math/rand"
+	"strings"
+
+	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
@@ -58,4 +64,40 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 		graph.Services[item.Id] = item
 	}
 	return graph
+}
+
+func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
+	uniqueName := fmt.Sprintf("bing:wallpaper")
+	uuid1 := uuid.NewV5(uuid.NamespaceURL, strings.ToLower(uniqueName))
+
+	profile, err := model.GetProfileFromUuid(db, uuid1)
+	if err != nil {
+		logger.Debugf("RandomPictureFromWallpaper: %s", err)
+		return ""
+	}
+
+	preKey := model.NewUUIDKey(model.TableEntryIndex, uuid1)
+	logger.Infof("ForwardFetchFeed: %s", preKey.String())
+
+	url := ""
+	_, err = db.ForwardScan(preKey, func(i int, k, v []byte) error {
+		// logger.Debugf("entry key: <%x>", v)
+		entry := new(pb.Entry)
+		rawdata, err := db.Get(v) // index value point to entry key
+		if err != nil || len(rawdata) == 0 {
+			return nil
+		}
+		if err := proto.Unmarshal(rawdata, entry); err != nil {
+			return err
+		}
+
+		dice := rand.Intn(10)
+		if 5 == dice {
+			url = entry.Thumbnails[0].Url
+			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
+		}
+		return nil
+	})
+
+	return url
 }

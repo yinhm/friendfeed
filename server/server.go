@@ -105,7 +105,7 @@ func (s *ApiServer) Shutdown() {
 	idx.doneCh <- struct{}{}
 
 	s.rdb.Close()
-	s.mdb.Close()
+	// s.mdb.Close()
 	s.rdb = nil
 	s.mdb = nil
 }
@@ -133,14 +133,11 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		Picture:     in.Picture,
 		Description: in.Description,
 	}
-	// remote key only present when id == target_id
-	if in.RemoteKey != "" {
-		// record remote key
-		profile.RemoteKey = in.RemoteKey
+	// Random wallpaper as default icon
+	if profile.Picture == "" {
+		profile.Picture = RandomPictureFromWallpaper(s.rdb, profile)
 	}
-
-	// profile.Picture = s.ArchiveProfilePicture(profile.Id)
-	// log.Println("profile pic:", profile.Picture)
+	logger.Debugf("profile pic: <%s, %s>", profile.Id, profile.Picture)
 
 	if err := model.UpdateProfile(s.mdb, profile); err != nil {
 		return nil, err
@@ -152,36 +149,6 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	if err := model.PutFeedinfo(s.rdb, profile.Uuid, in); err != nil {
 		return nil, err
 	}
-
-	// TODO: server overload, disable friends of feed
-	// There is no way we can handle this much jobs in a short time.
-	// remote key only present when id == target_id
-	// if in.RemoteKey != "" {
-	// 	for _, sub := range in.Subscriptions {
-	// 		// enqueue user subscriptons
-	// 		oldjob, err := store.GetArchiveHistory(s.mdb, sub.Id)
-	// 		if err != nil || oldjob.Status == "done" {
-	// 			// no aggressive archiving for friends of feed
-	// 			log.Printf("%s previous archived.", sub.Id)
-	// 			continue
-	// 		}
-
-	// 		ctx := context.Background()
-	// 		key := store.NewFlakeKey(store.TableJobFeed, s.mdb.NextId())
-	// 		job := &pb.FeedJob{
-	// 			Key:       key.String(),
-	// 			Id:        in.Id,
-	// 			RemoteKey: in.RemoteKey,
-	// 			TargetId:  sub.Id,
-	// 			Start:     0,
-	// 			PageSize:  100,
-	// 			Created:   time.Now().Unix(),
-	// 			Updated:   time.Now().Unix(),
-	// 		}
-	// 		s.EnqueJob(ctx, job)
-	// 	}
-	// }
-
 	return profile, nil
 }
 
@@ -419,7 +386,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	start := req.Start
 	var entries []*pb.Entry
-	_, err = s.rdb.ForwardScan(preKey, func(i int, k, v []byte) error {
+	_, err = s.rdb.ForwardScan(preKey.Bytes(), func(i int, k, v []byte) error {
 		if start > 0 {
 			start--
 			return nil // continue

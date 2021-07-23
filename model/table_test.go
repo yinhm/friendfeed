@@ -105,7 +105,7 @@ func (s *TableTestSuite) TestPutEntry() {
 
 	uuid1, _ := uuid.FromString(p.Uuid)
 	key := store.NewUUIDKey(TableEntryIndex, uuid1)
-	n, err := s.db.ForwardScan(key, func(i int, k, v []byte) error {
+	n, err := s.db.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
 		return nil
 	})
 	assert.Nil(s.T(), err)

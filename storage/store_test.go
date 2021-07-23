@@ -37,14 +37,14 @@ func (s *DBTestSuite) SetupTest() {
 
 func (s *DBTestSuite) TearDownTest() {
 	log.Println("teardown tests...")
-	s.mdb.Close()
-	err := os.RemoveAll(s.mdb.dbpath)
-	if err != nil {
-		log.Println("can not remove test db.")
-	}
+	// s.mdb.Close()
+	// err := os.RemoveAll(s.mdb.dbpath)
+	// if err != nil {
+	// 	log.Println("can not remove test db.")
+	// }
 
 	s.rdb.Close()
-	err = os.RemoveAll(s.rdb.dbpath)
+	err := os.RemoveAll(s.rdb.dbpath)
 	if err != nil {
 		log.Println("can not remove test db.")
 	}
@@ -144,7 +144,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 
 	// demonstrate data inconsistent when reopen db
 	s.rdb.Close()
-	s.mdb.Close()
+	// s.mdb.Close()
 	s.SetupTest()
 
 	// iter to key>=prefix
@@ -240,7 +240,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 
 	// Second iteration: reopen db
 	s.rdb.Close()
-	s.mdb.Close()
+	// s.mdb.Close()
 	s.SetupTest()
 
 	// iter to key>=prefix
@@ -343,7 +343,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	// Second iteration: reopen db
 	// reopen
 	s.rdb.Close()
-	s.mdb.Close()
+	// s.mdb.Close()
 	s.SetupTest()
 
 	// iter to key>=prefix
@@ -504,7 +504,7 @@ func (s *DBTestSuite) TestPutEntry() {
 
 	uuid1, _ := uuid.FromString(p.Uuid)
 	key := NewUUIDKey(TableReverseEntryIndex, uuid1)
-	n, err := s.rdb.ForwardScan(key, func(i int, k, v []byte) error {
+	n, err := s.rdb.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
 		return nil
 	})
 	assert.Nil(s.T(), err)
@@ -518,7 +518,7 @@ func (s *DBTestSuite) TestPutEntry() {
 	_, err = PutEntry(s.rdb, e, true)
 	assert.Nil(s.T(), err)
 
-	n, err = s.rdb.ForwardScan(key, func(i int, k, v []byte) error {
+	n, err = s.rdb.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
 		return nil
 	})
 	assert.Nil(s.T(), err)
