@@ -15,10 +15,8 @@ import (
 	"github.com/esimov/caire"
 	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 )
 
 var wallpaper string
@@ -28,21 +26,7 @@ var wallpaperCmd = &cobra.Command{
 	Short: "download wallpaper from bing",
 	Long:  `download daily 4k wallpaper from bing`,
 	Run: func(cmd *cobra.Command, args []string) {
-
-		tcCfg := &TwitterConfig{
-			ApiKey:    viper.GetString("twitter_api_key"),
-			ApiSecret: viper.GetString("twitter_api_secret"),
-		}
-
-		conn, err := grpc.Dial(config.address, grpc.WithInsecure())
-		if err != nil {
-			log.Fatalf("Connection error: %v", err)
-		}
-		defer conn.Close()
-
-		agent := NewFeedAgent(conn, tcCfg)
-
-		err = downloadWallpaper(agent)
+		err := downloadBingWallpaper()
 		if err != nil {
 			log.Println(err)
 		}
@@ -70,8 +54,7 @@ type BingWallpaper struct {
 	}
 }
 
-func downloadWallpaper(agent *FeedAgent) error {
-
+func downloadBingWallpaper() error {
 	uniqueName := fmt.Sprintf("bing:wallpaper")
 	uuid1 := uuid.NewV5(uuid.NamespaceURL, strings.ToLower(uniqueName))
 

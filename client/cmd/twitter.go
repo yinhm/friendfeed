@@ -4,9 +4,6 @@
 package cmd
 
 import (
-	"crypto/rand"
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"strings"
@@ -17,10 +14,8 @@ import (
 	"github.com/dghubble/oauth1"
 	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 )
 
 // serveCmd represents the serve command
@@ -30,19 +25,6 @@ var serveCmd = &cobra.Command{
 	Long:  `执行服务器Job任务，目前仅为获取Twitter数据`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("sync twitter...")
-
-		tcCfg := &TwitterConfig{
-			ApiKey:    viper.GetString("twitter_api_key"),
-			ApiSecret: viper.GetString("twitter_api_secret"),
-		}
-
-		conn, err := grpc.Dial(config.address, grpc.WithInsecure())
-		if err != nil {
-			log.Fatalf("Connection error: %v", err)
-		}
-		defer conn.Close()
-
-		agent := NewFeedAgent(conn, tcCfg)
 		agent.Start()
 	},
 }
@@ -59,77 +41,6 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-type TwitterConfig struct {
-	ApiKey    string `json:"twitter_api_key"`
-	ApiSecret string `json:"twitter_api_secret"`
-}
-
-func randhash() string {
-	randbytes := make([]byte, 4)
-	rand.Read(randbytes)
-
-	h := sha1.New()
-	h.Write(randbytes)
-	return hex.EncodeToString(h.Sum(nil))[:12]
-}
-
-type FeedAgent struct {
-	client pb.ApiClient
-	worker *pb.Worker
-	tcCfg  *TwitterConfig
-}
-
-func NewFeedAgent(conn *grpc.ClientConn, cfg *TwitterConfig) *FeedAgent {
-	c := pb.NewApiClient(conn)
-	worker := &pb.Worker{
-		Id: randhash(),
-	}
-	return &FeedAgent{
-		client: c,
-		worker: worker,
-		tcCfg:  cfg,
-	}
-}
-
-func (fa *FeedAgent) Start() {
-	log.Print("start processing...")
-
-	// run feed mirror job forever
-	for {
-		job, err := fa.newJob()
-		if err != nil {
-			log.Printf("Get job failed: %v", err)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		if err := fa.process(job); err != nil {
-			log.Printf("Archive failed: %v", err)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-	}
-}
-
-func (fa *FeedAgent) Debug(name string) error {
-	req := &pb.FeedRequest{
-		Id:       name,
-		Start:    0,
-		PageSize: 50,
-	}
-	feed, err := fa.client.FetchFeed(context.Background(), req)
-	if err != nil {
-		return err
-	}
-	log.Printf("feed: %v", feed.Id)
-	log.Printf("feed.Entries: %d", len(feed.Entries))
-
-	for _, e := range feed.Entries {
-		log.Println(e.Id, e.Date, e.RawBody)
-	}
-	return nil
 }
 
 func (fa *FeedAgent) newJob() (*pb.FeedJob, error) {

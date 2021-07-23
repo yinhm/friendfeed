@@ -7,12 +7,10 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/yinhm/ctdx"
 	"github.com/yinhm/ctdx/comm"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 )
 
 var tdxConfig string
@@ -23,7 +21,7 @@ var stockCmd = &cobra.Command{
 	Short: "sync stock data",
 	Long: `sync stock data
 
-	client stock -c /home/yinhm/tdx/config.toml -n 600519
+	client stock --tdxcfg /home/yinhm/tdx/config.toml --n 600519
     `,
 	Run: func(cmd *cobra.Command, args []string) {
 		if tdxConfig == "" {
@@ -34,21 +32,7 @@ var stockCmd = &cobra.Command{
 		if stockName == "" {
 			return
 		}
-
-		tcCfg := &TwitterConfig{
-			ApiKey:    viper.GetString("twitter_api_key"),
-			ApiSecret: viper.GetString("twitter_api_secret"),
-		}
-
-		conn, err := grpc.Dial(config.address, grpc.WithInsecure())
-		if err != nil {
-			log.Fatalf("Connection error: %v", err)
-		}
-		defer conn.Close()
-
-		agent := NewFeedAgent(conn, tcCfg)
-
-		err = sync(agent)
+		err := sync(agent)
 		if err != nil {
 			log.Println(err)
 		}
@@ -57,7 +41,7 @@ var stockCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(stockCmd)
-	stockCmd.Flags().StringVar(&stockName, "n", "", "stockName")
+	stockCmd.Flags().StringVar(&stockName, "n", "600519", "stockName")
 	stockCmd.Flags().StringVar(&tdxConfig, "tdxconfig", "config.toml", "tdx config file")
 }
 
