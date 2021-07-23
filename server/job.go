@@ -247,6 +247,8 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.FixComment()
 	case "MarkDelete":
 		s.MarkDelete(cmd.Arg1)
+	case "SuperAdmin":
+		s.SuperAdmin(cmd.Arg1)
 	}
 
 	// TODO: nothing here
@@ -424,6 +426,19 @@ func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
 	}
 	profile.Deleted = true
 	model.UpdateProfile(s.mdb, profile)
+	return true, nil
+}
+
+// Mark user as superadmin
+// re-run will remove user from superadmin
+func (s *ApiServer) SuperAdmin(id string) (bool, error) {
+	profile, err := model.GetProfileFromUserId(s.mdb, id)
+	if err != nil {
+		return false, err
+	}
+	profile.IsSuper = !profile.IsSuper
+	model.UpdateProfile(s.mdb, profile)
+	logger.Warnf("SuperAdmin toggle: <%s, is_super=%t>", profile.Id, profile.IsSuper)
 	return true, nil
 }
 

@@ -71,6 +71,8 @@ message Profile {
   string remote_key = 8;
   // mark deletion, will purge all related data later
   bool deleted = 10;
+  // super admin
+  bool is_super = 11;
 }
 
 // social graph
