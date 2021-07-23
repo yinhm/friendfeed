@@ -8,16 +8,20 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 		return
 	}
 
-	author := e.From.Id
+	appended := false
 	commands := []string{"comment"}
-	if _, ok := graph.Admins[author]; ok {
+	if _, ok := graph.Admins[profile.Id]; ok {
 		commands = append(commands, "edit", "delete")
+		appended = true
 	}
-	if _, ok := graph.Subscriptions[author]; ok {
-		// private check
-	}
+	// FIXME: subscriptions may huge
+	// if _, ok := graph.Subscriptions[author]; ok {
+	// 	// private check
+	// }
 	if profile.Id == e.From.Id {
-		commands = append(commands, "edit", "delete")
+		if !appended {
+			commands = append(commands, "edit", "delete")
+		}
 	} else {
 		// liked?
 		liked := false

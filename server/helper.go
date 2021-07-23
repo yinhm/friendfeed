@@ -47,9 +47,12 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 		Admins:        make(map[string]*pb.Profile),
 		Services:      make(map[string]*pb.Service),
 	}
-	for _, item := range info.Subscriptions {
-		graph.Subscriptions[item.Id] = item
-	}
+	// FIXME: subscriptions may huge
+	// for _, item := range info.Subscriptions {
+	// 	graph.Subscriptions[item.Id] = item
+	// }
+	// FIXME: hardcoded superadmin
+	graph.Admins["yinhm"] = &pb.Profile{Id: "yinhm"}
 	for _, item := range info.Admins {
 		graph.Admins[item.Id] = item
 	}
