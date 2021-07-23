@@ -337,7 +337,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		}
 
 		kb, _ := hex.DecodeString(key)
-		logger.Debugf("index.key: <%s>", key)
+		// logger.Debugf("index.key: <%s>", key)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
@@ -596,7 +596,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 		// }
 		fmt.Printf("%s\n", rv)
 
-		logger.Debugf("search.index.key: <%s>", hit.ID)
+		// logger.Debugf("search.index.key: <%s>", hit.ID)
 		entry := new(pb.Entry)
 		entry, err := model.GetEntry(s.rdb, hit.ID)
 		if err != nil {

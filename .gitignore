@@ -3,7 +3,7 @@
 ffdb
 gin-bin
 httpd/httpd
-client/client
+cli/cli
 conf/*
 httpd/node_modules
 httpd/static/js/bundle*.js
