@@ -14,22 +14,20 @@ import (
 )
 
 var tdxConfig string
-var stockName string
+var stockCode string
 
 var stockCmd = &cobra.Command{
 	Use:   "stock",
 	Short: "sync stock data",
 	Long: `sync stock data
 
+	Default sync all stocks
+	client stock
 	client stock --tdxcfg /home/yinhm/tdx/config.toml --n 600519
     `,
 	Run: func(cmd *cobra.Command, args []string) {
 		if tdxConfig == "" {
-			fmt.Printf("sync stock: %s\n", stockName)
-			return
-		}
-		fmt.Printf("sync stock: %s\n", stockName)
-		if stockName == "" {
+			fmt.Println("No config file.")
 			return
 		}
 		err := sync(agent)
@@ -41,7 +39,7 @@ var stockCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(stockCmd)
-	stockCmd.Flags().StringVar(&stockName, "n", "600519", "stockName")
+	stockCmd.Flags().StringVar(&stockCode, "n", "", "stock code")
 	stockCmd.Flags().StringVar(&tdxConfig, "tdxconfig", "config.toml", "tdx config file")
 }
 
@@ -84,6 +82,10 @@ func sync(agent *FeedAgent) error {
 			mktName = "SH"
 		}
 
+		if stockCode != "" && strCode != stockCode {
+			continue
+		}
+
 		uniqueName := fmt.Sprintf("%s:%s", mktName, strCode)
 		uuid := uuid.NewV5(uuid.NamespaceURL, strings.ToLower(uniqueName))
 
@@ -100,8 +102,7 @@ func sync(agent *FeedAgent) error {
 			return err
 		}
 
-		log.Printf("同步股票Feedinfo: %s", uniqueName)
-		break
+		log.Printf("同步股票Feedinfo: %s %s", mktName, strCode)
 	}
 	return nil
 }

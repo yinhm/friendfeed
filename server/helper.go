@@ -76,6 +76,11 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 		return ""
 	}
 
+	// no update if not empty
+	if profile.Picture != "" {
+		return profile.Picture
+	}
+
 	preKey := model.NewUUIDKey(model.TableEntryIndex, uuid1)
 	logger.Infof("ForwardFetchFeed: %s", preKey.String())
 
