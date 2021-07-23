@@ -362,7 +362,7 @@ func RequestError(c *gin.Context, err error) bool {
 		} else if codes.NotFound == errStatus.Code() {
 			c.HTML(404, "404.html", pongo2.Context{})
 		} else {
-			msg := "Server error, user may not exists or not mirrored."
+			msg := "Server error."
 			c.String(http.StatusInternalServerError, msg)
 		}
 		return true

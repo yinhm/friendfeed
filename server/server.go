@@ -470,7 +470,7 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 	entry, err := model.GetEntry(s.rdb, req.Uuid)
 	if err != nil {
 		logger.Debug(err)
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "entry not found")
 	}
 	// logger.Debugf("entry: %s", entry.RawBody)
 	err = fmtEntryProfile(s.mdb, entry)
@@ -511,7 +511,16 @@ func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.
 	if err != nil {
 		return nil, err
 	}
-	if entry.ProfileUuid != req.User {
+	userUuid, err := uuid.FromString(req.User)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := model.GetProfileFromUuid(s.mdb, userUuid)
+	if err != nil || profile == nil {
+		return nil, err
+	}
+	// not superadmin and not creator
+	if !profile.IsSuper && entry.ProfileUuid != req.User {
 		return nil, status.Errorf(codes.PermissionDenied, "no perm")
 	}
 	err = model.DeleteEntry(s.rdb, req.Uuid)
