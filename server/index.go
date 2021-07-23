@@ -14,7 +14,7 @@ import (
 	store "github.com/yinhm/friendfeed/storage"
 )
 
-const MinQueue = 500
+const MinQueue = 1000
 
 type FeedIndex struct {
 	sync.Mutex

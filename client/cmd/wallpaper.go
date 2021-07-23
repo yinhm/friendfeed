@@ -48,9 +48,10 @@ const BASE_URL = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&m
 
 type BingWallpaper struct {
 	Images []struct {
-		EndDate   string `json:"enddate"`
-		UrlBase   string `json:"urlbase"`
-		CopyRight string `json:"copyright"`
+		FullStartDate string `json:"fullstartdate"`
+		EndDate       string `json:"enddate"`
+		UrlBase       string `json:"urlbase"`
+		CopyRight     string `json:"copyright"`
 	}
 }
 
@@ -114,9 +115,9 @@ func downloadBingWallpaper() error {
 
 		// thumbnail
 		p := &caire.Processor{
-			NewWidth:  640,
-			NewHeight: 640,
-			Square:    true,
+			NewWidth: 640,
+			// NewHeight: 640,
+			// Square:    true,
 		}
 
 		in, _ := os.Open(outFilepath)
@@ -139,11 +140,22 @@ func downloadBingWallpaper() error {
 			Link:   "/file/" + outFile,
 			Url:    "/file/" + outFile + "-640",
 			Width:  640,
-			Height: 640,
+			Height: int32(p.NewHeight),
 		}
 
 		// PostWallpaper
-		dt := time.Now().UTC()
+		fullTime := fmt.Sprintf("%s-%s-%sT%s:00:00+08:00",
+			img.FullStartDate[:4],
+			img.FullStartDate[4:6],
+			img.FullStartDate[6:8],
+			img.FullStartDate[8:10])
+		dt, err := time.Parse(time.RFC3339, fullTime)
+		if err != nil {
+			log.Println(err, fullTime)
+			dt = time.Now()
+			dt = time.Date(dt.Year(), dt.Month(), dt.Day(), 0, 0, 0, 0, time.UTC)
+		}
+
 		entry := &pb.Entry{
 			Id:         fmt.Sprintf("%x", uuid1),
 			Date:       dt.Format(time.RFC3339),

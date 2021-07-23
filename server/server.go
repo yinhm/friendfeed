@@ -425,6 +425,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 			return nil // continue
 		}
 
+		// logger.Debugf("entry.key: <%x>", v)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
 		if err != nil || len(rawdata) == 0 {
@@ -436,6 +437,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
 		}
+		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
 		if err = FormatFeedEntry(s.mdb, req, entry); err != nil {
 			return err
 		}
