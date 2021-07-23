@@ -13,8 +13,8 @@ require (
 	github.com/cupcake/text-entities-go v0.0.0-20140512000843-06c234d4d8ed
 	github.com/dghubble/go-twitter v0.0.0-20210609183100-2fdbf421508e // direct
 	github.com/dghubble/oauth1 v0.7.0 // direct
+	github.com/disintegration/imaging v1.6.2
 	github.com/eapache/queue v1.1.0
-	github.com/esimov/caire v1.3.2
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3
 	github.com/garyburd/redigo v1.6.2 // indirect
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19

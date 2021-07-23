@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/esimov/caire"
+	"github.com/disintegration/imaging"
 	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
 	pb "github.com/yinhm/friendfeed/proto"
@@ -44,7 +44,7 @@ func init() {
 
 // }
 
-const BASE_URL = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
+const BASE_URL = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=10&mkt=zh-CN"
 
 type BingWallpaper struct {
 	Images []struct {
@@ -93,6 +93,7 @@ func downloadBingWallpaper() error {
 		url := fmt.Sprintf("http://cn.bing.com%s_UHD.jpg", img.UrlBase)
 		log.Println(img.EndDate, url, img.CopyRight)
 
+		log.Println("get image from: ", url)
 		resp, err := http.Get(url)
 		if err != nil {
 			return err
@@ -111,24 +112,21 @@ func downloadBingWallpaper() error {
 		log.Println("out file path: ", outFile)
 		outFilepath := filepath.Join(config.datapath, "files", outFile)
 		os.MkdirAll(filepath.Dir(outFilepath), 0755)
-		os.WriteFile(outFile, body, 0755)
-
-		// thumbnail
-		p := &caire.Processor{
-			NewWidth: 640,
-			// NewHeight: 640,
-			// Square:    true,
+		if err = os.WriteFile(outFilepath, body, 0755); err != nil {
+			return err
 		}
 
-		in, _ := os.Open(outFilepath)
-		defer in.Close()
+		// Resize the image to width=640px preserving the aspect ratio.
+		fromImage, err := imaging.Open(outFilepath)
+		if err != nil {
+			fmt.Printf("Error while open image: %s", err)
+		}
 
-		outFileThumb := outFilepath + "-640"
-		dst, err := os.OpenFile(outFileThumb, os.O_CREATE|os.O_WRONLY, 0755)
-		defer dst.Close()
-
-		if err := p.Process(in, dst); err != nil {
-			fmt.Printf("Error rescaling image: %s", err.Error())
+		dst := imaging.Resize(fromImage, 640, 0, imaging.Lanczos)
+		outFileThumb := outFilepath + "-640.jpg"
+		// imaging.Save guest image format from extension
+		if err := imaging.Save(dst, outFileThumb); err != nil {
+			fmt.Printf("Error while saving image: %s", err)
 		}
 
 		f1 := &pb.File{
@@ -138,9 +136,9 @@ func downloadBingWallpaper() error {
 		}
 		f2 := &pb.Thumbnail{
 			Link:   "/file/" + outFile,
-			Url:    "/file/" + outFile + "-640",
+			Url:    "/file/" + outFile + "-640.jpg",
 			Width:  640,
-			Height: int32(p.NewHeight),
+			Height: int32(dst.Rect.Size().Y),
 		}
 
 		// PostWallpaper
@@ -178,8 +176,7 @@ func downloadBingWallpaper() error {
 		feedinfo.Picture = f2.Url
 		agent.client.PostFeedinfo(context.Background(), feedinfo)
 
-		log.Printf("同步 wallpaper 成功")
-		return nil
+		log.Printf("同步 %s wallpaper 成功", dt.Format(time.RFC3339))
 	}
 
 	return nil
