@@ -40,6 +40,7 @@ const (
 	TableConfig store.KeyPrefix = 300
 	TableTopic  store.KeyPrefix = 301
 	TableStock  store.KeyPrefix = 302
+	TableKLine  store.KeyPrefix = 303
 
 	TableMax store.KeyPrefix = 1e8
 )
@@ -69,6 +70,7 @@ var (
 	Config = NewTable(KeyPrefixToBytes(TableConfig))
 	Topic  = NewTable(KeyPrefixToBytes(TableTopic))
 	Stock  = NewTable(KeyPrefixToBytes(TableStock))
+	KLine  = NewTable(KeyPrefixToBytes(TableKLine))
 )
 
 // func InitTables(db *store.Store) {

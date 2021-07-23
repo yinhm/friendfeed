@@ -66,7 +66,7 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 
 	entry, err := GetEntry(db, uuidStr)
 	if err != nil {
-		return err
+		return nil // blink delete
 	}
 
 	// delete entry from user feed

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"testing"
 	"time"
 
@@ -32,7 +31,8 @@ func (s *DBTestSuite) SetupTest() {
 	log.Println("setup tests...")
 	dbpath := os.TempDir() + "/testffdb2"
 	s.rdb = NewStore(dbpath)
-	s.mdb = NewMetaStore(path.Join(dbpath, "meta"))
+	// s.mdb = NewMetaStore(path.Join(dbpath, "meta"))
+	s.mdb = s.rdb
 }
 
 func (s *DBTestSuite) TearDownTest() {

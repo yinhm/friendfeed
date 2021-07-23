@@ -6,6 +6,7 @@ syntax = "proto3";
 package proto;
 
 import "feed.proto";
+import "stock.proto";
 
 service Api {
   rpc EnqueJob(FeedJob) returns (FeedJob) {}
@@ -45,6 +46,10 @@ service Api {
   rpc DeleteService(ServiceRequest) returns (Feedinfo) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
+
+  // Stock
+  // Stream:ArchiveKLine
+  rpc ArchiveKLine(stream KLineRequest) returns (ArchiveSummary) {}
 }
 
 message Worker {

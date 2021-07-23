@@ -20,6 +20,7 @@ require (
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-ego/gse v0.67.0
+	github.com/go-gota/gota v0.11.0
 	github.com/go-playground/validator/v10 v10.6.1 // indirect
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
