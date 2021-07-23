@@ -51,13 +51,13 @@ func FormatTime(t time.Time) string {
 
 	case diff < 2*Week:
 		return fmt.Sprintf("1 week %s", lbl)
-	case diff < 1*Month:
-		return fmt.Sprintf("%d weeks %s", diff/Week, lbl)
+	// case diff < 1*Month:
+	// 	return fmt.Sprintf("%d weeks %s", diff/Week, lbl)
 
-	case diff < 2*Month:
-		return fmt.Sprintf("1 month %s", lbl)
-	case diff < 1*Year:
-		return t.Format(layoutDayMonth)
+	// case diff < 2*Month:
+	// 	return fmt.Sprintf("1 month %s", lbl)
+	// case diff < 1*Year:
+	// 	return t.Format(layoutDayMonth)
 
 	default:
 		return t.Format(layoutDayMonthYear)
