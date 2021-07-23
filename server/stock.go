@@ -15,6 +15,12 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 	var dateEnd int32
 	startTime := time.Now()
 
+	// disable pebble.Sync since we cannot do batch easily
+	// and sync was too slow for large data.
+	// diable it so we can do 100K/1s records via stream.
+	s.rdb.SetSync(false)
+	defer s.rdb.SetSync(true)
+
 	for {
 		kReq, err := stream.Recv()
 		if err == io.EOF {
@@ -30,6 +36,7 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 			return err
 		}
 		count++
+
 		oldtime := time.Unix(int64(kReq.KLine.Date), 0)
 		flakeid := s.rdb.TimeTravelReverseId(oldtime)
 		uuid1 := model.UniqueKeyFrom(kReq.Market, kReq.Symbol)

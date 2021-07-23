@@ -131,35 +131,38 @@ func syncKline() error {
 		return err
 	}
 
-	log.Println("更新基础的股票数据...")
 	api := ctdx.NewDefaultTdxClient(cfg)
 	defer api.Close()
 
 	// 股指基
-	log.Println(api.Configure)
 	df := comm.GetFinanceDataFrame(api.Configure, comm.STOCKA, comm.STOCKB, comm.INDEX, comm.FUNDS)
 	if nil != df.Err {
 		log.Printf(fmt.Sprintf("读取股票基础数据失败! err:%v", df))
 		return df.Err
 	}
 
+	stream, err := agent.client.ArchiveKLine(context.Background())
+	defer stream.CloseAndRecv()
+	if err != nil {
+		return err
+	}
+
 	for _, row := range df.Maps() {
 		var code [6]byte
 		market := row["market"].(int)
 		strCode := row["code"].(string)
-		log.Printf("接收 %d%s 的日线数据...", market, strCode)
 
 		copy(code[:], []byte(strCode))
 		mktName := "SH"
 		if market == 0 {
 			mktName = "SZ"
 		}
+		log.Printf("同步 %s:%s 的日线数据...", mktName, strCode)
 
 		fileName := fmt.Sprintf("%d%s.csv", market, strCode)
 
 		stocksPath := fmt.Sprintf("%s%s%s", api.Configure.GetApp().DataPath,
 			api.Configure.GetTdx().Files.StockDay, fileName)
-		log.Println(stocksPath)
 
 		colTypes := map[string]series.Type{
 			"market": series.Int, "code": series.String, "date": series.String, "open": series.Float, "low": series.Float,
@@ -187,10 +190,12 @@ func syncKline() error {
 					Amount: float32(k["amount"].(float64)),
 				},
 			}
-			log.Println(kp)
-		}
 
-		break
+			if err := stream.Send(kp); err != nil {
+				log.Printf("%v.Send(%v) = %v", stream, kp, err)
+				return err
+			}
+		}
 	}
 	return nil
 }

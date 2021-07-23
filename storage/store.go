@@ -36,6 +36,8 @@ type Store struct {
 
 	closed bool
 	idGen  *flake.Generator
+
+	syncOption *pebble.WriteOptions
 }
 
 func NewStore(dbpath string) *Store {
@@ -62,6 +64,8 @@ func NewStore(dbpath string) *Store {
 	db.rdb = rdb
 	db.idGen = flake.NewGenerator()
 	db.closed = false
+
+	db.syncOption = &pebble.WriteOptions{Sync: true}
 
 	return db
 }
@@ -184,6 +188,10 @@ func (db *Store) Options() *pebble.Options {
 	return db.options
 }
 
+func (db *Store) SetSync(syncOrNot bool) {
+	db.syncOption = &pebble.WriteOptions{Sync: syncOrNot}
+}
+
 func (db *Store) Get(key []byte) ([]byte, error) {
 	value, closer, err := db.rdb.Get(key)
 	if closer != nil {
@@ -202,7 +210,7 @@ func (db *Store) Put(key, value []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	return db.rdb.Set(key, value, pebble.Sync)
+	return db.rdb.Set(key, value, db.syncOption)
 }
 
 func (db *Store) Set(key, value []byte) error {
@@ -213,7 +221,7 @@ func (db *Store) Delete(key []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	return db.rdb.Delete(key, pebble.Sync)
+	return db.rdb.Delete(key, db.syncOption)
 }
 
 func (db *Store) Exist(key []byte) bool {
