@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -49,6 +50,8 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 		if format {
 			e.FormatComments(int32(0))
 			e.FormatLikes(int32(0))
+			ellipsis := fmt.Sprintf("<a href=\"/e/%s\" style=\"padding-left: 30px;\">Read more...</a>", e.Id)
+			e.Body = util.Truncate(e.Body, 300, ellipsis)
 		}
 		e.RebuildCommentsCommand(profile, graph)
 	}

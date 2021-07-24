@@ -12,13 +12,20 @@ export function EntryContent(props) {
         return f;
     }
 
-    if (props.onpage || feedCfg.onpage_edit === true) {
+    if (props.onpageEdit || feedCfg.onpage_edit === true) {
         return (
             <OnPageEditor
                 id={props.id}
                 feedId={feedCfg.feed_id}
                 content={props.rawBody}
                 postEntry={onPostEntry} />
+        );
+    }
+
+    if (feedCfg.onpage === true) {
+        return (
+            <div className="content" dangerouslySetInnerHTML={{ __html: props.body }}>
+            </div>
         );
     }
     return (

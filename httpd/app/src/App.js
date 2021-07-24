@@ -84,6 +84,7 @@ export class Feed extends React.Component{
     config.show_header = this.state.show_header;
     config.show_paging = this.state.show_paging;
     config.show_share = this.state.show_share;
+    config.onpage = this.state.onpage || false;
     config.onpage_edit = this.state.onpage_edit || false;
     config.feed_id = this.state.feed.id;
     config.toggleEditor = () => {
@@ -156,6 +157,7 @@ export class App extends React.Component {
         prev_start={appData.prev_start}
         next_start={appData.next_start}
         query={appData.query}
+        onpage={appData.onpage}
         onpage_edit={appData.onpage_edit} />
     );
   }
