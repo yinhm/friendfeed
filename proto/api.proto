@@ -50,6 +50,8 @@ service Api {
   // Stock
   // Stream:ArchiveKLine
   rpc ArchiveKLine(stream KLineRequest) returns (ArchiveSummary) {}
+  // Stream:ArchiveDividend
+  rpc ArchiveDividend(stream Dividend) returns (ArchiveSummary) {}
 }
 
 message Worker {

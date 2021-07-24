@@ -66,12 +66,12 @@ message ETFInfo {
 
 // K线
 message KLine {
-	int32 date = 1;    
-	float open = 2;    
-	float high = 3;    
-	float low = 4;    
-	float close = 5;    
-	int64 volume = 6;    
+	int32 date = 1;
+	float open = 2;
+	float high = 3;
+	float low = 4;
+	float close = 5;
+	int64 volume = 6;
 	float amount = 7;
 }
 
@@ -79,4 +79,15 @@ message KLineRequest {
 	string symbol = 1;
 	string market = 2;
 	KLine kLine = 3;
+}
+
+// 分红
+message Dividend {
+	string symbol = 1;
+	string market = 2;
+	int32 date = 3;
+	float cash = 4; // 分红
+	float price = 5; // 配股价？
+	float count = 6; // ?
+	float rate = 7; // ?
 }

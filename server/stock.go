@@ -52,3 +52,34 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 		dateEnd = kReq.KLine.Date
 	}
 }
+
+func (s *ApiServer) ArchiveDividend(stream pb.Api_ArchiveDividendServer) error {
+	var count int32
+	startTime := time.Now()
+
+	// disable pebble.Sync since we cannot do batch easily
+	// and sync was too slow for large data.
+	// diable it so we can do 100K/1s records via stream.
+	s.rdb.SetSync(false)
+	defer s.rdb.SetSync(true)
+
+	var dividends []*pb.Dividend
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			logger.Println(dividends[:10])
+			endTime := time.Now()
+			return stream.SendAndClose(&pb.ArchiveSummary{
+				Count:       count,
+				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+			})
+		}
+		if err != nil {
+			return err
+		}
+		count++
+
+		dividends = append(dividends, req)
+	}
+}

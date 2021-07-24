@@ -19,6 +19,7 @@ import (
 var tdxConfig string
 var stockCode string
 var isKline bool
+var isDividend bool
 
 var stockCmd = &cobra.Command{
 	Use:   "stock",
@@ -36,15 +37,20 @@ var stockCmd = &cobra.Command{
 			fmt.Println("No config file.")
 			return
 		}
-		if isKline {
+
+		switch {
+		case isKline:
 			if err := syncKline(); err != nil {
 				log.Println(err)
 			}
 			return
-		}
-		err := sync()
-		if err != nil {
-			log.Println(err)
+		case isDividend:
+			syncDividend()
+		default:
+			err := sync()
+			if err != nil {
+				log.Println(err)
+			}
 		}
 	},
 }
@@ -53,7 +59,16 @@ func init() {
 	rootCmd.AddCommand(stockCmd)
 	stockCmd.Flags().StringVar(&stockCode, "n", "", "stock code")
 	stockCmd.Flags().BoolVar(&isKline, "k", false, "sync daily kline")
+	stockCmd.Flags().BoolVar(&isDividend, "d", true, "stock dividend")
 	stockCmd.Flags().StringVar(&tdxConfig, "tdxconfig", "config.toml", "tdx config file")
+}
+
+func marketCodeToString(market int) string {
+	name := "SH"
+	if market == 0 {
+		name = "SZ"
+	}
+	return name
 }
 
 func sync() error {
@@ -197,5 +212,64 @@ func syncKline() error {
 			}
 		}
 	}
+	return nil
+}
+
+// 更新股票高送转数据
+func syncDividend() error {
+	cfg := new(comm.Conf)
+	cfg.Parse(tdxConfig)
+
+	// 默认加载股票交易日历数据
+	calendarPath := fmt.Sprintf("%s%s", cfg.App.DataPath, cfg.Tdx.Files.Calendar)
+	_, err := comm.DefaultStockCalendar(calendarPath)
+
+	if nil != err {
+		log.Printf("%v", err)
+		return err
+	}
+
+	api := ctdx.NewDefaultTdxClient(cfg)
+	defer api.Close()
+
+	stream, err := agent.client.ArchiveDividend(context.Background())
+	if err != nil {
+		return err
+	}
+	defer stream.CloseAndRecv()
+
+	dividendPath := fmt.Sprintf("%s%s", cfg.App.DataPath, cfg.Tdx.Files.StockBonus)
+	dtypes := map[string]series.Type{
+		"code": series.String, "date": series.String,
+		"market": series.Int, "type": series.Int,
+		"money": series.Float, "price": series.Float,
+		"count": series.Float, "rate": series.Float,
+	}
+
+	df := utils.ReadCSV(dividendPath, dataframe.WithTypes(dtypes))
+	for _, row := range df.Maps() {
+		date := row["date"].(string)
+		// parse time from "20210607"
+		dateFull := fmt.Sprintf("%s-%s-%sT00:00:00+08:00", date[:4], date[4:6], date[6:8])
+		dt, err := time.Parse(time.RFC3339, dateFull)
+		if err != nil {
+			log.Printf("Can not parse time %s", err)
+		}
+		msg := &pb.Dividend{
+			Symbol: row["code"].(string),
+			Market: marketCodeToString(row["market"].(int)),
+			Date:   int32(dt.Unix()), // ex date?
+			Cash:   float32(row["money"].(float64)),
+			Price:  float32(row["price"].(float64)),
+			Count:  float32(row["count"].(float64)),
+			Rate:   float32(row["rate"].(float64)),
+		}
+
+		if err := stream.Send(msg); err != nil {
+			log.Printf("%v.Send(%v) = %v", stream, msg, err)
+			return err
+		}
+	}
+
 	return nil
 }
