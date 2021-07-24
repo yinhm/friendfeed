@@ -90,8 +90,20 @@ func downloadBingWallpaper() error {
 	}
 
 	for _, img := range bingWallpaper.Images {
+		uuid1 := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
+		outFile := fmt.Sprintf("%x", uuid1)
+		outFile = outFile[:2] + "/" + outFile[2:]
+		outFile = outFile[:1] + "/" + outFile[1:]
+		log.Println("out file path: ", outFile)
+		outFilepath := filepath.Join(config.datapath, "files", outFile)
+
 		url := fmt.Sprintf("http://cn.bing.com%s_UHD.jpg", img.UrlBase)
 		log.Println(img.EndDate, url, img.CopyRight)
+
+		if _, err := os.Stat(outFilepath); err == nil {
+			log.Printf("File exists, skipping %s...", img.EndDate)
+			continue
+		}
 
 		log.Println("get image from: ", url)
 		resp, err := http.Get(url)
@@ -104,12 +116,6 @@ func downloadBingWallpaper() error {
 			return err
 		}
 
-		uuid1 := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
-		outFile := fmt.Sprintf("%x", uuid1)
-		outFile = outFile[:2] + "/" + outFile[2:]
-		outFile = outFile[:1] + "/" + outFile[1:]
-		log.Println("out file path: ", outFile)
-		outFilepath := filepath.Join(config.datapath, "files", outFile)
 		os.MkdirAll(filepath.Dir(outFilepath), 0755)
 		if err = os.WriteFile(outFilepath, body, 0755); err != nil {
 			return err
