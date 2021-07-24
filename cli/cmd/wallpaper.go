@@ -89,6 +89,11 @@ func downloadBingWallpaper() error {
 		return err
 	}
 
+	// reverse images order
+	for i, j := 0, len(bingWallpaper.Images)-1; i < j; i, j = i+1, j-1 {
+		bingWallpaper.Images[i], bingWallpaper.Images[j] = bingWallpaper.Images[j], bingWallpaper.Images[i]
+	}
+
 	for _, img := range bingWallpaper.Images {
 		uuid1 := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
 		outFile := fmt.Sprintf("%x", uuid1)
