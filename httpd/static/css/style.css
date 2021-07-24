@@ -124,6 +124,9 @@ a:hover {
     /* line-height: 135%; */
     line-height: 1.7;
 }
+.entry img {
+    max-width: 640px;
+}
 
 .entry .info,
 .entry .likes,

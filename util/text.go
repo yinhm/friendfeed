@@ -12,6 +12,7 @@ var ugcSanitizer *bluemonday.Policy
 
 func init() {
 	ugcSanitizer = bluemonday.UGCPolicy()
+	ugcSanitizer.AllowDataURIImages()
 }
 
 func UrlToLink(body string) string {
