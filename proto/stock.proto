@@ -2,6 +2,19 @@ syntax = "proto3";
 
 package proto;
 
+message Stock{
+  string market = 1;     // 证券市场
+  string symbol = 2;     // 代码
+  string name = 3;       // 证券名
+}
+
+message StockRequest{
+  string market = 1;     // 证券市场
+  string symbol = 2;     // 代码
+  string name = 3;       // 证券名
+  int32 bars = 4;       // KLine数，数据天数
+}
+
 message ArchiveSummary {
   string id = 1;
   int32 count = 2;
@@ -11,44 +24,43 @@ message ArchiveSummary {
 }
 
 message StockInfo {
-  string id = 1;             // 证券ID, == symbol?
+  string symbol = 1;          // 证券ID, == symbol?
   string name = 2;           // 证券名
   string fullName = 20;       // 证券全名
-	string market = 3;         // 证券市场
-	// float preClose = 3;        // 前收价
-	string type = 4;           // 证券类型
-	string status = 5;         // 证券状态
-	int32 listDate =  6;       // 上市日期
-	int32 lastTradeDate = 7;   // 最近交易日期
-	int32 delistDate = 8;      // 退市日期
-	int64 circuShare = 9;      // 流通盘
-	int64 totalShare = 10;     // 总股本
-
-	string industry = 11;      // 行业
-	string block = 12;         // 板块
-	repeated string concepts = 13;     // 概念
+  string market = 3;         // 证券市场
+  // float preClose = 3;        // 前收价
+  string type = 4;           // 证券类型
+  string status = 5;         // 证券状态
+  int32 listDate =  6;       // 上市日期
+  int32 lastTradeDate = 7;   // 最近交易日期
+  int32 delistDate = 8;      // 退市日期
+  int64 circuShare = 9;      // 流通盘
+  int64 totalShare = 10;     // 总股本  
+  string industry = 11;      // 行业
+  string block = 12;         // 板块
+  repeated string concepts = 13;     // 概念
 }
 
 // Form 10-K 年报?
 message StockF10 {
-	int32 EPS = 1;                  // 每股收益
-	int64 totalAssets = 2;          // 总资产
-	int64 flowProperty = 3;         // 流动资产
-	int32 netWorth = 4;             // 每股净值 Net Worth per share
-	int64 mainIncoming = 5;         // 主营业务收入
-	int64 mainProfit = 6;           // 主营业务利润
-	int64 totalProfit = 7;          // 利润总额
-	int64 netProfit = 8;            // 净利润
-	int32 shareHolders = 9;         // 股东总数
-	int32 reportDate = 10;          // 发布日期
+  int32 EPS = 1;                  // 每股收益
+  int64 totalAssets = 2;          // 总资产
+  int64 flowProperty = 3;         // 流动资产
+  int32 netWorth = 4;             // 每股净值 Net Worth per share
+  int64 mainIncoming = 5;         // 主营业务收入
+  int64 mainProfit = 6;           // 主营业务利润
+  int64 totalProfit = 7;          // 利润总额
+  int64 netProfit = 8;            // 净利润
+  int32 shareHolders = 9;         // 股东总数
+  int32 reportDate = 10;          // 发布日期
   int32 liquidRatio = 11;         // 流动比率
-	int32 quickRatio = 12;          // 速动比率 quick ratio?
-	int32 UDPPS = 13;                // 每股未分配利润 Undistributed earnings per share
-	int64 currentLiabilities = 14;   // 流动负债
-	int64 totalLiabilities = 15;     // 负债总计
-	int64 totalHolderEquity = 16;    // 股东权益合计
-	int64 capitalReserve = 17;       // 资本公积金
-	int64 investmentIncome = 18;     // 投资收益
+  int32 quickRatio = 12;          // 速动比率 quick ratio?
+  int32 UDPPS = 13;                // 每股未分配利润 Undistributed earnings per share
+  int64 currentLiabilities = 14;   // 流动负债
+  int64 totalLiabilities = 15;     // 负债总计
+  int64 totalHolderEquity = 16;    // 股东权益合计
+  int64 capitalReserve = 17;       // 资本公积金
+  int64 investmentIncome = 18;     // 投资收益
 }
 
 message IndexInfo {
@@ -66,30 +78,38 @@ message ETFInfo {
 
 // K线
 message KLine {
-	int32 date = 1;
-	float open = 2;
-	float high = 3;
-	float low = 4;
-	float close = 5;
-	int64 volume = 6;
-	float amount = 7;
+  int32 date = 1;
+  float open = 2;
+  float high = 3;
+  float low = 4;
+  float close = 5;
+  int64 volume = 6;
+  float amount = 7;
 }
 
 message KLineRequest {
-	string symbol = 1;
-	string market = 2;
-	KLine kLine = 3;
+  string symbol = 1;
+  string market = 2;
+  KLine kLine = 3;
+}
+
+message KLineResponse {
+  repeated KLine kLines = 1;
 }
 
 // 除权除息
 // 除权（XR）：exclude right
 // 除息（XD）：exclude dividend
 message XRXD {
-	string symbol = 1;
-	string market = 2;
-	int32 ex_date = 3; // 初期除权日？
-	float dividend = 4; // 现金分红
-	float purchase_price = 5; // 配股价
-	float split = 6; // 送股数，送转股
-	float purchase = 7; // 配股
+  string symbol = 1;
+  string market = 2;
+  int32 ex_date = 3; // 初期除权日？
+  float dividend = 4; // 现金分红
+  float purchase_price = 5; // 配股价
+  float split = 6; // 送股数，送转股
+  float purchase = 7; // 配股
+}
+
+message XRXDResponse {
+  repeated XRXD xRXD = 1;
 }

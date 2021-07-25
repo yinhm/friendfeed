@@ -52,6 +52,8 @@ service Api {
   rpc ArchiveKLine(stream KLineRequest) returns (ArchiveSummary) {}
   // Stream:ArchiveXRXD
   rpc ArchiveXRXD(stream XRXD) returns (ArchiveSummary) {}
+  rpc GetXRXD(StockRequest) returns (XRXDResponse) {}
+  rpc GetKLines(StockRequest) returns (KLineResponse) {}
 }
 
 message Worker {

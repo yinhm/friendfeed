@@ -6,9 +6,11 @@ import (
 	"io"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	store "github.com/yinhm/friendfeed/storage"
+	"golang.org/x/net/context"
 )
 
 func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
@@ -97,8 +99,50 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 		}
 		count++
 
-		keyStr := model.KeyFrom(req.Market, req.Symbol, "xdxr")
-		keyStr = model.NewPrefixKeyFrom(model.TableStock, []byte(keyStr)).String()
-		dividends[keyStr] = append(dividends[keyStr], req)
+		kb := model.KeyFrom(req.Market, req.Symbol, "xdxr")
+		key := model.NewPrefixKeyFrom(model.TableStock, []byte(kb)).String()
+		dividends[key] = append(dividends[key], req)
 	}
+}
+
+// 获取 XRXD 除权除息
+func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXDResponse, error) {
+	kb := model.KeyFrom(req.Market, req.Symbol, "xdxr")
+	key := model.NewPrefixKeyFrom(model.TableStock, []byte(kb))
+
+	// 存储除权除息信息
+	// []*xrxd gob encoding
+	var xrxds *pb.XRXDResponse
+	rawdata, err := s.rdb.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	buf := bytes.NewBuffer(rawdata)
+	dec := gob.NewDecoder(buf)
+	err = dec.Decode(&xrxds)
+	if err != nil {
+		return nil, err
+	}
+	return xrxds, nil
+}
+
+// 获取 KLine bars 高开低收数据
+func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KLineResponse, error) {
+	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol)
+	key := model.NewPrefixKeyFrom(model.TableKLine, uuid1.Bytes())
+
+	var klines []*pb.KLine
+	_, err := s.rdb.ForwardScan(key, func(i int, k, v []byte) error {
+		kline := &pb.KLine{}
+		if err := proto.Unmarshal(v, kline); err != nil {
+			return err
+		}
+		klines = append(klines, kline)
+		if i > int(req.Bars) {
+			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
+		}
+		return nil
+	})
+	resp := &pb.KLineResponse{KLines: klines}
+	return resp, err
 }
