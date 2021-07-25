@@ -81,13 +81,15 @@ message KLineRequest {
 	KLine kLine = 3;
 }
 
-// 分红
-message Dividend {
+// 除权除息
+// 除权（XR）：exclude right
+// 除息（XD）：exclude dividend
+message XRXD {
 	string symbol = 1;
 	string market = 2;
-	int32 date = 3;
-	float cash = 4; // 分红
-	float price = 5; // 配股价？
-	float count = 6; // ?
-	float rate = 7; // ?
+	int32 ex_date = 3; // 初期除权日？
+	float dividend = 4; // 现金分红
+	float purchase_price = 5; // 配股价
+	float split = 6; // 送股数，送转股
+	float purchase = 7; // 配股
 }

@@ -68,12 +68,15 @@ func SeekZero() []byte {
 	return u[:]
 }
 
+func KeyFrom(ids ...string) string {
+	return strings.ToLower(strings.Join(ids, ":"))
+}
+
 // deterministic unique key from
 // Example combination:
 // twitter:foobar
 // bing:wallpaper
 // SH:600519
 func UniqueKeyFrom(ids ...string) uuid.UUID {
-	uniqueName := strings.ToLower(strings.Join(ids, ";"))
-	return uuid.NewV5(uuid.NamespaceURL, uniqueName)
+	return uuid.NewV5(uuid.NamespaceURL, KeyFrom(ids...))
 }

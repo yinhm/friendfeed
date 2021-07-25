@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/gob"
 	"io"
 	"time"
 
@@ -53,7 +55,8 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 	}
 }
 
-func (s *ApiServer) ArchiveDividend(stream pb.Api_ArchiveDividendServer) error {
+// XRXD 除权除息同步为全量更新
+func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 	var count int32
 	startTime := time.Now()
 
@@ -63,12 +66,26 @@ func (s *ApiServer) ArchiveDividend(stream pb.Api_ArchiveDividendServer) error {
 	s.rdb.SetSync(false)
 	defer s.rdb.SetSync(true)
 
-	var dividends []*pb.Dividend
+	dividends := make(map[string][]*pb.XRXD)
 
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-			logger.Println(dividends[:10])
+			// 存储除权除息信息
+			for k, v := range dividends {
+				// use gob for []*xrxd encoding
+				var buf bytes.Buffer
+				enc := gob.NewEncoder(&buf)
+				err := enc.Encode(v)
+				if err != nil {
+					return err
+				}
+				err = s.rdb.Put([]byte(k), buf.Bytes())
+				if err != nil {
+					return err
+				}
+			}
+
 			endTime := time.Now()
 			return stream.SendAndClose(&pb.ArchiveSummary{
 				Count:       count,
@@ -80,6 +97,8 @@ func (s *ApiServer) ArchiveDividend(stream pb.Api_ArchiveDividendServer) error {
 		}
 		count++
 
-		dividends = append(dividends, req)
+		keyStr := model.KeyFrom(req.Market, req.Symbol, "xdxr")
+		keyStr = model.NewPrefixKeyFrom(model.TableStock, []byte(keyStr)).String()
+		dividends[keyStr] = append(dividends[keyStr], req)
 	}
 }
