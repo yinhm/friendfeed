@@ -14,6 +14,7 @@ import (
 )
 
 func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
+	logger.Debugln("Starting ArchiveKLine...")
 	var count int32
 	var dateStart int32
 	var dateEnd int32
@@ -41,11 +42,17 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 		}
 		count++
 
+		// Stock KLine:
+		// ------------------------------------------------
+		// K-> | TableKLine |   uuid   | reverse flake id |
+		// ------------------------------------------------
+		// V-> |                   <data>                 |
+		// ------------------------------------------------
 		oldtime := time.Unix(int64(kReq.KLine.Date), 0)
 		flakeid := s.rdb.TimeTravelReverseId(oldtime)
 		uuid1 := model.UniqueKeyFrom(kReq.Market, kReq.Symbol)
-		k := store.NewUUIDFlakeKey(model.TableKLine, uuid1, flakeid)
-		_, err = model.KLine.Put(s.rdb, k.Bytes(), kReq.KLine)
+		k := model.NewKeyFrom(uuid1.Bytes(), flakeid[:])
+		_, err = model.KLine.Put(s.rdb, k, kReq.KLine)
 		if err != nil {
 			return err
 		}
@@ -59,6 +66,7 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 
 // XRXD 除权除息同步为全量更新
 func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
+	logger.Debugln("Starting ArchiveXRXD...")
 	var count int32
 	startTime := time.Now()
 
@@ -107,6 +115,7 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 
 // 获取 XRXD 除权除息
 func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXDResponse, error) {
+	logger.Debugf("GetXRXD of <%s,%s>", req.Market, req.Symbol)
 	kb := model.KeyFrom(req.Market, req.Symbol, "xdxr")
 	key := model.NewPrefixKeyFrom(model.TableStock, []byte(kb))
 
@@ -128,11 +137,17 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 
 // 获取 KLine bars 高开低收数据
 func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KLineResponse, error) {
+	logger.Debugf("GetKLines of <%s,%s,%d>", req.Market, req.Symbol, req.Bars)
 	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol)
-	key := model.NewPrefixKeyFrom(model.TableKLine, uuid1.Bytes())
+	prefix := model.NewPrefixKeyFrom(model.TableKLine, uuid1.Bytes())
+	// fmt.Printf("scan key, %s\n", prefix.String())
+
+	if req.Bars <= 0 || req.Bars > 3650 {
+		req.Bars = 1
+	}
 
 	var klines []*pb.KLine
-	_, err := s.rdb.ForwardScan(key, func(i int, k, v []byte) error {
+	_, err := s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		kline := &pb.KLine{}
 		if err := proto.Unmarshal(v, kline); err != nil {
 			return err

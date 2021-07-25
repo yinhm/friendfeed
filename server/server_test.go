@@ -2,6 +2,7 @@ package server
 
 import (
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,12 +17,15 @@ import (
 	"github.com/yinhm/friendfeed/search"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 type RpcTestSuite struct {
 	suite.Suite
 
-	srv    *ApiServer
+	srv       *ApiServer
+	rpcServer *grpc.Server
+
 	dbpath string
 	mcFile string
 	job    *pb.FeedJob
@@ -35,7 +39,6 @@ func (s *RpcTestSuite) SetupTest() {
 	log.Println("setup tests...")
 	s.dbpath = os.TempDir() + "/fftestdb"
 	s.mcFile = "../conf/example.config.json"
-	s.srv = NewApiServer(s.dbpath, s.mcFile)
 
 	search.InitMockIndexService(filepath.Join(s.dbpath, "index"))
 
@@ -47,6 +50,17 @@ func (s *RpcTestSuite) SetupTest() {
 		Created:   time.Now().Unix(),
 		Updated:   time.Now().Unix(),
 	}
+
+	ln, err := net.Listen("tcp", ":12019")
+	if err != nil {
+		log.Fatalf("Can not bind : %s\n", err)
+	}
+
+	s.rpcServer = grpc.NewServer()
+	s.srv = NewApiServer(s.dbpath, s.mcFile)
+
+	pb.RegisterApiServer(s.rpcServer, s.srv)
+	go s.rpcServer.Serve(ln)
 }
 
 func (s *RpcTestSuite) TearDownTest() {
@@ -54,6 +68,7 @@ func (s *RpcTestSuite) TearDownTest() {
 
 	s.srv.Destroy()
 	s.srv.Shutdown()
+	s.rpcServer.Stop()
 }
 
 func (s *RpcTestSuite) TestServerJob() {
@@ -438,4 +453,54 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	}
 	_, err = s.srv.FetchGraph(context.Background(), gReq)
 	assert.Nil(s.T(), err)
+}
+
+func (s *RpcTestSuite) TestKLines() {
+	conn, err := grpc.Dial("localhost:12019", grpc.WithInsecure())
+	assert.Nil(s.T(), err)
+	defer conn.Close()
+
+	api := pb.NewApiClient(conn)
+	ctx := context.Background()
+
+	stream, err := api.ArchiveKLine(ctx)
+	assert.Nil(s.T(), err)
+
+	dt := time.Date(2021, 7, 25, 15, 0, 0, 0, time.UTC)
+
+	kp := &pb.KLineRequest{
+		Symbol: "600519",
+		Market: "SH",
+		KLine: &pb.KLine{
+			Date:   int32(dt.Unix()),
+			Open:   1912.0,
+			High:   8848.0,
+			Low:    1234.0,
+			Close:  2330.0,
+			Volume: 10240.0,
+			Amount: 102400.0,
+		},
+	}
+
+	err = stream.Send(kp)
+	assert.Nil(s.T(), err)
+
+	resp, err := stream.CloseAndRecv()
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), int32(1), resp.Count)
+
+	// not scan key
+	// 0000012f093cc15911635c5c822f0b31db5089f8000006aee6c8de801c697aa5a6ca0000
+	// prefix from
+	// 0000012f093cc15911635c5c822f0b31db5089f8
+
+	// GetKLines
+	req := &pb.StockRequest{
+		Symbol: "600519",
+		Market: "SH",
+		Bars:   5,
+	}
+	klineResp, err := api.GetKLines(ctx, req)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(klineResp.KLines))
 }
