@@ -66,10 +66,12 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 func (s *Server) BuildFollow(profile *pb.Profile, feed *pb.Feed) {
 	if strings.ToLower(feed.Uuid) == "home" ||
 		strings.ToLower(feed.Uuid) == "public" {
+		feed.Commands = []string{"post"}
 		return
 	}
 
 	if feed.Uuid == profile.Uuid {
+		feed.Commands = []string{"post"}
 		return
 	}
 
@@ -86,7 +88,7 @@ func (s *Server) BuildFollow(profile *pb.Profile, feed *pb.Feed) {
 		return
 	}
 	if fResp.Followed {
-		feed.Commands = []string{"unfollow"}
+		feed.Commands = []string{"unfollow", "post"}
 	} else {
 		feed.Commands = []string{"follow"}
 	}

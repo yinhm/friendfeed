@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/flosch/pongo2"
@@ -90,16 +89,13 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		"feed":        feed,
 		"prev_start":  prevStart,
 		"next_start":  req.Start + req.PageSize,
-		"show_paging": true,
+		"show_paging": len(feed.Entries) > int(req.PageSize),
 	}
 	s.renderFeed(c, data)
 }
 
 func (s *Server) FeedHandler(c *gin.Context) {
 	feedname := c.Params.ByName("name")
-	if feedname == "" {
-		feedname = "Home"
-	}
 	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
 		Id:       feedname,
@@ -115,21 +111,19 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		return
 	}
 
-	showHeader := feed.Id != "Home" && !strings.HasPrefix(feed.Id, "e/")
-	showShare := feed.Id == "Home" || contains(feed.Commands, "post")
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0
 	}
 	data := pongo2.Context{
-		"show_header": showHeader,
-		"show_share":  showShare,
+		"show_header": true,
+		"show_share":  contains(feed.Commands, "post"),
 		"title":       feed.Id,
 		"name":        feed.Id,
 		"feed":        feed,
 		"prev_start":  prevStart,
 		"next_start":  req.Start + req.PageSize,
-		"show_paging": true,
+		"show_paging": len(feed.Entries) > int(req.PageSize),
 	}
 	s.renderFeed(c, data)
 }
@@ -159,7 +153,7 @@ func (s *Server) PublicHandler(c *gin.Context) {
 		"feed":        feed,
 		"prev_start":  prevStart,
 		"next_start":  req.Start + req.PageSize,
-		"show_paging": true,
+		"show_paging": len(feed.Entries) > int(req.PageSize),
 	}
 	// s.HTML(c, 200, "_feed.html", data)
 	s.renderFeed(c, data)
@@ -190,7 +184,7 @@ func (s *Server) SearchHandler(c *gin.Context) {
 		"feed":        feed,
 		"prev_start":  prevStart,
 		"next_start":  req.Start + req.PageSize,
-		"show_paging": true,
+		"show_paging": len(feed.Entries) > int(req.PageSize),
 		"query":       query,
 	}
 	s.renderFeed(c, data)
@@ -220,7 +214,7 @@ func (s *Server) TagHandler(c *gin.Context) {
 		"feed":        feed,
 		"prev_start":  prevStart,
 		"next_start":  req.Start + req.PageSize,
-		"show_paging": true,
+		"show_paging": len(feed.Entries) > int(req.PageSize),
 	}
 	s.renderFeed(c, data)
 }

@@ -137,7 +137,7 @@ export class Feed extends React.Component{
   }
 
   render() {
-    if (!this.state.feed || !this.state.feed.entries) {
+    if (!this.state.feed) {
       return null;
     }
 
@@ -167,12 +167,15 @@ export class Feed extends React.Component{
       )
     }
 
-    var entryNodes = feed.entries.map((entry, index) => {
-      return (
-        <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_edit}>
-        </Entry>
-      );
-    });
+    var entryNodes = ""
+    if (feed.entries) {
+      entryNodes = feed.entries.map((entry, index) => {
+        return (
+          <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_edit}>
+          </Entry>
+        );
+      });
+    }
 
     var editorNodes = "";
     if (this.state.show_share === true) {
