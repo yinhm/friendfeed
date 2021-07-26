@@ -12,7 +12,7 @@ type Iterator struct {
 	options pebble.IterOptions
 }
 
-func keyUpperBound(b []byte) []byte {
+func KeyUpperBound(b []byte) []byte {
 	end := make([]byte, len(b))
 	copy(end, b)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -27,7 +27,7 @@ func keyUpperBound(b []byte) []byte {
 func PrefixIteratorOptions(prefix []byte) *pebble.IterOptions {
 	return &pebble.IterOptions{
 		LowerBound: prefix,
-		UpperBound: keyUpperBound(prefix),
+		UpperBound: KeyUpperBound(prefix),
 	}
 }
 

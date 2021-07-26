@@ -232,6 +232,14 @@ func (db *Store) Exist(key []byte) bool {
 	return true
 }
 
+func (db *Store) NewBatch() *pebble.Batch {
+	return db.rdb.NewBatch()
+}
+
+func (db *Store) Metrics() *pebble.Metrics {
+	return db.rdb.Metrics()
+}
+
 func (db *Store) Iterator() *Iterator {
 	opts := &pebble.IterOptions{}
 	return newIterator(db.rdb, opts)

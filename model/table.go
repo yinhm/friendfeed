@@ -12,7 +12,7 @@ import (
 )
 
 type Table struct {
-	prefix  store.Key
+	Prefix  store.Key
 	preSize int
 
 	NewMessage ProtoMessageFunc
@@ -20,7 +20,7 @@ type Table struct {
 
 func NewTable(prefix store.Key) *Table {
 	return &Table{
-		prefix:  prefix,
+		Prefix:  prefix,
 		preSize: prefix.Len(),
 	}
 }
@@ -49,20 +49,20 @@ func (t *Table) NewKey(name string) string {
 	return hex.EncodeToString(u[:])
 }
 
-func (t *Table) prefixAppend(key store.Key) store.Key {
-	return NewKeyFrom(t.prefix, key)
+func (t *Table) PrefixAppend(key store.Key) store.Key {
+	return NewKeyFrom(t.Prefix, key)
 }
 
-func (t *Table) prefixRemove(key store.Key) store.Key {
+func (t *Table) PrefixRemove(key store.Key) store.Key {
 	return key[t.preSize:]
 }
 
 func (t *Table) toStringKey(key store.Key) string {
-	return t.prefixRemove(key).String()
+	return t.PrefixRemove(key).String()
 }
 
 func (t *Table) Get(db *store.Store, key store.Key, msg proto.Message) error {
-	k := t.prefixAppend(key)
+	k := t.PrefixAppend(key)
 	raw, err := db.Get(k)
 	// log.Printf("db.Get(%s,...), %v", k.String(), raw)
 	if err != nil {
@@ -75,7 +75,7 @@ func (t *Table) Get(db *store.Store, key store.Key, msg proto.Message) error {
 }
 
 func (t *Table) Put(db *store.Store, key store.Key, msg proto.Message) (store.Key, error) {
-	k := t.prefixAppend(key)
+	k := t.PrefixAppend(key)
 	bytes, err := proto.Marshal(msg)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (t *Table) Put(db *store.Store, key store.Key, msg proto.Message) (store.Ke
 
 // blind delete, no error if not exists
 func (t *Table) Delete(db *store.Store, key store.Key) error {
-	k := t.prefixAppend(key)
+	k := t.PrefixAppend(key)
 	return db.Delete(k)
 }
 
@@ -108,7 +108,7 @@ func (t *Table) RemoveIndex(db *store.Store, uuid1 uuid.UUID, oldtime time.Time)
 
 func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	var buf bytes.Buffer
-	buf.Write(t.prefix)
+	buf.Write(t.Prefix)
 	if len(ks) > 0 {
 		for _, k := range ks {
 			buf.Write(store.KeyFromString(k)[:])
@@ -126,7 +126,7 @@ func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 }
 
 func (t *Table) Iter(db *store.Store, fn func(raw []byte) error) error {
-	iter := db.NewIterator(t.prefix)
+	iter := db.NewIterator(t.Prefix)
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()
@@ -140,7 +140,7 @@ func (t *Table) Iter(db *store.Store, fn func(raw []byte) error) error {
 // find agents etc in farm
 func (t *Table) Find(db *store.Store, fHash string, fn func(raw []byte) error) error {
 	var buf bytes.Buffer
-	buf.Write(t.prefix)
+	buf.Write(t.Prefix)
 	buf.Write(store.KeyFromString(fHash)[:])
 	kp := buf.Bytes()
 

@@ -136,6 +136,8 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 }
 
 // 获取 KLine bars 高开低收数据
+// TODO: DeleteRange
+// TODO: DELETE
 func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KLineResponse, error) {
 	logger.Debugf("GetKLines of <%s,%s,%d>", req.Market, req.Symbol, req.Bars)
 	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol)
@@ -153,7 +155,7 @@ func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KL
 			return err
 		}
 		klines = append(klines, kline)
-		if i > int(req.Bars) {
+		if i >= int(req.Bars)-1 {
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
 		}
 		return nil

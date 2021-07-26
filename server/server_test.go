@@ -489,7 +489,7 @@ func (s *RpcTestSuite) TestKLines() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), int32(1), resp.Count)
 
-	// not scan key
+	// now scan key
 	// 0000012f093cc15911635c5c822f0b31db5089f8000006aee6c8de801c697aa5a6ca0000
 	// prefix from
 	// 0000012f093cc15911635c5c822f0b31db5089f8
@@ -503,4 +503,6 @@ func (s *RpcTestSuite) TestKLines() {
 	klineResp, err := api.GetKLines(ctx, req)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 1, len(klineResp.KLines))
+	kline := klineResp.KLines[0]
+	assert.EqualValues(s.T(), 8848.0, kline.High)
 }

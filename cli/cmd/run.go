@@ -16,7 +16,7 @@ var rumCmd = &cobra.Command{
 	Long: `执行特定任务:
 
  Example: run MarkDelete task to delete a feed
- client run --t MarkDelete foobar
+ cli run --t MarkDelete foobar
 
 List of Jobs
   - ReportJobs
@@ -28,9 +28,10 @@ List of Jobs
   - RefetchUserFeed
   - RefetchFriendFeed
   - TestJob
-  - FixComment
+  - FixKLine
   - MarkDelete
   - SuperAdmin
+  - DBMetrics
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("run task: %s\n", runTaskName)

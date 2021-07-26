@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/cockroachdb/pebble"
 	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
@@ -243,12 +243,14 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.RefetchFriendFeed()
 	case "TestJob":
 		s.TestJob()
-	case "FixComment":
-		s.FixComment()
+	// case "FixKLine":
+	// s.FixKLine()
 	case "MarkDelete":
 		s.MarkDelete(cmd.Arg1)
 	case "SuperAdmin":
 		s.SuperAdmin(cmd.Arg1)
+	case "DBMetrics":
+		s.DBMetrics()
 	}
 
 	// TODO: nothing here
@@ -442,23 +444,28 @@ func (s *ApiServer) SuperAdmin(id string) (bool, error) {
 	return true, nil
 }
 
-func (s *ApiServer) FixComment() error {
-	req := &pb.FeedRequest{
-		Id:       "public",
-		Start:    int32(0),
-		PageSize: 50,
+func (s *ApiServer) FixKLine() error {
+	db := s.rdb
+	batch := db.NewBatch()
+	prefix := model.KLine.Prefix
+	prefix = append(prefix, prefix...)
+	logger.Debugf("prefix range delete: %s", hex.EncodeToString(prefix))
+	err := batch.DeleteRange(prefix, store.KeyUpperBound(prefix), pebble.NoSync)
+	if err != nil {
+		return err
 	}
-	feed, _ := s.cachedFeed(req)
-	for _, e := range feed.Entries {
-		for _, cmt := range e.Comments {
-			// date, _ := time.Parse(time.RFC3339, cmt.Date)
-			profile, _ := model.GetProfileFromUserId(s.mdb, cmt.From.Id)
-			fixedName := e.Id + profile.Uuid + cmt.Date
-			uuid1 := uuid.NewV5(uuid.NamespaceURL, fixedName)
+	if err = batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	if err = batch.Close(); err != nil {
+		return err
+	}
+	return nil
+}
 
-			cmt.Id = uuid1.String()
-		}
-		model.PutEntry(s.rdb, e)
-	}
+func (s *ApiServer) DBMetrics() error {
+	db := s.rdb
+	metrics := db.Metrics()
+	logger.Printf("\n%s\n", metrics.String())
 	return nil
 }
