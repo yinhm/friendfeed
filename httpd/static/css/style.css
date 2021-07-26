@@ -27,8 +27,8 @@ a:hover {
 }
 
 .header h1 {
-    margin: 0;
-    font-size: 22px;
+    margin-bottom: 0.5em;
+    font-size: 25px;
 }
 
 .header h1 a {
@@ -42,15 +42,26 @@ a:hover {
 }
 
 .header .picture img {
-    width: 75px;
-    height: 75px;
+    width: 96px;
+    height: 96px;
 }
 
 .header .body {
-    margin-left: 85px;
+    margin-left: 120px;
 }
 
-.header,
+.header .body .description {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    font-size: 16px;
+}
+
+.header {
+    padding-bottom: 35px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 12px;
+}
+
 .sharebox,
 .entry,
 .share {

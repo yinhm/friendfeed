@@ -11,7 +11,7 @@ ReactDOM.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
-  document.getElementById('feed')
+  document.getElementById('root')
 );
 
 ReactDOM.render(

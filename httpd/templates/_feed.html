@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block content %}
-
+<!-- 
   {% if show_header %}
     <div class="header">
       <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
@@ -29,9 +29,9 @@
       </div>
       <div class="clear"></div>
     </div>
-  {% endif %}
+  {% endif %} -->
 
-  <div id="feed">
+  <div id="root">
     {{feed_body|safe}}
   </div>
 

@@ -27,6 +27,34 @@ function FeedPagin(props) {
   );
 }
 
+function FeedHeader(props) {
+
+  return (
+    <div className="header">
+      <div className="picture"><a href={"/feed/" + props.feedId }><img src={ props.picture } /></a></div>
+      <div className="body">
+        <h1><a href={ "/feed/" + props.feedId }>{ props.name }</a></h1>
+        <div className="description">{ props.description }</div>
+        
+        <form method="post" action="/a/subscribe">
+          <input type="hidden" name="next" value="" />
+          <input type="hidden" name="feed" value={ props.feedId } />
+          <input type="submit" value="Subscribe" />
+        </form>
+        
+        <form method="post" action="/a/unsubscribe">
+          <input type="hidden" name="next" value="" />
+          <input type="hidden" name="feed" value="" />
+          <input type="submit" value="Unsubscribe" />
+        </form>
+        
+      </div>
+      <div className="clear"></div>
+    </div>
+  )
+
+}
+
 export class Feed extends React.Component{
   static contextType  = FeedContext;
 
@@ -93,6 +121,17 @@ export class Feed extends React.Component{
     };
 
     var feed = this.state.feed;
+
+    var feedHeader = "";
+    if (this.state.show_header === true) {
+      feedHeader = (
+        <FeedHeader feedId={feed.id}
+                    name={feed.name}
+                    picture={feed.picture}
+                    description={feed.description} />
+      )
+    }
+
     var entryNodes = feed.entries.map((entry, index) => {
       return (
         <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_edit}>
@@ -116,13 +155,14 @@ export class Feed extends React.Component{
     }
 
     return (
-      <div className="feed">
-        <FeedContext.Provider value={config}>
+      <FeedContext.Provider value={config}>
+        {feedHeader}
+        <div id="feed" className="feed">
           {editorNodes}
           {entryNodes}
           {feedPaginNodes}
-        </FeedContext.Provider>
-      </div>
+        </div>
+      </FeedContext.Provider>
     );
   }
 }
