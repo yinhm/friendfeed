@@ -12,7 +12,12 @@ message StockRequest{
   string market = 1;     // 证券市场
   string symbol = 2;     // 代码
   string name = 3;       // 证券名
-  int32 bars = 4;       // KLine数，数据天数
+  int32 bars = 4;        // KLine数，数据天数
+  string match = 5;      // List时匹配Symbol起始代码
+}
+
+message StockList{
+  repeated Stock stocks = 1;
 }
 
 message ArchiveSummary {
@@ -90,11 +95,11 @@ message KLine {
 message KLineRequest {
   string symbol = 1;
   string market = 2;
-  KLine kLine = 3;
+  KLine KLine = 3;
 }
 
 message KLineResponse {
-  repeated KLine kLines = 1;
+  repeated KLine KLines = 1;
 }
 
 // 除权除息
@@ -111,5 +116,5 @@ message XRXD {
 }
 
 message XRXDResponse {
-  repeated XRXD xRXD = 1;
+  repeated XRXD XRXD = 1;
 }

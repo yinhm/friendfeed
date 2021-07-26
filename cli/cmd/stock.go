@@ -97,6 +97,7 @@ func syncProfile() error {
 	}
 	log.Printf("股票基础数据: %v", df)
 
+	stocks := &pb.StockList{}
 	for _, row := range df.Maps() {
 		var code [6]byte
 		market := row["market"].(int)
@@ -115,6 +116,12 @@ func syncProfile() error {
 			continue
 		}
 
+		stock := &pb.Stock{
+			Market: mktName,
+			Symbol: strCode,
+		}
+		stocks.Stocks = append(stocks.Stocks, stock)
+
 		feedinfo := &pb.Feedinfo{
 			Uuid:        model.UniqueKeyFrom(mktName, strCode).String(),
 			Id:          strCode,
@@ -130,6 +137,14 @@ func syncProfile() error {
 
 		log.Printf("同步股票Feedinfo: %s %s", mktName, strCode)
 	}
+
+	if stockCode != "" {
+		_, err := agent.client.UpdateStockList(context.Background(), stocks)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

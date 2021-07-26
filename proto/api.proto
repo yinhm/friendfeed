@@ -54,6 +54,14 @@ service Api {
   rpc ArchiveXRXD(stream XRXD) returns (ArchiveSummary) {}
   rpc GetXRXD(StockRequest) returns (XRXDResponse) {}
   rpc GetKLines(StockRequest) returns (KLineResponse) {}
+  rpc UpdateStockList(StockList) returns (Response) {}
+  rpc GetStockList(StockRequest) returns (StockList) {}
+}
+
+message Response {
+  bool is_success = 1;
+  string status = 2;
+  string result = 3;
 }
 
 message Worker {

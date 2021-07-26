@@ -113,6 +113,46 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 	}
 }
 
+// 获取证券代码列表
+func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb.Response, error) {
+	logger.Debugf("UpdateStockList, count %d", len(req.Stocks))
+	uuid1 := model.UniqueKeyFrom("stock", "list")
+	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
+
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(req.Stocks)
+	if err != nil {
+		return nil, err
+	}
+	err = s.rdb.Put([]byte(key), buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Response{IsSuccess: true}, nil
+}
+
+// 获取证券代码列表
+func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb.StockList, error) {
+	logger.Debugf("GetStockList of <%s,%s>", req.Market, req.Match)
+	uuid1 := model.UniqueKeyFrom("stock", "list")
+	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
+
+	var stocks []*pb.Stock
+	rawdata, err := s.rdb.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	buf := bytes.NewBuffer(rawdata)
+	dec := gob.NewDecoder(buf)
+	err = dec.Decode(&stocks)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.StockList{Stocks: stocks}, nil
+}
+
 // 获取 XRXD 除权除息
 func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXDResponse, error) {
 	logger.Debugf("GetXRXD of <%s,%s>", req.Market, req.Symbol)

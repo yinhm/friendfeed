@@ -66,9 +66,9 @@ func (s *RpcTestSuite) SetupTest() {
 func (s *RpcTestSuite) TearDownTest() {
 	log.Println("teardown tests...")
 
-	s.srv.Destroy()
 	s.srv.Shutdown()
 	s.rpcServer.Stop()
+	os.RemoveAll(s.dbpath)
 }
 
 func (s *RpcTestSuite) TestServerJob() {
@@ -139,6 +139,7 @@ func (s *RpcTestSuite) TestReopenDeque() {
 	assert.Nil(s.T(), err)
 
 	// reopen to check data
+	s.rpcServer.Stop()
 	s.srv.Shutdown()
 	s.srv = NewApiServer(s.dbpath, s.mcFile)
 
@@ -505,4 +506,21 @@ func (s *RpcTestSuite) TestKLines() {
 	assert.Equal(s.T(), 1, len(klineResp.KLines))
 	kline := klineResp.KLines[0]
 	assert.EqualValues(s.T(), 8848.0, kline.High)
+
+	reqStockList := &pb.StockList{
+		Stocks: []*pb.Stock{{
+			Market: "SH",
+			Symbol: "600519",
+		}},
+	}
+	_, err = api.UpdateStockList(ctx, reqStockList)
+	assert.Nil(s.T(), err)
+
+	req = &pb.StockRequest{
+		Symbol: "",
+		Market: "",
+	}
+	respStockList, err := api.GetStockList(ctx, req)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(respStockList.Stocks))
 }
