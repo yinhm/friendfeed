@@ -116,5 +116,5 @@ message XRXD {
 }
 
 message XRXDResponse {
-  repeated XRXD XRXD = 1;
+  repeated XRXD XRXDS = 1;
 }

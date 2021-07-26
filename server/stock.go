@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"time"
 
@@ -90,7 +92,8 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 				if err != nil {
 					return err
 				}
-				err = s.rdb.Put([]byte(k), buf.Bytes())
+				k := store.KeyFromString(k)
+				err = s.rdb.Put(k, buf.Bytes())
 				if err != nil {
 					return err
 				}
@@ -166,9 +169,12 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 
 	// 存储除权除息信息
 	// []*xrxd gob encoding
-	var xrxds *pb.XRXDResponse
+	var xrxds []*pb.XRXD
+
+	fmt.Println("get key: ", hex.EncodeToString(key))
 	rawdata, err := s.rdb.Get(key)
-	if err != nil {
+	if err != nil || len(rawdata) == 0 {
+		fmt.Println("empty rawdata")
 		return nil, err
 	}
 	buf := bytes.NewBuffer(rawdata)
@@ -177,7 +183,11 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 	if err != nil {
 		return nil, err
 	}
-	return xrxds, nil
+
+	resp := &pb.XRXDResponse{
+		XRXDS: xrxds,
+	}
+	return resp, nil
 }
 
 // 获取 KLine bars 高开低收数据

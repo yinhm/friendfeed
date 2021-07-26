@@ -464,6 +464,7 @@ func (s *RpcTestSuite) TestKLines() {
 	api := pb.NewApiClient(conn)
 	ctx := context.Background()
 
+	// KLines
 	stream, err := api.ArchiveKLine(ctx)
 	assert.Nil(s.T(), err)
 
@@ -495,7 +496,7 @@ func (s *RpcTestSuite) TestKLines() {
 	// prefix from
 	// 0000012f093cc15911635c5c822f0b31db5089f8
 
-	// GetKLines
+	// KLines
 	req := &pb.StockRequest{
 		Symbol: "600519",
 		Market: "SH",
@@ -507,6 +508,7 @@ func (s *RpcTestSuite) TestKLines() {
 	kline := klineResp.KLines[0]
 	assert.EqualValues(s.T(), 8848.0, kline.High)
 
+	// ListStock
 	reqStockList := &pb.StockList{
 		Stocks: []*pb.Stock{{
 			Market: "SH",
@@ -523,4 +525,34 @@ func (s *RpcTestSuite) TestKLines() {
 	respStockList, err := api.GetStockList(ctx, req)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 1, len(respStockList.Stocks))
+
+	// archive xrxd
+	streamXrxd, err := api.ArchiveXRXD(ctx)
+	assert.Nil(s.T(), err)
+
+	dt = time.Date(2021, 7, 25, 0, 0, 0, 0, time.UTC)
+	msg := &pb.XRXD{
+		Symbol:        "600519",
+		Market:        "SH",
+		ExDate:        int32(dt.Unix()), // ex date?
+		Dividend:      101.0,
+		PurchasePrice: 0,
+		Split:         0,
+		Purchase:      0,
+	}
+	err = streamXrxd.Send(msg)
+	assert.Nil(s.T(), err)
+
+	resp, err = streamXrxd.CloseAndRecv()
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), int32(1), resp.Count)
+
+	// get xrxd
+	req = &pb.StockRequest{
+		Market: "SH",
+		Symbol: "600519",
+	}
+	xrxds, err := api.GetXRXD(ctx, req)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(xrxds.XRXDS))
 }
