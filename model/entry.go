@@ -11,6 +11,9 @@ import (
 )
 
 func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
+	if entry.FeedUuid == "" {
+		entry.FeedUuid = entry.ProfileUuid // backward comptabile
+	}
 	userUuid, err := uuid.FromString(entry.ProfileUuid)
 	if err != nil {
 		return nil, err
@@ -93,6 +96,15 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		return err
 	}
 	EntryIndex.RemoveIndex(db, profileUuid, oldtime)
+
+	// delete group index aswell
+	if entry.FeedUuid != entry.ProfileUuid && entry.FeedUuid != "" {
+		feedUuid, err := uuid.FromString(entry.FeedUuid)
+		if err != nil {
+			return err
+		}
+		EntryIndex.RemoveIndex(db, feedUuid, oldtime)
+	}
 
 	if err = Entry.Delete(db, uuid1.Bytes()); err != nil {
 		return err

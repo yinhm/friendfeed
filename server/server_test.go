@@ -302,7 +302,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 	}
 	entry := &pb.Entry{
 		Body:        "张无忌对张三丰说：“太师父，武当山的生活太寂寞了，只有清风和明月两个朋友能陪我玩。”张三丰叹了口气：“已经很不错啦，至少还有清风明月呢。想当年我在少林寺的时候，也是只有两个朋友，其中一个也叫清风……”“那另一个呢？”“叫心相印。”…",
-		Id:          "e/2b43a9066074d120ed2e45494eea1797",
+		Id:          "2b43a9066074d120ed2e45494eea1797",
 		Date:        "2012-09-07T07:40:22Z",
 		Url:         "http://friendfeed.com/yinhm/2b43a906/rt-trojansj",
 		From:        from,
