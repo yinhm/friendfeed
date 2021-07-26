@@ -489,6 +489,8 @@ func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.
 		return nil, err
 	}
 	// not superadmin and not creator
+	logger.Debugf("IsSuper: %v", profile.IsSuper)
+	logger.Debugf("IsSuper: %s, %s", entry.ProfileUuid, req.User)
 	if !profile.IsSuper && entry.ProfileUuid != req.User {
 		return nil, status.Errorf(codes.PermissionDenied, "no perm")
 	}

@@ -131,6 +131,9 @@ export class Feed extends React.Component{
     return postForm("/a/share", formData)
       .then(data => {
         var new_state = Object.assign({}, this.state);
+        if (!new_state.feed.entries) {
+          new_state.feed.entries = [];
+        }
         new_state.feed.entries.unshift(data);
         this.setState(new_state);
       });

@@ -111,7 +111,8 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	entry.From = from
 	// To:      []*pb.Feed{from},
 	// Thumbnails: thumbnails,
-	entry.ProfileUuid = form.FeedUuid // 写到具体的 Feed
+	entry.ProfileUuid = profile.Uuid // 发布人
+	entry.FeedUuid = form.FeedUuid   // 写到具体的 Feed
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()

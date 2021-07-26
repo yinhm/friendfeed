@@ -15,16 +15,20 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
+	feedUuid, err := uuid.FromString(entry.FeedUuid)
+	if err != nil {
+		return nil, err
+	}
 
 	// unique key:
 	// | table | entry uuid |
 
-	// just force update
-	uuidEntryKey, err := uuid.FromString(entry.Id)
+	// force full update
+	entryUuid, err := uuid.FromString(entry.Id)
 	if err != nil {
 		return nil, err
 	}
-	key, err := Entry.Put(db, uuidEntryKey.Bytes(), entry)
+	key, err := Entry.Put(db, entryUuid.Bytes(), entry)
 	if err != nil {
 		return nil, err
 	}
@@ -37,6 +41,12 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	err = EntryIndex.Index(db, userUuid, oldtime, key[:])
 	if err != nil {
 		return nil, err
+	}
+	if userUuid != feedUuid { // post to group
+		err = EntryIndex.Index(db, feedUuid, oldtime, key[:])
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// index entry body

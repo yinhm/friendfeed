@@ -318,6 +318,7 @@ message Entry {
   // custom filed
   // TODO: duplicated with from field
   string profile_uuid = 16;
+  string feed_uuid = 18;
 }
 
 // Comment
