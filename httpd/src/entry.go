@@ -59,10 +59,10 @@ func (s *Server) EntryHandler(c *gin.Context) {
 // TODO: allow cross post to multiply feeds
 func (s *Server) EntryPostHandler(c *gin.Context) {
 	var form struct {
-		Id      string `form:"id"`
-		FeedId  string `form:"feedid"`
-		Body    string `form:"body" binding:"required"`
-		RawBody string `form:"rawBody"`
+		Id       string `form:"id"`
+		FeedUuid string `form:"feedUuid"`
+		Body     string `form:"body" binding:"required"`
+		RawBody  string `form:"rawBody"`
 	}
 	if err := c.MustBindWith(&form, binding.FormMultipart); err != nil {
 		return
@@ -75,27 +75,26 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
 	entry := &pb.Entry{}
 
-	if form.FeedId == "" { // new entry
-		form.FeedId = profile.Id
+	if form.Id == "" { // new entry
 		entry.Id = uuid1.String()
 		entry.Date = dt.Format(time.RFC3339)
-	} else {
-		if form.Id != "" { // edit entry
-			// only allow edit self entry for now
-			feed, err := s.FetchEntry(c, form.Id)
-			if err != nil {
-				return
-			}
-			// restore old entry, Id, date etc...
-			entry = feed.Entries[0]
-			// rewrite feedid when edit entry
-			form.FeedId = feed.Id
-		}
-		if !s.feedWritable(c, strings.ToLower(form.FeedId)) {
-			c.AbortWithStatus(401)
+	} else { // edit entry
+		// only allow edit self entry for now
+		feed, err := s.FetchEntry(c, form.Id)
+		if err != nil {
 			return
 		}
+		// restore old entry, Id, date etc...
+		entry = feed.Entries[0]
+		// rewrite feedid when edit entry
+		form.FeedUuid = feed.Uuid
 	}
+
+	if !s.feedWritable(c, strings.ToLower(form.FeedUuid)) {
+		c.AbortWithStatus(401)
+		return
+	}
+
 	if form.RawBody != "" {
 		entry.RawBody = form.RawBody
 	} else {
@@ -112,7 +111,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	entry.From = from
 	// To:      []*pb.Feed{from},
 	// Thumbnails: thumbnails,
-	entry.ProfileUuid = profile.Uuid
+	entry.ProfileUuid = form.FeedUuid // 写到具体的 Feed
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()

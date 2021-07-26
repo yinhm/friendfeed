@@ -11,17 +11,20 @@ import (
 )
 
 func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
-	// unique key:
-	// | table | entry uuid |
-
-	// just force update
-	uuidEntryKey := uuid.Must(uuid.FromString(entry.Id))
-	key, err := Entry.Put(db, uuidEntryKey.Bytes(), entry)
+	userUuid, err := uuid.FromString(entry.ProfileUuid)
 	if err != nil {
 		return nil, err
 	}
 
-	userUuid, err := uuid.FromString(entry.ProfileUuid)
+	// unique key:
+	// | table | entry uuid |
+
+	// just force update
+	uuidEntryKey, err := uuid.FromString(entry.Id)
+	if err != nil {
+		return nil, err
+	}
+	key, err := Entry.Put(db, uuidEntryKey.Bytes(), entry)
 	if err != nil {
 		return nil, err
 	}

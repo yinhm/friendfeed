@@ -37,6 +37,12 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 		return
 	}
 
+	// IMPORTANT:
+	// rewrite public uuid to current user uuid
+	if feed.Uuid == "Public" {
+		feed.Uuid = profile.Uuid
+	}
+
 	// check user.IsFollowed(feed)
 	if _, ok := req.(*pb.FeedRequest); ok {
 		s.BuildFollow(profile, feed)
@@ -77,13 +83,12 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		return
 	}
 
-	showShare := s.feedWritable(c, "home")
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0
 	}
 	data := pongo2.Context{
-		"show_share":  showShare,
+		"show_share":  s.feedWritable(c, feed.Uuid),
 		"title":       feed.Id,
 		"name":        feed.Id,
 		"feed":        feed,
@@ -106,7 +111,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	if RequestError(c, err) {
 		return
 	}
-	if feed.Private && !s.feedReadable(c, feed.Id) {
+	if feed.Private && !s.feedReadable(c, feed.Uuid) {
 		c.HTML(http.StatusForbidden, "403.html", pongo2.Context{})
 		return
 	}
@@ -141,13 +146,12 @@ func (s *Server) PublicHandler(c *gin.Context) {
 		return
 	}
 
-	showShare := s.feedWritable(c, "public")
 	prevStart := req.Start - req.PageSize
 	if prevStart < 0 {
 		prevStart = 0
 	}
 	data := pongo2.Context{
-		"show_share":  showShare,
+		"show_share":  s.feedWritable(c, feed.Uuid),
 		"title":       feed.Id,
 		"name":        feed.Id,
 		"feed":        feed,

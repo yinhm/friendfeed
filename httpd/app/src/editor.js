@@ -40,7 +40,7 @@ const serializePlainText = nodes => {
 
 const OnPageEditor = ({
     id = "",
-    feedId = "",
+    feedUuid = "",
     content = "",
     postEntry
 }) => {
@@ -114,7 +114,7 @@ const OnPageEditor = ({
 
         var formData = new FormData();
         formData.set("id", id);
-        formData.set("feedid", feedId);
+        formData.set("feedUuid", feedUuid);
         formData.set("body", htmlBody);
         formData.set("rawBody", rawBody);
         postEntry(formData)

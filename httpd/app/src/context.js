@@ -5,7 +5,7 @@ export const FeedContext = React.createContext({
   show_paging: false,
   show_share: false,
   onpage_edit: false,
-  feed_id: "",
+  feed_uuid: "",
   toggleEditor: () => {
     console.log("toggle editor");
   },

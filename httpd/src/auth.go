@@ -175,16 +175,13 @@ func (s *Server) GraphFrom(uuid string) (*pb.Graph, error) {
 	return graph, nil
 }
 
-func (s *Server) feedWritable(c *gin.Context, feedId string) bool {
+func (s *Server) feedWritable(c *gin.Context, feedUuid string) bool {
 	// owner feed
 	user, err := s.CurrentUser(c)
 	if err != nil {
 		return false
 	}
-	if feedId == "home" || feedId == "public" {
-		return true
-	}
-	if user.Id == feedId {
+	if user.Uuid == feedUuid {
 		return true
 	}
 
@@ -192,20 +189,22 @@ func (s *Server) feedWritable(c *gin.Context, feedId string) bool {
 	defer cancel()
 
 	// group feed
-	profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{Uuid: feedId})
-	if err != nil || profile == nil {
+	feedProfile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{Uuid: feedUuid})
+	if err != nil || feedProfile == nil {
 		return false
 	}
-	if profile.Type != "group" {
+	if feedProfile.Type != "group" && feedProfile.Type != "sys" {
 		return false
 	}
 
-	graph, err := s.CurrentGraph(c)
-	if err != nil || graph == nil {
+	fReq := &pb.FollowRequest{
+		ProfileUuid: user.Uuid,
+		FeedUuid:    feedUuid,
+		Action:      "isFollow",
+	}
+	fResp, err := s.client.GraphFollow(ctx, fReq)
+	if err != nil {
 		return false
 	}
-	if _, ok := graph.Subscriptions[feedId]; ok {
-		return true
-	}
-	return false
+	return fResp.Followed
 }

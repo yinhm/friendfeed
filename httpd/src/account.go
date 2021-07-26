@@ -3,7 +3,6 @@ package server
 import (
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
@@ -64,12 +63,6 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 }
 
 func (s *Server) BuildFollow(profile *pb.Profile, feed *pb.Feed) {
-	if strings.ToLower(feed.Uuid) == "home" ||
-		strings.ToLower(feed.Uuid) == "public" {
-		feed.Commands = []string{"post"}
-		return
-	}
-
 	if feed.Uuid == profile.Uuid {
 		feed.Commands = []string{"post"}
 		return

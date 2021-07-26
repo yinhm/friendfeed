@@ -16,7 +16,7 @@ export function EntryContent(props) {
         return (
             <OnPageEditor
                 id={props.id}
-                feedId={feedCfg.feed_id}
+                feedUuid={feedCfg.feed_uuid}
                 content={props.rawBody}
                 postEntry={onPostEntry} />
         );

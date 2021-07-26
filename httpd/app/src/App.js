@@ -147,7 +147,7 @@ export class Feed extends React.Component{
     config.show_share = this.state.show_share;
     config.onpage = this.state.onpage || false;
     config.onpage_edit = this.state.onpage_edit || false;
-    config.feed_id = this.state.feed.id;
+    config.feed_uuid = this.state.feed.uuid;
     config.toggleEditor = () => {
       console.log("toggle editor");
       config.onpage_edit = false;
@@ -180,7 +180,7 @@ export class Feed extends React.Component{
     var editorNodes = "";
     if (this.state.show_share === true) {
       editorNodes = (
-        <OnPageEditor feedId={feed.Id} postEntry={this.onPostEntry} />
+        <OnPageEditor feedUuid={feed.uuid} postEntry={this.onPostEntry} />
       )
     }
 
