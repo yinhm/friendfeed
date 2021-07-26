@@ -8,16 +8,14 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 		return
 	}
 
-	appended := false
+	ownerOrSuper := false
 	commands := []string{"comment"}
 	if profile.IsSuper {
-		commands = append(commands, "edit", "delete")
-		appended = true
+		ownerOrSuper = true
 	}
 	if _, ok := graph.Admins[profile.Id]; ok {
-		if !appended {
-			commands = append(commands, "edit", "delete")
-			appended = true
+		if !ownerOrSuper {
+			ownerOrSuper = true
 		}
 	}
 	// FIXME: subscriptions may huge
@@ -25,8 +23,8 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 	// 	// private check
 	// }
 	if profile.Id == e.From.Id {
-		if !appended {
-			commands = append(commands, "edit", "delete")
+		if !ownerOrSuper {
+			ownerOrSuper = true
 		}
 	} else {
 		// liked?
@@ -43,6 +41,11 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 		} else {
 			commands = append(commands, "like")
 		}
+	}
+
+	// place it in the end
+	if ownerOrSuper {
+		commands = append(commands, "edit", "delete")
 	}
 	e.Commands = commands
 	return

@@ -509,12 +509,38 @@ class EntryCommandEdit extends React.Component{
 
 class EntryCommandDelete extends React.Component{
 
+  constructor(props) {
+    super(props);
+    this.state = { isClicked: false }
+  }
+
   handleClick = (event) => {
     event.preventDefault();
+    this.setState({isClicked:true}); 
+  }
+
+  handleDelete = (event) => {
+    event.preventDefault();
     this.props.onDelete(this);
+    this.setState({isClicked:false}); 
+  }
+
+  handleCancel = (event) => {
+    event.preventDefault();
+    this.setState({isClicked:false}); 
   }
 
   render() {
+    if (this.state.isClicked) {
+      return (
+        <>
+        Confirm Delete 
+        <span className="item" className="deletecommand" onClick={this.handleCancel}> 取消 </span>
+         / 
+        <a href="#nolink" className="deletecommand" onClick={this.handleDelete}> 确定 </a>
+        </>
+      );
+    }
     return (
       <a href="#nolink" className="deletecommand" onClick={this.handleClick}>Delete</a>
     );
