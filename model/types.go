@@ -59,7 +59,7 @@ var (
 
 	Service  = NewTable(KeyPrefixToBytes(TableService))
 	Follow   = NewTable(KeyPrefixToBytes(TableFollow))
-	follower = NewTable(KeyPrefixToBytes(TableFollower))
+	Follower = NewTable(KeyPrefixToBytes(TableFollower))
 	OAuth    = NewTable(KeyPrefixToBytes(TableOAuth))
 	File     = NewTable(KeyPrefixToBytes(TableFile))
 

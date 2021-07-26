@@ -84,6 +84,16 @@ message Graph {
   map<string, Service> services = 5;
 }
 
+message FollowRequest {
+  string profile_uuid = 1;
+  string feed_uuid = 2;
+  string action = 3;
+}
+
+message FollowResponse {
+  bool followed = 1;
+}
+
 // /api/user/NICKNAME/profile - Get services and subscriptions
 // Returns list of all of the user's subscriptions (people) and services connected to their account (Authentication required for private users):
 

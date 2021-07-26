@@ -16,6 +16,7 @@ service Api {
 
   rpc FetchProfile(ProfileRequest) returns (Profile) {}
   rpc FetchGraph(ProfileRequest) returns (Graph) {}
+  rpc GraphFollow(FollowRequest) returns (FollowResponse) {}
 
   rpc FetchFeedinfo(ProfileRequest) returns (Feedinfo) {}
   rpc PostFeedinfo(Feedinfo) returns (Profile) {}

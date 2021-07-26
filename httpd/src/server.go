@@ -352,6 +352,34 @@ func (s *Server) CommentDeleteHandler(c *gin.Context) {
 	c.JSON(200, entry.Comments)
 }
 
+// Follow
+func (s *Server) FollowHandler(c *gin.Context) {
+	c.Request.ParseForm()
+	feedUuid := c.Request.Form.Get("feed_uuid")
+	action := c.Request.Form.Get("action")
+	if feedUuid == "" || action == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+		return
+	}
+
+	uuid := CurrentUserUuid(c)
+	req := &pb.FollowRequest{
+		ProfileUuid: uuid,
+		FeedUuid:    feedUuid,
+		Action:      action,
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	entry, err := s.client.GraphFollow(ctx, req)
+	if RequestError(c, err) {
+		return
+	}
+
+	c.JSON(200, entry.Followed)
+}
+
 func RequestError(c *gin.Context, err error) bool {
 	if err != nil {
 		errStatus, _ := status.FromError(err)

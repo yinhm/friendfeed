@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Entry } from './entry';
-import { getJSON, postForm } from './utils';
+import { getJSON, postJSON, postForm } from './utils';
 import OnPageEditor from './editor';
 import { FeedContext } from './context'
-
 
 function FeedPagin(props) {
   var prev = null;
@@ -28,26 +27,60 @@ function FeedPagin(props) {
 }
 
 function FeedHeader(props) {
+  const [commands, setCommands] = useState(props.commands);
+
+  const handleFollow = () => {
+    var data = {
+      feed_uuid: props.feedUuid,
+      action: "follow"
+    }
+    postJSON("/a/follow", data)
+      .then(data => { // arrow function
+        setCommands(["unfollow"]);
+      }).catch(error => console.error(error));
+  };
+
+  const handleUnfollow = () => {
+    var data = {
+      feed_uuid: props.feedUuid,
+      action: "unfollow"
+    }
+    postJSON("/a/follow", data)
+      .then(data => { // arrow function
+        setCommands(["follow"]);
+      }).catch(error => console.error(error));
+  };
+
+  var followBtn = "";
+  if (commands) {
+    var command = commands[0];
+    if (command == "follow") {
+      followBtn = (
+        <a href="#nolink" onClick={handleFollow}>
+          Follow
+        </a>
+      )
+    }
+    if (command == "unfollow") {
+      followBtn = (
+        <a href="#nolink" onClick={handleUnfollow}>
+          Unfollow
+        </a>
+      )
+    }
+  }
 
   return (
     <div className="header">
-      <div className="picture"><a href={"/feed/" + props.feedId }><img src={ props.picture } /></a></div>
+      <div className="picture"><a href={"/feed/" + props.feedId}>
+        <img src={props.picture} /></a>
+      </div>
       <div className="body">
-        <h1><a href={ "/feed/" + props.feedId }>{ props.name }</a></h1>
-        <div className="description">{ props.description }</div>
-        
-        <form method="post" action="/a/subscribe">
-          <input type="hidden" name="next" value="" />
-          <input type="hidden" name="feed" value={ props.feedId } />
-          <input type="submit" value="Subscribe" />
-        </form>
-        
-        <form method="post" action="/a/unsubscribe">
-          <input type="hidden" name="next" value="" />
-          <input type="hidden" name="feed" value="" />
-          <input type="submit" value="Unsubscribe" />
-        </form>
-        
+        <h1><a href={"/feed/" + props.feedId}>{props.name}</a></h1>
+
+        <div className="description">{props.description}</div>
+
+        {followBtn}
       </div>
       <div className="clear"></div>
     </div>
@@ -126,9 +159,11 @@ export class Feed extends React.Component{
     if (this.state.show_header === true) {
       feedHeader = (
         <FeedHeader feedId={feed.id}
+                    feedUuid={feed.uuid}
                     name={feed.name}
                     picture={feed.picture}
-                    description={feed.description} />
+                    description={feed.description}
+                    commands={feed.commands} />
       )
     }
 

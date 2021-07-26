@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
@@ -60,4 +61,33 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 		return
 	}
 	c.Redirect(http.StatusFound, "/account/import")
+}
+
+func (s *Server) BuildFollow(profile *pb.Profile, feed *pb.Feed) {
+	if strings.ToLower(feed.Uuid) == "home" ||
+		strings.ToLower(feed.Uuid) == "public" {
+		return
+	}
+
+	if feed.Uuid == profile.Uuid {
+		return
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	fReq := &pb.FollowRequest{
+		ProfileUuid: profile.Uuid,
+		FeedUuid:    feed.Uuid,
+		Action:      "isFollow",
+	}
+	fResp, err := s.client.GraphFollow(ctx, fReq)
+	if err != nil {
+		return
+	}
+	if fResp.Followed {
+		feed.Commands = []string{"unfollow"}
+	} else {
+		feed.Commands = []string{"follow"}
+	}
 }

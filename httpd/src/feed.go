@@ -37,6 +37,12 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 	if err != nil {
 		return
 	}
+
+	// check user.IsFollowed(feed)
+	if _, ok := req.(*pb.FeedRequest); ok {
+		s.BuildFollow(profile, feed)
+	}
+
 	graph, err := s.CurrentGraph(c)
 	if err != nil {
 		return

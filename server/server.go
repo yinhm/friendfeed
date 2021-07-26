@@ -428,7 +428,6 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		Picture:     profile.Picture,
 		Type:        profile.Type,
 		Private:     profile.Private,
-		SupId:       profile.SupId,
 		Description: profile.Description,
 		Entries:     entries[:],
 	}
