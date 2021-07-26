@@ -18,8 +18,8 @@ import (
 
 var tdxConfig string
 var stockCode string
-var isKline bool
-var isDividend bool
+var isKLine bool
+var isXRXD bool
 
 var stockCmd = &cobra.Command{
 	Use:   "stock",
@@ -39,15 +39,15 @@ var stockCmd = &cobra.Command{
 		}
 
 		switch {
-		case isKline:
+		case isKLine:
 			if err := syncKline(); err != nil {
 				log.Println(err)
 			}
 			return
-		case isDividend:
-			syncDividend()
+		case isXRXD:
+			syncXRXD()
 		default:
-			err := sync()
+			err := syncProfile()
 			if err != nil {
 				log.Println(err)
 			}
@@ -58,8 +58,8 @@ var stockCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(stockCmd)
 	stockCmd.Flags().StringVar(&stockCode, "n", "", "stock code")
-	stockCmd.Flags().BoolVar(&isKline, "k", false, "sync daily kline")
-	stockCmd.Flags().BoolVar(&isDividend, "d", true, "stock dividend")
+	stockCmd.Flags().BoolVar(&isKLine, "kline", false, "sync daily kline")
+	stockCmd.Flags().BoolVar(&isXRXD, "xrxd", false, "stock dividend")
 	stockCmd.Flags().StringVar(&tdxConfig, "tdxconfig", "config.toml", "tdx config file")
 }
 
@@ -71,7 +71,8 @@ func marketCodeToString(market int) string {
 	return name
 }
 
-func sync() error {
+// 为每只证券创建其对应 Feed
+func syncProfile() error {
 	cfg := new(comm.Conf)
 	cfg.Parse(tdxConfig)
 
@@ -248,7 +249,7 @@ func syncKline() error {
 // * 其它取值时，含义分别是: `前流通盘(money), 前总股本(price), 后流通盘(count),  后总股本(rate)`
 
 // 我们暂时只考虑type=1及除权除息数据
-func syncDividend() error {
+func syncXRXD() error {
 	cfg := new(comm.Conf)
 	cfg.Parse(tdxConfig)
 
