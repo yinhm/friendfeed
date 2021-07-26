@@ -113,6 +113,8 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 	}
 }
 
+// 下列接口给 python 客户端使用
+// --------------------------
 // 获取证券代码列表
 func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb.Response, error) {
 	logger.Debugf("UpdateStockList, count %d", len(req.Stocks))
@@ -138,19 +140,22 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 	uuid1 := model.UniqueKeyFrom("stock", "list")
 	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
 
+	resp := &pb.StockList{}
+
 	var stocks []*pb.Stock
 	rawdata, err := s.rdb.Get(key)
-	if err != nil {
-		return nil, err
+	if err != nil || len(rawdata) == 0 {
+		return resp, err
 	}
 	buf := bytes.NewBuffer(rawdata)
 	dec := gob.NewDecoder(buf)
 	err = dec.Decode(&stocks)
 	if err != nil {
-		return nil, err
+		return resp, err
 	}
 
-	return &pb.StockList{Stocks: stocks}, nil
+	resp.Stocks = stocks
+	return resp, nil
 }
 
 // 获取 XRXD 除权除息

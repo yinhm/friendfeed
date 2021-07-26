@@ -138,7 +138,7 @@ func syncProfile() error {
 		log.Printf("同步股票Feedinfo: %s %s", mktName, strCode)
 	}
 
-	if stockCode != "" {
+	if stockCode == "" {
 		_, err := agent.client.UpdateStockList(context.Background(), stocks)
 		if err != nil {
 			return err
