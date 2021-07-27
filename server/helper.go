@@ -1,8 +1,10 @@
 package server
 
 import (
+	"encoding/hex"
 	"math/rand"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
@@ -64,8 +66,12 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 }
 
 func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
-	uuid1 := model.UniqueKeyFrom("bing", "wallpaper")
-	profile, err := model.GetProfileFromUuid(db, uuid1)
+	uuid1, err := uuid.FromString(profile.Uuid)
+	if err != nil {
+		logger.Debugf("RandomPictureFromWallpaper: %s", err)
+		return ""
+	}
+	profile, err = model.GetProfileFromUuid(db, uuid1)
 	if err != nil {
 		logger.Debugf("RandomPictureFromWallpaper: %s", err)
 		return ""
@@ -76,7 +82,8 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 		return profile.Picture
 	}
 
-	preKey := model.NewUUIDKey(model.TableEntryIndex, uuid1)
+	bingUuid := model.UniqueKeyFrom("bing", "wallpaper")
+	preKey := model.NewUUIDKey(model.TableEntryIndex, bingUuid)
 	logger.Infof("ForwardFetchFeed: %s", preKey.String())
 
 	url := ""
@@ -92,6 +99,7 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 		}
 
 		dice := rand.Intn(10)
+		logger.Debugf("entry key: <%x, dice: %d>", hex.EncodeToString(k), dice)
 		if 5 == dice {
 			url = entry.Thumbnails[0].Url
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan

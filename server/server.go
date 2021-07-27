@@ -126,6 +126,7 @@ func (s *ApiServer) FetchFeedinfo(ctx context.Context, req *pb.ProfileRequest) (
 	return model.GetFeedinfo(s.rdb, req.Uuid)
 }
 
+// WARN: UPDATE ARE NOT SAFE
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {
 	profile := &pb.Profile{
 		Uuid:        in.Uuid,

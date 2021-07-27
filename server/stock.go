@@ -121,6 +121,10 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 // 获取证券代码列表
 func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb.Response, error) {
 	logger.Debugf("UpdateStockList, count %d", len(req.Stocks))
+
+	s.rdb.SetSync(false)
+	defer s.rdb.SetSync(true)
+
 	uuid1 := model.UniqueKeyFrom("stock", "list")
 	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
 
@@ -134,6 +138,24 @@ func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb
 	if err != nil {
 		return nil, err
 	}
+
+	for _, stock := range req.Stocks {
+		feedinfo := &pb.Feedinfo{
+			Uuid:        model.UniqueKeyFrom(stock.Market, stock.Symbol).String(),
+			Id:          stock.Symbol,
+			Name:        stock.Name,
+			Type:        "group",
+			Private:     false,
+			Description: fmt.Sprintf("<%s, %s>", stock.Market, stock.Symbol),
+		}
+		_, err := s.PostFeedinfo(context.Background(), feedinfo)
+		if err != nil {
+			return nil, err
+		}
+
+		logger.Debugf("同步股票Feedinfo: %s %s", stock.Market, stock.Symbol)
+	}
+
 	return &pb.Response{IsSuccess: true}, nil
 }
 

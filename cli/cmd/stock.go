@@ -11,7 +11,6 @@ import (
 	"github.com/yinhm/ctdx"
 	"github.com/yinhm/ctdx/comm"
 	"github.com/yinhm/ctdx/gcom/utils"
-	"github.com/yinhm/friendfeed/model"
 	pb "github.com/yinhm/friendfeed/proto"
 	"golang.org/x/net/context"
 )
@@ -119,23 +118,9 @@ func syncProfile() error {
 		stock := &pb.Stock{
 			Market: mktName,
 			Symbol: strCode,
+			Name:   name,
 		}
 		stocks.Stocks = append(stocks.Stocks, stock)
-
-		feedinfo := &pb.Feedinfo{
-			Uuid:        model.UniqueKeyFrom(mktName, strCode).String(),
-			Id:          strCode,
-			Name:        name,
-			Type:        "group",
-			Private:     false,
-			Description: fmt.Sprintf("<%s, %s>", mktName, strCode),
-		}
-		_, err := agent.client.PostFeedinfo(context.Background(), feedinfo)
-		if err != nil {
-			return err
-		}
-
-		log.Printf("同步股票Feedinfo: %s %s", mktName, strCode)
 	}
 
 	if stockCode == "" {
