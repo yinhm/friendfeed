@@ -193,7 +193,7 @@ func (s *Server) feedWritable(c *gin.Context, feedUuid string) bool {
 	if err != nil || feedProfile == nil {
 		return false
 	}
-	if feedProfile.Type != "group" && feedProfile.Type != "sys" {
+	if feedProfile.Type != "group" {
 		return false
 	}
 

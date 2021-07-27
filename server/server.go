@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"sync"
 	"time"
@@ -42,6 +43,8 @@ type ApiServer struct {
 }
 
 func init() {
+	rand.Seed(time.Now().UnixNano())
+
 	logger = logrus.StandardLogger()
 	logrus.SetLevel(logrus.InfoLevel)
 	logrus.SetOutput(os.Stdout)

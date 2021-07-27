@@ -126,7 +126,7 @@ func syncProfile() error {
 			Uuid:        model.UniqueKeyFrom(mktName, strCode).String(),
 			Id:          strCode,
 			Name:        name,
-			Type:        "sys",
+			Type:        "group",
 			Private:     false,
 			Description: fmt.Sprintf("<%s, %s>", mktName, strCode),
 		}
