@@ -43,12 +43,11 @@ func (s *RpcTestSuite) SetupTest() {
 	search.InitMockIndexService(filepath.Join(s.dbpath, "index"))
 
 	s.job = &pb.FeedJob{
-		Id:        "foobar",
-		RemoteKey: "pwd",
-		Start:     0,
-		PageSize:  100,
-		Created:   time.Now().Unix(),
-		Updated:   time.Now().Unix(),
+		Id:       "foobar",
+		Start:    0,
+		PageSize: 100,
+		Created:  time.Now().Unix(),
+		Updated:  time.Now().Unix(),
 	}
 
 	ln, err := net.Listen("tcp", ":12019")
@@ -99,7 +98,6 @@ func (s *RpcTestSuite) TestServerJob() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), got.Key, s.job.Key)
 	assert.Equal(s.T(), got.Id, s.job.Id)
-	assert.Equal(s.T(), got.RemoteKey, s.job.RemoteKey)
 
 	got, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)
@@ -122,7 +120,6 @@ func (s *RpcTestSuite) TestMdbReopen() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), got.Key, s.job.Key)
 	assert.Equal(s.T(), got.Id, s.job.Id)
-	assert.Equal(s.T(), got.RemoteKey, s.job.RemoteKey)
 }
 
 func (s *RpcTestSuite) TestReopenDeque() {
@@ -164,7 +161,6 @@ func (s *RpcTestSuite) TestJobQueue() {
 	got, err := s.srv.GetFeedJob(ctx, worker)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), got.Id, s.job.Id)
-	assert.Equal(s.T(), got.RemoteKey, s.job.RemoteKey)
 
 	_, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)
@@ -230,7 +226,6 @@ func (s *RpcTestSuite) TestFinishJobQueue() {
 	newjob, err := s.srv.GetFeedJob(ctx, worker)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), newjob.Id, s.job.Id)
-	assert.Equal(s.T(), newjob.RemoteKey, s.job.RemoteKey)
 	assert.NotEqual(s.T(), newjob.Key, s.job.Key)
 
 	// finished job
@@ -263,9 +258,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 		Name:        "yinhm",
 		Type:        "user",
 		Private:     false,
-		SupId:       "4566789",
 		Description: "desc",
-		RemoteKey:   "xxx",
 	}
 
 	feedinfo := &pb.Feedinfo{
@@ -274,24 +267,20 @@ func (s *RpcTestSuite) TestPostProfile() {
 		Name:          "Heming Friend",
 		Type:          "user",
 		Private:       false,
-		SupId:         "123456-1234",
 		Description:   "Friendfeed land",
 		Subscriptions: []*pb.Profile{p1},
 	}
 	got, err := s.srv.PostFeedinfo(ctx, feedinfo)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), got.Uuid, feedinfo.Uuid)
-	assert.Equal(s.T(), got.RemoteKey, feedinfo.RemoteKey)
 
 	profile, err := model.GetProfileFromUserId(s.srv.mdb, feedinfo.Id)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, feedinfo.Uuid)
-	assert.Equal(s.T(), profile.RemoteKey, feedinfo.RemoteKey)
 
 	newinfo, err := model.GetFeedinfo(s.srv.rdb, feedinfo.Uuid)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), newinfo.Uuid, feedinfo.Uuid)
-	assert.Equal(s.T(), newinfo.RemoteKey, feedinfo.RemoteKey)
 	assert.Equal(s.T(), len(newinfo.Subscriptions), 1)
 
 	// post entry

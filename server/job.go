@@ -74,54 +74,6 @@ func (s *ApiServer) RefetchUserFeed() error {
 	return err
 }
 
-func (s *ApiServer) RefetchFriendFeed() error {
-	prefix := model.TableProfile
-	j := 0
-	n, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-		profile := &pb.Profile{}
-		if err := proto.Unmarshal(v, profile); err != nil {
-			return err
-		}
-
-		if profile.RemoteKey != "" {
-			return nil
-		}
-
-		oldjob, err := store.GetArchiveHistory(s.mdb, profile.Id)
-		if err != nil {
-			return err
-		}
-
-		if oldjob.Id == "" || oldjob.RemoteKey == "" {
-			log.Println("Refetch Friendfeed: unknown remote key")
-			return nil
-		}
-
-		job := &pb.FeedJob{
-			Uuid:        profile.Uuid,
-			Id:          oldjob.Id,
-			RemoteKey:   oldjob.RemoteKey,
-			TargetId:    profile.Id,
-			Start:       0,
-			PageSize:    100,
-			MaxLimit:    99,
-			ForceUpdate: true,
-			Created:     time.Now().Unix(),
-			Updated:     time.Now().Unix(),
-		}
-
-		log.Println(job)
-		_, err = s.EnqueJob(context.Background(), job)
-		j++
-		return err
-	})
-	if err != nil {
-		log.Println("Error on scanning user profiles:", err)
-	}
-	log.Printf("Jobs pulled: %d scanned, %d friendfeed feeds scheduled.", n, j)
-	return err
-}
-
 func (s *ApiServer) EnqueJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob, error) {
 	// Time ordered job queue
 	key := store.NewFlakeKey(model.TableJobFeed, s.mdb.NextId())
@@ -231,16 +183,12 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.DebugRunningJobs()
 	case "PurgeJobs":
 		s.PurgeJobs()
-	case "FixJobs":
-		s.FixJobs()
 	case "FixTooMuchJobs":
 		s.FixTooMuchJobs()
 	case "RedoFailedJob":
 		s.RedoFailedJob()
 	case "RefetchUserFeed":
 		s.RefetchUserFeed()
-	case "RefetchFriendFeed":
-		s.RefetchFriendFeed()
 	case "TestJob":
 		s.TestJob()
 	// case "FixKLine":
@@ -291,42 +239,6 @@ func (s *ApiServer) PurgeJobs() error {
 	prefix = model.TableJobRunning
 	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
 		return s.mdb.Delete(key)
-	})
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *ApiServer) FixJobs() error {
-	log.Println("purging all jobs...")
-
-	prefix := model.TableJobFeed
-	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-		job := &pb.FeedJob{}
-		if err := proto.Unmarshal(v, job); err != nil {
-			return err
-		}
-		if job.RemoteKey == "" {
-			return s.mdb.Delete(k)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	prefix = model.TableJobRunning
-	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-		job := &pb.FeedJob{}
-		if err := proto.Unmarshal(v, job); err != nil {
-			return err
-		}
-		if job.RemoteKey == "" {
-			return s.mdb.Delete(k)
-		}
-		return nil
 	})
 
 	if err != nil {

@@ -43,7 +43,6 @@ message OAuthUser {
   string access_token = 7;
   string access_token_secret = 10;
   string provider = 8;
-  string remote_key = 9;
 
   string avatar_url = 11;
   string description = 12;
@@ -53,7 +52,7 @@ message OAuthUser {
 message Profile {
   // the FriendFeed UUID
   string uuid = 1;
-  // v1 nicknameo or v2 id, in URL
+  // v1 nickname or v2 id, in URL
   string id = 2; 
   // the user's full name, display name
   string name = 3;
@@ -62,13 +61,8 @@ message Profile {
   string type = 4;
   // true if the feed is private
   bool private = 5;
-  // SUP (Simple Update Protocol)
-  // https://code.google.com/p/simpleupdateprotocol/
-  string sup_id = 6;
   string description = 7;
-
-  // TODO: remove this
-  string remote_key = 8;
+  
   // mark deletion, will purge all related data later
   bool deleted = 10;
   // super admin
@@ -94,56 +88,6 @@ message FollowResponse {
   bool followed = 1;
 }
 
-// /api/user/NICKNAME/profile - Get services and subscriptions
-// Returns list of all of the user's subscriptions (people) and services connected to their account (Authentication required for private users):
-
-// http://friendfeed.com/api/user/bret/profile
-
-// The returned JSON has the form:
-
-// status - private or public
-// id - the user's FriendFeed UUID
-// name - the user's full name
-// nickname - the user's FriendFeed nickname, used in FriendFeed URLs
-// profileUrl - the user's profile URL on FriendFeed
-// services[] - the services connected to the user's account
-//   * id - the service's FriendFeed ID, e.g., "picasa"
-//   * name - the service's official name, e.g., "Picasa Web Albums"
-//   * url - the official URL of the service, e.g., http://picasaweb.google.com/
-//   * iconUrl - the URL of the favicon for this service
-//   * profileUrl? - the user's profile URL on this service, if any
-//   * username? - the user's username for this service, if any
-// subscriptions[] - the users this user is subscribed to
-//   * id
-//   * name
-//   * nickname
-//   * profileUrl
-// rooms[] - the rooms this user is a member of
-//   * id - the room's FriendFeed UUID
-//   * name - the room's display name
-//   * nickname - the room's FriendFeed nickname, used in FriendFeed URLs
-//   * url - the room's URL on FriendFeed
-// lists[] - the lists this user is a member of (only visible if authenticated as this user)
-//   * id - the list's FriendFeed UUID
-//   * name - the list's display name
-//   * nickname - the list's FriendFeed nickname, used in FriendFeed URLs
-//   * url - the list's URL on FriendFeed
-message V1Profile {
-  string status = 1;
-  // FriendFeed UUID
-  string id = 2;
-  // full name
-  string name = 3;
-  // used in URL
-  string nickname = 4;
-  string profileUrl = 5;
-
-  repeated V1Profile services = 6;
-  repeated V1Profile subscriptions = 7;
-  repeated V1Profile rooms = 8;
-  repeated V1Profile lists = 9;
-}
-
 // Feed
 // id - The feed id, e.g., "bret" or "bret/comments"
 // name - Display name of the feed, e.g., "Bret Taylor"
@@ -159,10 +103,7 @@ message Feed {
   string uuid = 1;
   string id = 2;
   string name = 3;
-  string picture = 11;
-  // SUP (Simple Update Protocol)
-  // https://code.google.com/p/simpleupdateprotocol/
-  string sup_id = 4;
+  string picture = 4;
   string description = 5;
   // One of "user", "group", or "special"
   string type = 6;
@@ -170,9 +111,6 @@ message Feed {
   bool private = 7;
   repeated string commands = 8;
   repeated Entry entries = 9;
-
-  // TODO: remove this
-  string remote_key = 10;
 }
 
 // /feedinfo - Feed information
@@ -198,10 +136,7 @@ message Feedinfo {
   string uuid = 1;
   string id = 2;
   string name = 3;
-  string picture = 16;
-  // SUP (Simple Update Protocol)
-  // https://code.google.com/p/simpleupdateprotocol/
-  string sup_id = 4;
+  string picture = 4;
   string description = 5;
   // One of "user", "group", or "special"
   string type = 6;
@@ -216,22 +151,21 @@ message Feedinfo {
   repeated Profile admins = 12;
   repeated Profile feeds = 13; // for list
   repeated Service services = 14;
-
-  // TODO: remove this
-  string remote_key = 15;
 }
 
-// message Subscriber {
-//   string id = 1;
-//   string name = 2;
-//   string type = 3;
-// }
+// not really used
+// see: server.GraphFollow
+message Follow {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+}
 
-// message Subscription {
-//   string id = 1;
-//   string name= 2;
-//   string type = 3;
-// }
+message Follower {
+  string id = 1;
+  string name= 2;
+  string type = 3;
+}
 
 // message Admin {
 //   string id = 1;

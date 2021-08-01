@@ -74,7 +74,6 @@ message Worker {
 message FeedJob {
   string key = 1;
   string id = 2;
-  string remote_key = 3;
   string target_id = 4;
   int32 start = 5;
   int32 page_size = 6;

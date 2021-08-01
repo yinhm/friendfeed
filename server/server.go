@@ -367,7 +367,6 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		Name:    "Everyone's feed",
 		Type:    "group",
 		Private: false,
-		SupId:   "0000-00",
 		Entries: entries[:],
 	}
 	return feed, nil
@@ -462,7 +461,6 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		Name:        profile.Name,
 		Type:        profile.Type,
 		Private:     profile.Private,
-		SupId:       profile.SupId,
 		Description: profile.Description,
 		Entries:     []*pb.Entry{entry},
 	}

@@ -129,9 +129,9 @@ func UpdateProfile(mdb *Store, profile *pb.Profile) error {
 
 	// uuid map to user basic profile info
 	key := NewUUIDKey(TableProfile, uuid1)
-	if profile.RemoteKey != "" {
-		return mdb.Put(key.Bytes(), bytes)
-	}
+	// if profile.RemoteKey != "" {
+	// 	return mdb.Put(key.Bytes(), bytes)
+	// }
 
 	// retrieve remote key
 	rawdata, err := mdb.Get(key.Bytes())
@@ -145,7 +145,6 @@ func UpdateProfile(mdb *Store, profile *pb.Profile) error {
 		if err != nil {
 			return err
 		}
-		profile.RemoteKey = old.RemoteKey
 	}
 
 	bytes, err = proto.Marshal(profile)
@@ -271,9 +270,9 @@ func SaveFeedinfo(rdb *Store, uuidStr string, info *pb.Feedinfo) error {
 	}
 
 	key := NewUUIDKey(TableFeedinfo, uuid1)
-	if info.RemoteKey != "" {
-		return rdb.Put(key.Bytes(), bytes)
-	}
+	// if info.RemoteKey != "" {
+	// 	return rdb.Put(key.Bytes(), bytes)
+	// }
 
 	// retrieve remote key
 	rawdata, err := rdb.Get(key.Bytes())
@@ -287,7 +286,6 @@ func SaveFeedinfo(rdb *Store, uuidStr string, info *pb.Feedinfo) error {
 		if err != nil {
 			return err
 		}
-		info.RemoteKey = old.RemoteKey
 	}
 
 	bytes, err = proto.Marshal(info)
