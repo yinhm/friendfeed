@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
@@ -13,7 +12,7 @@ import (
 // Make sure combinated id never change
 // for example twitter user change its username
 func _oauthUserIdFrom(provider, userId string) store.Key {
-	id := strings.ToLower(fmt.Sprintf("%s:%s", provider, userId))
+	id := KeyFrom(provider, userId)
 	return []byte(id)
 }
 
@@ -50,6 +49,13 @@ func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 		}
 	}
 
+	// New user, uuid are the same for OauthUser/Profile/Feed/Feedinfo
+	if u.Uuid == "" {
+		uuid1 := UniqueKeyFrom(u.Provider, u.UserId)
+		// u.Uuid = fmt.Sprintf("%x", uuid1)
+		u.Uuid = uuid1.String()
+	}
+
 	// create/refresh OAuth User info
 	internalUserId := _oauthUserIdFrom(u.Provider, u.UserId)
 	_, err = OAuth.Put(db, internalUserId, u)
@@ -63,7 +69,7 @@ func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 // Deprecated: only used in FriendFeedImportHandler
 // Obsoleted
 func BindOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
-	// retrieve "Twitter:bob"
+	// retrieve "Twitter:12345"
 	key, msg, err := GetOAuthUser(db, u.Provider, u.UserId)
 	if err != nil {
 		return nil, err

@@ -8,92 +8,61 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	profile := new(pb.Profile)
-	// create profile on oauth for twitter user
-	if authinfo.Uuid == "" {
-		// TODO: move to model.UniqueKeyFrom
-		uuidFrom := "twitter-" + authinfo.UserId
-		uuid1 := uuid.NewV5(uuid.NamespaceURL, uuidFrom)
-
-		profile.Uuid = uuid1.String()
-		profile.Id = authinfo.Name // userid may better, but use name anyway
-		profile.Name = authinfo.NickName
-		profile.Type = "user"
-		profile.Private = false
-		profile.Picture = authinfo.AvatarUrl
-		profile.Description = authinfo.Description
-		model.UpdateProfile(s.mdb, profile)
-
-		authinfo.Uuid = profile.Uuid
-		logger.Debugf("New profile: <%s, %s>", uuidFrom, profile.Uuid)
+	_, msg, err := model.GetOAuthUser(s.mdb, authinfo.Provider, authinfo.UserId)
+	if err != nil && err != model.ErrNotFound {
+		return nil, err
 	}
 
+	// exist oauth
+	// WARN: do not gen uuid, old uuid may from ff
+	if msg != nil && msg.Uuid != "" {
+		authinfo.Uuid = msg.Uuid
+	}
+
+	// Update OAuth user or create new OAuth user
+	authinfo, err = model.PutOAuthUser(s.mdb, authinfo)
+	if err != nil {
+		return nil, err
+	}
 	// logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, "twitter", authinfo.UserId)
-	user, err := model.PutOAuthUser(s.mdb, authinfo)
-	if err != nil {
-		return nil, err
-	}
 
-	// exists user
-	uuid1, err := uuid.FromString(user.Uuid)
+	// exists profile
+	profileUUid, _ := uuid.FromString(authinfo.Uuid)
+	profile, err := model.GetProfileFromUuid(s.mdb, profileUUid)
 	if err != nil {
-		return nil, err
-	}
-	profile, err = model.GetProfileFromUuid(s.mdb, uuid1)
-	if err != nil {
-		return nil, err
+		if err == model.ErrNotFound {
+			profile, err = model.NewProfileFromOAuthUser(s.mdb, authinfo)
+			if err != nil {
+				return nil, err
+			}
+			logger.Debugf("New profile: <%s>", profile.Uuid)
+		} else {
+			return nil, err
+		}
 	}
 
 	// (re)build services if profile present
 	if strings.ToLower(authinfo.Provider) == "twitter" {
-		feedinfo := new(pb.Feedinfo)
-		if info, err := model.GetFeedinfo(s.rdb, profile.Uuid); err != nil {
-			// new feedinfo
-			feedinfo = &pb.Feedinfo{
-				Uuid:        profile.Uuid,
-				Id:          profile.Id,
-				Name:        profile.Name,
-				Type:        profile.Type,
-				Private:     profile.Private,
-				Picture:     profile.Picture,
-				Description: profile.Description,
-			}
-		} else {
-			feedinfo = info
-		}
-
 		// WARN: goth user.NickName == screen_name which is twitter id
 		service := &pb.Service{
 			Id:       "twitter",
 			Name:     "Twitter",
 			Icon:     "/static/images/icons/twitter.png",
-			Profile:  "https://twitter.com/" + user.NickName,
-			Username: user.Name,
-			Oauth:    user,
+			Profile:  "https://twitter.com/" + authinfo.NickName,
+			Username: authinfo.Name,
+			Oauth:    authinfo,
 			Created:  time.Now().Unix(),
 			Updated:  time.Now().Unix(),
 		}
 
-		updated := false
-		for i, item := range feedinfo.Services {
-			if item.Id == service.Id {
-				feedinfo.Services[i] = service
-				updated = true
-			}
-		}
-		if !updated {
-			feedinfo.Services = append(feedinfo.Services, service)
-		}
-		err = model.PutFeedinfo(s.rdb, profile.Uuid, feedinfo)
+		err = model.PutService(s.rdb, profileUUid, service)
 		if err != nil {
 			return nil, err
 		}
-		logger.Debugf("PutFeedinfo: %s \n %v>", profile.Uuid, feedinfo)
+		logger.Debugf("PutService: %s \n %v>", profile.Uuid, service)
 	}
 	return profile, nil
 }
@@ -112,24 +81,11 @@ func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*
 }
 
 func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {
-	feedinfo, err := model.GetFeedinfo(s.rdb, req.User)
+	logger.Debugf("DeleteService: <%s, %s>", req.User, req.Service)
+	uuid1, err := uuid.FromString(req.User)
 	if err != nil {
 		return nil, err
 	}
-	logger.Debugf("DeleteService: <%s, %s>, \n %v", req.User, req.Service, feedinfo.Uuid)
-
-	if len(feedinfo.Services) == 0 {
-		return nil, status.Errorf(codes.NotFound, "service not found")
-	}
-
-	for i, item := range feedinfo.Services {
-		if item.Id == req.Service {
-			feedinfo.Services = append(feedinfo.Services[:i], feedinfo.Services[i+1:]...)
-			break
-		}
-	}
-	if err := model.PutFeedinfo(s.rdb, feedinfo.Uuid, feedinfo); err != nil {
-		return nil, err
-	}
-	return feedinfo, nil
+	model.DeleteService(s.rdb, uuid1, req.Service)
+	return &pb.Feedinfo{}, nil
 }

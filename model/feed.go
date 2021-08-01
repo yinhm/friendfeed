@@ -38,3 +38,14 @@ func GetArchiveHistory(db *store.Store, id string) (*pb.FeedJob, error) {
 	}
 	return job, nil
 }
+
+func PutService(db *store.Store, profileUuid uuid.UUID, service *pb.Service) error {
+	key := NewKeyFrom(profileUuid.Bytes(), []byte(service.Id))
+	_, err := Service.Put(db, key, service)
+	return err
+}
+
+func DeleteService(db *store.Store, profileUuid uuid.UUID, serviceId string) error {
+	key := NewKeyFrom(profileUuid.Bytes(), []byte(serviceId))
+	return Service.Delete(db, key)
+}

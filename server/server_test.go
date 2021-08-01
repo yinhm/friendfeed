@@ -278,10 +278,11 @@ func (s *RpcTestSuite) TestPostProfile() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, feedinfo.Uuid)
 
-	newinfo, err := model.GetFeedinfo(s.srv.rdb, feedinfo.Uuid)
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), newinfo.Uuid, feedinfo.Uuid)
-	assert.Equal(s.T(), len(newinfo.Subscriptions), 1)
+	// we are not saving feedinfo to model
+	// newinfo, err := model.GetFeedinfo(s.srv.rdb, feedinfo.Uuid)
+	// assert.Nil(s.T(), err)
+	// assert.Equal(s.T(), newinfo.Uuid, feedinfo.Uuid)
+	// assert.Equal(s.T(), len(newinfo.Subscriptions), 1)
 
 	// post entry
 	from := &pb.Feed{
@@ -425,8 +426,9 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	assert.Equal(s.T(), feed.Entries[0].Id, entry.Id)
 
 	// Feed
-	_, err = model.GetFeedinfo(s.srv.rdb, profile.Uuid)
-	assert.Nil(s.T(), err)
+	// Feedinfo never saved to db
+	// _, err = model.GetFeedinfo(s.srv.rdb, profile.Uuid)
+	// assert.Nil(s.T(), err)
 
 	// delete service
 	dReq := &pb.ServiceRequest{

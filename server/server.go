@@ -124,20 +124,7 @@ func (s *ApiServer) Destroy() {
 // 	if req.Uuid == "" {
 // 		return nil, fmt.Errorf("bad request")
 // 	}
-// 	userUuid, err := uuid.FromString(req.Uuid)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	profile, err := model.GetProfileFromUuid(s.mdb, userUuid)
-// 	if err != nil {
-// 		logger.Debugf("FetchFeedinfo: %s, err: %s", req.Uuid, err)
-// 		return nil, status.Errorf(codes.NotFound, "profile not found")
-// 	}
-
-// 	info := &pb.Feedinfo{}
-// 	proto.Merge(info, profile) // DONT KNOW IS THIS CORRECT?
-// 	return info, err
+// 	return model.GetFeedinfo(s.rdb, req.Uuid)
 // }
 
 // WARN: UPDATE ARE NOT SAFE
@@ -163,10 +150,10 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 
 	// save all feed info in one key for simplicity
 	// TODO: refactor?
-	in.Entries = []*pb.Entry{}
-	if err := model.PutFeedinfo(s.rdb, profile.Uuid, in); err != nil {
-		return nil, err
-	}
+	// in.Entries = []*pb.Entry{}
+	// if err := model.PutFeedinfo(s.rdb, profile.Uuid, in); err != nil {
+	// 	return nil, err
+	// }
 	return profile, nil
 }
 
@@ -175,10 +162,15 @@ func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb
 	if req.Uuid == "" {
 		return nil, fmt.Errorf("bad request")
 	}
-	feedinfo, err := model.GetFeedinfo(s.rdb, req.Uuid)
+	profileUuid, err := uuid.FromString(req.Uuid)
 	if err != nil {
 		return nil, err
 	}
+	profile, err := model.GetProfileFromUuid(s.rdb, profileUuid)
+	if err != nil {
+		return nil, err
+	}
+	feedinfo := model.ProfileToFeedinfo(profile)
 	return BuildGraph(feedinfo), nil
 }
 
