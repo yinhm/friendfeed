@@ -29,3 +29,12 @@ func GetFeedinfo(db *store.Store, uuidStr string) (*pb.Feedinfo, error) {
 	}
 	return info, nil
 }
+
+func GetArchiveHistory(db *store.Store, id string) (*pb.FeedJob, error) {
+	job := new(pb.FeedJob)
+	err := JobHistory.Get(db, []byte(id), job)
+	if err != nil {
+		return nil, err
+	}
+	return job, nil
+}

@@ -9,6 +9,22 @@ import (
 	"github.com/yinhm/friendfeed/store/flake"
 )
 
+// OLD schema, only exists for testsing,
+// should remove when move to model completly.
+const (
+	TableFeed     KeyPrefix = 1
+	TableFeedinfo KeyPrefix = 2
+
+	TableReverseEntryIndex KeyPrefix = 5
+
+	TableOAuthTwitter KeyPrefix = 104
+
+	TableJobFeed    KeyPrefix = 200
+	TableJobRunning KeyPrefix = 201
+
+	TableMax KeyPrefix = 1e8
+)
+
 //-------------------------
 // testing keys
 //-------------------------
@@ -16,11 +32,6 @@ func TestKeyPrefix(t *testing.T) {
 	// Giving prefix table, convert to bytes
 	var p1 KeyPrefix
 	assert.Equal(t, 4, p1.Len())
-
-	p := TableFeed
-	assert.Equal(t, 4, p.Len())
-	assert.Equal(t, "00000001", p.String())
-	assert.Equal(t, "00000001", hex.EncodeToString(p.Bytes()))
 }
 
 func TestMetaKey(t *testing.T) {

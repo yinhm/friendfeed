@@ -72,7 +72,7 @@ func (s *RpcTestSuite) TearDownTest() {
 
 func (s *RpcTestSuite) TestServerJob() {
 	// Manual enqueue to database
-	key := store.NewFlakeKey(store.TableJobFeed, s.srv.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 
 	s.job.Key = key.String()
 
@@ -88,7 +88,7 @@ func (s *RpcTestSuite) TestServerJob() {
 	err = proto.Unmarshal(bytes, s.job)
 	assert.Nil(s.T(), err)
 
-	key = store.NewFlakeKey(store.TableJobFeed, s.srv.mdb.NextId())
+	key = store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 	// iter := s.srv.mdb.Iterator()
 	// iter.Seek(key.Prefix().Bytes())
 	// defer iter.Close()
@@ -105,7 +105,7 @@ func (s *RpcTestSuite) TestServerJob() {
 
 func (s *RpcTestSuite) TestMdbReopen() {
 	// mdb reopen bug: Corruption on wrong key size
-	key := store.NewFlakeKey(store.TableJobFeed, s.srv.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 	s.job.Key = key.String()
 
 	bytes, err := proto.Marshal(s.job)
@@ -124,7 +124,7 @@ func (s *RpcTestSuite) TestMdbReopen() {
 
 func (s *RpcTestSuite) TestReopenDeque() {
 	// mdb redeque
-	key := store.NewFlakeKey(store.TableJobFeed, s.srv.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 
 	s.job.Key = key.String()
 	mdb := s.srv.mdb
@@ -147,11 +147,11 @@ func (s *RpcTestSuite) TestReopenDeque() {
 func (s *RpcTestSuite) TestJobQueue() {
 	// Given ApiServer, When enqueue job, should deque the same job
 	ctx := context.Background()
-	key := store.NewFlakeKey(store.TableJobFeed, s.srv.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 	s.job.Key = key.String()
 
 	s.srv.EnqueJob(ctx, s.job)
-	jobs, err := s.srv.ListJobQueue(store.TableJobFeed)
+	jobs, err := s.srv.ListJobQueue(model.TableJobFeed)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), len(jobs), 1)
 
@@ -165,7 +165,7 @@ func (s *RpcTestSuite) TestJobQueue() {
 	_, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)
 
-	jobs, err = s.srv.ListJobQueue(store.TableJobRunning)
+	jobs, err = s.srv.ListJobQueue(model.TableJobRunning)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), len(jobs), 1)
 
@@ -181,17 +181,17 @@ func (s *RpcTestSuite) TestJobQueue() {
 func (s *RpcTestSuite) TestPurgeJobQueue() {
 	// Given job queue, do purge
 	ctx := context.Background()
-	key := store.NewFlakeKey(store.TableJobFeed, s.srv.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 	s.job.Key = key.String()
 
 	s.srv.EnqueJob(ctx, s.job)
-	s.srv.ListJobQueue(store.TableJobFeed)
+	s.srv.ListJobQueue(model.TableJobFeed)
 
 	cmd := &pb.CommandRequest{
 		Command: "PurgeJobs",
 	}
 	s.srv.Command(ctx, cmd)
-	jobs, err := s.srv.ListJobQueue(store.TableJobRunning)
+	jobs, err := s.srv.ListJobQueue(model.TableJobRunning)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), len(jobs), 0)
 
@@ -204,7 +204,7 @@ func (s *RpcTestSuite) TestPurgeJobQueue() {
 
 	s.srv.Command(ctx, cmd)
 
-	jobs, err = s.srv.ListJobQueue(store.TableJobRunning)
+	jobs, err = s.srv.ListJobQueue(model.TableJobRunning)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), len(jobs), 0)
 }
@@ -212,7 +212,7 @@ func (s *RpcTestSuite) TestPurgeJobQueue() {
 func (s *RpcTestSuite) TestFinishJobQueue() {
 	// Given ApiServer, enqueue job, deque job, finish job
 	ctx := context.Background()
-	key := store.NewFlakeKey(store.TableJobFeed, s.srv.mdb.NextId())
+	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 	s.job.Key = key.String()
 	s.job.TargetId = "targetId"
 
@@ -237,13 +237,13 @@ func (s *RpcTestSuite) TestFinishJobQueue() {
 	assert.NotEqual(s.T(), finjob.Key, key1)
 	assert.Equal(s.T(), finjob.Status, "done")
 
-	dbjob, err := store.GetArchiveHistory(s.srv.mdb, newjob.TargetId)
+	dbjob, err := model.GetArchiveHistory(s.srv.mdb, newjob.TargetId)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), finjob.Key, dbjob.Key)
 	assert.Equal(s.T(), dbjob.Status, "done")
 
 	// check running job states
-	jobs, err := s.srv.ListJobQueue(store.TableJobRunning)
+	jobs, err := s.srv.ListJobQueue(model.TableJobRunning)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), len(jobs), 0)
 }
@@ -298,7 +298,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 		ProfileUuid: "c6f8dca854f011ddb489003048343a40",
 	}
 
-	_, err = store.PutEntry(s.srv.rdb, entry, false)
+	_, err = model.PutEntry(s.srv.rdb, entry)
 	assert.Nil(s.T(), err)
 
 	req := &pb.FeedRequest{

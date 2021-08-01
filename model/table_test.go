@@ -84,7 +84,7 @@ func (s *TableTestSuite) TestPutEntry() {
 	}
 
 	// put new entry
-	sKey, err := store.PutEntry(s.db, e, false)
+	sKey, err := PutEntry(s.db, e)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "000000032b43a9066074d120ed2e45494eea1797", sKey.String())
 
@@ -99,7 +99,7 @@ func (s *TableTestSuite) TestPutEntry() {
 	err = Entry.Get(s.db, store.KeyFromString("2b43a9066074d120ed2e45494eea1797"), mEntry)
 	assert.Nil(s.T(), err)
 
-	sEntry, err := store.GetEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
+	sEntry, err := GetEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), mEntry.Id, sEntry.Id)
 
@@ -136,4 +136,10 @@ func (s *TableTestSuite) TestPutEntry() {
 
 	// // restore NewWorkerId func otherwise will break other tests
 	// flake.NewWorkerId = oldNewWorkerId
+}
+
+func (s *TableTestSuite) TestArchiveHistory() {
+	//No archive history
+	_, err := GetArchiveHistory(s.db, "not-exists")
+	assert.NotNil(s.T(), err)
 }

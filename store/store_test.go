@@ -8,11 +8,8 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"github.com/yinhm/friendfeed/pb"
-	"github.com/yinhm/friendfeed/store/flake"
 )
 
 type DBTestSuite struct {
@@ -404,36 +401,6 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	it.Close()
 }
 
-func (s *DBTestSuite) TestOAuthUser() {
-	// "Given OAuth User, should save
-	ptu := &pb.OAuthUser{
-		UserId:      "12345",
-		Name:        "foobar",
-		NickName:    "foo bar",
-		Email:       "foo@bar.com",
-		AccessToken: "f o o b a r",
-		Provider:    "twitter",
-	}
-
-	got, err := PutOAuthUser(s.mdb, ptu)
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), ptu.UserId, got.UserId)
-	assert.Equal(s.T(), ptu.Provider, got.Provider)
-
-	key := NewMetaKey(TableOAuthTwitter, ptu.UserId)
-	rawdata, err := s.mdb.Get(key.Bytes())
-	assert.Nil(s.T(), err)
-	assert.NotEqual(s.T(), "", rawdata)
-}
-
-func (s *DBTestSuite) TestArchiveHistory() {
-	//No archive history
-	job, err := GetArchiveHistory(s.mdb, "not-exists")
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), "", job.Key)
-	assert.NotEqual(s.T(), "done", job.Status)
-}
-
 func (s *DBTestSuite) TestTimeTravelId() {
 	// Given old time, should return the same time travel id
 	dt := "2009-06-25T18:23:38Z"
@@ -450,80 +417,4 @@ func (s *DBTestSuite) TestTimeTravelId() {
 		fid2 := s.mdb.TimeTravelReverseId(t)
 		assert.Equal(s.T(), string(fid1[:]), string(fid2[:]))
 	}
-}
-
-func (s *DBTestSuite) TestPutEntry() {
-	p := &pb.Profile{
-		Uuid: "c6f8dca854f011ddb489003048343a40",
-		Id:   "yinhm",
-		Name: "yinhm",
-		Type: "user",
-	}
-
-	feed := &pb.Feed{
-		Id:   "yinhm",
-		Name: "yinhm",
-		Type: "user",
-	}
-
-	e := &pb.Entry{
-		Body:        "张无忌对张三丰说：“太师父，武当山的生活太寂寞了，只有清风和明月两个朋友能陪我玩。”张三丰叹了口气：“已经很不错啦，至少还有清风明月呢。想当年我在少林寺的时候，也是只有两个朋友，其中一个也叫清风……”“那另一个呢？”“叫心相印。”…",
-		Id:          "e/2b43a9066074d120ed2e45494eea1797",
-		Date:        "2012-09-07T07:40:22Z",
-		Url:         "http://friendfeed.com/yinhm/2b43a906/rt-trojansj",
-		From:        feed,
-		ProfileUuid: "c6f8dca854f011ddb489003048343a40",
-	}
-
-	// Put entry"
-	// fresh put
-	_, err := PutEntry(s.rdb, e, false)
-	assert.Nil(s.T(), err)
-
-	// put exists entry
-	_, err = PutEntry(s.rdb, e, false)
-	_, ok := err.(*Error)
-	assert.True(s.T(), ok)
-
-	// force put
-	e.Id = "e/ab439960a83546c683fd989a40a68462"
-	// fake new falkeid
-	e.Date = "2013-09-07T07:40:22Z"
-
-	_, err = PutEntry(s.rdb, e, false)
-	assert.Nil(s.T(), err)
-
-	// force put exists entry
-	_, err = PutEntry(s.rdb, e, true)
-	assert.Nil(s.T(), err)
-
-	for i := 0; i < 100; i++ {
-		_, err = PutEntry(s.rdb, e, true)
-		assert.Nil(s.T(), err)
-	}
-
-	uuid1, _ := uuid.FromString(p.Uuid)
-	key := NewUUIDKey(TableReverseEntryIndex, uuid1)
-	n, err := s.rdb.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
-		return nil
-	})
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), 2, n)
-
-	// produce duplicated entry issue when server moved
-	oldNewWorkerId := flake.NewWorkerId
-	flake.NewWorkerId = flake.NewRandWorkerId
-	// rdb.idGen.WorkerId = flake.NewRandWorkerId()
-	// force put exists entry
-	_, err = PutEntry(s.rdb, e, true)
-	assert.Nil(s.T(), err)
-
-	n, err = s.rdb.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
-		return nil
-	})
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), 2, n)
-
-	// restore NewWorkerId func otherwise will break other tests
-	flake.NewWorkerId = oldNewWorkerId
 }
