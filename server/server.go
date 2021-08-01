@@ -119,12 +119,26 @@ func (s *ApiServer) Destroy() {
 	s.mdb.Destroy()
 }
 
-func (s *ApiServer) FetchFeedinfo(ctx context.Context, req *pb.ProfileRequest) (*pb.Feedinfo, error) {
-	if req.Uuid == "" {
-		return nil, fmt.Errorf("bad request")
-	}
-	return model.GetFeedinfo(s.rdb, req.Uuid)
-}
+// NOT USED OR TESTED?
+// func (s *ApiServer) FetchFeedinfo(ctx context.Context, req *pb.ProfileRequest) (*pb.Feedinfo, error) {
+// 	if req.Uuid == "" {
+// 		return nil, fmt.Errorf("bad request")
+// 	}
+// 	userUuid, err := uuid.FromString(req.Uuid)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	profile, err := model.GetProfileFromUuid(s.mdb, userUuid)
+// 	if err != nil {
+// 		logger.Debugf("FetchFeedinfo: %s, err: %s", req.Uuid, err)
+// 		return nil, status.Errorf(codes.NotFound, "profile not found")
+// 	}
+
+// 	info := &pb.Feedinfo{}
+// 	proto.Merge(info, profile) // DONT KNOW IS THIS CORRECT?
+// 	return info, err
+// }
 
 // WARN: UPDATE ARE NOT SAFE
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {

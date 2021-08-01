@@ -18,7 +18,7 @@ service Api {
   rpc FetchGraph(ProfileRequest) returns (Graph) {}
   rpc GraphFollow(FollowRequest) returns (FollowResponse) {}
 
-  rpc FetchFeedinfo(ProfileRequest) returns (Feedinfo) {}
+  // rpc FetchFeedinfo(ProfileRequest) returns (Feedinfo) {}
   rpc PostFeedinfo(Feedinfo) returns (Profile) {}
 
   // A client-to-server streaming RPC.

@@ -123,28 +123,28 @@ func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
 	return profile, nil
 }
 
-func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
+// func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
+// 	ctx, cancel := DefaultTimeoutContext()
+// 	defer cancel()
 
-	feedinfo := new(pb.Feedinfo)
-	uuid := CurrentUserUuid(c)
-	if uuid != "" {
-		cacheKey := "feedinfo:" + uuid
-		err := s.cache.Get(cacheKey, feedinfo)
-		if err != nil {
-			req := &pb.ProfileRequest{Uuid: uuid}
-			feedinfo, err = s.client.FetchFeedinfo(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-			if err := s.cache.Set(cacheKey, *feedinfo, 15*time.Minute); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return feedinfo, nil
-}
+// 	feedinfo := new(pb.Feedinfo)
+// 	uuid := CurrentUserUuid(c)
+// 	if uuid != "" {
+// 		cacheKey := "feedinfo:" + uuid
+// 		err := s.cache.Get(cacheKey, feedinfo)
+// 		if err != nil {
+// 			req := &pb.ProfileRequest{Uuid: uuid}
+// 			feedinfo, err = s.client.FetchFeedinfo(ctx, req)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			if err := s.cache.Set(cacheKey, *feedinfo, 15*time.Minute); err != nil {
+// 				return nil, err
+// 			}
+// 		}
+// 	}
+// 	return feedinfo, nil
+// }
 
 func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
 	return s.GraphFrom(CurrentUserUuid(c))
