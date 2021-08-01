@@ -81,7 +81,10 @@ func (s *Server) BuildFollow(profile *pb.Profile, feed *pb.Feed) {
 		return
 	}
 	if fResp.Followed {
-		feed.Commands = []string{"unfollow", "post"}
+		feed.Commands = []string{"unfollow"}
+		if feed.Type == "group" {
+			feed.Commands = append(feed.Commands, "post")
+		}
 	} else {
 		feed.Commands = []string{"follow"}
 	}

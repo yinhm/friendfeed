@@ -41,8 +41,7 @@ func (s *ApiServer) RefetchUserFeed() error {
 			return err
 		}
 		// log.Printf("RefetchUserFeed proifile: <%s, %s>", profile.Uuid, profile.Id)
-
-		feedinfo, _ := model.GetFeedinfo(s.rdb, profile.Uuid)
+		feedinfo := model.ProfileToFeedinfo(profile)
 		// only sync twitter service
 		graph := BuildGraph(feedinfo)
 		if _, ok := graph.Services["twitter"]; !ok {
@@ -308,7 +307,7 @@ func (s *ApiServer) RedoFailedJob() error {
 
 func (s *ApiServer) TestJob() error {
 	profile, _ := model.GetProfileFromUserId(s.mdb, "yinhm")
-	feedinfo, _ := model.GetFeedinfo(s.rdb, profile.Uuid)
+	feedinfo := model.ProfileToFeedinfo(profile)
 	// only sync twitter service
 	graph := BuildGraph(feedinfo)
 	if _, ok := graph.Services["twitter"]; !ok {
