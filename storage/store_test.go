@@ -11,7 +11,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/storage/flake"
 )
 

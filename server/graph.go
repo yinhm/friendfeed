@@ -3,7 +3,7 @@ package server
 import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"golang.org/x/net/context"
 )
 

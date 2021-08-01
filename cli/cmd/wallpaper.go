@@ -14,7 +14,7 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/spf13/cobra"
 	"github.com/yinhm/friendfeed/model"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"golang.org/x/net/context"
 )
 

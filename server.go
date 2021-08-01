@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	server "github.com/yinhm/friendfeed/server"
 	"github.com/yinhm/friendfeed/util"

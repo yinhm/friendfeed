@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth/gothic"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

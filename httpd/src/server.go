@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gofrs/uuid"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"

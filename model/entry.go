@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	store "github.com/yinhm/friendfeed/storage"
 )

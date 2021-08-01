@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package proto;
+package pb;
 
 message Stock{
   string market = 1;     // 证券市场

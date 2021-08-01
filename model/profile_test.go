@@ -3,7 +3,7 @@ package model
 import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 )
 
 func (s *TableTestSuite) TestProfile() {

@@ -17,7 +17,7 @@
 
 syntax = "proto3";
 
-package proto;
+package pb;
 
 enum FeedType {
   user = 0;

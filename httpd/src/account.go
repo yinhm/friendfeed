@@ -6,7 +6,7 @@ import (
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 )
 
 func (s *Server) AccountHandler(c *gin.Context) {

@@ -1,6 +1,6 @@
 all:
 
-	protoc -I proto --go_out=plugins=grpc:proto proto/feed.proto proto/api.proto proto/stock.proto
+	protoc -I pb --go_out=plugins=grpc:pb pb/feed.proto pb/api.proto pb/stock.proto
 
 test:
 

@@ -2,7 +2,7 @@ package model
 
 import (
 	"github.com/gofrs/uuid"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	store "github.com/yinhm/friendfeed/storage"
 )
 

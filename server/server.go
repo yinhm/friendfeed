@@ -16,7 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"

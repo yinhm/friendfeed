@@ -9,7 +9,7 @@ import (
 	"github.com/cockroachdb/pebble"
 	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	store "github.com/yinhm/friendfeed/storage"
 	"golang.org/x/net/context"
 )

@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 
-package proto;
+package pb;
 
 import "feed.proto";
 import "stock.proto";

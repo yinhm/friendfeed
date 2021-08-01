@@ -11,7 +11,7 @@ import (
 	"github.com/yinhm/ctdx"
 	"github.com/yinhm/ctdx/comm"
 	"github.com/yinhm/ctdx/gcom/utils"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 	"golang.org/x/net/context"
 )
 

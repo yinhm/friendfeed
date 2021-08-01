@@ -2,7 +2,7 @@ package model
 
 import (
 	"github.com/stretchr/testify/assert"
-	pb "github.com/yinhm/friendfeed/proto"
+	"github.com/yinhm/friendfeed/pb"
 )
 
 func (s *TableTestSuite) TestOAuthUser() {
