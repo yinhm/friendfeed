@@ -10,7 +10,7 @@ import (
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/golang/glog"
-	"github.com/yinhm/friendfeed/storage/flake"
+	"github.com/yinhm/friendfeed/store/flake"
 )
 
 const (

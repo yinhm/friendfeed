@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/yinhm/friendfeed/pb"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 // returns a full key and entry if succedd

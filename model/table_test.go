@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 type TableTestSuite struct {

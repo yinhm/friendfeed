@@ -9,7 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/gofrs/uuid"
-	"github.com/yinhm/friendfeed/storage/flake"
+	"github.com/yinhm/friendfeed/store/flake"
 )
 
 type KeyPrefix uint32

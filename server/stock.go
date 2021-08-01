@@ -11,7 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 	"golang.org/x/net/context"
 )
 

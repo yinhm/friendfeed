@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 // example id: "twitter:233666"

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 func UpdateProfile(db *store.Store, profile *pb.Profile) error {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 type Table struct {

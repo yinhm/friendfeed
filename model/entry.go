@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {

@@ -3,7 +3,7 @@ package model
 import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 func PutFeedinfo(db *store.Store, uuidStr string, info *pb.Feedinfo) error {

@@ -11,7 +11,7 @@ import (
 	"github.com/eapache/queue"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 const MinQueue = 1000

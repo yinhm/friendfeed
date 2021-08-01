@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 // UUID Key.

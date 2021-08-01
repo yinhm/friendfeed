@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/golang/protobuf/proto"
-	store "github.com/yinhm/friendfeed/storage"
+	"github.com/yinhm/friendfeed/store"
 )
 
 var ErrNotFound = errors.New("db: key not found or no value")

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/yinhm/friendfeed/storage/flake"
+	"github.com/yinhm/friendfeed/store/flake"
 )
 
 //-------------------------

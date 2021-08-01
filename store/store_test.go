@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/yinhm/friendfeed/pb"
-	"github.com/yinhm/friendfeed/storage/flake"
+	"github.com/yinhm/friendfeed/store/flake"
 )
 
 type DBTestSuite struct {
