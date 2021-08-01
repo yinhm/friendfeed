@@ -171,6 +171,11 @@ func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb
 		return nil, err
 	}
 	feedinfo := model.ProfileToFeedinfo(profile)
+
+	// scan services
+	ss, _ := model.GetServicesForProfile(s.rdb, profileUuid)
+	feedinfo.Services = ss
+
 	return BuildGraph(feedinfo), nil
 }
 

@@ -48,9 +48,9 @@ func fmtLikes(req *pb.FeedRequest, entry *pb.Entry) {
 
 func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 	graph := &pb.Graph{
-		Subscriptions: make(map[string]*pb.Profile),
-		Admins:        make(map[string]*pb.Profile),
-		Services:      make(map[string]*pb.Service),
+		Following: make(map[string]*pb.Profile),
+		Admins:    make(map[string]*pb.Profile),
+		Services:  make(map[string]*pb.Service),
 	}
 	// FIXME: subscriptions may huge
 	// for _, item := range info.Subscriptions {

@@ -71,8 +71,8 @@ message Profile {
 
 // social graph
 message Graph {
-  map<string, Profile> subscribers = 1;
-  map<string, Profile> subscriptions = 2;
+  map<string, Profile> following = 1;
+  map<string, Profile> followers = 2;
   map<string, Profile> admins = 3;
   map<string, Profile> feeds = 4;
   map<string, Service> services = 5;
@@ -146,8 +146,8 @@ message Feedinfo {
   repeated Entry entries = 9;
 
   // Feedinfo
-  repeated Profile subscribers = 10;
-  repeated Profile subscriptions = 11;
+  repeated Profile following = 10;
+  repeated Profile followers = 11;
   repeated Profile admins = 12;
   repeated Profile feeds = 13; // for list
   repeated Service services = 14;

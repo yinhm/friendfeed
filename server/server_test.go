@@ -262,13 +262,13 @@ func (s *RpcTestSuite) TestPostProfile() {
 	}
 
 	feedinfo := &pb.Feedinfo{
-		Uuid:          "c6f8dca854f011ddb489003048343a40",
-		Id:            "yinhm",
-		Name:          "Heming Friend",
-		Type:          "user",
-		Private:       false,
-		Description:   "Friendfeed land",
-		Subscriptions: []*pb.Profile{p1},
+		Uuid:        "c6f8dca854f011ddb489003048343a40",
+		Id:          "yinhm",
+		Name:        "Heming Friend",
+		Type:        "user",
+		Private:     false,
+		Description: "Friendfeed land",
+		Following:   []*pb.Profile{p1},
 	}
 	got, err := s.srv.PostFeedinfo(ctx, feedinfo)
 	assert.Nil(s.T(), err)

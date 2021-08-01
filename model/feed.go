@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
@@ -48,4 +49,20 @@ func PutService(db *store.Store, profileUuid uuid.UUID, service *pb.Service) err
 func DeleteService(db *store.Store, profileUuid uuid.UUID, serviceId string) error {
 	key := NewKeyFrom(profileUuid.Bytes(), []byte(serviceId))
 	return Service.Delete(db, key)
+}
+
+func GetServicesForProfile(db *store.Store, profileUuid uuid.UUID) ([]*pb.Service, error) {
+	prefix := NewPrefixKeyFrom(TableService, profileUuid.Bytes())
+	// fmt.Printf("scan key, %s\n", prefix.String())
+
+	var services []*pb.Service
+	_, err := db.ForwardScan(prefix, func(i int, k, v []byte) error {
+		service := &pb.Service{}
+		if err := proto.Unmarshal(v, service); err != nil {
+			return err
+		}
+		services = append(services, service)
+		return nil
+	})
+	return services, err
 }
