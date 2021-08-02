@@ -84,3 +84,8 @@ func ProfileToFeedinfo(profile *pb.Profile) *pb.Feedinfo {
 		Services:    []*pb.Service{},
 	}
 }
+
+func ParseFollowerKey(k store.Key) store.Key {
+	key := Follower.PrefixRemove(k)
+	return key[uuid.Size:]
+}

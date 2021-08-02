@@ -70,11 +70,18 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 }
 
 func (s *Server) HomeHandler(c *gin.Context) {
+	userUuid := CurrentUserUuid(c)
+	if userUuid == "" {
+		http.Redirect(c.Writer, c.Request, "/public", http.StatusFound)
+		return
+	}
+
 	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
-		Id:       "public",
-		Start:    int32(start),
-		PageSize: 30,
+		Id:          "home",
+		ProfileUuid: userUuid,
+		Start:       int32(start),
+		PageSize:    30,
 	}
 
 	_, feed, err := s.FetchFeed(c, req)

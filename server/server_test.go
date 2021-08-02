@@ -314,6 +314,16 @@ func (s *RpcTestSuite) TestPostProfile() {
 	// prefix stripped
 	assert.Equal(s.T(), feed.Entries[0].Id, "2b43a9066074d120ed2e45494eea1797")
 
+	// fetch user timeline
+	tReq := &pb.FeedRequest{
+		Id:          "yinhm",
+		ProfileUuid: "c6f8dca854f011ddb489003048343a40",
+	}
+	feed, err = s.srv.FetchFeed(context.Background(), tReq)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), feed.Id, "yinhm")
+	assert.Equal(s.T(), len(feed.Entries), 1)
+
 	// comment on the entry
 	cmt := &pb.Comment{
 		Id:      "2b43a9066074d120ed2e45494eea1797",
@@ -349,6 +359,41 @@ func (s *RpcTestSuite) TestPostProfile() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), feed.Id, "yinhm")
 	assert.Equal(s.T(), len(feed.Entries), 0)
+
+	p2 := &pb.Profile{
+		Uuid:        "4e580875-46c3-58fe-a436-bcc17d7e2509",
+		Id:          "foobar",
+		Name:        "foobar",
+		Type:        "user",
+		Private:     false,
+		Description: "desc",
+	}
+	feedinfo2 := model.ProfileToFeedinfo(p2)
+	got, err = s.srv.PostFeedinfo(ctx, feedinfo2)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), got.Uuid, feedinfo2.Uuid)
+
+	// p2 follow p1
+	fReq := &pb.FollowRequest{
+		ProfileUuid: p2.Uuid,
+		FeedUuid:    p1.Uuid,
+		Action:      "follow",
+	}
+	_, err = s.srv.GraphFollow(ctx, fReq)
+	assert.Nil(s.T(), err)
+
+	// post entry to p1 now fanout to p2 user timeline
+	_, err = model.PutEntry(s.srv.rdb, entry)
+	assert.Nil(s.T(), err)
+
+	tReq = &pb.FeedRequest{
+		Id:          "foobar",
+		ProfileUuid: "4e580875-46c3-58fe-a436-bcc17d7e2509",
+	}
+	feed, err = s.srv.FetchFeed(context.Background(), tReq)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "foobar", feed.Id)
+	assert.Equal(s.T(), 1, len(feed.Entries))
 }
 
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {

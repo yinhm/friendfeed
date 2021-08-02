@@ -388,19 +388,29 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		req.PageSize = 50
 	}
 
-	profile, err := model.GetProfileFromUserId(s.mdb, req.Id)
-	if err != nil {
-		logger.Debugf("ForwardFetchFeed: %s, err: %s", req.Id, err)
-		return nil, status.Errorf(codes.NotFound, "profile not found")
-	}
+	var profile *pb.Profile
+	var err error
+	var prefix []byte
 
-	uuid1, _ := uuid.FromString(profile.Uuid)
-	preKey := store.NewUUIDKey(model.TableEntryIndex, uuid1)
-	logger.Infof("ForwardFetchFeed: %s", preKey.String())
+	if req.ProfileUuid != "" { // user timeline
+		profileUuid, _ := uuid.FromString(req.ProfileUuid)
+		profile, err = model.GetProfileFromUuid(s.mdb, profileUuid)
+		fanoutUuid := model.UniqueKeyFrom(fmt.Sprintf("%x", profileUuid), "user", "timeline")
+		prefix = store.NewUUIDKey(model.TableEntryIndex, fanoutUuid).Bytes()
+	} else { // from user.id
+		profile, err = model.GetProfileFromUserId(s.mdb, req.Id)
+		if err != nil {
+			logger.Debugf("ForwardFetchFeed: %s, err: %s", req.Id, err)
+			return nil, status.Errorf(codes.NotFound, "profile not found")
+		}
+		profileUuid, _ := uuid.FromString(profile.Uuid)
+		prefix = store.NewUUIDKey(model.TableEntryIndex, profileUuid).Bytes()
+	}
+	logger.Infof("ForwardFetchFeed: %s", hex.EncodeToString(prefix))
 
 	start := req.Start
 	var entries []*pb.Entry
-	_, err = s.rdb.ForwardScan(preKey.Bytes(), func(i int, k, v []byte) error {
+	_, err = s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		if start > 0 {
 			start--
 			return nil // continue

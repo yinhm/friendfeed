@@ -52,12 +52,32 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 		}
 	}
 
+	// fanout to feed followers(user timeline)
+	FanoutEntry(db, userUuid, feedUuid, oldtime, key[:])
+
 	// index entry body
 	if entry.Body != "" {
 		search.Indexer.Index(entry.Id, entry.Body)
 	}
 
 	return key, nil
+}
+
+func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
+	oldtime time.Time, entryKey store.Key) (n int, err error) {
+	fanOutToTimeline := UniqueKeyFrom(fmt.Sprintf("%x", userUuid), "user", "timeline")
+	// fmt.Println(hex.EncodeToString(fanOutToTimeline.Bytes()))
+	EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey)
+
+	prefix := NewPrefixKeyFrom(TableFollower, feedUuid.Bytes())
+	// fmt.Printf("scan key, %s\n", prefix.String())
+
+	return db.ForwardScan(prefix, func(i int, k, v []byte) error {
+		fk := ParseFollowerKey(k)
+		fanOutToTimeline := UniqueKeyFrom(fk.String(), "user", "timeline")
+		// fmt.Printf("fanout to: <%s, %x>", fk.String(), fanOutToTimeline)
+		return EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey)
+	})
 }
 
 func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {

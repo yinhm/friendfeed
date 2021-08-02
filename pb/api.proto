@@ -150,6 +150,7 @@ message FeedRequest {
   // if max_comments set to 1, then all comments should returned.
   int32 max_comments = 5;
   int32 max_likes = 6;
+  string profile_uuid = 7;
 }
 
 message EntryRequest {

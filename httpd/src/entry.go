@@ -20,7 +20,7 @@ func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	// FIME: why FetchEntry return feed, I forgot...
+	// FIME: forgot why FetchEntry return feed...
 	feed, err := s.client.FetchEntry(ctx, req)
 	if RequestError(c, err) {
 		return nil, err
