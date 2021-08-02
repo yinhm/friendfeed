@@ -124,6 +124,8 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 			return err
 		}
 		EntryIndex.RemoveIndex(db, feedUuid, oldtime)
+
+		DeleteFanoutEntry(db, profileUuid, feedUuid, oldtime)
 	}
 
 	if err = Entry.Delete(db, uuid1.Bytes()); err != nil {
@@ -132,4 +134,18 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 
 	// delete entry from public index??
 	return nil
+}
+
+func DeleteFanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
+	oldtime time.Time) (n int, err error) {
+	fanOutToTimeline := UniqueKeyFrom(fmt.Sprintf("%x", userUuid), "user", "timeline")
+	EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime)
+
+	prefix := NewPrefixKeyFrom(TableFollower, feedUuid.Bytes())
+
+	return db.ForwardScan(prefix, func(i int, k, v []byte) error {
+		fk := ParseFollowerKey(k)
+		fanOutToTimeline := UniqueKeyFrom(fk.String(), "user", "timeline")
+		return EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime)
+	})
 }

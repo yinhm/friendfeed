@@ -394,6 +394,13 @@ func (s *RpcTestSuite) TestPostProfile() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "foobar", feed.Id)
 	assert.Equal(s.T(), 1, len(feed.Entries))
+
+	// delete fanout aswell
+	_, err = s.srv.DeleteEntry(context.Background(), dReq)
+	assert.Nil(s.T(), err)
+	feed, err = s.srv.FetchFeed(context.Background(), tReq)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 0, len(feed.Entries))
 }
 
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
