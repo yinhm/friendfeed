@@ -195,9 +195,12 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 
 	fmt.Println("get key: ", hex.EncodeToString(key))
 	rawdata, err := s.rdb.Get(key)
-	if err != nil || len(rawdata) == 0 {
-		fmt.Println("empty rawdata")
+	if err != nil {
 		return nil, err
+	}
+	// allow empty xrxd such as index, fund
+	if len(rawdata) == 0 {
+		return &pb.XRXDResponse{}, nil
 	}
 	buf := bytes.NewBuffer(rawdata)
 	dec := gob.NewDecoder(buf)
