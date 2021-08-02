@@ -57,6 +57,7 @@ service Api {
   rpc GetKLines(StockRequest) returns (KLineResponse) {}
   rpc UpdateStockList(StockList) returns (Response) {}
   rpc GetStockList(StockRequest) returns (StockList) {}
+  rpc GetStock(StockRequest) returns (Stock) {}
 }
 
 message Response {

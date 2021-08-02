@@ -13,6 +13,8 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
@@ -181,6 +183,32 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 
 	resp.Stocks = stocks
 	return resp, nil
+}
+
+// 获取证券信息
+// TODO: optimise
+func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Stock, error) {
+	logger.Debugf("GetStock of <%s,%s>", req.Market, req.Symbol)
+	uuid1 := model.UniqueKeyFrom("stock", "list")
+	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
+
+	var stocks []*pb.Stock
+	rawdata, err := s.rdb.Get(key)
+	if err != nil || len(rawdata) == 0 {
+		return nil, err
+	}
+	buf := bytes.NewBuffer(rawdata)
+	dec := gob.NewDecoder(buf)
+	err = dec.Decode(&stocks)
+	if err != nil {
+		return nil, err
+	}
+	for _, stock := range stocks {
+		if req.Market == stock.Market && req.Symbol == stock.Symbol {
+			return stock, nil
+		}
+	}
+	return nil, status.Errorf(codes.NotFound, "not found")
 }
 
 // 获取 XRXD 除权除息
