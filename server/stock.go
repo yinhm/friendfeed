@@ -120,6 +120,39 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 
 // 下列接口给 python 客户端使用
 // --------------------------
+// 归档财务数据
+func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) error {
+	logger.Debugln("Starting ArchiveFundamental...")
+	var count int32
+	startTime := time.Now()
+
+	// disable pebble.Sync since we cannot do batch easily
+	// and sync was too slow for large data.
+	s.rdb.SetSync(false)
+	defer s.rdb.SetSync(true)
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			endTime := time.Now()
+			return stream.SendAndClose(&pb.ArchiveSummary{
+				Count:       count,
+				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+			})
+		}
+		if err != nil {
+			return err
+		}
+		count++
+
+		uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "Fundamental")
+		_, err = model.Stock.Put(s.rdb, uuid1.Bytes(), req)
+		if err != nil {
+			return err
+		}
+	}
+}
+
 // 获取证券代码列表
 func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb.Response, error) {
 	logger.Debugf("UpdateStockList, count %d", len(req.Stocks))
@@ -268,4 +301,19 @@ func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KL
 	})
 	resp := &pb.KLineResponse{KLines: klines}
 	return resp, err
+}
+
+// 获取证券财务信息
+func (s *ApiServer) GetFundamental(ctx context.Context, req *pb.StockRequest) (*pb.Fundamental, error) {
+	logger.Debugf("GetFundamental of <%s,%s>", req.Market, req.Symbol)
+
+	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "Fundamental")
+	msg := new(pb.Fundamental)
+	err := model.Stock.Get(s.rdb, uuid1.Bytes(), msg)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
 }

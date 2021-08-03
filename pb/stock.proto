@@ -118,3 +118,9 @@ message XRXD {
 message XRXDResponse {
   repeated XRXD XRXDS = 1;
 }
+
+message Fundamental {
+  string symbol = 1;
+  string market = 2;
+  bytes rawdata = 3;
+}
