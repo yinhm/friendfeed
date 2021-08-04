@@ -141,6 +141,7 @@ func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) e
 			})
 		}
 		if err != nil {
+			logger.Debugf("ArchiveFundamental error: %v", err)
 			return err
 		}
 		count++
@@ -148,6 +149,7 @@ func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) e
 		uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "Fundamental")
 		_, err = model.Stock.Put(s.rdb, uuid1.Bytes(), req)
 		if err != nil {
+			logger.Debugf("ArchiveFundamental error: %v", err)
 			return err
 		}
 	}
