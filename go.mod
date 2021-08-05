@@ -5,6 +5,7 @@ go 1.16
 require (
 	cloud.google.com/go v0.84.0 // indirect
 	cloud.google.com/go/storage v1.15.0
+	github.com/BurntSushi/toml v0.4.0 // indirect
 	github.com/blevesearch/bleve/v2 v2.0.6
 	github.com/blevesearch/bleve_index_api v1.0.0
 	github.com/boj/redistore v0.0.0-20180917114910-cd5dcc76aeff // indirect
@@ -25,6 +26,7 @@ require (
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
 	github.com/golang/protobuf v1.5.2
+	github.com/klauspost/compress v1.13.3 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/markbates/goth v1.67.1
@@ -37,12 +39,13 @@ require (
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/ugorji/go v1.2.6 // indirect
-	github.com/yinhm/ctdx v0.0.0-20210720161544-9765a85520c8
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e // indirect
+	github.com/yinhm/ctdx v0.0.0-20210805065125-b339652dbcda
+	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
 	golang.org/x/exp v0.0.0-20210625193404-fa9d1d177d71
-	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
+	golang.org/x/net v0.0.0-20210726213435-c6fcb2dbf985
 	golang.org/x/oauth2 v0.0.0-20210622215436-a8dc77f794b6
 	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // direct
+	gonum.org/v1/gonum v0.9.3 // indirect
 	google.golang.org/api v0.48.0
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.27.0 // indirect
