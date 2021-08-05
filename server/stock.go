@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -155,6 +156,41 @@ func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) e
 	}
 }
 
+// 归档财务数据
+func (s *ApiServer) ArchiveStockInfo(stream pb.Api_ArchiveStockInfoServer) error {
+	logger.Debugln("Starting ArchiveStockInfo...")
+	var count int32
+	startTime := time.Now()
+
+	// disable pebble.Sync since we cannot do batch easily
+	// and sync was too slow for large data.
+	s.rdb.SetSync(false)
+	defer s.rdb.SetSync(true)
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			endTime := time.Now()
+			return stream.SendAndClose(&pb.ArchiveSummary{
+				Count:       count,
+				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+			})
+		}
+		if err != nil {
+			logger.Debugf("ArchiveStockInfo error: %v", err)
+			return err
+		}
+		count++
+
+		uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "StockInfo")
+		_, err = model.Stock.Put(s.rdb, uuid1.Bytes(), req)
+		if err != nil {
+			logger.Debugf("ArchiveStockInfo error: %v", err)
+			return err
+		}
+	}
+}
+
 // 获取证券代码列表
 func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb.Response, error) {
 	logger.Debugf("UpdateStockList, count %d", len(req.Stocks))
@@ -216,11 +252,21 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 		return resp, err
 	}
 
-	resp.Stocks = stocks
+	for _, stock := range stocks {
+		if req.Market != "" && req.Market != stock.Market {
+			continue
+		}
+		if req.Match != "" && !strings.HasPrefix(stock.Symbol, req.Match) {
+			continue
+		}
+		resp.Stocks = append(resp.Stocks, stock)
+	}
+
 	return resp, nil
 }
 
-// 获取证券信息
+// 获取证券名称
+// pb.Stock 包含最基本证券信息，进一步信息参见 StockInfo
 // TODO: optimise
 func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Stock, error) {
 	logger.Debugf("GetStock of <%s,%s>", req.Market, req.Symbol)
@@ -244,6 +290,22 @@ func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Sto
 		}
 	}
 	return nil, status.Errorf(codes.NotFound, "not found")
+}
+
+// 获取证券基本信息
+// 证券所属行业等
+func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb.StockInfo, error) {
+	logger.Debugf("GetStock of <%s,%s>", req.Market, req.Symbol)
+
+	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "StockInfo")
+	msg := new(pb.StockInfo)
+	err := model.Stock.Get(s.rdb, uuid1.Bytes(), msg)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
 }
 
 // 获取 XRXD 除权除息
