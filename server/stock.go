@@ -256,8 +256,17 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 		if req.Market != "" && req.Market != stock.Market {
 			continue
 		}
-		if req.Match != "" && !strings.HasPrefix(stock.Symbol, req.Match) {
-			continue
+
+		if req.Match != "" {
+			matched := false
+			for _, item := range strings.Split(req.Match, ",") {
+				if strings.HasPrefix(stock.Symbol, item) {
+					matched = true
+				}
+			}
+			if !matched {
+				continue
+			}
 		}
 		resp.Stocks = append(resp.Stocks, stock)
 	}
