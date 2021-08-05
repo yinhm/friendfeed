@@ -12,8 +12,7 @@ import (
 // Make sure combinated id never change
 // for example twitter user change its username
 func _oauthUserIdFrom(provider, userId string) store.Key {
-	id := KeyFrom(provider, userId)
-	return []byte(id)
+	return KeyFromString(provider, userId)
 }
 
 // return OAuth info for user like "twitter:233666"

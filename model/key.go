@@ -68,7 +68,11 @@ func SeekZero() []byte {
 	return u[:]
 }
 
-func KeyFrom(ids ...string) string {
+func KeyFromString(ids ...string) store.Key {
+	return []byte(joinKeyString(ids...))
+}
+
+func joinKeyString(ids ...string) string {
 	return strings.ToLower(strings.Join(ids, ":"))
 }
 
@@ -78,5 +82,5 @@ func KeyFrom(ids ...string) string {
 // bing:wallpaper
 // SH:600519
 func UniqueKeyFrom(ids ...string) uuid.UUID {
-	return uuid.NewV5(uuid.NamespaceURL, KeyFrom(ids...))
+	return uuid.NewV5(uuid.NamespaceURL, joinKeyString(ids...))
 }

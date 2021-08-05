@@ -113,8 +113,8 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 		}
 		count++
 
-		kb := model.KeyFrom(req.Market, req.Symbol, "xdxr")
-		key := model.NewPrefixKeyFrom(model.TableStock, []byte(kb)).String()
+		kb := model.KeyFromString(req.Market, req.Symbol, "xdxr")
+		key := model.NewPrefixKeyFrom(model.TableStock, kb).String()
 		dividends[key] = append(dividends[key], req)
 	}
 }
@@ -156,7 +156,7 @@ func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) e
 	}
 }
 
-// 归档财务数据
+// 归档股票基本信息
 func (s *ApiServer) ArchiveStockInfo(stream pb.Api_ArchiveStockInfoServer) error {
 	logger.Debugln("Starting ArchiveStockInfo...")
 	var count int32
@@ -182,8 +182,8 @@ func (s *ApiServer) ArchiveStockInfo(stream pb.Api_ArchiveStockInfoServer) error
 		}
 		count++
 
-		uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "StockInfo")
-		_, err = model.Stock.Put(s.rdb, uuid1.Bytes(), req)
+		key := model.KeyFromString(req.Market, req.Symbol, "StockInfo")
+		_, err = model.Stock.Put(s.rdb, key, req)
 		if err != nil {
 			logger.Debugf("ArchiveStockInfo error: %v", err)
 			return err
@@ -297,9 +297,9 @@ func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Sto
 func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb.StockInfo, error) {
 	logger.Debugf("GetStock of <%s,%s>", req.Market, req.Symbol)
 
-	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "StockInfo")
+	key := model.KeyFromString(req.Market, req.Symbol, "StockInfo")
 	msg := new(pb.StockInfo)
-	err := model.Stock.Get(s.rdb, uuid1.Bytes(), msg)
+	err := model.Stock.Get(s.rdb, key, msg)
 
 	if err != nil {
 		return nil, err
@@ -311,8 +311,8 @@ func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb
 // 获取 XRXD 除权除息
 func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXDResponse, error) {
 	logger.Debugf("GetXRXD of <%s,%s>", req.Market, req.Symbol)
-	kb := model.KeyFrom(req.Market, req.Symbol, "xdxr")
-	key := model.NewPrefixKeyFrom(model.TableStock, []byte(kb))
+	kb := model.KeyFromString(req.Market, req.Symbol, "xdxr")
+	key := model.NewPrefixKeyFrom(model.TableStock, kb)
 
 	// 存储除权除息信息
 	// []*xrxd gob encoding
