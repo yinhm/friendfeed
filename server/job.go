@@ -190,8 +190,9 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.RefetchUserFeed()
 	case "TestJob":
 		s.TestJob()
-	// case "FixKLine":
-	// s.FixKLine()
+	case "PurgePrefix":
+		s.PurgePrefix(model.Stock.Prefix)
+		s.PurgePrefix(model.KLine.Prefix)
 	case "MarkDelete":
 		s.MarkDelete(cmd.Arg1)
 	case "SuperAdmin":
@@ -355,10 +356,9 @@ func (s *ApiServer) SuperAdmin(id string) (bool, error) {
 	return true, nil
 }
 
-func (s *ApiServer) FixKLine() error {
+func (s *ApiServer) PurgePrefix(prefix store.Key) error {
 	db := s.rdb
 	batch := db.NewBatch()
-	prefix := model.KLine.Prefix
 	prefix = append(prefix, prefix...)
 	logger.Debugf("prefix range delete: %s", hex.EncodeToString(prefix))
 	err := batch.DeleteRange(prefix, store.KeyUpperBound(prefix), pebble.NoSync)

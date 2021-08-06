@@ -115,9 +115,10 @@ func syncProfile() error {
 			continue
 		}
 
+		symbol := fmt.Sprintf("%s.%s", strCode, mktName)
 		stock := &pb.Stock{
 			Market: mktName,
-			Symbol: strCode,
+			Symbol: symbol,
 			Name:   name,
 		}
 		stocks.Stocks = append(stocks.Stocks, stock)

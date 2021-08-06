@@ -552,8 +552,7 @@ func (s *RpcTestSuite) TestKLines() {
 	// ListStock
 	reqStockList := &pb.StockList{
 		Stocks: []*pb.Stock{{
-			Market: "SH",
-			Symbol: "600519",
+			Symbol: "600519.SH",
 		}},
 	}
 	_, err = api.UpdateStockList(ctx, reqStockList)

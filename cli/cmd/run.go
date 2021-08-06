@@ -26,7 +26,7 @@ List of Jobs
   - RedoFailedJob
   - RefetchUserFeed
   - TestJob
-  - FixKLine
+  - PurgePrefix
   - MarkDelete
   - SuperAdmin
   - DBMetrics

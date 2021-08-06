@@ -182,7 +182,7 @@ func (s *ApiServer) ArchiveStockInfo(stream pb.Api_ArchiveStockInfoServer) error
 		}
 		count++
 
-		key := model.KeyFromString(req.Market, req.Symbol, "StockInfo")
+		key := model.KeyFromString(req.Symbol, "StockInfo")
 		_, err = model.Stock.Put(s.rdb, key, req)
 		if err != nil {
 			logger.Debugf("ArchiveStockInfo error: %v", err)
@@ -214,19 +214,19 @@ func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb
 
 	for _, stock := range req.Stocks {
 		feedinfo := &pb.Feedinfo{
-			Uuid:        model.UniqueKeyFrom(stock.Market, stock.Symbol).String(),
+			Uuid:        model.UniqueKeyFrom(stock.Symbol).String(),
 			Id:          stock.Symbol,
 			Name:        stock.Name,
 			Type:        "group",
 			Private:     false,
-			Description: fmt.Sprintf("<%s, %s>", stock.Market, stock.Symbol),
+			Description: fmt.Sprintf("<%s>", stock.Symbol),
 		}
 		_, err := s.PostFeedinfo(context.Background(), feedinfo)
 		if err != nil {
 			return nil, err
 		}
 
-		logger.Debugf("同步股票Feedinfo: %s %s", stock.Market, stock.Symbol)
+		logger.Debugf("同步股票Feedinfo: %s", stock.Symbol)
 	}
 
 	return &pb.Response{IsSuccess: true}, nil

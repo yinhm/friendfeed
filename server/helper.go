@@ -73,7 +73,7 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 	}
 	profile, err = model.GetProfileFromUuid(db, uuid1)
 	if err != nil {
-		logger.Debugf("RandomPictureFromWallpaper: %s", err)
+		logger.Debugf("RandomPictureFromWallpaper, no profile: %s", err)
 		return ""
 	}
 
