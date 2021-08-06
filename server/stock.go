@@ -457,7 +457,7 @@ func (s *ApiServer) UpdateRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Res
 
 // 删除 Rawdata
 func (s *ApiServer) DeleteRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Response, error) {
-	logger.Debugf("UpdateRawdata of <%s, %s>", req.Symbol, req.DataType)
+	logger.Debugf("DeleteRawdata of <%s, %s>", req.Symbol, req.DataType)
 
 	key := model.KeyFromString(req.Symbol, req.DataType)
 	err := model.Stock.Delete(s.rdb, key)
