@@ -107,6 +107,8 @@ func NewStoreOptions() *pebble.Options {
 		Levels:                      make([]pebble.LevelOptions, 7),
 		MemTableSize:                64 << 20, // 64 MB
 		MemTableStopWritesThreshold: 4,
+
+		// EventListener: pebble.MakeLoggingEventListener(pebble.DefaultLogger),
 	}
 
 	for i := 0; i < len(opts.Levels); i++ {

@@ -121,6 +121,41 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 
 // 下列接口给 python 客户端使用
 // --------------------------
+// 根据 Rawdata.DataType 归档股票数据
+func (s *ApiServer) ArchiveRawdata(stream pb.Api_ArchiveRawdataServer) error {
+	logger.Debugln("Starting ArchiveRawdata...")
+	var count int32
+	startTime := time.Now()
+
+	// disable pebble.Sync since we cannot do batch easily
+	// and sync was too slow for large data.
+	s.rdb.SetSync(false)
+	defer s.rdb.SetSync(true)
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			endTime := time.Now()
+			return stream.SendAndClose(&pb.ArchiveSummary{
+				Count:       count,
+				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+			})
+		}
+		if err != nil {
+			logger.Debugf("ArchiveRawdata error: %v", err)
+			return err
+		}
+		count++
+
+		key := model.KeyFromString(req.Symbol, req.DataType)
+		_, err = model.Stock.Put(s.rdb, key, req)
+		if err != nil {
+			logger.Debugf("ArchiveRawdata error: %v", err)
+			return err
+		}
+	}
+}
+
 // 归档财务数据
 func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) error {
 	logger.Debugln("Starting ArchiveFundamental...")
@@ -389,4 +424,47 @@ func (s *ApiServer) GetFundamental(ctx context.Context, req *pb.StockRequest) (*
 	}
 
 	return msg, nil
+}
+
+// 获取证券 req.DataType 获取 Rawdata
+func (s *ApiServer) GetRawdata(ctx context.Context, req *pb.StockRequest) (*pb.Rawdata, error) {
+	logger.Debugf("GetRawdata of <%s, %s>", req.Symbol, req.DataType)
+
+	key := model.KeyFromString(req.Symbol, req.DataType)
+	msg := new(pb.Rawdata)
+	err := model.Stock.Get(s.rdb, key, msg)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
+
+// 更新 Rawdata
+func (s *ApiServer) UpdateRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Response, error) {
+	logger.Debugf("UpdateRawdata of <%s, %s>", req.Symbol, req.DataType)
+
+	key := model.KeyFromString(req.Symbol, req.DataType)
+	_, err := model.Stock.Put(s.rdb, key, req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.Response{IsSuccess: true}, nil
+}
+
+// 删除 Rawdata
+func (s *ApiServer) DeleteRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Response, error) {
+	logger.Debugf("UpdateRawdata of <%s, %s>", req.Symbol, req.DataType)
+
+	key := model.KeyFromString(req.Symbol, req.DataType)
+	err := model.Stock.Delete(s.rdb, key)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.Response{IsSuccess: true}, nil
 }

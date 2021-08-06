@@ -49,6 +49,7 @@ service Api {
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
   // Stock
+  rpc ArchiveRawdata(stream Rawdata) returns (ArchiveSummary) {}
   // Stream:ArchiveKLine
   rpc ArchiveKLine(stream KLineRequest) returns (ArchiveSummary) {}
   // Stream:ArchiveXRXD
@@ -58,10 +59,13 @@ service Api {
   rpc GetXRXD(StockRequest) returns (XRXDResponse) {}
   rpc GetKLines(StockRequest) returns (KLineResponse) {}
   rpc UpdateStockList(StockList) returns (Response) {}
+  rpc UpdateRawdata(Rawdata) returns (Response) {}
+  rpc GetRawdata(StockRequest) returns (Rawdata) {}
   rpc GetStockList(StockRequest) returns (StockList) {}
   rpc GetStock(StockRequest) returns (Stock) {}
   rpc GetStockInfo(StockRequest) returns (StockInfo) {}
   rpc GetFundamental(StockRequest) returns (Fundamental) {}
+  rpc DeleteRawdata(Rawdata) returns (Response) {}
 }
 
 message Response {
