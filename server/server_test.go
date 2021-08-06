@@ -514,8 +514,7 @@ func (s *RpcTestSuite) TestKLines() {
 	dt := time.Date(2021, 7, 25, 15, 0, 0, 0, time.UTC)
 
 	kp := &pb.KLineRequest{
-		Symbol: "600519",
-		Market: "SH",
+		Symbol: "600519.SH",
 		KLine: &pb.KLine{
 			Date:   int32(dt.Unix()),
 			Open:   1912.0,
@@ -541,8 +540,7 @@ func (s *RpcTestSuite) TestKLines() {
 
 	// KLines
 	req := &pb.StockRequest{
-		Symbol: "600519",
-		Market: "SH",
+		Symbol: "600519.SH",
 		Bars:   5,
 	}
 	klineResp, err := api.GetKLines(ctx, req)
@@ -563,7 +561,6 @@ func (s *RpcTestSuite) TestKLines() {
 
 	req = &pb.StockRequest{
 		Symbol: "",
-		Market: "",
 	}
 	respStockList, err := api.GetStockList(ctx, req)
 	assert.Nil(s.T(), err)
@@ -575,8 +572,7 @@ func (s *RpcTestSuite) TestKLines() {
 
 	dt = time.Date(2021, 7, 25, 0, 0, 0, 0, time.UTC)
 	msg := &pb.XRXD{
-		Symbol:        "600519",
-		Market:        "SH",
+		Symbol:        "600519.SH",
 		ExDate:        int32(dt.Unix()), // ex date?
 		Dividend:      101.0,
 		PurchasePrice: 0,
@@ -592,8 +588,7 @@ func (s *RpcTestSuite) TestKLines() {
 
 	// get xrxd
 	req = &pb.StockRequest{
-		Market: "SH",
-		Symbol: "600519",
+		Symbol: "600519.SH",
 	}
 	xrxds, err := api.GetXRXD(ctx, req)
 	assert.Nil(s.T(), err)

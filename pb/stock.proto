@@ -83,7 +83,6 @@ message ETFInfo {
   string name = 2;
 }
 
-
 // K线
 message KLine {
   int32 date = 1;
@@ -97,7 +96,6 @@ message KLine {
 
 message KLineRequest {
   string symbol = 1;
-  string market = 2;
   KLine KLine = 3;
 }
 
@@ -110,12 +108,11 @@ message KLineResponse {
 // 除息（XD）：exclude dividend
 message XRXD {
   string symbol = 1;
-  string market = 2;
-  int32 ex_date = 3; // 初期除权日？
-  float dividend = 4; // 现金分红
-  float purchase_price = 5; // 配股价
-  float split = 6; // 送股数，送转股
-  float purchase = 7; // 配股
+  int32 ex_date = 2; // 初期除权日？
+  float dividend = 3; // 现金分红
+  float purchase_price = 4; // 配股价
+  float split = 5; // 送股数，送转股
+  float purchase = 6; // 配股
 }
 
 message XRXDResponse {
@@ -124,6 +121,10 @@ message XRXDResponse {
 
 message Fundamental {
   string symbol = 1;
-  string market = 2;
-  bytes rawdata = 3;
+  bytes rawdata = 2;
+}
+
+message Rawdata {
+  string symbol = 1;
+  bytes body = 2;
 }

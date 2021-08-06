@@ -173,7 +173,8 @@ func syncKline() error {
 		if market == 0 {
 			mktName = "SZ"
 		}
-		log.Printf("同步 %s:%s 的日线数据...", mktName, strCode)
+		symbol := fmt.Sprintf("%s.%s", strCode, mktName)
+		log.Printf("同步 %s 的日线数据...", symbol)
 
 		fileName := fmt.Sprintf("%d%s.csv", market, strCode)
 
@@ -194,8 +195,7 @@ func syncKline() error {
 				log.Printf("Can not parse time %s", err)
 			}
 			kp := &pb.KLineRequest{
-				Symbol: strCode,
-				Market: mktName,
+				Symbol: symbol,
 				KLine: &pb.KLine{
 					Date:   int32(dt.Unix()),
 					Open:   float32(k["open"].(float64)),
@@ -285,6 +285,7 @@ func syncXRXD() error {
 			continue
 		}
 
+		symbol := fmt.Sprintf("%s.%s", row["code"].(string), marketCodeToString(row["market"].(int)))
 		date := row["date"].(string)
 		// parse time from "20210607"
 		dateFull := fmt.Sprintf("%s-%s-%sT00:00:00+08:00", date[:4], date[4:6], date[6:8])
@@ -293,8 +294,7 @@ func syncXRXD() error {
 			log.Printf("Can not parse time %s", err)
 		}
 		msg := &pb.XRXD{
-			Symbol:        row["code"].(string),
-			Market:        marketCodeToString(row["market"].(int)),
+			Symbol:        symbol,
 			ExDate:        int32(dt.Unix()), // ex date?
 			Dividend:      float32(row["money"].(float64)),
 			PurchasePrice: float32(row["price"].(float64)),

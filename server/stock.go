@@ -55,7 +55,7 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 		// ------------------------------------------------
 		oldtime := time.Unix(int64(kReq.KLine.Date), 0)
 		flakeid := s.rdb.TimeTravelReverseId(oldtime)
-		uuid1 := model.UniqueKeyFrom(kReq.Market, kReq.Symbol)
+		uuid1 := model.UniqueKeyFrom(kReq.Symbol)
 		k := model.NewKeyFrom(uuid1.Bytes(), flakeid[:])
 		_, err = model.KLine.Put(s.rdb, k, kReq.KLine)
 		if err != nil {
@@ -113,7 +113,7 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 		}
 		count++
 
-		kb := model.KeyFromString(req.Market, req.Symbol, "xdxr")
+		kb := model.KeyFromString(req.Symbol, "xdxr")
 		key := model.NewPrefixKeyFrom(model.TableStock, kb).String()
 		dividends[key] = append(dividends[key], req)
 	}
@@ -147,7 +147,7 @@ func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) e
 		}
 		count++
 
-		uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "Fundamental")
+		uuid1 := model.UniqueKeyFrom(req.Symbol, "Fundamental")
 		_, err = model.Stock.Put(s.rdb, uuid1.Bytes(), req)
 		if err != nil {
 			logger.Debugf("ArchiveFundamental error: %v", err)
@@ -253,7 +253,7 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 	}
 
 	for _, stock := range stocks {
-		if req.Market != "" && req.Market != stock.Market {
+		if req.Market != "" && !strings.HasSuffix(stock.Symbol, req.Market) {
 			continue
 		}
 
@@ -278,7 +278,7 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 // pb.Stock 包含最基本证券信息，进一步信息参见 StockInfo
 // TODO: optimise
 func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Stock, error) {
-	logger.Debugf("GetStock of <%s,%s>", req.Market, req.Symbol)
+	logger.Debugf("GetStock of <%s>", req.Symbol)
 	uuid1 := model.UniqueKeyFrom("stock", "list")
 	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
 
@@ -294,7 +294,7 @@ func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Sto
 		return nil, err
 	}
 	for _, stock := range stocks {
-		if req.Market == stock.Market && req.Symbol == stock.Symbol {
+		if req.Symbol == stock.Symbol {
 			return stock, nil
 		}
 	}
@@ -304,9 +304,9 @@ func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Sto
 // 获取证券基本信息
 // 证券所属行业等
 func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb.StockInfo, error) {
-	logger.Debugf("GetStock of <%s,%s>", req.Market, req.Symbol)
+	logger.Debugf("GetStock of <%s>", req.Symbol)
 
-	key := model.KeyFromString(req.Market, req.Symbol, "StockInfo")
+	key := model.KeyFromString(req.Symbol, "StockInfo")
 	msg := new(pb.StockInfo)
 	err := model.Stock.Get(s.rdb, key, msg)
 
@@ -319,8 +319,8 @@ func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb
 
 // 获取 XRXD 除权除息
 func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXDResponse, error) {
-	logger.Debugf("GetXRXD of <%s,%s>", req.Market, req.Symbol)
-	kb := model.KeyFromString(req.Market, req.Symbol, "xdxr")
+	logger.Debugf("GetXRXD of <%s>", req.Symbol)
+	kb := model.KeyFromString(req.Symbol, "xdxr")
 	key := model.NewPrefixKeyFrom(model.TableStock, kb)
 
 	// 存储除权除息信息
@@ -351,8 +351,8 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 
 // 获取 KLine bars 高开低收数据
 func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KLineResponse, error) {
-	logger.Debugf("GetKLines of <%s,%s,%d>", req.Market, req.Symbol, req.Bars)
-	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol)
+	logger.Debugf("GetKLines of <%s, %d>", req.Symbol, req.Bars)
+	uuid1 := model.UniqueKeyFrom(req.Symbol)
 	prefix := model.NewPrefixKeyFrom(model.TableKLine, uuid1.Bytes())
 	// fmt.Printf("scan key, %s\n", prefix.String())
 
@@ -378,9 +378,9 @@ func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KL
 
 // 获取证券财务信息
 func (s *ApiServer) GetFundamental(ctx context.Context, req *pb.StockRequest) (*pb.Fundamental, error) {
-	logger.Debugf("GetFundamental of <%s,%s>", req.Market, req.Symbol)
+	logger.Debugf("GetFundamental of <%s>", req.Symbol)
 
-	uuid1 := model.UniqueKeyFrom(req.Market, req.Symbol, "Fundamental")
+	uuid1 := model.UniqueKeyFrom(req.Symbol, "Fundamental")
 	msg := new(pb.Fundamental)
 	err := model.Stock.Get(s.rdb, uuid1.Bytes(), msg)
 
