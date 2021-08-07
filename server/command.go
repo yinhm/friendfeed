@@ -2,7 +2,9 @@ package server
 
 import (
 	"encoding/hex"
+	"fmt"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/cockroachdb/pebble"
@@ -35,8 +37,12 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.MarkDelete(cmd.Arg1)
 	case "SuperAdmin":
 		s.SuperAdmin(cmd.Arg1)
+	case "BackupDB":
+		s.BackupDB()
 	case "DBMetrics":
 		s.DBMetrics()
+	case "TempFix":
+		s.TempFix()
 	}
 
 	// TODO: nothing here
@@ -197,7 +203,7 @@ func (s *ApiServer) SuperAdmin(id string) (bool, error) {
 func (s *ApiServer) PurgePrefix(prefix store.Key) error {
 	db := s.rdb
 	batch := db.NewBatch()
-	prefix = append(prefix, prefix...)
+	prefix = append(prefix)
 	logger.Debugf("prefix range delete: %s", hex.EncodeToString(prefix))
 	err := batch.DeleteRange(prefix, store.KeyUpperBound(prefix), pebble.NoSync)
 	if err != nil {
@@ -216,5 +222,54 @@ func (s *ApiServer) DBMetrics() error {
 	db := s.rdb
 	metrics := db.Metrics()
 	logger.Printf("\n%s\n", metrics.String())
+	return nil
+}
+
+func (s *ApiServer) BackupDB() error {
+	log.Println("BackupDB...")
+
+	iter := s.rdb.Iterator()
+	defer iter.Close()
+
+	dt := time.Now()
+	backupFolder := fmt.Sprintf("backup-%d%d%d", dt.Year(), dt.Month(), dt.Day())
+	backupPath := filepath.Join("/tmp", backupFolder)
+	logger.Warnf("db backup to: %s", backupPath)
+
+	ndb := store.NewStore(backupPath)
+
+	ndb.SetSync(false)
+	defer ndb.SetSync(true)
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		ndb.Set(iter.Key(), iter.Value())
+	}
+	ndb.Close()
+	return nil
+}
+
+func (s *ApiServer) TempFix() error {
+	log.Println("TempFix...")
+
+	prefix := model.Profile.Prefix
+	_, err := s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+		msg := &pb.Profile{}
+		if err := proto.Unmarshal(v, msg); err != nil {
+			return err
+		}
+
+		shDesc := fmt.Sprintf("<%s, %s>", "SH", msg.Id)
+		szDesc := fmt.Sprintf("<%s, %s>", "SZ", msg.Id)
+		if len(msg.Id) == 6 &&
+			(msg.Description == shDesc || msg.Description == szDesc) {
+			logger.Warnf("deleting: %s", msg.Id)
+			return s.rdb.Delete(k)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
 	return nil
 }
