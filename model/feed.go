@@ -7,6 +7,7 @@ import (
 	"github.com/yinhm/friendfeed/store"
 )
 
+// Obsoleted, Feedinfo are virtual now
 func PutFeedinfo(db *store.Store, uuidStr string, info *pb.Feedinfo) error {
 	uuid1, err := uuid.FromString(uuidStr)
 	if err != nil {
@@ -17,6 +18,7 @@ func PutFeedinfo(db *store.Store, uuidStr string, info *pb.Feedinfo) error {
 	return err
 }
 
+// Obsoleted, Feedinfo are virtual now
 func GetFeedinfo(db *store.Store, uuidStr string) (*pb.Feedinfo, error) {
 	uuid1, err := uuid.FromString(uuidStr)
 	if err != nil {

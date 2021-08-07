@@ -1,0 +1,220 @@
+package server
+
+import (
+	"encoding/hex"
+	"log"
+	"time"
+
+	"github.com/cockroachdb/pebble"
+	"github.com/golang/protobuf/proto"
+	"github.com/yinhm/friendfeed/model"
+	"github.com/yinhm/friendfeed/pb"
+	"github.com/yinhm/friendfeed/store"
+	"golang.org/x/net/context"
+)
+
+func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.CommandResponse, error) {
+	switch cmd.Command {
+	case "ReportJobs":
+		s.DebugJobs()
+	case "ReportRunningJobs":
+		s.DebugRunningJobs()
+	case "PurgeJobs":
+		s.PurgeJobs()
+	case "FixTooMuchJobs":
+		s.FixTooMuchJobs()
+	case "RedoFailedJob":
+		s.RedoFailedJob()
+	case "RefetchUserFeed":
+		s.RefetchUserFeed()
+	case "TestJob":
+		s.TestJob()
+	case "PurgePrefix":
+		s.PurgePrefix(model.Feedinfo.Prefix)
+	case "MarkDelete":
+		s.MarkDelete(cmd.Arg1)
+	case "SuperAdmin":
+		s.SuperAdmin(cmd.Arg1)
+	case "DBMetrics":
+		s.DBMetrics()
+	}
+
+	// TODO: nothing here
+	return new(pb.CommandResponse), nil
+}
+
+func (s *ApiServer) DebugJobs() {
+	jobs, err := s.ListJobQueue(model.TableJobFeed)
+	if err != nil {
+		log.Println("err: ", err)
+	}
+	for _, job := range jobs {
+		log.Printf("New job: %s", job)
+	}
+}
+
+func (s *ApiServer) DebugRunningJobs() {
+	jobs, err := s.ListJobQueue(model.TableJobRunning)
+	if err != nil {
+		log.Println("err: ", err)
+	}
+	for _, job := range jobs {
+		log.Printf("Previoud running job: %s", job)
+	}
+}
+
+func (s *ApiServer) PurgeJobs() error {
+	log.Println("purging all jobs...")
+
+	prefix := model.TableJobFeed
+	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
+		return s.mdb.Delete(key)
+	})
+	if err != nil {
+		return err
+	}
+
+	prefix = model.TableJobRunning
+	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
+		return s.mdb.Delete(key)
+	})
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ApiServer) FixTooMuchJobs() error {
+	log.Println("too much jobs: purging peridoc jobs...")
+
+	prefix := model.TableJobFeed
+	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
+		job := &pb.FeedJob{}
+		if err := proto.Unmarshal(v, job); err != nil {
+			return err
+		}
+		if int(job.MaxLimit) == 99 {
+			return s.mdb.Delete(k)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	prefix = model.TableJobRunning
+	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
+		job := &pb.FeedJob{}
+		if err := proto.Unmarshal(v, job); err != nil {
+			return err
+		}
+		if int(job.MaxLimit) == 99 {
+			return s.mdb.Delete(k)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ApiServer) RedoFailedJob() error {
+	log.Println("redo failed jobs...")
+
+	prefix := model.TableJobRunning
+	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
+		job := &pb.FeedJob{}
+		if err := proto.Unmarshal(v, job); err != nil {
+			return err
+		}
+
+		_, err := s.EnqueJob(context.Background(), job)
+		if err != nil {
+			return s.mdb.Delete(k)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ApiServer) TestJob() error {
+	profile, _ := model.GetProfileFromUserId(s.mdb, "yinhm")
+	feedinfo := model.ProfileToFeedinfo(profile)
+	// only sync twitter service
+	graph := BuildGraph(feedinfo)
+	if _, ok := graph.Services["twitter"]; !ok {
+		return nil
+	}
+
+	service := graph.Services["twitter"]
+	if service.Oauth == nil {
+		return nil
+	}
+	job := &pb.FeedJob{
+		Uuid:    feedinfo.Uuid,
+		Id:      feedinfo.Id,
+		Profile: profile,
+		Service: service,
+		Start:   0,
+		Created: time.Now().Unix(),
+		Updated: time.Now().Unix(),
+	}
+
+	_, err := s.EnqueJob(context.Background(), job)
+	return err
+}
+
+func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
+	profile, err := model.GetProfileFromUserId(s.mdb, feedId)
+	if err != nil {
+		return false, err
+	}
+	profile.Deleted = true
+	model.UpdateProfile(s.mdb, profile)
+	return true, nil
+}
+
+// Mark user as superadmin
+// re-run will remove user from superadmin
+func (s *ApiServer) SuperAdmin(id string) (bool, error) {
+	profile, err := model.GetProfileFromUserId(s.mdb, id)
+	if err != nil {
+		return false, err
+	}
+	profile.IsSuper = !profile.IsSuper
+	model.UpdateProfile(s.mdb, profile)
+	logger.Warnf("SuperAdmin toggle: <%s, is_super=%t>", profile.Id, profile.IsSuper)
+	return true, nil
+}
+
+func (s *ApiServer) PurgePrefix(prefix store.Key) error {
+	db := s.rdb
+	batch := db.NewBatch()
+	prefix = append(prefix, prefix...)
+	logger.Debugf("prefix range delete: %s", hex.EncodeToString(prefix))
+	err := batch.DeleteRange(prefix, store.KeyUpperBound(prefix), pebble.NoSync)
+	if err != nil {
+		return err
+	}
+	if err = batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	if err = batch.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ApiServer) DBMetrics() error {
+	db := s.rdb
+	metrics := db.Metrics()
+	logger.Printf("\n%s\n", metrics.String())
+	return nil
+}
