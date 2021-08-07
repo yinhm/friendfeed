@@ -41,8 +41,8 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		s.BackupDB()
 	case "DBMetrics":
 		s.DBMetrics()
-	case "TempFix":
-		s.TempFix()
+	case "CreateSystemProfile":
+		s.CreateSystemProfile()
 	}
 
 	// TODO: nothing here
@@ -271,5 +271,25 @@ func (s *ApiServer) TempFix() error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (s *ApiServer) CreateSystemProfile() error {
+	log.Println("CreateSystemProfile...")
+
+	// for stock backtesting
+	feedinfo := &pb.Feedinfo{
+		Uuid:        fmt.Sprintf("%x", model.UniqueKeyFrom("hiqt")),
+		Id:          "hiqt",
+		Name:        "hiqt",
+		Type:        "group",
+		Private:     false,
+		Description: fmt.Sprintf("<%s>", "hiqt"),
+	}
+	_, err := s.PostFeedinfo(context.Background(), feedinfo)
+	if err != nil {
+		return err
+	}
+	logger.Debugf("Profile created: <%s, %s>", "hiqt", feedinfo.Uuid)
 	return nil
 }
