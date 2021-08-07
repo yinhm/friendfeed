@@ -159,7 +159,6 @@ func syncKline() error {
 	}
 
 	stream, err := agent.client.ArchiveKLine(context.Background())
-	defer stream.CloseAndRecv()
 	if err != nil {
 		return err
 	}
@@ -214,6 +213,9 @@ func syncKline() error {
 			}
 		}
 	}
+
+	summary, err := stream.CloseAndRecv()
+	log.Printf("klines count: %d, elapsed time: %d seconds", summary.Count, summary.ElapsedTime)
 	return nil
 }
 
