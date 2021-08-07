@@ -66,6 +66,7 @@ service Api {
   rpc GetStockInfo(StockRequest) returns (StockInfo) {}
   rpc GetFundamental(StockRequest) returns (Fundamental) {}
   rpc DeleteRawdata(Rawdata) returns (Response) {}
+  rpc SendReport(Report) returns (Response) {}
 }
 
 message Response {

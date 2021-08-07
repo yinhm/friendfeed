@@ -130,3 +130,10 @@ message Rawdata {
   string data_type = 6;  // 数据类型
   bytes body = 2;
 }
+
+message Report {
+  string symbol = 1;
+  string job_id = 2;
+  string type = 3;  // 数据类型
+  string body = 4;
+}

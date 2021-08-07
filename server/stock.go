@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
@@ -467,4 +468,39 @@ func (s *ApiServer) DeleteRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Res
 	}
 
 	return &pb.Response{IsSuccess: true}, nil
+}
+
+// 发布报告到 Symbol 对应 Feed
+func (s *ApiServer) SendReport(ctx context.Context, req *pb.Report) (*pb.Response, error) {
+	logger.Debugf("SendReport: <%s, %s>", req.Symbol, req.Type)
+
+	profile, err := model.GetProfileFromUserId(s.rdb, req.Symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	dt := time.Now().UTC()
+	name := fmt.Sprintf("%x", profile.Uuid) + "/" + dt.Format(time.RFC3339)
+	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
+
+	entry := &pb.Entry{
+		Id:          fmt.Sprintf("%x", uuid1),
+		RawBody:     req.Body,
+		Body:        req.Body,
+		Date:        dt.Format(time.RFC3339),
+		FeedUuid:    profile.Uuid,
+		ProfileUuid: profile.Uuid,
+	}
+
+	// from is a must
+	from := &pb.Feed{
+		Id:      profile.Id,
+		Name:    profile.Name,
+		Type:    profile.Type,
+		Picture: profile.Picture,
+	}
+	entry.From = from
+
+	_, err = s.PostEntry(ctx, entry)
+	return &pb.Response{IsSuccess: true}, err
 }
