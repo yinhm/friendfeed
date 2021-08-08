@@ -296,6 +296,7 @@ export class Entry extends React.Component {
             id={entry.id}
             body={entry.body}
             rawBody={entry.rawBody}
+            type={entry.type}
             onpageEdit={edit_mode}
             onPostEntry={this.onPostEntry} />
           {medias}

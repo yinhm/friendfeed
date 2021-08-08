@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import OnPageEditor from './editor';
 import { FeedContext } from './context'
+import { Tabular } from './table'
 
 
 export function EntryContent(props) {
@@ -22,10 +23,9 @@ export function EntryContent(props) {
         );
     }
 
-    if (feedCfg.onpage === true) {
+    if (feedCfg.onpage && props.type == "tabular") {
         return (
-            <div className="content" dangerouslySetInnerHTML={{ __html: props.body }}>
-            </div>
+            <Tabular rawBody={props.rawBody} />
         );
     }
     return (

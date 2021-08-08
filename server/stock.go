@@ -490,6 +490,7 @@ func (s *ApiServer) SendReport(ctx context.Context, req *pb.Report) (*pb.Respons
 		Date:        dt.Format(time.RFC3339),
 		FeedUuid:    profile.Uuid,
 		ProfileUuid: profile.Uuid,
+		Type:        "tabular",
 	}
 
 	// from is a must

@@ -253,6 +253,7 @@ message Entry {
   // TODO: duplicated with from field
   string profile_uuid = 16;
   string feed_uuid = 18;
+  string type = 19;
 }
 
 // Comment
