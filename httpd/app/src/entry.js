@@ -294,6 +294,7 @@ export class Entry extends React.Component {
           }
           <EntryContent
             id={entry.id}
+            title={entry.title}
             body={entry.body}
             rawBody={entry.rawBody}
             type={entry.type}

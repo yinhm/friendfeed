@@ -135,5 +135,6 @@ message Report {
   string symbol = 1;
   string job_id = 2;
   string type = 3;  // 数据类型
-  string body = 4;
+  string title = 4;
+  string body = 5;
 }

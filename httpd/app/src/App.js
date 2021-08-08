@@ -54,14 +54,14 @@ function FeedHeader(props) {
   var followBtn = "";
   if (commands) {
     var command = commands[0];
-    if (command == "follow") {
+    if (command === "follow") {
       followBtn = (
         <a href="#nolink" onClick={handleFollow}>
           Follow
         </a>
       )
     }
-    if (command == "unfollow") {
+    if (command === "unfollow") {
       followBtn = (
         <a href="#nolink" onClick={handleUnfollow}>
           Unfollow
@@ -73,7 +73,7 @@ function FeedHeader(props) {
   return (
     <div className="header">
       <div className="picture"><a href={"/feed/" + props.feedId}>
-        <img src={props.picture} /></a>
+        <img src={props.picture} alt="" /></a>
       </div>
       <div className="body">
         <h1><a href={"/feed/" + props.feedId}>{props.name}</a></h1>

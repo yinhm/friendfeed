@@ -23,9 +23,16 @@ export function EntryContent(props) {
         );
     }
 
-    if (feedCfg.onpage && props.type == "tabular") {
+    if (props.type === "tabular") {
+        if (feedCfg.onpage) {
+            return (
+                <Tabular rawBody={props.rawBody} />
+            );
+        }
         return (
-            <Tabular rawBody={props.rawBody} />
+            <div className="content">
+                {props.title}
+            </div>
         );
     }
     return (

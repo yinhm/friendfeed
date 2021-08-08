@@ -1,29 +1,27 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { useTable } from 'react-table'
 
-function valueAccessor(row, index) {
-    return row[index];
-}
-
-function isFloat() {
-    
-}
 
 export function Tabular(props) {
-
     const rawdata = JSON.parse(props.rawBody);
-    const rawcolumns = rawdata.columns;
-    const data = rawdata.data;
+    // const data = rawdata.data;
+
+    // const memoData = React.useMemo(() => {
+    //     return data;
+    // }, [data])
+    const data = React.useMemo(() => rawdata.data, [rawdata])
 
     const columns = React.useMemo(() => {
-        return rawcolumns.map(function (column, index) {
+        return rawdata.columns.map(function (column, index) {
             return {
                 id: "header" + index,
                 Header: column,
-                accessor: (row, index) => row[index],
+                accessor: (row, idx) => {
+                    return row[index]
+                }
             };
         });
-    }, [rawcolumns])
+    }, [rawdata])
 
     const {
         getTableProps,

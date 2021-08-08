@@ -485,6 +485,7 @@ func (s *ApiServer) SendReport(ctx context.Context, req *pb.Report) (*pb.Respons
 
 	entry := &pb.Entry{
 		Id:          fmt.Sprintf("%x", uuid1),
+		Title:       req.Title,
 		RawBody:     req.Body,
 		Body:        req.Body,
 		Date:        dt.Format(time.RFC3339),
