@@ -4,51 +4,71 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>{{ title|escape }} - FriendFeed</title>
     <meta name="viewport" content="initial-scale=1, maximum-scale=1" />
+    <link rel="stylesheet" href="/static/css/pure-min.css">
     <link rel="stylesheet" href="/static/css/style.css?v=22">
 </head>
 
 <body>
-    <div class="page">
-
-        <div class="menu">
-            <div class="section">
-                <h3><a href="/">Friends</a></h3>
-                <ul>
-                    <li><a href="/">Homepage</a></li>
-                    {% if current_user %}
-                    <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
-                    <li><a href="/public">Public</a></li>
-                    {% endif %}
-                    <!-- <li><a href="/summary/1">Best of day</a></li> -->
+    {%if onpage %}
+    <div class="pure-g topmenu">
+        <div class="pure-u-1">
+            <div class="pure-menu pure-menu-horizontal">
+                <a href="/" class="pure-menu-heading pure-menu-link">Homepage</a>
+                <ul class="pure-menu-list">
+                    <li class="pure-menu-item">
+                        <a href="/public" class="pure-menu-link">Public</a>
+                    </li>
                 </ul>
-            </div>
-
-            <div class="section">
-                <h3>Login</h3>
-                <ul>
-                    {% if current_user %}
-                    <li><a href="/logout">Logout</a></li>
-                    {% else %}
-                    <li><a href="/auth/twitter">Twitter</a></li>
-                    <li><a href="/auth/google">Google</a></li>
-                    {% endif %}
-                </ul>
-            </div>
-
-            <div class="section">
-                <h3>Service</h3>
-                <ul>
-                    <li><a href="/account/import">Import</a></li>
-                </ul>
-            </div>
-
-            <div id="search">
             </div>
         </div>
+    </div>
+    {% endif %}
 
+    <div class="pure-g page">
 
-        {% block content %} {% endblock %}
+        <div class="pure-u-4-5">
+            {% block content %} {% endblock %}
+        </div>
 
+        {%if !onpage %}
+        <div class="pure-u-1-5">
+            <div class="menu">
+                <div class="section">
+                    <h3><a href="/">Friends</a></h3>
+                    <ul>
+                        <li><a href="/">Homepage</a></li>
+                        {% if current_user %}
+                        <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
+                        <li><a href="/public">Public</a></li>
+                        {% endif %}
+                        <!-- <li><a href="/summary/1">Best of day</a></li> -->
+                    </ul>
+                </div>
+
+                <div class="section">
+                    <h3>Login</h3>
+                    <ul>
+                        {% if current_user %}
+                        <li><a href="/logout">Logout</a></li>
+                        {% else %}
+                        <li><a href="/auth/twitter">Twitter</a></li>
+                        <li><a href="/auth/google">Google</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <div class="section">
+                    <h3>Service</h3>
+                    <ul>
+                        <li><a href="/account/import">Import</a></li>
+                    </ul>
+                </div>
+
+                <div id="search">
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
     </div>
 

@@ -1,36 +1,6 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<!-- 
-  {% if show_header %}
-    <div class="header">
-      <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
-      <div class="body">
-        <h1><a href="/feed/{{ feed.Id }}">{{ feed.Name|escape }}</a></h1>
-        {% if feed.Description %}
-          <div class="description">{{ feed.Description }}</div>
-        {% endif %}
-        {% for command in feed.Commands %}
-          {% ifequal command "subscribe" %}
-            <form method="post" action="/a/subscribe">
-              <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
-              <input type="hidden" name="feed" value="{{ feed.Id }}"/>
-              <input type="submit" value="Subscribe"/>
-    	</form>
-          {% endifequal %}
-          {% ifequal command "unsubscribe" %}
-    	<form method="post" action="/a/unsubscribe">
-              <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
-              <input type="hidden" name="feed" value="{{ feed.Id }}"/>
-              <input type="submit" value="Unsubscribe"/>
-    	</form>
-          {% endifequal %}
-        {% endfor %}
-      </div>
-      <div class="clear"></div>
-    </div>
-  {% endif %} -->
-
   <div id="root">
     {{feed_body|safe}}
   </div>
