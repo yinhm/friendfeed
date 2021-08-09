@@ -2,26 +2,30 @@ import React from 'react';
 import { useTable } from 'react-table'
 
 
-export function Tabular(props) {
-    const rawdata = JSON.parse(props.rawBody);
-    // const data = rawdata.data;
+export function Tabular({columns, data, getCellProps}) {
 
-    // const memoData = React.useMemo(() => {
-    //     return data;
-    // }, [data])
-    const data = React.useMemo(() => rawdata.data, [rawdata])
+    // WARN: make sure pass columns and data from parent.
+    //
+    // Maximum update depth exceeded error even using React.useMemo
+    // TLDR
+    // https://github.com/tannerlinsley/react-table/issues/2369
 
-    const columns = React.useMemo(() => {
-        return rawdata.columns.map(function (column, index) {
-            return {
-                id: "header" + index,
-                Header: column,
-                accessor: (row, idx) => {
-                    return row[index]
-                }
-            };
-        });
-    }, [rawdata])
+    // const rawdata = JSON.parse(rawBody);
+    // console.log(rawdata);
+
+    // const data = React.useMemo(() => rawdata.data, [rawdata.data])
+
+    // const columns = React.useMemo(() => {
+    //     return rawdata.columns.map(function (column, index) {
+    //         return {
+    //             id: "header" + index,
+    //             Header: column,
+    //             accessor: (row, idx) => {
+    //                 return row[index]
+    //             }
+    //         };
+    //     });
+    // }, [rawdata.columns])
 
     const {
         getTableProps,
@@ -60,12 +64,14 @@ export function Tabular(props) {
                             {row.cells.map(cell => {
                                 return (
                                     <td
-                                        {...cell.getCellProps()}
-                                        style={{
-                                            padding: '10px',
-                                            border: 'solid 1px gray',
-                                            background: 'papayawhip',
-                                        }}
+                                        // Return an array of prop objects and react-table will merge them appropriately
+                                        {...cell.getCellProps([
+                                            {
+                                                className: cell.column.className,
+                                                style: cell.column.style,
+                                            },
+                                            getCellProps(cell),
+                                        ])}
                                     >
                                         {cell.render('Cell')}
                                     </td>

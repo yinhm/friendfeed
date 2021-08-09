@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -38,11 +37,13 @@ func (s *Server) EntryHandler(c *gin.Context) {
 	}
 
 	entry := feed.Entries[0]
-	fmt.Println(entry)
-	title := htmlSanitizer.Sanitize(entry.Body)
-	titleUtf8 := utf8string.NewString(title)
-	if titleUtf8.RuneCount() > 42 {
-		title = titleUtf8.Slice(0, 42)
+	title := entry.Title
+	if title == "" {
+		title = htmlSanitizer.Sanitize(entry.Body)
+		titleUtf8 := utf8string.NewString(title)
+		if titleUtf8.RuneCount() > 42 {
+			title = titleUtf8.Slice(0, 42)
+		}
 	}
 	data := pongo2.Context{
 		"title":       title,
