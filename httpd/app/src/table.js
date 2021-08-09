@@ -36,19 +36,13 @@ export function Tabular({columns, data, getCellProps}) {
     } = useTable({ columns, data })
 
     return (
-        <table {...getTableProps()} style={{ border: 'solid 1px blue' }}>
+        <table {...getTableProps()}>
             <thead>
                 {headerGroups.map(headerGroup => (
                     <tr {...headerGroup.getHeaderGroupProps()}>
                         {headerGroup.headers.map(column => (
                             <th
                                 {...column.getHeaderProps()}
-                                style={{
-                                    borderBottom: 'solid 3px red',
-                                    background: 'aliceblue',
-                                    color: 'black',
-                                    fontWeight: 'bold',
-                                }}
                             >
                                 {column.render('Header')}
                             </th>
