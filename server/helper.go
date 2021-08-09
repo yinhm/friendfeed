@@ -30,9 +30,23 @@ func FormatEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
 
 func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	// refetch user profile
-	profile, err := model.GetProfileFromUserId(mdb, entry.From.Id)
-	if err != nil {
-		return err
+	var err error
+	var profile *pb.Profile
+	if entry.From != nil {
+		profile, err = model.GetProfileFromUserId(mdb, entry.From.Id)
+		if err != nil {
+			return err
+		}
+	} else {
+		uuid1, err := uuid.FromString(entry.ProfileUuid)
+		if err != nil {
+			return err
+		}
+		profile, err = model.GetProfileFromUuid(mdb, uuid1)
+		if err != nil {
+			return err
+		}
+		entry.From = &pb.Feed{Id: profile.Id}
 	}
 	entry.From.Picture = profile.Picture
 	return nil
