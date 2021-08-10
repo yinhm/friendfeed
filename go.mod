@@ -5,7 +5,6 @@ go 1.16
 require (
 	cloud.google.com/go v0.90.0 // indirect
 	cloud.google.com/go/storage v1.16.0
-	github.com/BurntSushi/toml v0.4.0 // indirect
 	github.com/DataDog/zstd v1.4.8 // indirect
 	github.com/RoaringBitmap/roaring v0.9.2 // indirect
 	github.com/blevesearch/bleve/v2 v2.0.7
@@ -30,7 +29,6 @@ require (
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-ego/gse v0.67.0
-	github.com/go-gota/gota v0.11.0
 	github.com/go-playground/validator/v10 v10.6.1 // indirect
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
@@ -39,7 +37,6 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/compress v1.13.3 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/markbates/goth v1.67.1
 	github.com/mattn/go-isatty v0.0.13 // indirect
@@ -52,14 +49,13 @@ require (
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/ugorji/go v1.2.6 // indirect
-	github.com/yinhm/ctdx v0.0.0-20210805065125-b339652dbcda
 	go.etcd.io/bbolt v1.3.6 // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
 	golang.org/x/exp v0.0.0-20210729172720-737cce5152fc
+	golang.org/x/image v0.0.0-20210216034530-4410531fe030 // indirect
 	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d
 	golang.org/x/oauth2 v0.0.0-20210805134026-6f1e6394065a
 	golang.org/x/sys v0.0.0-20210806184541-e5e7981a1069 // direct
-	gonum.org/v1/gonum v0.9.3 // indirect
 	google.golang.org/api v0.52.0
 	google.golang.org/genproto v0.0.0-20210805201207-89edb61ffb67 // indirect
 	google.golang.org/grpc v1.39.1
