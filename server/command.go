@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 	"golang.org/x/net/context"
+	"google.golang.org/protobuf/proto"
 )
 
 func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.CommandResponse, error) {
@@ -203,7 +203,6 @@ func (s *ApiServer) SuperAdmin(id string) (bool, error) {
 func (s *ApiServer) PurgePrefix(prefix store.Key) error {
 	db := s.rdb
 	batch := db.NewBatch()
-	prefix = append(prefix)
 	logger.Debugf("prefix range delete: %s", hex.EncodeToString(prefix))
 	err := batch.DeleteRange(prefix, store.KeyUpperBound(prefix), pebble.NoSync)
 	if err != nil {

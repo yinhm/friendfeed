@@ -5,10 +5,10 @@ import (
 	"math/rand"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
@@ -52,10 +52,12 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	return nil
 }
 
+//lint:ignore U1000 keep it
 func fmtComments(req *pb.FeedRequest, entry *pb.Entry) {
 	entry.FormatComments(req.MaxComments)
 }
 
+//lint:ignore U1000 keep it
 func fmtLikes(req *pb.FeedRequest, entry *pb.Entry) {
 	entry.FormatLikes(req.MaxLikes)
 }
@@ -101,7 +103,7 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 	logger.Infof("ForwardFetchFeed: %s", preKey.String())
 
 	url := ""
-	_, err = db.ForwardScan(preKey, func(i int, k, v []byte) error {
+	_, _ = db.ForwardScan(preKey, func(i int, k, v []byte) error {
 		// logger.Debugf("entry key: <%x>", v)
 		entry := new(pb.Entry)
 		rawdata, err := db.Get(v) // index value point to entry key
@@ -114,7 +116,7 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 
 		dice := rand.Intn(10)
 		logger.Debugf("entry key: <%x, dice: %d>", hex.EncodeToString(k), dice)
-		if 5 == dice {
+		if dice == 5 {
 			url = entry.Thumbnails[0].Url
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
 		}

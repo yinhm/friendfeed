@@ -4,7 +4,6 @@ go 1.16
 
 require (
 	cloud.google.com/go v0.90.0 // indirect
-	cloud.google.com/go/storage v1.16.0
 	github.com/DataDog/zstd v1.4.8 // indirect
 	github.com/RoaringBitmap/roaring v0.9.2 // indirect
 	github.com/blevesearch/bleve/v2 v2.0.7
@@ -32,8 +31,6 @@ require (
 	github.com/go-playground/validator/v10 v10.6.1 // indirect
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
-	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/compress v1.13.3 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
@@ -56,9 +53,9 @@ require (
 	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d
 	golang.org/x/oauth2 v0.0.0-20210805134026-6f1e6394065a
 	golang.org/x/sys v0.0.0-20210806184541-e5e7981a1069 // direct
-	google.golang.org/api v0.52.0
 	google.golang.org/genproto v0.0.0-20210805201207-89edb61ffb67 // indirect
 	google.golang.org/grpc v1.39.1
+	google.golang.org/protobuf v1.27.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	launchpad.net/goyaml v0.0.0-20140305200416-000000000051 // indirect
 )

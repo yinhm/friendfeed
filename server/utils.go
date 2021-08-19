@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"net/url"
 )
 
 func CheckRedirect(reqUrl string) (bool, string, int) {
@@ -12,8 +11,7 @@ func CheckRedirect(reqUrl string) (bool, string, int) {
 	if err != nil {
 		return false, "", 502
 	}
-	lv := &url.URL{}
-	lv, err = r.Location()
+	lv, err := r.Location()
 	if err == nil {
 		reqUrl = lv.String()
 	}

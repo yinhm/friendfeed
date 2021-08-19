@@ -3,8 +3,8 @@ package model
 import (
 	"errors"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 var ErrNotFound = errors.New("db: key not found or no value")

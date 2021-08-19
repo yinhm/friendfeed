@@ -2,7 +2,7 @@ package store
 
 import (
 	"github.com/cockroachdb/pebble"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 // iterator is a wrapper around a pebble.Iterator

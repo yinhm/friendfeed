@@ -12,7 +12,6 @@ import (
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
@@ -23,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 var logger *logrus.Logger
@@ -54,7 +54,7 @@ func init() {
 		TimestampFormat: time.RFC3339,
 		DisableSorting:  true,
 	})
-	grpclog.SetLogger(logger)
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(logger.Out, logger.Out, logger.Out))
 }
 
 // SetLevel sets the standard logger level.
@@ -86,14 +86,9 @@ func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
 	if err != nil {
 		log.Fatal("no config file")
 	}
-	// TODO: fix lazy hack for local dev.
-	// if no key file then go google storage.
-	if _, err := os.Stat(config.KeyFile); err == nil {
-		srv.fs = media.NewGoogleStorage(config)
-	} else {
-		srv.fs = media.NewLocalStorage(config)
-	}
 
+	// remove google storage in favor of local storage
+	srv.fs = media.NewLocalStorage(config)
 	return srv
 }
 
@@ -298,7 +293,7 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 		}
 		thumb.Url = newObj.Url // rewrote to mirrored
 
-		newObj, err = client.FromUrl("", thumb.Link, "")
+		_, err = client.FromUrl("", thumb.Link, "")
 		if err != nil {
 			// log.Println("Mirror media failed:", err)
 			continue
@@ -394,7 +389,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	if req.ProfileUuid != "" { // user timeline
 		profileUuid, _ := uuid.FromString(req.ProfileUuid)
-		profile, err = model.GetProfileFromUuid(s.mdb, profileUuid)
+		profile, _ = model.GetProfileFromUuid(s.mdb, profileUuid)
 		fanoutUuid := model.UniqueKeyFrom(fmt.Sprintf("%x", profileUuid), "user", "timeline")
 		prefix = store.NewUUIDKey(model.TableEntryIndex, fanoutUuid).Bytes()
 	} else { // from user.id
@@ -619,7 +614,6 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 		fmt.Printf("%s\n", rv)
 
 		// logger.Debugf("search.index.key: <%s>", hit.ID)
-		entry := new(pb.Entry)
 		entry, err := model.GetEntry(s.rdb, hit.ID)
 		if err != nil {
 			logger.Warnf("search: entry data missing: %s", hit.ID)

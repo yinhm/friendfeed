@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/yinhm/friendfeed/model"
@@ -18,6 +17,7 @@ import (
 	"github.com/yinhm/friendfeed/store"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 type RpcTestSuite struct {
@@ -88,7 +88,7 @@ func (s *RpcTestSuite) TestServerJob() {
 	err = proto.Unmarshal(bytes, s.job)
 	assert.Nil(s.T(), err)
 
-	key = store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
+	// key = store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
 	// iter := s.srv.mdb.Iterator()
 	// iter.Seek(key.Prefix().Bytes())
 	// defer iter.Close()
@@ -99,7 +99,7 @@ func (s *RpcTestSuite) TestServerJob() {
 	assert.Equal(s.T(), got.Key, s.job.Key)
 	assert.Equal(s.T(), got.Id, s.job.Id)
 
-	got, err = s.srv.dequeJob()
+	_, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)
 }
 
@@ -109,6 +109,7 @@ func (s *RpcTestSuite) TestMdbReopen() {
 	s.job.Key = key.String()
 
 	bytes, err := proto.Marshal(s.job)
+	assert.Nil(s.T(), err)
 	err = s.srv.mdb.Put(key.Bytes(), bytes)
 	assert.Nil(s.T(), err)
 
@@ -130,7 +131,9 @@ func (s *RpcTestSuite) TestReopenDeque() {
 	mdb := s.srv.mdb
 
 	bytes, err := proto.Marshal(s.job)
+	assert.Nil(s.T(), err)
 	err = mdb.Put(key.Bytes(), bytes)
+	assert.Nil(s.T(), err)
 
 	_, err = s.srv.dequeJob()
 	assert.Nil(s.T(), err)

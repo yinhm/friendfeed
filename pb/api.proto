@@ -4,7 +4,7 @@
 syntax = "proto3";
 
 package pb;
-option go_package = "github.com/yinhm/friendfeed/pb";
+option go_package = ".;pb";
 
 import "feed.proto";
 import "stock.proto";

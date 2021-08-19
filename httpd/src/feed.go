@@ -8,9 +8,9 @@ import (
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/glog"
-	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
+	"google.golang.org/protobuf/proto"
 )
 
 func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profile, feed *pb.Feed, err error) {
@@ -19,6 +19,7 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 
 	var format = false
 
+	//lint:ignore S1034 DO KNOW HOW
 	switch req.(type) {
 	case *pb.FeedRequest:
 		feed, err = s.client.FetchFeed(ctx, req.(*pb.FeedRequest))

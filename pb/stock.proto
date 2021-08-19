@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package pb;
-option go_package = "github.com/yinhm/friendfeed/pb";
+option go_package = ".;pb";
 
 message Stock{
   string market = 1;     // 证券市场

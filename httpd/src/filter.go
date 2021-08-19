@@ -20,7 +20,7 @@ func init() {
 func timeSince(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
 	errMsg := &pongo2.Error{
 		Sender:    "filter:timeuntil/timesince",
-		OrigError: errors.New("time-value is not a time.Time string."),
+		OrigError: errors.New("time-value is not a time.Time string"),
 	}
 
 	dateStr, ok := in.Interface().(string)

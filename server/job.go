@@ -6,11 +6,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 	"golang.org/x/net/context"
+	"google.golang.org/protobuf/proto"
 )
 
 func (s *ApiServer) RefetchJobTicker() {
@@ -126,7 +126,7 @@ func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
 	})
 
 	if job == nil {
-		return nil, fmt.Errorf("No more job available")
+		return nil, fmt.Errorf("no more job available")
 	}
 
 	kb, _ := hex.DecodeString(job.Key)
