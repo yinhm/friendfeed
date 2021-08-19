@@ -3,19 +3,12 @@ package media
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
-
-	"cloud.google.com/go/storage"
-	gcs "cloud.google.com/go/storage"
-	"golang.org/x/net/context"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/option"
 )
 
 const (
@@ -152,7 +145,7 @@ func NewLocalStorage(config *Config) *LocalStorage {
 }
 
 func (c *LocalStorage) Exists(name string) (bool, error) {
-	return false, fmt.Errorf("not implemented yet.")
+	return false, errors.New("not implemented yet")
 }
 
 func (c *LocalStorage) Mirror(obj *Object) (*Object, error) {
@@ -164,139 +157,5 @@ func (c *LocalStorage) FromUrl(filename, src, mimetype string) (*Object, error) 
 }
 
 func (c *LocalStorage) Post(obj *Object) (*Object, error) {
-	return nil, fmt.Errorf("not implemented yet.")
-}
-
-type GoogleStorage struct {
-	ctx    context.Context
-	bucket string
-	client *storage.Client
-}
-
-func NewGoogleStorage(config *Config) *GoogleStorage {
-	jsonKey, err := ioutil.ReadFile(config.KeyFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	conf, err := google.JWTConfigFromJSON(
-		jsonKey,
-		gcs.ScopeFullControl,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	httpClient := conf.Client(oauth2.NoContext)
-	ctx := context.Background()
-	client, err := storage.NewClient(ctx, option.WithHTTPClient(httpClient))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return &GoogleStorage{
-		ctx:    ctx,
-		bucket: config.Bucket,
-		client: client,
-	}
-}
-
-func (c *GoogleStorage) Exists(name string) (bool, error) {
-	_, err := c.client.Bucket(c.bucket).Object(name).Attrs(c.ctx)
-	if err == storage.ErrObjectNotExist {
-		return false, err
-	}
-	return true, nil
-}
-
-func (c *GoogleStorage) FromUrl(filename, src, mimetype string) (*Object, error) {
-	parsed, err := url.Parse(src)
-	if err != nil {
-		return nil, fmt.Errorf("Can not parse: %s", src)
-	}
-	newpath := strings.TrimLeft(parsed.Path, "/")
-	if filename == "" {
-		filename = newpath
-	}
-	obj := &Object{
-		Filename: filename,
-		Path:     newpath,
-		Url:      src,
-	}
-	if mimetype != "" {
-		obj.MimeType = mimetype
-	}
-
-	return c.Mirror(obj)
-}
-
-func (c *GoogleStorage) Mirror(obj *Object) (*Object, error) {
-	gcsObj, err := c.client.Bucket(c.bucket).Object(obj.Path).Attrs(c.ctx)
-	if err != nil {
-		return c.Post(obj)
-	}
-
-	newPath := c.bucket + "/" + gcsObj.Name
-	newUrl := "https://storage.googleapis.com/" + newPath
-	newObj := &Object{
-		Filename: obj.Filename,
-		Bucket:   c.bucket,
-		Path:     newPath,
-		MimeType: gcsObj.ContentType,
-		Url:      newUrl,
-	}
-	return newObj, nil
-}
-
-func (c *GoogleStorage) Post(obj *Object) (*Object, error) {
-	_, err := c.fetch(obj)
-	if err != nil {
-		log.Println("error on read url:", obj.Url, err)
-		return nil, err
-	}
-
-	// path = obj.path
-	wc := c.client.Bucket(c.bucket).Object(obj.Path).NewWriter(c.ctx)
-
-	wc.ContentType = obj.MimeType
-	if _, err := wc.Write(obj.Content); err != nil {
-		log.Printf("error on write data: %s", err)
-		return nil, err
-	}
-	if err := wc.Close(); err != nil {
-		log.Printf("error on close writer: %s", err)
-		return nil, err
-	}
-
-	newUrl := "https://storage.googleapis.com/" + c.bucket + "/" + wc.Name
-	newObj := &Object{
-		Filename: obj.Filename,
-		Bucket:   c.bucket,
-		Path:     wc.Name, // without bucket
-		MimeType: obj.MimeType,
-		Url:      newUrl,
-	}
-
-	return newObj, nil
-}
-
-// fetch file from url
-func (c *GoogleStorage) fetch(obj *Object) (*http.Response, error) {
-	resp, err := http.Get(obj.Url)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return resp, err
-	}
-
-	mimeType := resp.Header.Get("Content-Type")
-	// contentDisposition := resp.Header.Get("Content-Disposition")
-	if obj.MimeType == "" {
-		obj.MimeType = mimeType
-	}
-
-	obj.Content = body
-	return resp, nil
+	return nil, errors.New("not implemented yet")
 }
