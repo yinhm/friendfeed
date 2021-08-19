@@ -18,6 +18,7 @@
 syntax = "proto3";
 
 package pb;
+option go_package = "github.com/yinhm/friendfeed/pb";
 
 enum FeedType {
   user = 0;
