@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ReactEditor } from 'slate-react';
 import { Node, Editor, Transforms } from 'slate'
 import {
-  SlatePlugins,
+  Plate,
   createDeserializeHTMLPlugin,
   serializeHTMLFromNodes,
   deserializeHTMLToDocumentFragment,
-  useSlatePluginsActions,
+  usePlateActions,
   useStoreEditorRef,
-} from '@udecode/slate-plugins';
+} from '@udecode/plate';
 
 
 import {
@@ -48,7 +48,7 @@ const OnPageEditor = ({
     const editorRef = useStoreEditorRef(eid);
     const [focused, setFocused] = useState(false);
     const [editorValue, setEditorValue] = useState(null);
-    const { setValue, resetEditor } = useSlatePluginsActions(eid);
+    const { setValue, resetEditor } = usePlateActions(eid);
 
     const plugins = useMemo(() => {
         const p = [...defaultPlugins];
@@ -127,7 +127,7 @@ const OnPageEditor = ({
     return (
         <div className="sharebox">
             <InlineToolbarElements />
-            <SlatePlugins
+            <Plate
                 id={eid}
                 plugins={plugins}
                 components={components}

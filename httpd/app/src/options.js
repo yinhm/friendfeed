@@ -14,8 +14,8 @@ import { LooksOne } from '@styled-icons/material/LooksOne';
 import { LooksTwo } from '@styled-icons/material/LooksTwo';
 
 import {
-    createSlatePluginsComponents,
-    createSlatePluginsOptions,
+    createPlateComponents,
+    createPlateOptions,
     createEditorPlugins,
     createReactPlugin,
     createHistoryPlugin,
@@ -49,7 +49,7 @@ import {
     ELEMENT_TODO_LI,
     ELEMENT_PARAGRAPH,
     ELEMENT_IMAGE,
-    getSlatePluginType,
+    getPlatePluginType,
     MARK_BOLD,
     MARK_CODE,
     MARK_HIGHLIGHT,
@@ -67,11 +67,11 @@ import {
     StyledElement,
     isBlockAboveEmpty,
     isSelectionAtBlockStart,
-} from '@udecode/slate-plugins';
+} from '@udecode/plate';
 import { css } from 'styled-components';
 
 
-export const components = createSlatePluginsComponents({
+export const components = createPlateComponents({
     [ELEMENT_CODE_BLOCK]: withProps(CodeBlockElement, {
         styles: {
             root: [
@@ -125,7 +125,7 @@ export const initialValueEmpty = [
 
 export const editor = createEditorPlugins();
 
-export const options = createSlatePluginsOptions({});
+export const options = createPlateOptions({});
 
 const resetBlockTypesCommonRule = {
     types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
@@ -232,52 +232,52 @@ export const InlineToolbarElements = () => {
             arrow={arrow}
         >
             <ToolbarMark
-                type={getSlatePluginType(editor, MARK_BOLD)}
+                type={getPlatePluginType(editor, MARK_BOLD)}
                 icon={<FormatBold />}
             />
             <ToolbarMark
-                type={getSlatePluginType(editor, MARK_ITALIC)}
+                type={getPlatePluginType(editor, MARK_ITALIC)}
                 icon={<FormatItalic />}
             />
             <ToolbarMark
-                type={getSlatePluginType(editor, MARK_UNDERLINE)}
+                type={getPlatePluginType(editor, MARK_UNDERLINE)}
                 icon={<FormatUnderlined />}
             />
             <ToolbarMark
-                type={getSlatePluginType(editor, MARK_CODE)}
+                type={getPlatePluginType(editor, MARK_CODE)}
                 icon={<CodeAlt />}
             />
             <ToolbarMark
-                type={getSlatePluginType(editor, MARK_HIGHLIGHT)}
+                type={getPlatePluginType(editor, MARK_HIGHLIGHT)}
                 icon={<Highlight />}
             />
             <ToolbarElement
-                type={getSlatePluginType(editor, ELEMENT_H1)}
+                type={getPlatePluginType(editor, ELEMENT_H1)}
                 icon={<LooksOne />}
             />
             <ToolbarElement
-                type={getSlatePluginType(editor, ELEMENT_H2)}
+                type={getPlatePluginType(editor, ELEMENT_H2)}
                 icon={<LooksTwo />}
             />
             <ToolbarElement
-                type={getSlatePluginType(editor, ELEMENT_H3)}
+                type={getPlatePluginType(editor, ELEMENT_H3)}
                 icon={<Looks3 />}
             />
             <ToolbarList
-                type={getSlatePluginType(editor, ELEMENT_UL)}
+                type={getPlatePluginType(editor, ELEMENT_UL)}
                 icon={<FormatListBulleted />}
             />
             <ToolbarList
-                type={getSlatePluginType(editor, ELEMENT_OL)}
+                type={getPlatePluginType(editor, ELEMENT_OL)}
                 icon={<FormatListNumbered />}
             />
             <ToolbarLink icon={<Link />} />
             <ToolbarElement
-                type={getSlatePluginType(editor, ELEMENT_BLOCKQUOTE)}
+                type={getPlatePluginType(editor, ELEMENT_BLOCKQUOTE)}
                 icon={<FormatQuote />}
             />
             <ToolbarCodeBlock
-                type={getSlatePluginType(editor, ELEMENT_CODE_BLOCK)}
+                type={getPlatePluginType(editor, ELEMENT_CODE_BLOCK)}
                 icon={<CodeBlock />}
             />
         </BalloonToolbar>
