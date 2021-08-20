@@ -2,6 +2,7 @@ package media
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,10 @@ func TestMedia(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.False(t, found)
 
+	filename, fullpath := ms.shardFilepath("qq_logo_2x-640.jpg")
+	assert.Equal(t, "q/q/_logo_2x-640.jpg", filename)
+	assert.Equal(t, filepath.Join(ms.path, "q/q/_logo_2x-640.jpg"), fullpath)
+
 	obj := &Object{
 		Filename: "qq_logo_2x",
 		Url:      "https://mat1.gtimg.com/pingjs/ext2020/qqindex2018/dist/img/qq_logo_2x.png",
@@ -27,14 +32,17 @@ func TestMedia(t *testing.T) {
 
 	_, err = ms.Post(obj)
 	assert.Nil(t, err)
+	assert.Equal(t, "q/q/_logo_2x", obj.Path)
 
 	found, err = ms.Exists(obj.Path)
 	assert.Nil(t, err)
 	assert.True(t, found)
 
-	filename, err := ms.Thumbnail(obj)
+	tObj, err := ms.Thumbnail(obj)
 	assert.Nil(t, err)
-	assert.Equal(t, "q/q/_logo_2x-640.jpg", filename)
+	assert.Equal(t, "q/q/_logo_2x-640.jpg", tObj.Filename)
+	assert.Equal(t, "q/q/_logo_2x-640.jpg", tObj.Path)
+	assert.Equal(t, int32(640), tObj.Width)
 
 	os.RemoveAll(ms.path)
 }

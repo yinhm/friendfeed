@@ -3,22 +3,19 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/disintegration/imaging"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
+	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
 )
-
-var wallpaper string
 
 var wallpaperCmd = &cobra.Command{
 	Use:   "wallpaper",
@@ -36,13 +33,6 @@ func init() {
 	rootCmd.AddCommand(wallpaperCmd)
 }
 
-// def get_pic_url(self, rooturl, imgurlbase, fallbackurl, has_wp, resolution):
-// 	wplink = webutil.urljoin(rooturl, '_'.join([imgurlbase, 'UHD.jpg']))
-// 	_logger.debug('in UHD mode, get url %s', wplink)
-// 	return wplink,
-
-// }
-
 const BASE_URL = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=10&mkt=zh-CN"
 
 type BingImage struct {
@@ -57,6 +47,11 @@ type BingWallpaper struct {
 }
 
 func downloadBingWallpaper() error {
+	cfg := &util.Config{
+		MediaPath: viper.GetString("media_path"),
+	}
+	mfs := media.NewLocalStorage(cfg)
+
 	uuid1 := model.UniqueKeyFrom("bing", "wallpaper")
 
 	feedinfo := &pb.Feedinfo{
@@ -95,60 +90,45 @@ func downloadBingWallpaper() error {
 	}
 
 	for _, img := range bingWallpaper.Images {
-		uuid1 := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
-		outFile := fmt.Sprintf("%x", uuid1)
-		outFile = outFile[:2] + "/" + outFile[2:]
-		outFile = outFile[:1] + "/" + outFile[1:]
-		log.Println("out file path: ", outFile)
-		outFilepath := filepath.Join(config.datapath, "files", outFile)
-
 		url := fmt.Sprintf("http://cn.bing.com%s_UHD.jpg", img.UrlBase)
 		log.Println(img.EndDate, url, img.CopyRight)
 
-		if _, err := os.Stat(outFilepath); err == nil {
+		uuid1 := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
+		outFile := fmt.Sprintf("%x", uuid1)
+		if found, _ := mfs.Exists(outFile); found {
 			log.Printf("File exists, skipping %s...", img.EndDate)
 			continue
 		}
 
-		log.Println("get image from: ", url)
-		resp, err := http.Get(url)
-		if err != nil {
+		obj := &media.Object{
+			Filename: outFile,
+			Url:      url,
+		}
+
+		log.Println("fetching image: ", url)
+		if _, err := mfs.Fetch(obj); err != nil {
 			return err
 		}
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
+		// write file
+		if _, err = mfs.Post(obj); err != nil {
 			return err
 		}
-
-		os.MkdirAll(filepath.Dir(outFilepath), 0755)
-		if err = os.WriteFile(outFilepath, body, 0755); err != nil {
-			return err
-		}
-
-		// Resize the image to width=640px preserving the aspect ratio.
-		fromImage, err := imaging.Open(outFilepath)
+		thumbObj, err := mfs.Thumbnail(obj)
 		if err != nil {
-			fmt.Printf("Error while open image: %s", err)
-		}
-
-		dst := imaging.Resize(fromImage, 640, 0, imaging.Lanczos)
-		outFileThumb := outFilepath + "-640.jpg"
-		// imaging.Save guest image format from extension
-		if err := imaging.Save(dst, outFileThumb); err != nil {
-			fmt.Printf("Error while saving image: %s", err)
+			fmt.Println(err)
 		}
 
 		f1 := &pb.File{
 			Name: img.CopyRight,
-			Url:  "/file/" + outFile,
+			Url:  "/file/" + obj.Path,
 			Type: "image/jpeg",
 		}
 		f2 := &pb.Thumbnail{
-			Link:   "/file/" + outFile,
-			Url:    "/file/" + outFile + "-640.jpg",
-			Width:  640,
-			Height: int32(dst.Rect.Size().Y),
+			Link:   "/file/" + obj.Path,
+			Url:    "/file/" + thumbObj.Path,
+			Width:  thumbObj.Width,
+			Height: thumbObj.Height,
 		}
 
 		// PostWallpaper

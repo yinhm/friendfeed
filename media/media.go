@@ -26,13 +26,17 @@ type Object struct {
 	MimeType string
 	Url      string
 	Content  []byte
+
+	// for image
+	Width  int32
+	Height int32
 }
 
 type Storage interface {
 	Exists(name string) (bool, error)
 	Fetch(obj *Object) (*http.Response, error)
 	Post(obj *Object) (*Object, error)
-	Thumbnail(obj *Object) (string, error)
+	Thumbnail(obj *Object) (*Object, error)
 	Mirror(obj *Object) (*Object, error)
 	FromUrl(filename, src, mimetype string) (*Object, error)
 }
@@ -48,9 +52,21 @@ func NewLocalStorage(cfg *util.Config) *LocalStorage {
 	return ls
 }
 
+func (c *LocalStorage) shardFilepath(filename string) (string, string) {
+	if len(filename) <= 3 ||
+		filepath.Dir(filename) != "." {
+		return filename, filepath.Join(c.path, filename)
+	}
+
+	outFile := filename[:2] + "/" + filename[2:]
+	outFile = outFile[:1] + "/" + outFile[1:]
+	return outFile, filepath.Join(c.path, outFile)
+}
+
 func (c *LocalStorage) Exists(name string) (bool, error) {
-	filepath := filepath.Join(c.path, name)
-	if _, err := os.Stat(filepath); err != nil {
+	_, fullPath := c.shardFilepath(name)
+	// filepath := filepath.Join(c.path, name)
+	if _, err := os.Stat(fullPath); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -81,12 +97,9 @@ func (c *LocalStorage) FromUrl(filename, src, mimetype string) (*Object, error) 
 	return c.Mirror(obj)
 }
 
+// write object file to disk
 func (c *LocalStorage) Post(obj *Object) (*Object, error) {
-	// write to disk
-	outFile := obj.Filename[:2] + "/" + obj.Filename[2:]
-	outFile = outFile[:1] + "/" + outFile[1:]
-	// log.Println("out file path: ", outFile)
-	fullPath := filepath.Join(c.path, outFile)
+	outFile, fullPath := c.shardFilepath(obj.Filename)
 
 	os.MkdirAll(filepath.Dir(fullPath), 0755)
 	if err := os.WriteFile(fullPath, obj.Content, 0755); err != nil {
@@ -120,20 +133,28 @@ func (c *LocalStorage) Fetch(obj *Object) (*http.Response, error) {
 }
 
 // Thumbnail resize the image to width=640px while preserving the aspect ratio.
-func (c *LocalStorage) Thumbnail(obj *Object) (string, error) {
+func (c *LocalStorage) Thumbnail(obj *Object) (*Object, error) {
 	thumbSuffix := "-640.jpg"
 
 	fullpath := filepath.Join(c.path, obj.Path)
 	fromImage, err := imaging.Open(fullpath)
 	if err != nil {
-		return "", fmt.Errorf("error while open image: %s", err)
+		return nil, fmt.Errorf("error while open image: %s", err)
 	}
 
 	dst := imaging.Resize(fromImage, 640, 0, imaging.Lanczos)
 	dstFilepath := fullpath + thumbSuffix
 	// imaging.Save guest image format from extension
 	if err := imaging.Save(dst, dstFilepath); err != nil {
-		return "", fmt.Errorf("error while saving image: %s", err)
+		return nil, fmt.Errorf("error while saving image: %s", err)
 	}
-	return obj.Path + thumbSuffix, nil
+
+	thumbObj := &Object{
+		Filename: obj.Path + thumbSuffix,
+		Path:     obj.Path + thumbSuffix,
+		MimeType: "image/jpeg",
+		Width:    int32(dst.Rect.Size().X),
+		Height:   int32(dst.Rect.Size().Y),
+	}
+	return thumbObj, nil
 }
