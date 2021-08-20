@@ -14,7 +14,6 @@ require (
 	github.com/blevesearch/zapx/v14 v14.2.2 // indirect
 	github.com/blevesearch/zapx/v15 v15.2.2 // indirect
 	github.com/boj/redistore v0.0.0-20180917114910-cd5dcc76aeff // indirect
-	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b // indirect
 	github.com/cockroachdb/errors v1.8.6 // indirect
 	github.com/cockroachdb/pebble v0.0.0-20210803150729-5c776d69d761
 	github.com/cockroachdb/redact v1.1.3 // indirect
@@ -24,7 +23,6 @@ require (
 	github.com/disintegration/imaging v1.6.2
 	github.com/eapache/queue v1.1.0
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3
-	github.com/garyburd/redigo v1.6.2 // indirect
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-ego/gse v0.67.0
@@ -38,7 +36,7 @@ require (
 	github.com/markbates/goth v1.67.1
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.15
-	github.com/robfig/go-cache v0.0.0-20130306151617-9fc39e0dbf62 // indirect
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/smartystreets/goconvey v1.6.4

@@ -6,11 +6,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth/gothic"
+	"github.com/patrickmn/go-cache"
 	"github.com/yinhm/friendfeed/pb"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -161,18 +161,17 @@ func (s *Server) GraphFrom(uuid string) (*pb.Graph, error) {
 	}
 
 	cacheKey := "graph:" + uuid
-	err := s.cache.Get(cacheKey, graph)
-	if err != nil {
+	v, found := s.cache.Get(cacheKey)
+	if !found {
 		req := &pb.ProfileRequest{Uuid: uuid}
-		graph, err = s.client.FetchGraph(ctx, req)
+		graph, err := s.client.FetchGraph(ctx, req)
 		if err != nil {
 			return nil, err
 		}
-		if err := s.cache.Set(cacheKey, *graph, 15*time.Minute); err != nil {
-			return nil, err
-		}
+		s.cache.Set(cacheKey, graph, cache.DefaultExpiration)
+		return graph, nil
 	}
-	return graph, nil
+	return v.(*pb.Graph), nil
 }
 
 func (s *Server) feedWritable(c *gin.Context, feedUuid string) bool {

@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/flosch/pongo2"
-	"github.com/gin-gonic/contrib/cache"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gofrs/uuid"
+	"github.com/patrickmn/go-cache"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
@@ -31,7 +31,7 @@ type Server struct {
 	worker     *pb.Worker
 	secretKey  string
 	httpclient *http.Client
-	cache      *cache.InMemoryStore
+	cache      *cache.Cache
 	assets     embed.FS
 }
 
@@ -45,7 +45,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 		Timeout: 30 * time.Second,
 	}
 
-	cacheStore := cache.NewInMemoryStore(time.Second)
+	cacheStore := cache.New(5*time.Minute, 10*time.Minute)
 
 	return &Server{
 		debug:      debug,
@@ -105,22 +105,22 @@ func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	profile := new(pb.Profile)
 	uuid := CurrentUserUuid(c)
-	if uuid != "" {
-		cacheKey := "profile:" + uuid
-		err := s.cache.Get(cacheKey, profile)
-		if err != nil {
-			profile, err = s.client.FetchProfile(ctx, &pb.ProfileRequest{Uuid: uuid})
-			if err != nil {
-				return nil, err
-			}
-			if err := s.cache.Set(cacheKey, *profile, 15*time.Minute); err != nil {
-				return nil, err
-			}
-		}
+	if uuid == "" {
+		return nil, nil
 	}
-	return profile, nil
+
+	cacheKey := "profile:" + uuid
+	v, found := s.cache.Get(cacheKey)
+	if !found {
+		profile, err := s.client.FetchProfile(ctx, &pb.ProfileRequest{Uuid: uuid})
+		if err != nil {
+			return nil, err
+		}
+		s.cache.Set(cacheKey, profile, cache.DefaultExpiration)
+		return profile, nil
+	}
+	return v.(*pb.Profile), nil
 }
 
 // func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
