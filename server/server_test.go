@@ -15,6 +15,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -27,7 +28,7 @@ type RpcTestSuite struct {
 	rpcServer *grpc.Server
 
 	dbpath string
-	mcFile string
+	cfg    *util.Config
 	job    *pb.FeedJob
 }
 
@@ -38,7 +39,8 @@ func TestRpcTestSuite(t *testing.T) {
 func (s *RpcTestSuite) SetupTest() {
 	log.Println("setup tests...")
 	s.dbpath = os.TempDir() + "/fftestdb"
-	s.mcFile = "../conf/example.config.json"
+	cfg, _ := util.NewConfigFromJSON("../conf/example.config.json")
+	s.cfg = cfg
 
 	search.InitMockIndexService(filepath.Join(s.dbpath, "index"))
 
@@ -56,7 +58,7 @@ func (s *RpcTestSuite) SetupTest() {
 	}
 
 	s.rpcServer = grpc.NewServer()
-	s.srv = NewApiServer(s.dbpath, s.mcFile)
+	s.srv = NewApiServer(s.dbpath, cfg)
 
 	pb.RegisterApiServer(s.rpcServer, s.srv)
 	go s.rpcServer.Serve(ln)
@@ -115,7 +117,7 @@ func (s *RpcTestSuite) TestMdbReopen() {
 
 	// reopen to check data
 	s.srv.Shutdown()
-	s.srv = NewApiServer(s.dbpath, s.mcFile)
+	s.srv = NewApiServer(s.dbpath, s.cfg)
 
 	got, err := s.srv.dequeJob()
 	assert.Nil(s.T(), err)
@@ -141,7 +143,7 @@ func (s *RpcTestSuite) TestReopenDeque() {
 	// reopen to check data
 	s.rpcServer.Stop()
 	s.srv.Shutdown()
-	s.srv = NewApiServer(s.dbpath, s.mcFile)
+	s.srv = NewApiServer(s.dbpath, s.cfg)
 
 	_, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)
@@ -175,7 +177,7 @@ func (s *RpcTestSuite) TestJobQueue() {
 	// reopen to check data
 	// reopen db should got the same result: no job available
 	s.srv.Shutdown()
-	s.srv = NewApiServer(s.dbpath, s.mcFile)
+	s.srv = NewApiServer(s.dbpath, s.cfg)
 
 	_, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)

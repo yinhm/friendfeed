@@ -20,6 +20,7 @@ const (
 )
 
 func FormatTime(t time.Time) string {
+	//lint:ignore S1024 how time.Until(t) better than t.sub...
 	delta := t.Sub(time.Now())
 	diff := int(delta.Seconds())
 
@@ -47,7 +48,7 @@ func FormatTime(t time.Time) string {
 	case diff < 2*Day:
 		return fmt.Sprintf("1 day %s", lbl)
 	case diff < 1*Week:
-		return fmt.Sprintf("%s", t.Weekday())
+		return t.Weekday().String()
 
 	case diff < 2*Week:
 		return fmt.Sprintf("1 week %s", lbl)

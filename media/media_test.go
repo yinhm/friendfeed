@@ -2,7 +2,6 @@ package media
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -40,12 +39,6 @@ func setup() {
 	client.BaseURL = url
 
 	mcFile = "../conf/media.json"
-
-	var err error
-	config, err = NewConfigFromJSON(mcFile)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 // teardown closes the test HTTP server.

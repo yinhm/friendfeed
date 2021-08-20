@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
+
+	"github.com/yinhm/friendfeed/util"
 )
 
 const (
@@ -118,19 +119,6 @@ type Object struct {
 	Content  []byte
 }
 
-func NewConfigFromJSON(filename string) (*Config, error) {
-	rawdata, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	config := new(Config)
-	if err := json.Unmarshal(rawdata, &config); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
 type Storage interface {
 	Exists(name string) (bool, error)
 	Post(obj *Object) (*Object, error)
@@ -140,7 +128,7 @@ type Storage interface {
 
 type LocalStorage struct{}
 
-func NewLocalStorage(config *Config) *LocalStorage {
+func NewLocalStorage(config *util.Config) *LocalStorage {
 	return &LocalStorage{}
 }
 

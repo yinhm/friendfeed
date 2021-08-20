@@ -18,6 +18,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -66,7 +67,7 @@ func SetLogFile(f *os.File) {
 	logrus.SetOutput(io.MultiWriter(f, os.Stdout))
 }
 
-func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
+func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 	rdb := store.NewStore(dbpath)
 	// mdb := store.NewMetaStore(dbpath + "/meta")
 	mdb := rdb
@@ -82,13 +83,8 @@ func NewApiServer(dbpath, mediaConfigFile string) *ApiServer {
 		cached: cached,
 	}
 
-	config, err := media.NewConfigFromJSON(mediaConfigFile)
-	if err != nil {
-		log.Fatal("no config file")
-	}
-
 	// remove google storage in favor of local storage
-	srv.fs = media.NewLocalStorage(config)
+	srv.fs = media.NewLocalStorage(cfg)
 	return srv
 }
 
