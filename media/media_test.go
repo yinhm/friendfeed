@@ -1,87 +1,40 @@
 package media
 
 import (
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
+	"os"
 	"testing"
 
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
+	"github.com/yinhm/friendfeed/util"
 )
 
-var (
-	// mux is the HTTP request multiplexer used with the test server.
-	mux *http.ServeMux
+func TestMedia(t *testing.T) {
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	assert.Nil(t, err)
 
-	// client is the GitHub client being tested.
-	client *Client
+	ms := NewLocalStorage(cfg)
+	found, err := ms.Exists("not-exist-file")
+	assert.NotNil(t, err)
+	assert.False(t, found)
 
-	// server is a test HTTP server used to provide mock API responses.
-	server *httptest.Server
+	obj := &Object{
+		Filename: "qq_logo_2x",
+		Url:      "https://mat1.gtimg.com/pingjs/ext2020/qqindex2018/dist/img/qq_logo_2x.png",
+	}
 
-	mcFile string
+	_, err = ms.Fetch(obj)
+	assert.Nil(t, err)
 
-	config *Config
-)
+	_, err = ms.Post(obj)
+	assert.Nil(t, err)
 
-// setup sets up a test HTTP server along with a ff.Client that is
-// configured to talk to that test server.  Tests should register handlers on
-// mux which provide mock responses for the API method being tested.
-func setup() {
-	// test server
-	mux = http.NewServeMux()
-	server = httptest.NewServer(mux)
+	found, err = ms.Exists(obj.Path)
+	assert.Nil(t, err)
+	assert.True(t, found)
 
-	// ff client configured to use test server
-	client = NewClient()
-	url, _ := url.Parse(server.URL)
-	client.BaseURL = url
+	filename, err := ms.Thumbnail(obj)
+	assert.Nil(t, err)
+	assert.Equal(t, "q/q/_logo_2x-640.jpg", filename)
 
-	mcFile = "../conf/media.json"
-}
-
-// teardown closes the test HTTP server.
-func teardown() {
-	server.Close()
-}
-
-func TestMediaFromUrl(t *testing.T) {
-	setup()
-	defer teardown()
-
-	rawdata :=
-		`{
-    "data": {
-        "width": 380,
-        "height": 430,
-        "link": "https://s3.amazonaws.com/gophergala/original/CUqU4If",
-        "mime": "image/jpeg",
-        "name": "",
-        "size": 190,
-        "thumbs": {
-            "profile":"https://s3.amazonaws.com/gophergala/t/CUqU4If/profile",
-            "small": "https://s3.amazonaws.com/gophergala/t/CUqU4If/small"
-        }
-    },
-    "status": 200,
-    "success": true
-}
-`
-	mux.HandleFunc("/url", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Content-Lenght", "190")
-		fmt.Fprint(w, rawdata)
-	})
-
-	Convey("Fetch media from url", t, func() {
-		url := "https://www.google.com/images/srpr/logo11w.png"
-		resp, err := client.PostUrl(url)
-		if err != nil {
-			t.Fatal(err)
-		}
-		So(resp.Success, ShouldEqual, true)
-		So(resp.Data.Height, ShouldEqual, 430)
-	})
+	os.RemoveAll(ms.path)
 }
