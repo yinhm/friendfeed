@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTimestampIsFirst64Bits(t *testing.T) {
@@ -135,77 +135,73 @@ func TestClockRunningBackwardsIsAnError(t *testing.T) {
 }
 
 func TestNewWorkerId(t *testing.T) {
-	Convey("Random worker id", t, func() {
-		for i := 0; i < 10; i++ {
-			id1 := NewWorkerId()
-			id2 := NewWorkerId()
-			So(hex.EncodeToString(id1[:]), ShouldEqual, hex.EncodeToString(id2[:]))
-		}
-	})
+	// New worker id
+	for i := 0; i < 10; i++ {
+		id1 := NewWorkerId()
+		id2 := NewWorkerId()
+		assert.Equal(t, hex.EncodeToString(id1[:]), hex.EncodeToString(id2[:]))
+	}
 }
 
 func TestNewRandWorkerId(t *testing.T) {
-	Convey("Random worker id", t, func() {
-		for i := 0; i < 100; i++ {
-			id1 := NewRandWorkerId()
-			id2 := NewRandWorkerId()
-			So(hex.EncodeToString(id1[:]), ShouldNotEqual, hex.EncodeToString(id2[:]))
-		}
-	})
+	// New random worker id
+	for i := 0; i < 100; i++ {
+		id1 := NewRandWorkerId()
+		id2 := NewRandWorkerId()
+		assert.NotEqual(t, hex.EncodeToString(id1[:]), hex.EncodeToString(id2[:]))
+	}
 }
 
 func TestTimeTravel(t *testing.T) {
-	Convey("Parse timestamp from ID", t, func() {
-		tSlice := []time.Time{
-			// unix time start from January 1, 1970 UTC
-			time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(1974, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(1984, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(2005, 9, 10, 23, 0, 0, 0, time.UTC),
-			time.Date(2015, 9, 10, 23, 0, 0, 0, time.UTC),
-			time.Date(2025, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2035, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2045, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2145, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2245, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2254, 6, 4, 00, 0, 0, 0, time.UTC),
-		}
+	// "Parse timestamp from ID
+	tSlice := []time.Time{
+		// unix time start from January 1, 1970 UTC
+		time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(1974, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(1984, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2005, 9, 10, 23, 0, 0, 0, time.UTC),
+		time.Date(2015, 9, 10, 23, 0, 0, 0, time.UTC),
+		time.Date(2025, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2035, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2045, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2145, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2245, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2254, 6, 4, 00, 0, 0, 0, time.UTC),
+	}
 
-		for _, expect := range tSlice {
-			gen := NewGeneratorFromTime(expect)
-			id, _ := gen.NextId()
-			got := ParseTimestamp(id)
-			So(got.Equal(expect), ShouldBeTrue)
-		}
-	})
+	for _, expect := range tSlice {
+		gen := NewGeneratorFromTime(expect)
+		id, _ := gen.NextId()
+		got := ParseTimestamp(id)
+		assert.True(t, got.Equal(expect))
+	}
 }
 
 func TestTimeReverseTravel(t *testing.T) {
-	Convey("Parse timestamp from ID", t, func() {
-		tSlice := []time.Time{
-			// unix time start from January 1, 1970 UTC
-			time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(1984, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(2005, 9, 10, 23, 0, 0, 0, time.UTC),
-			time.Date(2015, 9, 10, 23, 0, 0, 0, time.UTC),
-			time.Date(2025, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2035, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2045, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2145, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2245, 4, 5, 23, 0, 0, 0, time.UTC),
-			time.Date(2254, 6, 4, 00, 0, 0, 0, time.UTC),
-		}
+	// Parse timestamp from ID
+	tSlice := []time.Time{
+		// unix time start from January 1, 1970 UTC
+		time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(1984, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2005, 9, 10, 23, 0, 0, 0, time.UTC),
+		time.Date(2015, 9, 10, 23, 0, 0, 0, time.UTC),
+		time.Date(2025, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2035, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2045, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2145, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2245, 4, 5, 23, 0, 0, 0, time.UTC),
+		time.Date(2254, 6, 4, 00, 0, 0, 0, time.UTC),
+	}
 
-		for _, expect := range tSlice {
-			// shift := MaxTime.Unix() - expect.Unix()
-			shift := MaxTime.Sub(expect)
-			reverseTime := time.Unix(int64(shift.Seconds()), 0)
-			gen := NewGeneratorFromTime(reverseTime)
-			id, _ := gen.NextId()
-			got := ParseReverseTimestamp(id)
-			So(got.Equal(expect), ShouldBeTrue)
-		}
-	})
+	for _, expect := range tSlice {
+		// shift := MaxTime.Unix() - expect.Unix()
+		shift := MaxTime.Sub(expect)
+		reverseTime := time.Unix(int64(shift.Seconds()), 0)
+		gen := NewGeneratorFromTime(reverseTime)
+		id, _ := gen.NextId()
+		got := ParseReverseTimestamp(id)
+		assert.True(t, got.Equal(expect))
+	}
 }
