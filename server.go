@@ -20,6 +20,10 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	MaxReceiveMessageSize = 1024 * 1024 * 64
+)
+
 var cfgFile string
 var debug bool
 
@@ -78,7 +82,7 @@ func main() {
 	}
 	log.Printf("Rpc server running at %s", cfg.Address)
 
-	rpcServer := grpc.NewServer()
+	rpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(MaxReceiveMessageSize))
 	apiServer := server.NewApiServer(cfg.DBPath, cfg)
 
 	// index service

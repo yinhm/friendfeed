@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -121,6 +122,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	defer cancel()
 	entry, err := s.client.PostEntry(ctx, entry)
 	if RequestError(c, err) {
+		fmt.Println(err)
 		return
 	}
 

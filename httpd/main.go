@@ -3,21 +3,21 @@ package main
 import (
 	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"syscall"
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
 	server "github.com/yinhm/friendfeed/httpd/src"
+	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
 
 	"github.com/markbates/goth"
@@ -47,36 +47,12 @@ func init() {
 	// babel.Init(runtime.NumCPU())
 }
 
-type Config struct {
-	MediaPath          string `json:"media_path"`
-	GAuthKeyFile       string `json:"gauth_key_file"`
-	TwitterApiKey      string `json:"twitter_api_key"`
-	TwitterApiSecret   string `json:"twitter_api_secret"`
-	TwitterApiCallback string `json:"twitter_api_callback"`
-}
-
-func NewConfigFromJSON(filename string) (*Config, error) {
-	rawdata, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	config := new(Config)
-	if err := json.Unmarshal(rawdata, &config); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
 func waitShutdown() {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, os.Kill)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	select {
-	case _ = <-c:
-		log.Println("Waiting for shutdown...")
-		return
-	}
+	<-c
+	log.Println("shutdown webserver...")
 }
 
 func NotFoundHandler(c *gin.Context) {
@@ -98,7 +74,7 @@ func FaviconHandler(c *gin.Context) {
 }
 
 func Serve(s *server.Server) {
-	config, err := NewConfigFromJSON(options.ConfigFile)
+	config, err := util.NewConfigFromJSON(options.ConfigFile)
 	if err != nil {
 		log.Fatal("no config file")
 	}
@@ -188,7 +164,14 @@ func Serve(s *server.Server) {
 func main() {
 	flag.Parse()
 
-	rpcConn, err := grpc.Dial(options.Rpc, grpc.WithInsecure())
+	opts := []grpc.DialOption{
+		grpc.WithInsecure(),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(1024 * 1024 * 64),
+			// grpc.MaxCallSendMsgSize(64*1024*1024),
+		),
+	}
+	rpcConn, err := grpc.Dial(options.Rpc, opts...)
 	if err != nil {
 		log.Fatalf("Connection error: %v", err)
 	}

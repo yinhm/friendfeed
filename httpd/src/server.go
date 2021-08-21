@@ -59,7 +59,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 }
 
 func DefaultTimeoutContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 500*time.Millisecond)
+	return context.WithTimeout(context.Background(), 1000*time.Millisecond)
 }
 
 func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context) {
