@@ -1,4 +1,5 @@
 import React from 'react';
+import { postJSON, postForm } from './utils';
 import { CodeAlt } from '@styled-icons/boxicons-regular/CodeAlt';
 import { CodeBlock } from '@styled-icons/boxicons-regular/CodeBlock';
 import { Highlight } from '@styled-icons/boxicons-regular/Highlight';
@@ -179,6 +180,47 @@ const optionsExitBreakPlugin = {
     ],
 };
 
+var hasArrayBufferView = new Blob([new Uint8Array(100)]).size == 100;
+
+function dataURItoBlob(uri) {
+    var data = uri.split(',')[1];
+    var bytes = typeof atob === 'undefined' ? window.atob(data) : atob(data);
+    var buf = new ArrayBuffer(bytes.length);
+    var arr = new Uint8Array(buf);
+    for (var i = 0; i < bytes.length; i++) {
+        arr[i] = bytes.charCodeAt(i);
+    }
+
+    if (!hasArrayBufferView) arr = buf;
+    var blob = new Blob([arr], { type: mime(uri) });
+    blob.slice = blob.slice || blob.webkitSlice;
+    return blob;
+};
+
+/**
+ * Return data uri mime type.
+ */
+
+function mime(uri) {
+    return uri.split(';')[0].slice(5);
+}
+
+function uploadImage(dataUrl) {
+    var retUrl = "";
+    var blobFile = dataURItoBlob(dataUrl);
+
+    var formData = new FormData();
+    formData.set("eid", ""); // no idea how to retrive entry
+    formData.append("file", blobFile, "clipboard-file");
+
+    return postForm("/a/upload", formData)
+        .then(data => {
+            console.log(data);
+            retUrl = data.thumbUrl == "" ? data.url : data.thumbUrl;
+            return retUrl;
+        });
+}
+
 export const defaultPlugins = [
     // editor
     createReactPlugin(),          // withReact
@@ -202,7 +244,7 @@ export const defaultPlugins = [
     createListPlugin(),
 
     // copy image from clipboard
-    createImagePlugin(),
+    createImagePlugin({ uploadImage: uploadImage }), // WithImageUploadOptions
     createSelectOnBackspacePlugin({ allow: [ELEMENT_IMAGE] }),
 
     // headers

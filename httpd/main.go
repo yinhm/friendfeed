@@ -73,12 +73,7 @@ func FaviconHandler(c *gin.Context) {
 	c.Writer.Write(favicon)
 }
 
-func Serve(s *server.Server) {
-	config, err := util.NewConfigFromJSON(options.ConfigFile)
-	if err != nil {
-		log.Fatal("no config file")
-	}
-
+func Serve(s *server.Server, config *util.Config) {
 	gauthConfig := server.GoogleAuthConfig(config.GAuthKeyFile, options.Debug)
 	goth.UseProviders(
 		twitter.New(config.TwitterApiKey, config.TwitterApiSecret, config.TwitterApiCallback),
@@ -141,6 +136,7 @@ func Serve(s *server.Server) {
 	action := r.Group("/a", server.LoginRequired())
 	{
 		action.POST("/share", s.EntryPostHandler)
+		action.POST("/upload", s.UploadHandler)
 		action.POST("/follow", s.FollowHandler)
 		action.POST("/delete", s.EntryDeleteHandler)
 		action.POST("/like", s.LikeHandler)
@@ -163,6 +159,11 @@ func Serve(s *server.Server) {
 
 func main() {
 	flag.Parse()
+
+	cfg, err := util.NewConfigFromJSON(options.ConfigFile)
+	if err != nil {
+		log.Fatal("no config file")
+	}
 
 	opts := []grpc.DialOption{
 		grpc.WithInsecure(),
@@ -189,7 +190,7 @@ func main() {
 		}
 	}
 
-	s := server.NewServer(rpcConn, assetsFS, options.SecretKey, options.Debug)
-	go Serve(s)
+	s := server.NewServer(rpcConn, assetsFS, cfg, options.SecretKey, options.Debug)
+	go Serve(s, cfg)
 	waitShutdown()
 }

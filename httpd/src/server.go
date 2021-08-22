@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gofrs/uuid"
 	"github.com/patrickmn/go-cache"
+	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/net/context"
@@ -32,10 +33,11 @@ type Server struct {
 	secretKey  string
 	httpclient *http.Client
 	cache      *cache.Cache
+	media      *media.LocalStorage
 	assets     embed.FS
 }
 
-func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug bool) *Server {
+func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretKey string, debug bool) *Server {
 	c := pb.NewApiClient(conn)
 	worker := &pb.Worker{
 		Id: randhash(),
@@ -46,6 +48,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 	}
 
 	cacheStore := cache.New(5*time.Minute, 10*time.Minute)
+	mfs := media.NewLocalStorage(cfg)
 
 	return &Server{
 		debug:      debug,
@@ -54,6 +57,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, secretKey string, debug b
 		secretKey:  secretKey,
 		httpclient: httpclient,
 		cache:      cacheStore,
+		media:      mfs,
 		assets:     assets,
 	}
 }

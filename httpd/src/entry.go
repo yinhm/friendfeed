@@ -2,7 +2,9 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/exp/utf8string"
@@ -165,4 +168,48 @@ func (s *Server) EntryDeleteHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(200, entryId)
+}
+
+func (s *Server) UploadHandler(c *gin.Context) {
+	// eid := c.PostForm("eid")
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("error on formdata: %s", err.Error()))
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("can not read file: %s", err.Error()))
+		return
+	}
+	defer src.Close()
+
+	content, err := io.ReadAll(src)
+	if err != nil {
+		c.String(http.StatusBadRequest, fmt.Sprintf("can not read file: %s", err.Error()))
+		return
+	}
+
+	obj := &media.Object{
+		Filename: file.Filename,
+		MimeType: file.Header.Get("Content-Type"),
+		Content:  content,
+	}
+
+	if _, err = s.media.Post(obj); err != nil {
+		c.String(http.StatusInternalServerError, "can not write file")
+		return
+	}
+	thumbObj, err := s.media.Thumbnail(obj)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "can not write file")
+		return
+	}
+
+	ret := gin.H{
+		"url":      filepath.Join("/file", obj.Path),
+		"thumbUrl": filepath.Join("/file", thumbObj.Path),
+	}
+	c.JSON(200, ret)
 }
