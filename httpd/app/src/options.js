@@ -215,7 +215,6 @@ function uploadImage(dataUrl) {
 
     return postForm("/a/upload", formData)
         .then(data => {
-            console.log(data);
             retUrl = data.thumbUrl == "" ? data.url : data.thumbUrl;
             return retUrl;
         });

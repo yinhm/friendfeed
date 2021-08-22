@@ -42,12 +42,14 @@ type Storage interface {
 }
 
 type LocalStorage struct {
-	path string
+	path     string
+	maxWidth int
 }
 
-func NewLocalStorage(cfg *util.Config) *LocalStorage {
+func NewLocalStorage(cfg *util.Config, maxWidth int) *LocalStorage {
 	ls := &LocalStorage{
-		path: cfg.MediaPath,
+		path:     cfg.MediaPath,
+		maxWidth: maxWidth,
 	}
 	return ls
 }
@@ -134,7 +136,7 @@ func (c *LocalStorage) Fetch(obj *Object) (*http.Response, error) {
 
 // Thumbnail resize the image to width=640px while preserving the aspect ratio.
 func (c *LocalStorage) Thumbnail(obj *Object) (*Object, error) {
-	thumbSuffix := "-640.jpg"
+	thumbSuffix := fmt.Sprintf("-%d.jpg", c.maxWidth)
 
 	fullpath := filepath.Join(c.path, obj.Path)
 	fromImage, err := imaging.Open(fullpath)
@@ -142,7 +144,15 @@ func (c *LocalStorage) Thumbnail(obj *Object) (*Object, error) {
 		return nil, fmt.Errorf("error while open image: %s", err)
 	}
 
-	dst := imaging.Resize(fromImage, 640, 0, imaging.Lanczos)
+	obj.Width = int32(fromImage.Bounds().Dx())
+	obj.Height = int32(fromImage.Bounds().Dy())
+
+	// resize limit to src image too large
+	if obj.Width <= int32(float64(c.maxWidth)*1.3) {
+		return obj, nil
+	}
+
+	dst := imaging.Resize(fromImage, c.maxWidth, 0, imaging.Lanczos)
 	dstFilepath := fullpath + thumbSuffix
 	// imaging.Save guest image format from extension
 	if err := imaging.Save(dst, dstFilepath); err != nil {

@@ -50,7 +50,7 @@ func downloadBingWallpaper() error {
 	cfg := &util.Config{
 		MediaPath: viper.GetString("media_path"),
 	}
-	mfs := media.NewLocalStorage(cfg)
+	mfs := media.NewLocalStorage(cfg, 640)
 
 	uuid1 := model.UniqueKeyFrom("bing", "wallpaper")
 

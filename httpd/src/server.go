@@ -48,7 +48,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 	}
 
 	cacheStore := cache.New(5*time.Minute, 10*time.Minute)
-	mfs := media.NewLocalStorage(cfg)
+	mfs := media.NewLocalStorage(cfg, 1024)
 
 	return &Server{
 		debug:      debug,

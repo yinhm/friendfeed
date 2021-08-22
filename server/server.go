@@ -84,7 +84,7 @@ func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 	}
 
 	// remove google storage in favor of local storage
-	srv.fs = media.NewLocalStorage(cfg)
+	srv.fs = media.NewLocalStorage(cfg, 1024)
 	return srv
 }
 

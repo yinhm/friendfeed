@@ -13,7 +13,7 @@ func TestMedia(t *testing.T) {
 	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
 	assert.Nil(t, err)
 
-	ms := NewLocalStorage(cfg)
+	ms := NewLocalStorage(cfg, 640)
 	found, err := ms.Exists("not-exist-file")
 	assert.NotNil(t, err)
 	assert.False(t, found)
