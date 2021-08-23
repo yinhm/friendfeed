@@ -1,80 +1,59 @@
 import React from 'react';
-import { useTable } from 'react-table'
+import {
+    Cell,
+    Column,
+    ColumnHeaderCell,
+    Table,
+} from "@blueprintjs/table";
 
 
-export function Tabular({columns, data, getCellProps}) {
+export function Tabular({columns, data}) {
+    const numRows = data.length;
 
-    // WARN: make sure pass columns and data from parent.
-    //
-    // Maximum update depth exceeded error even using React.useMemo
-    // TLDR
-    // https://github.com/tannerlinsley/react-table/issues/2369
+    console.log("rending rows, total num:", numRows);
 
-    // const rawdata = JSON.parse(rawBody);
-    // console.log(rawdata);
+    const getCellStyle = (data) => {
+        return {
+            backgroundColor: `hsl(${120 * ((120 - data) / 120) * -1 +
+                120}, 100%, 67%)`,
+        }
+    };
 
-    // const data = React.useMemo(() => rawdata.data, [rawdata.data])
+    const renderCell = (rowIndex, columnIndex) => {
+        const row = data[rowIndex];
+        return (
+            <Cell style={getCellStyle(row[columnIndex])}>
+                {row[columnIndex]}
+            </Cell>
+        );
+    };
 
-    // const columns = React.useMemo(() => {
-    //     return rawdata.columns.map(function (column, index) {
-    //         return {
-    //             id: "header" + index,
-    //             Header: column,
-    //             accessor: (row, idx) => {
-    //                 return row[index]
-    //             }
-    //         };
-    //     });
-    // }, [rawdata.columns])
+    const renderColumnHeaderCell = (columnIndex) => {
+        const columnName = columns[columnIndex];
+        return <ColumnHeaderCell name={columnName} />;
+    };
+    
+    const renderColumns = () => {
+        const ret = [];
 
-    const {
-        getTableProps,
-        getTableBodyProps,
-        headerGroups,
-        rows,
-        prepareRow,
-    } = useTable({ columns, data })
+        columns.forEach(columnName => {
+            ret.push(
+                <Column
+                    key={columnName}
+                    cellRenderer={renderCell}
+                    columnHeaderCellRenderer={renderColumnHeaderCell}
+                />,
+            );
+        });
+
+        return ret;
+    }
 
     return (
-        <table {...getTableProps()}>
-            <thead>
-                {headerGroups.map(headerGroup => (
-                    <tr {...headerGroup.getHeaderGroupProps()}>
-                        {headerGroup.headers.map(column => (
-                            <th
-                                {...column.getHeaderProps()}
-                            >
-                                {column.render('Header')}
-                            </th>
-                        ))}
-                    </tr>
-                ))}
-            </thead>
-            <tbody {...getTableBodyProps()}>
-                {rows.map(row => {
-                    prepareRow(row)
-                    return (
-                        <tr {...row.getRowProps()}>
-                            {row.cells.map(cell => {
-                                return (
-                                    <td
-                                        // Return an array of prop objects and react-table will merge them appropriately
-                                        {...cell.getCellProps([
-                                            {
-                                                className: cell.column.className,
-                                                style: cell.column.style,
-                                            },
-                                            getCellProps(cell),
-                                        ])}
-                                    >
-                                        {cell.render('Cell')}
-                                    </td>
-                                )
-                            })}
-                        </tr>
-                    )
-                })}
-            </tbody>
-        </table>
+        <Table enableRowResizing={true}
+            numRows={numRows}
+            defaultColumnWidth={75}>
+            {renderColumns()}
+        </Table>
     )
 }

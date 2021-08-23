@@ -26,25 +26,10 @@ export function EntryContent(props) {
     if (props.type === "tabular") {
         if (feedCfg.onpage) {
             const rawdata = JSON.parse(props.rawBody);
-            const columns = rawdata.columns.map(function (column, index) {
-                return {
-                    id: "header" + index,
-                    Header: column,
-                    accessor: (row, idx) => {
-                        return row[index]
-                    }
-                };
-            });
 
             return (
                 <Tabular data={rawdata.data}
-                    columns={columns}
-                    getCellProps={cellInfo => ({
-                        style: {
-                            backgroundColor: `hsl(${120 * ((120 - cellInfo.value) / 120) * -1 +
-                                120}, 100%, 67%)`,
-                        },
-                    })}
+                    columns={rawdata.columns}
                 />
             );
         }
