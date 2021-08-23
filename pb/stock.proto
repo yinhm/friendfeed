@@ -32,9 +32,10 @@ message ArchiveSummary {
 
 message StockInfo {
   string market = 1;              // 证券市场
-  string symbol = 2;              // 证券ID, == symbol?
+  string symbol = 2;              // 证券唯一ID，600519.SH
   string name = 3;                // 证券名
   string full_name = 4;           // 证券全名
+  string en_name = 20;            // english name
   float pre_close = 5;            // 前收价
   string type = 6;                // 证券类型
   string status = 7;              // 证券状态
@@ -48,6 +49,8 @@ message StockInfo {
   string sw_l1 = 15;              // 申万一级行业
   string sw_l2 = 16;              // 申万二级行业
   string sw_l3 = 17;              // 申万三级行业
+  string GICS = 21;               // 全球行业分类四级
+  int32 employees = 22;           // 员工总数
   repeated string concepts = 18;  // 概念
 }
 
