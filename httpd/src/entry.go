@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/media"
+	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/exp/utf8string"
@@ -191,8 +192,11 @@ func (s *Server) UploadHandler(c *gin.Context) {
 		return
 	}
 
+	uuid1 := model.UniqueKeyFrom("web", "upload", file.Filename, randhash())
+	filename := fmt.Sprintf("%x", uuid1)
+
 	obj := &media.Object{
-		Filename: file.Filename,
+		Filename: filename,
 		MimeType: file.Header.Get("Content-Type"),
 		Content:  content,
 	}
