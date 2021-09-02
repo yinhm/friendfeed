@@ -111,7 +111,7 @@ func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
 
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
-		return nil, nil
+		return new(pb.Profile), nil
 	}
 
 	cacheKey := "profile:" + uuid
