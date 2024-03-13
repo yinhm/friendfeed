@@ -20,17 +20,17 @@ env.use_ssh_config = True
 
 @task
 def production():
-    env.hostname = 'friendfeed'
-    env.user = 'yinhm'
+    env.hostname = 'ff1'
+    env.user = 'root'
 
     #  name of your project - no spaces, no special chars
     env.project = 'ff'
     #  hg repository of your project
-    env.repository = 'https://github.com/yinhm/friendfeed.git'
+    env.repository = 'git@github.com:yinhm/ffdb.git'
     #  type of repository (git or hg)
     env.repository_type = 'git'
     #  hosts to deploy your project, users must be sudoers
-    env.hosts = ['ffme3', ]
+    env.hosts = ['linode', ]
     # additional packages to be installed on the server
     env.additional_packages = [
         #'mercurial',
@@ -50,14 +50,14 @@ def production():
     env.code_root = join(env.go_path, 'src/github.com/yinhm/friendfeed')
     env.httpcache_path = join(env.project_path, 'httpcache')
 
-    env.ff_logfile = join(env.deploy_root, 'logs', 'friendfeed.log')
+    env.ff_logfile = join(env.deploy_root, 'logs', 'ffdb.log')
     env.ffclient_logfile = join(env.deploy_root, 'logs', 'ffclient.log')
     env.ffweb_logfile = join(env.deploy_root, 'logs', 'ffweb.log')
     env.ffweb_bind = "127.0.0.1:8080"
 
     env.nginx_https = True
     env.nginx_server_name = 'friendfeed.me'
-    env.nginx_client_max_body_size = 200    
+    env.nginx_client_max_body_size = 200
     
 def test_if(func, *args, **kwargs):
     """
@@ -101,29 +101,19 @@ def bootstrap():
     sudo("apt-get -y install nginx")
     sudo("apt-get -y install nodejs npm")
 
-    sudo ("apt-get -y install debhelper libsnappy-dev libgflags-dev libjemalloc-dev libbz2-dev zlib1g-dev")
-    sudo("sudo apt-get -y install devscripts")
+    # sudo ("apt-get -y install debhelper libsnappy-dev libgflags-dev libjemalloc-dev libbz2-dev zlib1g-dev")
+    # sudo("sudo apt-get -y install devscripts")
     # sudo('git config --global url."git@github.com:".insteadOf "https://github.com/"')
 
-    sudo("npm install -g gulp")
-    sudo("ln -s /usr/bin/nodejs /usr/bin/node")
 
 @task
 def deploy_env():
     build_path = "/srv/build"
     sudo('mkdir -p %s' % build_path)
-
-    template = 'conf/deb-rocksdb.sh'
-    upload_template(template, join(build_path, 'deb-rocksdb.sh'),
-                    use_sudo=True, backup=False)    
     
     with cd(build_path):
         sudo("curl -L https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz | tar zx")
-        sudo("./godeb install 1.4.2")
-        sudo("wget https://github.com/facebook/rocksdb/archive/rocksdb-3.9.1.tar.gz -O rocksdb.tgz")
-        sudo("tar zxvf rocksdb.tgz && mv rocksdb-rocksdb-3.9.1 rocksdb")
-        sudo("bash deb-rocksdb.sh")
-        sudo("sudo dpkg -i librocksdb*deb")
+        sudo("./godeb install 1.22.1")
 
 
 @task
@@ -147,7 +137,7 @@ def deploy_config():
     sudo('chmod 600 %s' % (key_path))
 
 @task
-def deploy():
+def deploy_db():
     go_path = env.go_path
     db_path = "/srv/ff/db"
     code_root = env.code_root
@@ -158,7 +148,7 @@ def deploy():
         sudo('mkdir -p %s' % dirname(code_root))
         sudo('mkdir -p %s' % dirname(env.ff_logfile))
 
-        sudo('chown %s:%s %s -R' % (env.user, env.user, go_path))
+        sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_user, go_path))
 
     if not exists(db_path):
         sudo('mkdir -p %s' % db_path)
@@ -167,9 +157,9 @@ def deploy():
     sudo('chown %s %s' % (env.runner_user, dirname(env.ff_logfile)))
     sudo('chmod -R 775 %s' % dirname(env.ff_logfile))
 
-    template = 'conf/friendfeed.conf'
+    template = 'conf/ffdb.service'
     context = copy(env)
-    upload_template(template, '/etc/init/friendfeed.conf',
+    upload_template(template, '/etc/systemd/system/ffdb.service',
                     context=context, backup=False, use_sudo=True)
 
     with shell_env(GOPATH=go_path):
@@ -182,10 +172,10 @@ def deploy():
             run("go get .")
             run("go install")
 
-    with settings(warn_only=True):
-        sudo("stop friendfeed")
+    sudo('chown %s:%s %s/bin/ffdb' % (env.runner_user, env.runner_group, go_path))
 
-    sudo("start friendfeed")
+    sudo("systemctl enable ffdb")
+    sudo("systemctl restart ffdb")
 
 
 @task
@@ -200,7 +190,7 @@ def deploy_client():
         sudo('mkdir -p %s' % dirname(code_root))
         sudo('mkdir -p %s' % dirname(env.ffclient_logfile))
 
-        sudo('chown %s:%s %s -R' % (env.user, env.user, go_path))
+        sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_user, go_path))
 
     if not exists(db_path):
         sudo('mkdir -p %s' % db_path)
@@ -320,7 +310,9 @@ def deploy_ssl():
 def deploy_nginx():
     '''deploy nginx '''
     web_path = join(env.project_path, "www")
-    template = 'conf/nginx_https.conf'
+
+    # https handled by cloudflare
+    template = 'conf/nginx_http.conf'
     nginx_conf_file = '/etc/nginx/sites-enabled/friendfeed.conf'
 
     context = copy(env)

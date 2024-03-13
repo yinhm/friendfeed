@@ -1,0 +1,16 @@
+[Unit]
+Description=ffdb
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%(project_path)s
+ExecStart=/srv/gopath/bin/ffdb -c %(project_path)s/config.json 1>>%(ff_logfile)s 2>>%(ff_logfile)s
+KillMode=process
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+LimitNPROC=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -159,7 +159,7 @@ SSL && Nginx
 
 Routine update
 
-    fab production deploy
+    fab production deploy_db
     fab production deploy_client
     fab production deploy_web
 
