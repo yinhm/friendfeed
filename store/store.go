@@ -198,6 +198,10 @@ func (db *Store) SetSync(syncOrNot bool) {
 	db.syncOption = &pebble.WriteOptions{Sync: syncOrNot}
 }
 
+func (db *Store) Flush() {
+	db.rdb.Flush()
+}
+
 func (db *Store) Get(key []byte) ([]byte, error) {
 	value, closer, err := db.rdb.Get(key)
 	if closer != nil {

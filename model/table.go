@@ -37,7 +37,8 @@ func NewTable(prefix store.Key) *Table {
 //
 // Prefix are internal
 // return only uuid part
-//   of the key.
+//
+//	of the key.
 //
 // +----------+
 // |  16bytes |
@@ -57,7 +58,7 @@ func (t *Table) PrefixRemove(key store.Key) store.Key {
 	return key[t.preSize:]
 }
 
-func (t *Table) toStringKey(key store.Key) string {
+func (t *Table) ToStringKey(key store.Key) string {
 	return t.PrefixRemove(key).String()
 }
 
@@ -119,13 +120,26 @@ func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 
 	iter := db.NewIterator(start)
 	for iter.First(); iter.Valid(); iter.Next() {
-		keys = append(keys, t.toStringKey(iter.Key()))
+		keys = append(keys, t.ToStringKey(iter.Key()))
 	}
 
 	return keys, err
 }
 
-func (t *Table) Iter(db *store.Store, fn func(raw []byte) error) error {
+func (t *Table) Iter(db *store.Store, fn func(key, raw []byte) error) error {
+	iter := db.NewIterator(t.Prefix)
+	defer iter.Close()
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if err := fn(key, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *Table) IterValue(db *store.Store, fn func(raw []byte) error) error {
 	iter := db.NewIterator(t.Prefix)
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {

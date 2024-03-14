@@ -60,8 +60,8 @@ func (p *Iterator) SeekLT(key []byte) {
 	p.iter.SeekLT(key)
 }
 
-func (p *Iterator) First() {
-	p.iter.First()
+func (p *Iterator) First() bool {
+	return p.iter.First()
 }
 
 func (p *Iterator) Last() {
