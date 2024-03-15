@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -30,14 +31,15 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 	})
 }
 
-// remove profile from db first
-// ./tools -from old_db -to new_db -c purge_profile
-// ./tools -from old_db -to new_db -c purge_oauth
-// then sync all data from mdb
-// ./tools -from old_db -to new_db -c meta
+// We should open original db ad readonly mode.
 //
-// sync oauth
-// ./tools -from old_db -to new_db -c sync_oauth
+// migrate meta db should and only need sync_meta
+// ./tools -from old_db -to new_db -c sync_meta
+//
+// sync all data from db
+// ./tools -from old_db -to new_db -c db
+// sync all data from meta db
+// ./tools -from old_db -to new_db -c meta
 //
 // Test Profile
 // ./tools -from old_db -to new_db -c profile
@@ -114,15 +116,29 @@ func main() {
 		}
 		log.Printf("Profiles: %d", n)
 
-	case "sync_oauth":
+	case "sync_meta":
 		log.Println("scan meta db now...")
-		n, err := mdb.ForwardScan(model.TableOAuth.Bytes(), func(i int, k, v []byte) error {
+
+		n, err := mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
+			msg := &pb.Profile{}
+			if err := proto.Unmarshal(v, msg); err != nil {
+				return err
+			} else {
+				// ndb.Set(k, v)
+				return model.UpdateProfile(ndb, msg) // use UpdateProfile also update id->uuid map
+			}
+		})
+		if err != nil {
+			log.Println(err)
+		}
+		log.Println("profile count: ", n)
+
+		n, err = mdb.ForwardScan(model.TableOAuth.Bytes(), func(i int, k, v []byte) error {
 			msg := &pb.OAuthUser{}
 			if err := proto.Unmarshal(v, msg); err != nil {
 				return err
 			}
 			if msg.UserId != "" && msg.AccessToken != "" && msg.AccessTokenSecret != "" && msg.Provider != "" {
-				i++
 				log.Println(hex.EncodeToString(k), msg)
 				model.PutOAuthUser(ndb, msg)
 			}
@@ -165,11 +181,12 @@ func main() {
 				fmt.Printf("profile: %s\n", profile)
 
 				new_value, _ := ndb.Get(k)
-				if !bytes.Equal(v, new_value) {
-					fmt.Println(v)
-					fmt.Println(new_value)
-					return errors.New("value not equal")
-				}
+				// pb messge differ
+				// if !bytes.Equal(v, new_value) {
+				// 	fmt.Println(v)
+				// 	fmt.Println(new_value)
+				// 	return errors.New("value not equal")
+				// }
 				if err := proto.Unmarshal(new_value, profile); err != nil {
 					return err
 				}
@@ -204,7 +221,57 @@ func main() {
 		fmt.Printf("oauth: %d has been removed.\n", n)
 		ndb.Flush()
 
+	case "count_meta":
+		prefix := []byte("")
+		log.Println("iter meta db now...")
+
+		// prefix = model.TableProfile.Bytes()
+		n, _ := mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+			return nil
+		})
+		log.Printf("key counts: %d", n)
+
+		// now test it
+		// n, _ = mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
+		// 	return nil
+		// })
+		// count += n
+		// n, _ = mdb.ForwardScan(model.TableOAuth.Bytes(), func(i int, k, v []byte) error {
+		// 	return nil
+		// })
+		// count += n
+		// log.Printf("key counts: %d", count)
+
+		count := 0
+		count_parsed := 0
+		mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+			msg := &pb.OAuthUser{}
+			if err := proto.Unmarshal(v, msg); err == nil {
+				count_parsed++
+				// model.PutOAuthUser(ndb, msg) // oauth format updated
+			} else {
+				msg := &pb.Profile{}
+				if err := proto.Unmarshal(v, msg); err == nil {
+					count_parsed++
+					// ndb.Set(k, v) // profile
+				} else {
+					count++
+					uuid1, err := uuid.FromBytes(v)
+					if err != nil {
+						fmt.Println(k, v) // cache
+					} else {
+						v2, _ := model.UserMap.GetRaw(ndb, k)
+						fmt.Println(string(k), uuid1.String(), bytes.Equal(v, v2))
+						// update id->uuid map here
+					}
+				}
+			}
+			return nil
+		})
+		fmt.Printf("known keys: %d id->uuid map keys: %d\n", count_parsed, count)
+
 	case "debug":
+		// map changed, this will fail
 		profile, err := model.GetProfileFromUserId(mdb, "yinhm")
 		if err != nil {
 			log.Println(err)
@@ -259,6 +326,9 @@ func main() {
 		// 	log.Println(err)
 		// }
 		// log.Println(profile)
+
+		v, _ := model.UserMap.GetRaw(ndb, []byte("yinhm"))
+		log.Printf("id map: <%s>", v)
 	}
 
 	ndb.Close()
