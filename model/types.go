@@ -18,6 +18,7 @@ const (
 	TableFeed     store.KeyPrefix = 1
 	TableFeedinfo store.KeyPrefix = 2
 	TableEntry    store.KeyPrefix = 3
+	TableUserMap  store.KeyPrefix = 4
 
 	// Prev iter was broken on rocksdb when this was coded,
 	// this index was actually a manually reverse index.
@@ -55,6 +56,7 @@ var (
 	Feedinfo   = NewTable(KeyPrefixToBytes(TableFeedinfo))
 	Entry      = NewTable(KeyPrefixToBytes(TableEntry))
 	EntryIndex = NewTable(KeyPrefixToBytes(TableEntryIndex))
+	UserMap    = NewTable(KeyPrefixToBytes(TableUserMap))
 	Profile    = NewTable(KeyPrefixToBytes(TableProfile))
 
 	Service  = NewTable(KeyPrefixToBytes(TableService))

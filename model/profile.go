@@ -33,7 +33,8 @@ func UpdateProfile(db *store.Store, profile *pb.Profile) error {
 	}
 
 	// user id(login) to uuid map
-	if err := db.Put([]byte(profile.Id), uuid1.Bytes()); err != nil {
+	k := NewKeyFrom(TableUserMap.Bytes(), []byte(profile.Id))
+	if err := db.Put(k, uuid1.Bytes()); err != nil {
 		return err
 	}
 	// log.Println("id->uuid map updated", profile.Id, "->", profile.Uuid)
@@ -44,7 +45,8 @@ func UpdateProfile(db *store.Store, profile *pb.Profile) error {
 }
 
 func GetProfileFromUserId(db *store.Store, id string) (*pb.Profile, error) {
-	rawdata, err := db.Get([]byte(id))
+	k := NewKeyFrom(TableUserMap.Bytes(), []byte(id))
+	rawdata, err := db.Get(k)
 	if err != nil || string(rawdata) == "" {
 		return nil, fmt.Errorf("GetProfile error: missing id->uuid map")
 	}

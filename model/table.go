@@ -75,6 +75,11 @@ func (t *Table) Get(db *store.Store, key store.Key, msg proto.Message) error {
 	return proto.Unmarshal(raw, msg)
 }
 
+func (t *Table) GetRaw(db *store.Store, key store.Key) ([]byte, error) {
+	k := t.PrefixAppend(key)
+	return db.Get(k)
+}
+
 func (t *Table) Put(db *store.Store, key store.Key, msg proto.Message) (store.Key, error) {
 	k := t.PrefixAppend(key)
 	bytes, err := proto.Marshal(msg)
