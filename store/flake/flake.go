@@ -34,8 +34,8 @@ package flake
 import (
 	cryptorand "crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
-	"net"
 	"sync"
 	"time"
 )
@@ -54,11 +54,11 @@ type TimeSource func() time.Time
 
 // An Id is a 128 bit wide value. All values are encoded with big endian.
 //
-// * The first 64 bits encode milliseconds since unix epoch.
-// * The next 48 bits encode the worker identifier, usually the MAC address of
-//   the machine that generated the Id.
-// * The final 16 bits encode a sequence to differentiate Ids generated in the
-//   same millisecond.
+//   - The first 64 bits encode milliseconds since unix epoch.
+//   - The next 48 bits encode the worker identifier, usually the MAC address of
+//     the machine that generated the Id.
+//   - The final 16 bits encode a sequence to differentiate Ids generated in the
+//     same millisecond.
 type Id [16]byte
 
 // A Worker ID is a 48 bit wide value, usually the MAC address of the machine
@@ -120,19 +120,28 @@ func (gen *Generator) NextId() (id Id, err error) {
 }
 
 // make it variable so we can test
+// BUG: Fix NewWorkerId due to broken EntryIndex design
+// Old data need fix since falke id rely on MAC address,
+// and it has been changed on cloud rapidly.
 var NewWorkerId = func() (id WorkerId) {
-	if ifaces, err := net.Interfaces(); err == nil {
-		for _, iface := range ifaces {
-			if len(iface.HardwareAddr) == 0 {
-				// skip loopback
-				continue
-			}
-			copy(id[:], iface.HardwareAddr[0:len(id)])
-			return id
-		}
-	}
-	return NewRandWorkerId()
+	fixedWorkedId, _ := hex.DecodeString("42010af00003")
+	copy(id[:], fixedWorkedId[0:len(id)])
+	return id
 }
+
+// var NewWorkerId = func() (id WorkerId) {
+// 	if ifaces, err := net.Interfaces(); err == nil {
+// 		for _, iface := range ifaces {
+// 			if len(iface.HardwareAddr) == 0 {
+// 				// skip loopback
+// 				continue
+// 			}
+// 			copy(id[:], iface.HardwareAddr[0:len(id)])
+// 			return id
+// 		}
+// 	}
+// 	return NewRandWorkerId()
+// }
 
 func NewRandWorkerId() (id WorkerId) {
 	bytes := make([]byte, len(id))
