@@ -277,6 +277,8 @@ func (db *Store) TimeTravelId(t time.Time) flake.Id {
 	return fid
 }
 
+// BUG: see flake.NewWorkerId
+// Use const WorkId for now till the index design changes.
 func (db *Store) TimeTravelReverseId(t time.Time) flake.Id {
 	duration := flake.MaxTime.Sub(t)
 	reverseTime := time.Unix(int64(duration.Seconds()), 0)

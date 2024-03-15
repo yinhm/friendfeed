@@ -56,7 +56,8 @@ func TestUniqueKey(t *testing.T) {
 	db := &store.Store{}
 	dt := time.Date(2021, 7, 25, 15, 0, 0, 0, time.UTC)
 	flakeid := db.TimeTravelReverseId(dt)
-	assert.Equal(t, "000006aee6c8de801c697aa5a6ca0000", fmt.Sprintf("%x", flakeid))
+	// assert.Equal(t, "000006aee6c8de801c697aa5a6ca0000", fmt.Sprintf("%x", flakeid))
+	assert.Equal(t, "000006aee6c8de8042010af000030000", fmt.Sprintf("%x", flakeid))
 
 	market, symbol := "SH", "600519"
 	uuid1 := UniqueKeyFrom(market, symbol)

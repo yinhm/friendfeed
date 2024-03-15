@@ -409,7 +409,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 			return nil // continue
 		}
 
-		// logger.Debugf("entry.key: <%x>", v)
+		// logger.Debugf("k: <%x>, entry.key: <%x>", k, v)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
 		if err != nil || len(rawdata) == 0 {
@@ -428,7 +428,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		}
 
 		entries = append(entries, entry)
-		if i > int(req.PageSize+req.Start) {
+		if i > int(req.PageSize+req.Start) { // so we know when to paging
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
 		}
 		return nil
