@@ -11,10 +11,13 @@ import (
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
+	logger.Debugf("auth info: <%s>", authinfo)
 	_, msg, err := model.GetOAuthUser(s.mdb, authinfo.Provider, authinfo.UserId)
 	if err != nil && err != model.ErrNotFound {
+		logger.Debugf("oauth user not found: %s", err)
 		return nil, err
 	}
+	logger.Debugf("oauth user: <%s>", msg)
 
 	// exist oauth
 	// WARN: do not gen uuid, old uuid may from ff
@@ -27,7 +30,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	if err != nil {
 		return nil, err
 	}
-	// logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, "twitter", authinfo.UserId)
+	logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, "twitter", authinfo.UserId)
 
 	// exists profile
 	profileUUid, _ := uuid.FromString(authinfo.Uuid)
@@ -77,7 +80,12 @@ func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	return model.GetProfileFromUuid(s.mdb, uuid1)
+	profile, err := model.GetProfileFromUuid(s.mdb, uuid1)
+	if err != nil {
+		logger.Debugf("FetchProfile: %s", err)
+		return nil, err
+	}
+	return profile, nil
 }
 
 func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {
