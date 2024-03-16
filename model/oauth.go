@@ -28,7 +28,7 @@ func GetOAuthUser(db *store.Store, provider, userId string) (store.Key, *pb.OAut
 }
 
 // TODO: rename to RefreshOAuthUser?
-// OAuth info can only change from upstream provider
+// OAuth info updated when login from upstream provider
 func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	_, v, err := GetOAuthUser(db, u.Provider, u.UserId)
 	if err != nil && err != ErrNotFound {

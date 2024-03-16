@@ -25,7 +25,6 @@ func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profi
 	return profile, nil
 }
 
-// FIXME: id=>uuid map may collision on different sevices
 func UpdateProfile(db *store.Store, profile *pb.Profile) error {
 	uuid1, err := uuid.FromString(profile.Uuid)
 	if err != nil {
