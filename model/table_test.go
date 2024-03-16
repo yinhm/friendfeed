@@ -11,6 +11,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/store/flake"
 )
 
 type TableTestSuite struct {
@@ -122,20 +123,36 @@ func (s *TableTestSuite) TestPutEntry() {
 	err = DeleteEntry(s.db, "2b43a9066074d120ed2e45494eea1797")
 	assert.Nil(s.T(), err) // blind delete
 
-	// // produce duplicated entry issue when server moved
-	// oldNewWorkerId := flake.NewWorkerId
-	// flake.NewWorkerId = flake.NewRandWorkerId
-	// _, err = PutEntry(s.db, e)
-	// assert.Nil(s.T(), err)
+	// produce duplicated entry issue when server moved
+	oldNewWorkerId := flake.NewWorkerId
+	flake.NewWorkerId = flake.NewRandWorkerId
+	n, err = s.db.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
+		return nil
+	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 0, n)
 
-	// n, err = store.ForwardTableScan(s.db, key, func(i int, k, v []byte) error {
-	// 	return nil
-	// })
-	// assert.Nil(s.T(), err)
-	// assert.Equal(s.T(), 1, n)
+	_, err = PutEntry(s.db, e)
+	assert.Nil(s.T(), err)
 
-	// // restore NewWorkerId func otherwise will break other tests
-	// flake.NewWorkerId = oldNewWorkerId
+	n, err = s.db.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
+		return nil
+	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, n)
+
+	_, err = PutEntry(s.db, e)
+	assert.Nil(s.T(), err)
+
+	n, err = s.db.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
+		return nil
+	})
+	assert.Nil(s.T(), err)
+	// it would be 2 if we not delete the old index
+	assert.Equal(s.T(), 1, n)
+
+	// restore NewWorkerId func otherwise will break other tests
+	flake.NewWorkerId = oldNewWorkerId
 }
 
 func (s *TableTestSuite) TestArchiveHistory() {
