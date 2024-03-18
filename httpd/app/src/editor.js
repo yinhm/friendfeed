@@ -3,11 +3,11 @@ import { ReactEditor } from 'slate-react';
 import { Node, Editor, Transforms } from 'slate'
 import {
   Plate,
-  createDeserializeHTMLPlugin,
-  serializeHTMLFromNodes,
-  deserializeHTMLToDocumentFragment,
+  //   createDeserializeHTMLPlugin,
+  serializeHtml,
+  deserializeHtml,
   usePlateActions,
-  useStoreEditorRef,
+  useEditorRef,
 } from '@udecode/plate';
 
 
@@ -45,16 +45,16 @@ const OnPageEditor = ({
     postEntry
 }) => {
     const eid = id + "editor";
-    const editorRef = useStoreEditorRef(eid);
+    const editorRef = useEditorRef(eid);
     const [focused, setFocused] = useState(false);
     const [editorValue, setEditorValue] = useState(null);
     const { setValue, resetEditor } = usePlateActions(eid);
 
-    const plugins = useMemo(() => {
-        const p = [...defaultPlugins];
-        p.push(createDeserializeHTMLPlugin({ plugins: p }));
-        return p;
-    }, []);
+    // const plugins = useMemo(() => {
+    //     const p = [...defaultPlugins];
+    //     // p.push(createDeserializeHTMLPlugin({ plugins: p }));
+    //     return p;
+    // }, []);
 
     const initialValue = useMemo(() => {
         if (content) {
@@ -63,8 +63,8 @@ const OnPageEditor = ({
                 return JSON.parse(content);
             } catch (e) {
                 // fail safe to html parse
-                return deserializeHTMLToDocumentFragment(editor, {
-                    plugins,
+                return deserializeHtml(editor, {
+                    defaultPlugins,
                     element: content,
                 });
             }
@@ -82,7 +82,7 @@ const OnPageEditor = ({
             setFocused(true);
         }
         // if (editorValue) {
-        //   const html = serializeHTMLFromNodes(editor, {
+        //   const html = serializeHtml(editor, {
         //     plugins,
         //     nodes: editorValue,
         //   });
@@ -101,7 +101,7 @@ const OnPageEditor = ({
             return
         }
         
-        const htmlBody = serializeHTMLFromNodes(editor, {
+        const htmlBody = serializeHtml(editor, {
             plugins,
             nodes: editorValue,
         });

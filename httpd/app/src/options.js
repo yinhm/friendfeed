@@ -14,8 +14,9 @@ import { Looks3 } from '@styled-icons/material/Looks3';
 import { LooksOne } from '@styled-icons/material/LooksOne';
 import { LooksTwo } from '@styled-icons/material/LooksTwo';
 
+import { withProps } from '@udecode/cn';
 import {
-    createPlateComponents,
+    // createPlateUI,
     createPlateOptions,
     createEditorPlugins,
     createReactPlugin,
@@ -62,8 +63,7 @@ import {
     ToolbarList,
     ToolbarMark,
     useEventEditorId,
-    useStoreEditorRef,
-    withProps,
+    useEditorRef,
     CodeBlockElement,
     StyledElement,
     isBlockAboveEmpty,
@@ -72,7 +72,7 @@ import {
 import { css } from 'styled-components';
 
 
-export const components = createPlateComponents({
+export const components = createPlateUI({
     [ELEMENT_CODE_BLOCK]: withProps(CodeBlockElement, {
         styles: {
             root: [
@@ -254,11 +254,12 @@ export const defaultPlugins = [
     createSoftBreakPlugin(optionsSoftBreakPlugin),
     createExitBreakPlugin(optionsExitBreakPlugin),
     createTrailingBlockPlugin({ type: ELEMENT_PARAGRAPH }),
+    createDeserializeHTMLPlugin(),
 ];
 
 
 export const InlineToolbarElements = () => {
-    const editor = useStoreEditorRef(useEventEditorId('focus'));
+    const editor = useEditorRef(useEventEditorId('focus'));
 
     const arrow = false;
     const theme = 'dark';
