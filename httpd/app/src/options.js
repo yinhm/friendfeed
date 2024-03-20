@@ -17,11 +17,11 @@ import { LooksTwo } from '@styled-icons/material/LooksTwo';
 import { withProps } from '@udecode/cn';
 import {
     // createPlateUI,
-    createPlateOptions,
-    createEditorPlugins,
+    // createPlateOptions,
+    // createEditorPlugins,
     createReactPlugin,
     createHistoryPlugin,
-    createBasicElementPlugins,
+    // createBasicElementPlugins,
     createParagraphPlugin,
     createBlockquotePlugin,
     createHeadingPlugin,
@@ -40,7 +40,6 @@ import {
     createExitBreakPlugin,
     createTrailingBlockPlugin,
     KEYS_HEADING,
-    BalloonToolbar,
     ELEMENT_BLOCKQUOTE,
     ELEMENT_CODE_BLOCK,
     ELEMENT_H1,
@@ -51,70 +50,85 @@ import {
     ELEMENT_TODO_LI,
     ELEMENT_PARAGRAPH,
     ELEMENT_IMAGE,
-    getPlatePluginType,
+    getPluginType,
     MARK_BOLD,
     MARK_CODE,
     MARK_HIGHLIGHT,
     MARK_ITALIC,
     MARK_UNDERLINE,
-    ToolbarCodeBlock,
-    ToolbarElement,
-    ToolbarLink,
-    ToolbarList,
-    ToolbarMark,
-    useEventEditorId,
-    useEditorRef,
-    CodeBlockElement,
-    StyledElement,
+    // BlockToolbarButton,
+    // ToolbarLink,
+    // ToolbarList,
+    // MarkToolbarButton,
+    usePlateEventId,
+    // StyledElement,
     isBlockAboveEmpty,
     isSelectionAtBlockStart,
 } from '@udecode/plate';
+import { createPlateUI } from '@/plate/create-plate-ui';
+
+
+import {
+    CodeBlockToolbarButton,
+    MarkToolbarButton,
+} from '@udecode/plate-ui';
+
+import { BalloonToolbar, BlockToolbarButton } from '@udecode/plate-toolbar';
+import { LinkToolbarButton } from '@/components/LinkToolbarButton';
+import { ListToolbarButton } from '@/components/ToolbarButton';
+
+import {
+    useEditorRef,
+    useEditorSelector,
+    useEventEditorSelectors,
+    usePlateSelectors,
+  } from '@udecode/plate-common';
 import { css } from 'styled-components';
 
 
 export const components = createPlateUI({
-    [ELEMENT_CODE_BLOCK]: withProps(CodeBlockElement, {
-        styles: {
-            root: [
-                css`
-            background-color: #111827;
-            code {
-              color: white;
-            }
-          `,
-            ],
-        },
-    }),
-    [ELEMENT_H1]: withProps(StyledElement, {
-        styles: {
-            root: {
-                fontSize: "2em",
-                marginBlock: "0.67em",
-                marginInline: "0px",
-                fontWeight: "bold",
-            },
-        },
-    }),
-    [ELEMENT_H2]: withProps(StyledElement, {
-        styles: {
-            root: {
-                fontSize: "1.5em",
-                marginBlock: "0.83em",
-                marginInline: "0px",
-                fontWeight: "bold",
-            },
-        },
-    }),
-    [ELEMENT_H3]: withProps(StyledElement, {
-        styles: {
-            root: {
-                fontSize: "1.17em",
-                marginBlock: "1em",
-                marginInline: "0px",
-                fontWeight: "bold",
-            },
-        },
-    }),
+    // [ELEMENT_CODE_BLOCK]: withProps(CodeBlockElement, {
+    //     styles: {
+    //         root: [
+    //             css`
+    //         background-color: #111827;
+    //         code {
+    //           color: white;
+    //         }
+    //       `,
+    //         ],
+    //     },
+    // }),
+    // [ELEMENT_H1]: withProps(StyledElement, {
+    //     styles: {
+    //         root: {
+    //             fontSize: "2em",
+    //             marginBlock: "0.67em",
+    //             marginInline: "0px",
+    //             fontWeight: "bold",
+    //         },
+    //     },
+    // }),
+    // [ELEMENT_H2]: withProps(StyledElement, {
+    //     styles: {
+    //         root: {
+    //             fontSize: "1.5em",
+    //             marginBlock: "0.83em",
+    //             marginInline: "0px",
+    //             fontWeight: "bold",
+    //         },
+    //     },
+    // }),
+    // [ELEMENT_H3]: withProps(StyledElement, {
+    //     styles: {
+    //         root: {
+    //             fontSize: "1.17em",
+    //             marginBlock: "1em",
+    //             marginInline: "0px",
+    //             fontWeight: "bold",
+    //         },
+    //     },
+    // }),
 });
 
 export const initialValueEmpty = [
@@ -247,7 +261,7 @@ export const defaultPlugins = [
     createSelectOnBackspacePlugin({ allow: [ELEMENT_IMAGE] }),
 
     // headers
-    ...createBasicElementPlugins(),
+    // ...createBasicElementPlugins(),
 
     // reset
     createResetNodePlugin(optionsResetBlockTypePlugin),
@@ -259,7 +273,7 @@ export const defaultPlugins = [
 
 
 export const InlineToolbarElements = () => {
-    const editor = useEditorRef(useEventEditorId('focus'));
+    const editor = useEditorRef();
 
     const arrow = false;
     const theme = 'dark';
@@ -273,53 +287,53 @@ export const InlineToolbarElements = () => {
             theme={theme}
             arrow={arrow}
         >
-            <ToolbarMark
-                type={getPlatePluginType(editor, MARK_BOLD)}
+            <MarkToolbarButton
+                type={getPluginType(editor, MARK_BOLD)}
                 icon={<FormatBold />}
             />
-            <ToolbarMark
-                type={getPlatePluginType(editor, MARK_ITALIC)}
+            <MarkToolbarButton
+                type={getPluginType(editor, MARK_ITALIC)}
                 icon={<FormatItalic />}
             />
-            <ToolbarMark
-                type={getPlatePluginType(editor, MARK_UNDERLINE)}
+            <MarkToolbarButton
+                type={getPluginType(editor, MARK_UNDERLINE)}
                 icon={<FormatUnderlined />}
             />
-            <ToolbarMark
-                type={getPlatePluginType(editor, MARK_CODE)}
+            <MarkToolbarButton
+                type={getPluginType(editor, MARK_CODE)}
                 icon={<CodeAlt />}
             />
-            <ToolbarMark
-                type={getPlatePluginType(editor, MARK_HIGHLIGHT)}
+            <MarkToolbarButton
+                type={getPluginType(editor, MARK_HIGHLIGHT)}
                 icon={<Highlight />}
             />
-            <ToolbarElement
-                type={getPlatePluginType(editor, ELEMENT_H1)}
+            <BlockToolbarButton
+                type={getPluginType(editor, ELEMENT_H1)}
                 icon={<LooksOne />}
             />
-            <ToolbarElement
-                type={getPlatePluginType(editor, ELEMENT_H2)}
+            <BlockToolbarButton
+                type={getPluginType(editor, ELEMENT_H2)}
                 icon={<LooksTwo />}
             />
-            <ToolbarElement
-                type={getPlatePluginType(editor, ELEMENT_H3)}
+            <BlockToolbarButton
+                type={getPluginType(editor, ELEMENT_H3)}
                 icon={<Looks3 />}
             />
-            <ToolbarList
-                type={getPlatePluginType(editor, ELEMENT_UL)}
+            <ListToolbarButton
+                type={getPluginType(editor, ELEMENT_UL)}
                 icon={<FormatListBulleted />}
             />
-            <ToolbarList
-                type={getPlatePluginType(editor, ELEMENT_OL)}
+            <ListToolbarButton
+                type={getPluginType(editor, ELEMENT_OL)}
                 icon={<FormatListNumbered />}
             />
-            <ToolbarLink icon={<Link />} />
-            <ToolbarElement
-                type={getPlatePluginType(editor, ELEMENT_BLOCKQUOTE)}
+            <LinkToolbarButton icon={<Link />} />
+            <BlockToolbarButton
+                type={getPluginType(editor, ELEMENT_BLOCKQUOTE)}
                 icon={<FormatQuote />}
             />
-            <ToolbarCodeBlock
-                type={getPlatePluginType(editor, ELEMENT_CODE_BLOCK)}
+            <CodeBlockToolbarButton
+                type={getPluginType(editor, ELEMENT_CODE_BLOCK)}
                 icon={<CodeBlock />}
             />
         </BalloonToolbar>

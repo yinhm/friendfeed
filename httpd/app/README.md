@@ -1,3 +1,16 @@
+# plate
+
+
+CRA were outdated and not well maintenanced. Leave it for now till have a better soultion.
+
+
+for plate 
+
+```
+pnpx @udecode/plate-ui@latest init
+```
+
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

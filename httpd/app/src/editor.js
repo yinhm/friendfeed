@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+'use client';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ReactEditor } from 'slate-react';
 import { Node, Editor, Transforms } from 'slate'
 import {
@@ -10,15 +12,19 @@ import {
   useEditorRef,
 } from '@udecode/plate';
 
+import { cn } from '@udecode/cn';
+// import { Plate } from '@udecode/plate-common';
+import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
-import {
-    InlineToolbarElements,
-    initialValueEmpty,
-    defaultPlugins,
-    components,
-    editor,
-    options,
-} from './options';
+import { plugins } from '@/components/plate-plugins';
+// import { Editor } from '@/components/plate-ui/editor';
+import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';
+import { FixedToolbarButtons } from '@/components/plate-ui/fixed-toolbar-buttons';
+import { FloatingToolbar } from '@/components/plate-ui/floating-toolbar';
+import { FloatingToolbarButtons } from '@/components/plate-ui/floating-toolbar-buttons';
+
 
 const editableProps = {
     placeholder: '开始记录...',
@@ -37,6 +43,20 @@ const serializePlainText = nodes => {
     return nodes.map(n => Node.string(n)).join('\n')
 }
 
+const initialValue = [
+    {
+    //   id: '1',
+      type: ELEMENT_PARAGRAPH,
+      children: [{ text: 'Write here...' }],
+    },
+];
+
+const initialValueEmpty = [
+    {
+        type: ELEMENT_PARAGRAPH,
+        children: [{ text: '' }]
+    },
+];
 
 const OnPageEditor = ({
     id = "",
@@ -130,8 +150,8 @@ const OnPageEditor = ({
             <Plate
                 id={eid}
                 plugins={plugins}
-                components={components}
-                options={options}
+                // components={components}
+                // options={options}
                 editableProps={editableProps}
                 initialValue={initialValue}
                 onChange={(newValue) => {
