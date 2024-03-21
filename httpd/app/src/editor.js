@@ -2,24 +2,26 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ReactEditor } from 'slate-react';
-import { Node, Editor, Transforms } from 'slate'
+import { Node, Transforms } from 'slate'
+import { TooltipProvider } from 'components/plate-ui/tooltip';
 import {
-  Plate,
-  //   createDeserializeHTMLPlugin,
-  serializeHtml,
-  deserializeHtml,
-  usePlateStates,
-//   useEditorRef,
-//   useRef,
+    Plate,
+    //   createDeserializeHTMLPlugin,
+    serializeHtml,
+    deserializeHtml,
+    //   usePlateStates,
+    //   useEditorRef,
+    //   useReplaceEditor,
+    //   useRef,
 } from '@udecode/plate';
 
 // import { Plate } from '@udecode/plate-common';
 import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
-// import { DndProvider } from 'react-dnd';
-// import { HTML5Backend } from 'react-dnd-html5-backend';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 import { plugins } from 'components/plate-plugins';
-// import { Editor } from '@/components/plate-ui/editor';
+import { Editor } from 'components/plate-ui/editor';
 // import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';
 // import { FixedToolbarButtons } from '@/components/plate-ui/fixed-toolbar-buttons';
 // import { FloatingToolbar } from '@/components/plate-ui/floating-toolbar';
@@ -43,13 +45,13 @@ const serializePlainText = nodes => {
     return nodes.map(n => Node.string(n)).join('\n')
 }
 
-// const initialValue = [
-//     {
-//     //   id: '1',
-//       type: ELEMENT_PARAGRAPH,
-//       children: [{ text: 'Write here...' }],
-//     },
-// ];
+const initialValue = [
+    {
+        //   id: '1',
+        type: ELEMENT_PARAGRAPH,
+        children: [{ text: 'Write here...' }],
+    },
+];
 
 const initialValueEmpty = [
     {
@@ -58,26 +60,22 @@ const initialValueEmpty = [
     },
 ];
 
-// const OnPageEditor = ({
-//     id = "",
-//     feedUuid = "",
-//     content = "",
-//     postEntry
-// }) => {
-export default function OnPageEditor({
+const OnPageEditor = ({
     id = "",
     feedUuid = "",
     content = "",
     postEntry
-}) {
+}) => {
     const editorRef = useRef(null);
-    
+
     const eid = id + "editor";
     // const editorRef = useEditorRef(eid);
     const [focused, setFocused] = useState(false);
     const [editorValue, setEditorValue] = useState(null);
     // const { setValue, resetEditor } = usePlateActions(eid);
-    const [setValue, resetEditor] = usePlateStates(eid).value()
+    // const [value, setValue] = usePlateStates('myeditor').value();
+
+    // const [setValue, resetEditor] = usePlateStates(eid).value();
 
 
     // const plugins = useMemo(() => {
@@ -119,7 +117,7 @@ export default function OnPageEditor({
         //   console.log(html);
         // }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [editorRef, editorValue]);
+    }, [editorRef, editorValue]);
 
     const onChange = (slateValue) => {
         // console.log(JSON.stringify(slateValue));
@@ -130,7 +128,7 @@ export default function OnPageEditor({
         if (!editorValue) {
             return
         }
-        
+
         const htmlBody = serializeHtml(ReactEditor, {
             plugins,
             nodes: editorValue,
@@ -149,30 +147,50 @@ export default function OnPageEditor({
         formData.set("rawBody", rawBody);
         postEntry(formData)
             .then(() => {
-                resetEditor(eid);
-                setValue(initialValueEmpty);
+                // resetEditor(eid);
+                editorRef.resetEditor();
+                // setValue(initialValueEmpty);
             }).catch(error => console.error(error));
     };
 
     return (
-        <div className="sharebox">
-            {/* <InlineToolbarElements /> */}
-            <Plate
-                id={eid}
-                plugins={plugins}
-                // components={components}
-                // options={options}
-                editableProps={editableProps}
-                initialValue={initialValue}
-                onChange={(newValue) => {
-                    onChange(newValue);
-                }}
-            />
-            <div className="post">
-                <span className="max_info"></span>
-                <input className="submit" type="submit" value="发布" onClick={onPostEntry} />
-            </div>
-        </div>
+        <TooltipProvider
+            disableHoverableContent
+            delayDuration={500}
+            skipDelayDuration={0}
+        >
+            <DndProvider backend={HTML5Backend}>
+                <Plate
+                    id={eid}
+                    plugins={plugins}
+                    // components={components}
+                    // options={options}
+                    editableProps={editableProps}
+                    initialValue={initialValue}
+                    onChange={(newValue) => {
+                        onChange(newValue);
+                    }}
+                >
+                    <div className="sharebox" ref={editorRef}>
+
+                        <Editor
+                            className="px-[96px] py-16"
+                            autoFocus
+                            focusRing={false}
+                            variant="ghost"
+                            size="md"
+                        />
+
+                        <div className="post">
+                            <span className="max_info"></span>
+                            <input className="submit" type="submit" value="发布" onClick={onPostEntry} />
+                        </div>
+                    </div>
+                </Plate>
+            </DndProvider>
+        </TooltipProvider>
     );
 }
+
+export default OnPageEditor;
 
