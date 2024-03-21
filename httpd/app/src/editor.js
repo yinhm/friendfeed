@@ -8,22 +8,22 @@ import {
   //   createDeserializeHTMLPlugin,
   serializeHtml,
   deserializeHtml,
-  usePlateActions,
-  useEditorRef,
+  usePlateStates,
+//   useEditorRef,
+//   useRef,
 } from '@udecode/plate';
 
-import { cn } from '@udecode/cn';
 // import { Plate } from '@udecode/plate-common';
 import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+// import { DndProvider } from 'react-dnd';
+// import { HTML5Backend } from 'react-dnd-html5-backend';
 
-import { plugins } from '@/components/plate-plugins';
+import { plugins } from 'components/plate-plugins';
 // import { Editor } from '@/components/plate-ui/editor';
-import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';
-import { FixedToolbarButtons } from '@/components/plate-ui/fixed-toolbar-buttons';
-import { FloatingToolbar } from '@/components/plate-ui/floating-toolbar';
-import { FloatingToolbarButtons } from '@/components/plate-ui/floating-toolbar-buttons';
+// import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';
+// import { FixedToolbarButtons } from '@/components/plate-ui/fixed-toolbar-buttons';
+// import { FloatingToolbar } from '@/components/plate-ui/floating-toolbar';
+// import { FloatingToolbarButtons } from '@/components/plate-ui/floating-toolbar-buttons';
 
 
 const editableProps = {
@@ -43,13 +43,13 @@ const serializePlainText = nodes => {
     return nodes.map(n => Node.string(n)).join('\n')
 }
 
-const initialValue = [
-    {
-    //   id: '1',
-      type: ELEMENT_PARAGRAPH,
-      children: [{ text: 'Write here...' }],
-    },
-];
+// const initialValue = [
+//     {
+//     //   id: '1',
+//       type: ELEMENT_PARAGRAPH,
+//       children: [{ text: 'Write here...' }],
+//     },
+// ];
 
 const initialValueEmpty = [
     {
@@ -58,17 +58,27 @@ const initialValueEmpty = [
     },
 ];
 
-const OnPageEditor = ({
+// const OnPageEditor = ({
+//     id = "",
+//     feedUuid = "",
+//     content = "",
+//     postEntry
+// }) => {
+export default function OnPageEditor({
     id = "",
     feedUuid = "",
     content = "",
     postEntry
-}) => {
+}) {
+    const editorRef = useRef(null);
+    
     const eid = id + "editor";
-    const editorRef = useEditorRef(eid);
+    // const editorRef = useEditorRef(eid);
     const [focused, setFocused] = useState(false);
     const [editorValue, setEditorValue] = useState(null);
-    const { setValue, resetEditor } = usePlateActions(eid);
+    // const { setValue, resetEditor } = usePlateActions(eid);
+    const [setValue, resetEditor] = usePlateStates(eid).value()
+
 
     // const plugins = useMemo(() => {
     //     const p = [...defaultPlugins];
@@ -83,8 +93,8 @@ const OnPageEditor = ({
                 return JSON.parse(content);
             } catch (e) {
                 // fail safe to html parse
-                return deserializeHtml(editor, {
-                    defaultPlugins,
+                return deserializeHtml(ReactEditor, {
+                    plugins,
                     element: content,
                 });
             }
@@ -121,7 +131,7 @@ const OnPageEditor = ({
             return
         }
         
-        const htmlBody = serializeHtml(editor, {
+        const htmlBody = serializeHtml(ReactEditor, {
             plugins,
             nodes: editorValue,
         });
@@ -146,7 +156,7 @@ const OnPageEditor = ({
 
     return (
         <div className="sharebox">
-            <InlineToolbarElements />
+            {/* <InlineToolbarElements /> */}
             <Plate
                 id={eid}
                 plugins={plugins}
@@ -166,4 +176,3 @@ const OnPageEditor = ({
     );
 }
 
-export default OnPageEditor

@@ -5,7 +5,7 @@ import {
   useLinkToolbarButtonState,
 } from '@udecode/plate-link';
 
-import { Icons } from '@/components/icons';
+import { Icons } from 'components/icons';
 
 import { ToolbarButton } from './toolbar';
 

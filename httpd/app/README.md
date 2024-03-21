@@ -3,6 +3,11 @@
 
 CRA were outdated and not well maintenanced. Leave it for now till have a better soultion.
 
+```
+pnpmx outdate
+pnpm update
+```
+
 
 for plate 
 

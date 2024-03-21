@@ -9,7 +9,7 @@ import {
   useCodeBlockComboboxState,
 } from '@udecode/plate-code-block';
 
-import { Icons } from '@/components/icons';
+import { Icons } from 'components/icons';
 
 import { Button } from './button';
 import {

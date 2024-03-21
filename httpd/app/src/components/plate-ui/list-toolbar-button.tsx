@@ -6,7 +6,7 @@ import {
   useListToolbarButtonState,
 } from '@udecode/plate-list';
 
-import { Icons } from '@/components/icons';
+import { Icons } from 'components/icons';
 
 import { ToolbarButton } from './toolbar';
 

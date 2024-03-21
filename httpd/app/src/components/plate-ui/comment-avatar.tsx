@@ -7,7 +7,7 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from '@/components/plate-ui/avatar';
+} from 'components/plate-ui/avatar';
 
 export function CommentAvatar({ userId }: { userId: string | null }) {
   const user = useUserById(userId);
