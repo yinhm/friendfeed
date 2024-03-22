@@ -45,18 +45,11 @@ const serializePlainText = nodes => {
     return nodes.map(n => Node.string(n)).join('\n')
 }
 
-const initialValue = [
+const initialValueEmpty = [
     {
         //   id: '1',
         type: ELEMENT_PARAGRAPH,
-        children: [{ text: 'Write here...' }],
-    },
-];
-
-const initialValueEmpty = [
-    {
-        type: ELEMENT_PARAGRAPH,
-        children: [{ text: '' }]
+        children: [{ text: '' }],
     },
 ];
 

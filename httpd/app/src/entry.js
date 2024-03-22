@@ -537,7 +537,7 @@ class EntryCommandDelete extends React.Component{
       return (
         <>
         Confirm Delete 
-        <span className="item" className="deletecommand" onClick={this.handleCancel}> 取消 </span>
+        <span className="item deletecommand" onClick={this.handleCancel}> 取消 </span>
          / 
         <a href="#nolink" className="deletecommand" onClick={this.handleDelete}> 确定 </a>
         </>
