@@ -99,7 +99,7 @@ import {
 } from '@udecode/plate-paragraph';
 import { createResetNodePlugin } from '@udecode/plate-reset-node';
 import { createSelectOnBackspacePlugin } from '@udecode/plate-select';
-import { createBlockSelectionPlugin } from '@udecode/plate-selection';
+// import { createBlockSelectionPlugin } from '@udecode/plate-selection';
 import { createTabbablePlugin } from '@udecode/plate-tabbable';
 import {
   createTablePlugin,
@@ -232,14 +232,6 @@ export const plugins = createPlugins(
 
     // Functionality
     createAutoformatPlugin(autoformatPlugin),
-    createBlockSelectionPlugin({
-      options: {
-        sizes: {
-          top: 0,
-          bottom: 0,
-        },
-      },
-    }),
     createComboboxPlugin(),
     createEmojiPlugin({
       renderAfterEditable: EmojiCombobox as RenderAfterEditable,

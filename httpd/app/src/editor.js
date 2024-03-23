@@ -112,41 +112,39 @@ const OnPageEditor = (params) => {
     };
 
     const onPostEntry = useCallback(() => {
-        console.log("clicked???");
-        console.log("onPostEntry:", editorRef);
-        console.log("onPostEntry editorValue:", editorValue);
-        if (!editorRef || !editorValue) {
+        if (!editorRef || !editorRef.current) {
+            console.log("no editor or content found");
             return
         }
 
-        var plainText = serializePlainText(editorValue);
+        const editor = editorRef.current;
+        var plainText = serializePlainText(editor.children);
         if (plainText.length < 8) {
+            console.log("no valid content!");
             return;
         }
-        console.log("plain text:", plainText)
+        const rawBody = JSON.stringify(editor.children)
 
-        const rawBody = JSON.stringify(editorValue)
-        console.log("raw body:", rawBody)
-
-        console.log("plugins:", plugins)
-        console.log("editor value:", editorValue)
-        const htmlBody = serializeHtml(editorRef, {
-            plugins,
-            nodes: editorValue,
+        // see @udecode/plate/issues/2804
+        const htmlBody = serializeHtml(editor, {
+            nodes: editor.children,
         });
 
         var formData = new FormData();
-        formData.set("id", params.id);
+        if (params.id) {
+            formData.set("id", params.id);
+        }
         formData.set("feedUuid", params.feedUuid);
         formData.set("body", htmlBody);
         formData.set("rawBody", rawBody);
         params.postEntry(formData)
             .then(() => {
-                // resetEditor(eid);
-                editorRef.resetEditor();
+                editor.reset();
                 // setValue(initialValueEmpty);
-            }).catch(error => console.error(error));
-    }, [editorRef, editorValue, params])
+            }).catch(error => {
+                console.error(error)
+            });
+    }, [editorRef, params])
 
     return (
         <TooltipProvider
