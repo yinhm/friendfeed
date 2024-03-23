@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ReactEditor } from 'slate-react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Node } from 'slate'
 import { TooltipProvider } from 'components/plate-ui/tooltip';
 import {
@@ -9,6 +8,7 @@ import {
     //   createDeserializeHTMLPlugin,
     serializeHtml,
     deserializeHtml,
+    createPlateEditor,
     //   usePlateStates,
     //   useEditorRef,
     //   useReplaceEditor,
@@ -47,7 +47,7 @@ const initialValueEmpty = [
     {
         id: '1',
         type: ELEMENT_PARAGRAPH,
-        children: [{ text: 'From here...' }],
+        children: [{ text: '' }],
     },
 ];
 
@@ -57,7 +57,7 @@ const OnPageEditor = (params) => {
     const eid = params.id + "editor";
     // const editorRef = useEditorRef(eid);
     // const [focused, setFocused] = useState(false);
-    const [editorValue, setEditorValue] = useState(null);
+    const [, setEditorValue] = useState(null);
     // const { setValue, resetEditor } = usePlateActions(eid);
     // const [value, setValue] = usePlateStates('myeditor').value();
 
@@ -70,41 +70,41 @@ const OnPageEditor = (params) => {
     //     return p;
     // }, []);
 
+    // https://github.com/udecode/plate/blob/main/apps/www/content/docs/accessing-editor.mdx#temporary-editor-instance
     const initialValue = useMemo(() => {
+        // console.log("init value...")
         if (params.content) {
             try {
                 // how to test content is raw?
                 return JSON.parse(params.content);
             } catch (e) {
                 // fail safe to html parse
-                return deserializeHtml(ReactEditor, {
-                    plugins,
+                const tmpEditor = createPlateEditor({ plugins });
+                return deserializeHtml(tmpEditor, {
                     element: params.content,
                 });
             }
         }
         return initialValueEmpty;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [params]);
+    }, []);
 
-    // TODO:
-    // automatic save
-    useEffect(() => {
-        console.log("useEffect: ", editorRef)
-        // if (editorRef && !focused && params.id !== "") {
-        //     ReactEditor.focus(editorRef);
-        //     Transforms.select(editorRef, Editor.end(editorRef, []));
-        //     setFocused(true);
-        // }
-        // if (editorValue) {
-        //   const html = serializeHtml(editor, {
-        //     plugins,
-        //     nodes: editorValue,
-        //   });
-        //   console.log(html);
-        // }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editorRef, editorValue]);
+    // useEffect(() => {
+    //     console.log("useEffect: ", editorRef)
+    //     // if (editorRef && !focused && params.id !== "") {
+    //     //     ReactEditor.focus(editorRef);
+    //     //     Transforms.select(editorRef, Editor.end(editorRef, []));
+    //     //     setFocused(true);
+    //     // }
+    //     // if (editorValue) {
+    //     //   const html = serializeHtml(editor, {
+    //     //     plugins,
+    //     //     nodes: editorValue,
+    //     //   });
+    //     //   console.log(html);
+    //     // }
+    //     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // }, [editorRef, editorValue]);
 
     const onChange = (slateValue) => {
         // console.log(JSON.stringify(slateValue));
