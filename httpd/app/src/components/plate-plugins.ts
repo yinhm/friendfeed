@@ -46,7 +46,6 @@ import {
   RenderAfterEditable,
   someNode,
 } from '@udecode/plate-common';
-import { createDndPlugin } from '@udecode/plate-dnd';
 import { createEmojiPlugin } from '@udecode/plate-emoji';
 import {
   createFontBackgroundColorPlugin,
@@ -138,7 +137,7 @@ import {
 import { TableElement } from 'components/plate-ui/table-element';
 import { TableRowElement } from 'components/plate-ui/table-row-element';
 import { TodoListElement } from 'components/plate-ui/todo-list-element';
-import { withDraggables } from 'components/plate-ui/with-draggables';
+// import { withDraggables } from 'components/plate-ui/with-draggables';
 // import { TabbableElement } from 'components/tabbable-element';
 
 const resetBlockTypesCommonRule = {
@@ -242,9 +241,6 @@ export const plugins = createPlugins(
       },
     }),
     createComboboxPlugin(),
-    createDndPlugin({
-      options: { enableScroller: true },
-    }),
     createEmojiPlugin({
       renderAfterEditable: EmojiCombobox as RenderAfterEditable,
     }),
@@ -358,8 +354,7 @@ export const plugins = createPlugins(
     createJuicePlugin(),
   ],
   {
-    components: withDraggables(
-      withPlaceholders({
+    components: withPlaceholders({
         [ELEMENT_BLOCKQUOTE]: BlockquoteElement,
         [ELEMENT_CODE_BLOCK]: CodeBlockElement,
         [ELEMENT_CODE_LINE]: CodeLineElement,
@@ -393,7 +388,6 @@ export const plugins = createPlugins(
         [MARK_SUPERSCRIPT]: withProps(PlateLeaf, { as: 'sup' }),
         [MARK_UNDERLINE]: withProps(PlateLeaf, { as: 'u' }),
         [MARK_COMMENT]: CommentLeaf,
-      })
-    ),
+      }),
   }
 );

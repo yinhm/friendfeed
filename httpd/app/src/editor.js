@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ReactEditor } from 'slate-react';
-import { Node, Transforms } from 'slate'
+import { Node } from 'slate'
 import { TooltipProvider } from 'components/plate-ui/tooltip';
 import {
     Plate,
@@ -17,8 +17,6 @@ import {
 
 // import { Plate } from '@udecode/plate-common';
 import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 
 import { plugins } from 'components/plate-plugins';
 import { Editor } from 'components/plate-ui/editor';
@@ -28,18 +26,18 @@ import { Editor } from 'components/plate-ui/editor';
 // import { FloatingToolbarButtons } from '@/components/plate-ui/floating-toolbar-buttons';
 
 
-const editableProps = {
-    placeholder: '开始记录...',
-    style: {
-        padding: '15px',
-        boxSizing: "border-box",
-        border: "1px solid #ddd",
-        cursor: "text",
-        borderRadius: "2px",
-        marginBottom: "1em",
-        minHeight: "60px",
-    },
-};
+// const editableProps = {
+//     placeholder: '开始记录...',
+//     style: {
+//         padding: '15px',
+//         boxSizing: "border-box",
+//         border: "1px solid #ddd",
+//         cursor: "text",
+//         borderRadius: "2px",
+//         marginBottom: "1em",
+//         minHeight: "60px",
+//     },
+// };
 
 const serializePlainText = nodes => {
     return nodes.map(n => Node.string(n)).join('\n')
@@ -47,23 +45,18 @@ const serializePlainText = nodes => {
 
 const initialValueEmpty = [
     {
-        //   id: '1',
+        id: '1',
         type: ELEMENT_PARAGRAPH,
-        children: [{ text: '' }],
+        children: [{ text: 'From here...' }],
     },
 ];
 
-const OnPageEditor = ({
-    id = "",
-    feedUuid = "",
-    content = "",
-    postEntry
-}) => {
+const OnPageEditor = (params) => {
     const editorRef = useRef(null);
 
-    const eid = id + "editor";
+    const eid = params.id + "editor";
     // const editorRef = useEditorRef(eid);
-    const [focused, setFocused] = useState(false);
+    // const [focused, setFocused] = useState(false);
     const [editorValue, setEditorValue] = useState(null);
     // const { setValue, resetEditor } = usePlateActions(eid);
     // const [value, setValue] = usePlateStates('myeditor').value();
@@ -78,30 +71,31 @@ const OnPageEditor = ({
     // }, []);
 
     const initialValue = useMemo(() => {
-        if (content) {
+        if (params.content) {
             try {
                 // how to test content is raw?
-                return JSON.parse(content);
+                return JSON.parse(params.content);
             } catch (e) {
                 // fail safe to html parse
                 return deserializeHtml(ReactEditor, {
                     plugins,
-                    element: content,
+                    element: params.content,
                 });
             }
         }
         return initialValueEmpty;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [content]);
+    }, [params]);
 
     // TODO:
     // automatic save
     useEffect(() => {
-        if (editorRef && !focused && id !== "") {
-            ReactEditor.focus(editorRef);
-            Transforms.select(editorRef, Editor.end(editorRef, []));
-            setFocused(true);
-        }
+        console.log("useEffect: ", editorRef)
+        // if (editorRef && !focused && params.id !== "") {
+        //     ReactEditor.focus(editorRef);
+        //     Transforms.select(editorRef, Editor.end(editorRef, []));
+        //     setFocused(true);
+        // }
         // if (editorValue) {
         //   const html = serializeHtml(editor, {
         //     plugins,
@@ -117,34 +111,42 @@ const OnPageEditor = ({
         setEditorValue(slateValue);
     };
 
-    const onPostEntry = () => {
-        if (!editorValue) {
+    const onPostEntry = useCallback(() => {
+        console.log("clicked???");
+        console.log("onPostEntry:", editorRef);
+        console.log("onPostEntry editorValue:", editorValue);
+        if (!editorRef || !editorValue) {
             return
         }
-
-        const htmlBody = serializeHtml(ReactEditor, {
-            plugins,
-            nodes: editorValue,
-        });
-        const rawBody = JSON.stringify(editorValue)
 
         var plainText = serializePlainText(editorValue);
         if (plainText.length < 8) {
             return;
         }
+        console.log("plain text:", plainText)
+
+        const rawBody = JSON.stringify(editorValue)
+        console.log("raw body:", rawBody)
+
+        console.log("plugins:", plugins)
+        console.log("editor value:", editorValue)
+        const htmlBody = serializeHtml(editorRef, {
+            plugins,
+            nodes: editorValue,
+        });
 
         var formData = new FormData();
-        formData.set("id", id);
-        formData.set("feedUuid", feedUuid);
+        formData.set("id", params.id);
+        formData.set("feedUuid", params.feedUuid);
         formData.set("body", htmlBody);
         formData.set("rawBody", rawBody);
-        postEntry(formData)
+        params.postEntry(formData)
             .then(() => {
                 // resetEditor(eid);
                 editorRef.resetEditor();
                 // setValue(initialValueEmpty);
             }).catch(error => console.error(error));
-    };
+    }, [editorRef, editorValue, params])
 
     return (
         <TooltipProvider
@@ -152,35 +154,43 @@ const OnPageEditor = ({
             delayDuration={500}
             skipDelayDuration={0}
         >
-            <DndProvider backend={HTML5Backend}>
-                <Plate
-                    id={eid}
-                    plugins={plugins}
-                    // components={components}
-                    // options={options}
-                    editableProps={editableProps}
-                    initialValue={initialValue}
-                    onChange={(newValue) => {
-                        onChange(newValue);
-                    }}
-                >
-                    <div className="sharebox" ref={editorRef}>
+            <Plate
+                id={eid}
+                plugins={plugins}
+                // components={components}
+                // options={options}
+                initialValue={initialValue}
+                editorRef={editorRef}
+                onChange={(newValue) => {
+                    onChange(newValue);
+                }}
+            >
+                <div className="sharebox">
 
-                        <Editor
-                            className="px-[96px] py-16"
-                            autoFocus
-                            focusRing={false}
-                            variant="ghost"
-                            size="md"
-                        />
+                    <Editor
+                        className="px-[96px] py-16"
+                        autoFocus
+                        focusRing={false}
+                        variant="ghost"
+                        size="md"
+                        placeholder='开始记录...'
+                        style={{
+                            padding: '15px',
+                            boxSizing: "border-box",
+                            border: "1px solid #ddd",
+                            cursor: "text",
+                            borderRadius: "2px",
+                            marginBottom: "1em",
+                            minHeight: "60px",
+                        }}
+                    />
 
-                        <div className="post">
-                            <span className="max_info"></span>
-                            <input className="submit" type="submit" value="发布" onClick={onPostEntry} />
-                        </div>
+                    <div className="post">
+                        <span className="max_info"></span>
+                        <input className="submit" type="submit" value="发布" onClick={onPostEntry} />
                     </div>
-                </Plate>
-            </DndProvider>
+                </div>
+            </Plate>
         </TooltipProvider>
     );
 }

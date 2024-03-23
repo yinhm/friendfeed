@@ -10,7 +10,7 @@ import {
 } from '@udecode/plate-dnd';
 import { DropTargetMonitor } from 'react-dnd';
 
-import { Icons } from 'components/icons';
+// import { Icons } from 'components/icons';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip';
 
@@ -80,7 +80,7 @@ export interface DraggableProps
 const dragHandle = (
   <Tooltip>
     <TooltipTrigger>
-      <Icons.dragHandle className="h-4 w-4 text-muted-foreground" />
+      {/* <Icons.dragHandle className="h-4 w-4 text-muted-foreground" /> */}
     </TooltipTrigger>
     <TooltipContent>Drag to move</TooltipContent>
   </Tooltip>
