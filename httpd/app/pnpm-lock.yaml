@@ -173,6 +173,9 @@ dependencies:
   '@udecode/plate-ui':
     specifier: ^31.0.0
     version: 31.0.0(typescript@5.4.3)
+  '@udecode/plate-utils':
+    specifier: ^31.0.0
+    version: 31.0.0(@types/react@18.2.67)(react-dom@18.2.0)(react@18.2.0)(scheduler@0.23.0)(slate-history@0.100.0)(slate-hyperscript@0.100.0)(slate-react@0.102.0)(slate@0.102.0)
   class-variance-authority:
     specifier: ^0.7.0
     version: 0.7.0

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Node } from 'slate'
 import { TooltipProvider } from 'components/plate-ui/tooltip';
 import {
@@ -17,6 +17,7 @@ import {
 
 // import { Plate } from '@udecode/plate-common';
 import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
+import { selectEditor } from "@udecode/plate-utils"
 
 import { plugins } from 'components/plate-plugins';
 import { Editor } from 'components/plate-ui/editor';
@@ -56,13 +57,10 @@ const OnPageEditor = (params) => {
 
     const eid = params.id + "editor";
     // const editorRef = useEditorRef(eid);
-    // const [focused, setFocused] = useState(false);
     const [, setEditorValue] = useState(null);
     // const { setValue, resetEditor } = usePlateActions(eid);
     // const [value, setValue] = usePlateStates('myeditor').value();
-
     // const [setValue, resetEditor] = usePlateStates(eid).value();
-
 
     // const plugins = useMemo(() => {
     //     const p = [...defaultPlugins];
@@ -89,22 +87,13 @@ const OnPageEditor = (params) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // useEffect(() => {
-    //     console.log("useEffect: ", editorRef)
-    //     // if (editorRef && !focused && params.id !== "") {
-    //     //     ReactEditor.focus(editorRef);
-    //     //     Transforms.select(editorRef, Editor.end(editorRef, []));
-    //     //     setFocused(true);
-    //     // }
-    //     // if (editorValue) {
-    //     //   const html = serializeHtml(editor, {
-    //     //     plugins,
-    //     //     nodes: editorValue,
-    //     //   });
-    //     //   console.log(html);
-    //     // }
-    //     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // }, [editorRef, editorValue]);
+    useEffect(() => {
+        // console.log("useEffect: ", editorRef)
+        if (editorRef && params.id && params.id !== "") {
+            var editor = editorRef.current
+            selectEditor(editor, {edge: "end", focus: true})
+        }
+    }, [editorRef, params]);
 
     const onChange = (slateValue) => {
         // console.log(JSON.stringify(slateValue));
@@ -167,7 +156,7 @@ const OnPageEditor = (params) => {
 
                     <Editor
                         className="px-[96px] py-16"
-                        autoFocus
+                        autoFocus={false}
                         focusRing={false}
                         variant="ghost"
                         size="md"
