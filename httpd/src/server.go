@@ -6,9 +6,9 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -79,16 +79,32 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 
 	if s.debug {
 		var jsFiles []string
-		files, err := ioutil.ReadDir("app/build/static/js")
+		files, err := os.ReadDir("app/build/static/js")
 		if err != nil {
 			log.Println(err)
 		}
 		for _, fileName := range files {
-			if !fileName.IsDir() && strings.HasSuffix(fileName.Name(), "js") {
-				jsFiles = append(jsFiles, fileName.Name())
+			if !fileName.IsDir() {
+				if strings.HasSuffix(fileName.Name(), "js") {
+					jsFiles = append(jsFiles, fileName.Name())
+				}
 			}
 		}
 		data["jsFiles"] = jsFiles
+
+		var cssFiles []string
+		files, err = os.ReadDir("app/build/static/css")
+		if err != nil {
+			log.Println(err)
+		}
+		for _, fileName := range files {
+			if !fileName.IsDir() {
+				if strings.HasSuffix(fileName.Name(), "css") {
+					cssFiles = append(cssFiles, fileName.Name())
+				}
+			}
+		}
+		data["cssFiles"] = cssFiles
 	}
 	c.HTML(code, name, data)
 }

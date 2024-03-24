@@ -160,7 +160,7 @@ const OnPageEditor = (params) => {
                         focusRing={false}
                         variant="ghost"
                         size="md"
-                        placeholder='开始记录...'
+                        // placeholder='开始记录...'
                         style={{
                             padding: '15px',
                             boxSizing: "border-box",
