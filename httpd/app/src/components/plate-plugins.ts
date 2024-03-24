@@ -6,8 +6,6 @@ import {
   createCodePlugin,
   createItalicPlugin,
   createStrikethroughPlugin,
-  createSubscriptPlugin,
-  createSuperscriptPlugin,
   createUnderlinePlugin,
   MARK_BOLD,
   MARK_CODE,
@@ -56,26 +54,19 @@ import {
   ELEMENT_H1,
   ELEMENT_H2,
   ELEMENT_H3,
-  ELEMENT_H4,
-  ELEMENT_H5,
-  ELEMENT_H6,
   KEYS_HEADING,
 } from '@udecode/plate-heading';
 import {
   createHighlightPlugin,
   MARK_HIGHLIGHT,
 } from '@udecode/plate-highlight';
-import {
-  createHorizontalRulePlugin,
-  ELEMENT_HR,
-} from '@udecode/plate-horizontal-rule';
 import { createIndentPlugin } from '@udecode/plate-indent';
 import {
   createIndentListPlugin,
   KEY_LIST_STYLE_TYPE,
 } from '@udecode/plate-indent-list';
 import { createJuicePlugin } from '@udecode/plate-juice';
-import { createKbdPlugin, MARK_KBD } from '@udecode/plate-kbd';
+// import { createKbdPlugin, MARK_KBD } from '@udecode/plate-kbd';
 import { createLineHeightPlugin } from '@udecode/plate-line-height';
 import { createLinkPlugin, ELEMENT_LINK } from '@udecode/plate-link';
 import {
@@ -98,7 +89,6 @@ import {
 } from '@udecode/plate-paragraph';
 import { createResetNodePlugin } from '@udecode/plate-reset-node';
 import { createSelectOnBackspacePlugin } from '@udecode/plate-select';
-// import { createBlockSelectionPlugin } from '@udecode/plate-selection';
 import { createTabbablePlugin } from '@udecode/plate-tabbable';
 import {
   createTablePlugin,
@@ -118,9 +108,7 @@ import { CodeSyntaxLeaf } from 'components/plate-ui/code-syntax-leaf';
 import { EmojiCombobox } from 'components/plate-ui/emoji-combobox';
 import { HeadingElement } from 'components/plate-ui/heading-element';
 import { HighlightLeaf } from 'components/plate-ui/highlight-leaf';
-import { HrElement } from 'components/plate-ui/hr-element';
 import { ImageElement } from 'components/plate-ui/image-element';
-import { KbdLeaf } from 'components/plate-ui/kbd-leaf';
 import { LinkElement } from 'components/plate-ui/link-element';
 import { LinkFloatingToolbar } from 'components/plate-ui/link-floating-toolbar';
 import { ListElement } from 'components/plate-ui/list-element';
@@ -135,8 +123,6 @@ import {
 import { TableElement } from 'components/plate-ui/table-element';
 import { TableRowElement } from 'components/plate-ui/table-row-element';
 import { TodoListElement } from 'components/plate-ui/todo-list-element';
-// import { withDraggables } from 'components/plate-ui/with-draggables';
-// import { TabbableElement } from 'components/tabbable-element';
 
 const resetBlockTypesCommonRule = {
   types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
@@ -156,7 +142,7 @@ export const plugins = createPlugins(
     createHeadingPlugin(),
     createBlockquotePlugin(),
     createCodeBlockPlugin(),
-    createHorizontalRulePlugin(),
+    // createHorizontalRulePlugin(),
     createLinkPlugin({
       renderAfterEditable: LinkFloatingToolbar as RenderAfterEditable,
     }),
@@ -174,13 +160,13 @@ export const plugins = createPlugins(
     createUnderlinePlugin(),
     createStrikethroughPlugin(),
     createCodePlugin(),
-    createSubscriptPlugin(),
-    createSuperscriptPlugin(),
+    // createSubscriptPlugin(),
+    // createSuperscriptPlugin(),
     createFontColorPlugin(),
     createFontBackgroundColorPlugin(),
     createFontSizePlugin(),
     createHighlightPlugin(),
-    createKbdPlugin(),
+    // createKbdPlugin(),
 
     // Block Style
     createAlignPlugin({
@@ -287,7 +273,7 @@ export const plugins = createPlugins(
     createSelectOnBackspacePlugin({
       options: {
         query: {
-          allow: [ELEMENT_IMAGE, ELEMENT_HR],
+          allow: [ELEMENT_IMAGE],
         },
       },
     }),
@@ -323,14 +309,6 @@ export const plugins = createPlugins(
           });
         },
       },
-      // plugins: [
-      //   {
-      //     key: 'tabbable_element',
-      //     isElement: true,
-      //     isVoid: true,
-      //     component: TabbableElement,
-      //   },
-      // ],
     }),
     createTrailingBlockPlugin({
       options: { type: ELEMENT_PARAGRAPH },
@@ -345,13 +323,9 @@ export const plugins = createPlugins(
         [ELEMENT_CODE_BLOCK]: CodeBlockElement,
         [ELEMENT_CODE_LINE]: CodeLineElement,
         [ELEMENT_CODE_SYNTAX]: CodeSyntaxLeaf,
-        [ELEMENT_HR]: HrElement,
         [ELEMENT_H1]: withProps(HeadingElement, { variant: 'h1' }),
         [ELEMENT_H2]: withProps(HeadingElement, { variant: 'h2' }),
         [ELEMENT_H3]: withProps(HeadingElement, { variant: 'h3' }),
-        [ELEMENT_H4]: withProps(HeadingElement, { variant: 'h4' }),
-        [ELEMENT_H5]: withProps(HeadingElement, { variant: 'h5' }),
-        [ELEMENT_H6]: withProps(HeadingElement, { variant: 'h6' }),
         [ELEMENT_IMAGE]: ImageElement,
         [ELEMENT_LI]: withProps(PlateElement, { as: 'li' }),
         [ELEMENT_LINK]: LinkElement,
@@ -368,7 +342,6 @@ export const plugins = createPlugins(
         [MARK_CODE]: CodeLeaf,
         [MARK_HIGHLIGHT]: HighlightLeaf,
         [MARK_ITALIC]: withProps(PlateLeaf, { as: 'em' }),
-        [MARK_KBD]: KbdLeaf,
         [MARK_STRIKETHROUGH]: withProps(PlateLeaf, { as: 's' }),
         [MARK_SUBSCRIPT]: withProps(PlateLeaf, { as: 'sub' }),
         [MARK_SUPERSCRIPT]: withProps(PlateLeaf, { as: 'sup' }),

@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 // import ReactDOMServer from 'react-dom/server';
 import './index.css';
 import './App.css';
-// import './styles/globals.css';
+import './styles/globals.css';
 import { App } from './App';
 import { Search } from './search';
 import reportWebVitals from './reportWebVitals';

@@ -16,9 +16,6 @@ window.appData = {{appData|safe}};
   {% for filename in jsFiles %}
   <script src="/app/build/static/js/{{filename}}"></script>
   {% endfor %}
-  {% for filename in cssFiles %}
-  <link href="/app/build/static/css/{{filename}}" rel="stylesheet" />
-  {% endfor %}
   {% else %}
   <script src="/static/js/bundle.min.js"></script>
   {% endif %}

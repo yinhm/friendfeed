@@ -9,6 +9,9 @@
     <!-- Style dependencies -->
     <!-- <link href="https://unpkg.com/normalize.css@^8.0.1" rel="stylesheet" /> -->
     <!-- Blueprint stylesheets -->
+    {% for filename in cssFiles %}
+    <link href="/app/build/static/css/{{filename}}" rel="stylesheet" />
+    {% endfor %}
     <link href="/static/css/blueprint-icons.css" rel="stylesheet" />
     <link href="/static/css/blueprint.css" rel="stylesheet" />
     <link href="/static/css/table.css" rel="stylesheet" />

@@ -23,8 +23,8 @@ import { plugins } from 'components/plate-plugins';
 import { Editor } from 'components/plate-ui/editor';
 // import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';
 // import { FixedToolbarButtons } from '@/components/plate-ui/fixed-toolbar-buttons';
-// import { FloatingToolbar } from '@/components/plate-ui/floating-toolbar';
-// import { FloatingToolbarButtons } from '@/components/plate-ui/floating-toolbar-buttons';
+import { FloatingToolbar } from 'components/plate-ui/floating-toolbar';
+import { FloatingToolbarButtons } from 'components/plate-ui/floating-toolbar-buttons';
 
 
 // const editableProps = {
@@ -171,6 +171,10 @@ const OnPageEditor = (params) => {
                             minHeight: "60px",
                         }}
                     />
+
+                    <FloatingToolbar>
+                      <FloatingToolbarButtons />
+                    </FloatingToolbar>
 
                     <div className="post">
                         <span className="max_info"></span>
