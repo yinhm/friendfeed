@@ -3,7 +3,7 @@ import {
     Cell,
     Column,
     ColumnHeaderCell,
-    Table,
+    Table2 as Table,
 } from "@blueprintjs/table";
 
 

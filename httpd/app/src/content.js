@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import OnPageEditor from './editor';
 import { FeedContext } from './context'
-import { Tabular } from './table'
+// import { Tabular } from './table'
 
 
 export function EntryContent(props) {
@@ -23,22 +23,22 @@ export function EntryContent(props) {
         );
     }
 
-    if (props.type === "tabular") {
-        if (feedCfg.onpage) {
-            const rawdata = JSON.parse(props.rawBody);
+    // if (props.type === "tabular") {
+    //     if (feedCfg.onpage) {
+    //         const rawdata = JSON.parse(props.rawBody);
 
-            return (
-                <Tabular data={rawdata.data}
-                    columns={rawdata.columns}
-                />
-            );
-        }
-        return (
-            <div className="content">
-                <a href={"/e/" + props.id}>{props.title}</a>
-            </div>
-        );
-    }
+    //         return (
+    //             <Tabular data={rawdata.data}
+    //                 columns={rawdata.columns}
+    //             />
+    //         );
+    //     }
+    //     return (
+    //         <div className="content">
+    //             <a href={"/e/" + props.id}>{props.title}</a>
+    //         </div>
+    //     );
+    // }
     return (
         <div className="content" dangerouslySetInnerHTML={{ __html: props.body }}>
         </div>

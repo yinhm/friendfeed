@@ -90,13 +90,6 @@ import {
 import { createResetNodePlugin } from '@udecode/plate-reset-node';
 import { createSelectOnBackspacePlugin } from '@udecode/plate-select';
 import { createTabbablePlugin } from '@udecode/plate-tabbable';
-import {
-  createTablePlugin,
-  ELEMENT_TABLE,
-  ELEMENT_TD,
-  ELEMENT_TH,
-  ELEMENT_TR,
-} from '@udecode/plate-table';
 import { createTrailingBlockPlugin } from '@udecode/plate-trailing-block';
 
 import { autoformatPlugin } from 'components/autoformat-plugin';
@@ -115,13 +108,6 @@ import { ListElement } from 'components/plate-ui/list-element';
 import { MediaEmbedElement } from 'components/plate-ui/media-embed-element';
 import { ParagraphElement } from 'components/plate-ui/paragraph-element';
 import { withPlaceholders } from 'components/plate-ui/placeholder';
-
-import {
-  TableCellElement,
-  TableCellHeaderElement,
-} from 'components/plate-ui/table-cell-element';
-import { TableElement } from 'components/plate-ui/table-element';
-import { TableRowElement } from 'components/plate-ui/table-row-element';
 import { TodoListElement } from 'components/plate-ui/todo-list-element';
 
 const resetBlockTypesCommonRule = {
@@ -151,7 +137,7 @@ export const plugins = createPlugins(
     createCaptionPlugin({
       options: { pluginKeys: [ELEMENT_IMAGE, ELEMENT_MEDIA_EMBED] },
     }),
-    createTablePlugin(),
+    // createTablePlugin(),
     createTodoListPlugin(),
 
     // Marks
@@ -285,7 +271,7 @@ export const plugins = createPlugins(
           {
             hotkey: 'enter',
             query: {
-              allow: [ELEMENT_CODE_BLOCK, ELEMENT_BLOCKQUOTE, ELEMENT_TD],
+              allow: [ELEMENT_CODE_BLOCK, ELEMENT_BLOCKQUOTE],
             },
           },
         ],
@@ -300,7 +286,7 @@ export const plugins = createPlugins(
             match: (n) => {
               return !!(
                 n.type &&
-                ([ELEMENT_TABLE, ELEMENT_LI, ELEMENT_CODE_BLOCK].includes(
+                ([ELEMENT_LI, ELEMENT_CODE_BLOCK].includes(
                   n.type as string
                 ) ||
                   n[KEY_LIST_STYLE_TYPE])
@@ -333,11 +319,7 @@ export const plugins = createPlugins(
         [ELEMENT_UL]: withProps(ListElement, { variant: 'ul' }),
         [ELEMENT_OL]: withProps(ListElement, { variant: 'ol' }),
         [ELEMENT_PARAGRAPH]: ParagraphElement,
-        [ELEMENT_TABLE]: TableElement,
-        [ELEMENT_TD]: TableCellElement,
-        [ELEMENT_TH]: TableCellHeaderElement,
         [ELEMENT_TODO_LI]: TodoListElement,
-        [ELEMENT_TR]: TableRowElement,
         [MARK_BOLD]: withProps(PlateLeaf, { as: 'strong' }),
         [MARK_CODE]: CodeLeaf,
         [MARK_HIGHLIGHT]: HighlightLeaf,
