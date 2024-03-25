@@ -37,10 +37,12 @@ func newIterator(db pebble.Reader, opts *pebble.IterOptions) *Iterator {
 		options: *opts,
 	}
 
-	p.iter = db.NewIter(&p.options)
-	if p.iter == nil {
+	// old version pebble.Reader.NewIter does not return err
+	iter, err := db.NewIter(&p.options)
+	if iter == nil || err != nil {
 		panic("unable to create iterator")
 	}
+	p.iter = iter
 	return p
 }
 

@@ -86,7 +86,7 @@ func main() {
 	apiServer := server.NewApiServer(cfg.DBPath, cfg)
 
 	// index service
-	search.InitIndexService(filepath.Join(cfg.DBPath, "index"))
+	go search.InitIndexService(filepath.Join(cfg.DBPath, "index"))
 
 	go apiServer.RefetchJobTicker()
 	go apiServer.IndexJobTicker()

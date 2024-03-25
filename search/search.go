@@ -22,14 +22,13 @@ func InitIndexService(indexPath string) {
 }
 
 func NewIndex(indexPath string) bleve.Index {
+	if err := os.MkdirAll(indexPath, os.ModePerm); err != nil {
+		panic(err)
+	}
+
 	// open the index
 	idx, err := bleve.Open(indexPath)
-	if err == bleve.ErrorIndexPathDoesNotExist {
-		log.Printf("Creating new index...")
-		if err := os.MkdirAll(indexPath, os.ModePerm); err != nil {
-			panic(err)
-		}
-
+	if err == bleve.ErrorIndexMetaMissing {
 		log.Println("Load mapping....")
 		mapping := bleve.NewIndexMapping()
 		err := mapping.AddCustomTokenizer("gse",
@@ -79,7 +78,7 @@ func NewConstructor(config map[string]interface{}, cache *registry.Cache) (analy
 	return NewTokenizer(), nil
 }
 
-func NewAnalyzer(config map[string]interface{}, cache *registry.Cache) (*analysis.Analyzer, error) {
+func NewAnalyzer(config map[string]interface{}, cache *registry.Cache) (analysis.Analyzer, error) {
 	tokenizerName, ok := config["tokenizer"].(string)
 	if !ok {
 		return nil, errors.New("must specify tokenizer")
@@ -88,6 +87,6 @@ func NewAnalyzer(config map[string]interface{}, cache *registry.Cache) (*analysi
 	if err != nil {
 		return nil, err
 	}
-	analyzer := &analysis.Analyzer{Tokenizer: tokenizer}
+	analyzer := &analysis.DefaultAnalyzer{Tokenizer: tokenizer}
 	return analyzer, nil
 }

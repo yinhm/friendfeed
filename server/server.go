@@ -588,7 +588,7 @@ func (s *ApiServer) spread(key string) {
 }
 
 func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {
-	logger.Infof("Search: %s", req.Query)
+	logger.Debugf("Search: %s", req.Query)
 	bReq := bleve.NewSearchRequest(bleve.NewQueryStringQuery(req.Query))
 	bReq.Highlight = bleve.NewHighlight()
 	res, err := search.Indexer.Search(bReq)
@@ -601,20 +601,22 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 
 	var entries []*pb.Entry
 	found := 0
-	for i, hit := range res.Hits {
+	for _, hit := range res.Hits {
 		if start > 0 {
 			start--
 			continue
 		}
 
-		rv := fmt.Sprintf("%d. %s, (%f)\n", i+res.Request.From+1, hit.ID, hit.Score)
+		// res.Request.From cause error in bleve v2.4
+		// rv := fmt.Sprintf("%d. %s, (%f)\n", i+res.Request.From+1, hit.ID, hit.Score)
+		// logger.Debugf("i <%d>, <%v>, <%d>", i, hit, start)
 		// for fragmentField, fragments := range hit.Fragments {
 		// 	rv += fmt.Sprintf("%s: ", fragmentField)
 		// 	for _, fragment := range fragments {
 		// 		rv += fmt.Sprintf("%s", fragment)
 		// 	}
 		// }
-		fmt.Printf("%s\n", rv)
+		// fmt.Printf("%s\n", rv)
 
 		// logger.Debugf("search.index.key: <%s>", hit.ID)
 		entry, err := model.GetEntry(s.rdb, hit.ID)
@@ -622,7 +624,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 			logger.Warnf("search: entry data missing: %s", hit.ID)
 			continue
 		}
-		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
+		logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
 		if err := fmtEntryProfile(s.mdb, entry); err != nil {
 			logger.Warnf("search: entry format error: %s", hit.ID)
 			continue

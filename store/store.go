@@ -100,9 +100,11 @@ func DestroyStore(dbpath string, options *pebble.Options) error {
 func NewStoreOptions() *pebble.Options {
 	opts := &pebble.Options{
 		// suggest in: https://github.com/cockroachdb/pebble/issues/1068#issuecomment-784208214
-		L0CompactionThreshold:       2,
-		L0StopWritesThreshold:       1000,
-		MaxConcurrentCompactions:    3,
+		L0CompactionThreshold: 2,
+		L0StopWritesThreshold: 1000,
+		MaxConcurrentCompactions: func() int {
+			return 3
+		},
 		LBaseMaxBytes:               64 << 20, // 64 MB
 		Levels:                      make([]pebble.LevelOptions, 7),
 		MemTableSize:                64 << 20, // 64 MB
