@@ -386,7 +386,11 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	if req.ProfileUuid != "" { // user timeline
 		profileUuid, _ := uuid.FromString(req.ProfileUuid)
-		profile, _ = model.GetProfileFromUuid(s.mdb, profileUuid)
+		profile, err = model.GetProfileFromUuid(s.mdb, profileUuid)
+		if err != nil {
+			logger.Debugf("ForwardFetchFeed: profile <%s> not found for <%v>", req.Id, req.ProfileUuid)
+			return nil, status.Errorf(codes.NotFound, "profile not found")
+		}
 		fanoutUuid := model.UniqueKeyFrom(fmt.Sprintf("%x", profileUuid), "user", "timeline")
 		prefix = store.NewUUIDKey(model.TableEntryIndex, fanoutUuid).Bytes()
 	} else { // from user.id
@@ -435,7 +439,8 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	})
 
 	if err != nil {
-		return nil, err
+		logger.Debugf("feed <%v>", err)
+		return nil, status.Errorf(codes.NotFound, "feeds not found")
 	}
 
 	feed := &pb.Feed{
