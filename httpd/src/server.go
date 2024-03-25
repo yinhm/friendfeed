@@ -114,10 +114,13 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 		c.Request.Header.Get("Content-Type") == "application/json" {
 		c.JSON(200, data)
 	} else {
+		for _, entry := range data["feed"].(*pb.Feed).Entries {
+			entry.Body = htmlSanitizer.Sanitize(entry.Body)
+		}
 		data["feed_body"] = ""
 		encoded, _ := json.Marshal(data)
 		data["appData"] = string(encoded)
-		s.HTML(c, 200, "_feed.html", data)
+		s.HTML(c, 200, "feed.html", data)
 	}
 }
 

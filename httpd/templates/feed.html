@@ -2,6 +2,7 @@
 
 {% block content %}
 
+<div id="root">
   {% if show_header %}
     <div class="header">
       <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
@@ -16,14 +17,14 @@
               <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
               <input type="hidden" name="feed" value="{{ feed.Id }}"/>
               <input type="submit" value="Subscribe"/>
-    	</form>
+            </form>
           {% endifequal %}
           {% ifequal command "unsubscribe" %}
-    	<form method="post" action="/a/unsubscribe">
+            <form method="post" action="/a/unsubscribe">
               <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
               <input type="hidden" name="feed" value="{{ feed.Id }}"/>
               <input type="submit" value="Unsubscribe"/>
-    	</form>
+            </form>
           {% endifequal %}
         {% endfor %}
       </div>
@@ -31,39 +32,28 @@
     </div>
   {% endif %}
 
-  {% if show_share %}
-  <div class="sharebox" id="shareform">
-    <form action="/a/share" method="post" enctype="multipart/form-data" onsubmit="return shareSubmit($(this))">
-      <div class="to" style="display: none;">
-        <label class="title" for="streams">To:</label>
-        <ul class="l_tolist">
-          <li class="spacer"></li>
-          <li class="l_tocard">My Feed<img title="Delete" class="a_toremove" src="/static/images/to-delete.png" /></li>
-        </ul>
-      </div>
-
-      <textarea name="body"></textarea>
-
-      <div class="insert">
-        Add: <a href="#" class="l_add_media">Photo</a>
-      </div>
-
-      <div class="post">
-        <span class="max_info"></span>
-        <input class="submit" type="submit" value="Post"/>
-        {% if feed.Id == "Home" || feed.Id == "Public" %}
-        <input type="hidden" name="feedid" value="{{ current_user.Id }}"/>
-        {% else %}
-        <input type="hidden" name="feedid" value="{{feed.Id}}" />
-        {% endif %}
-        <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
-      </div>
-      <div class="clear"></div>
-    </form>
-  </div>
-  {% endif %}
-
   <div id="feed" class="feed">
+
+    {% if show_share %}
+    <div class="sharebox" id="shareform">
+      <form action="/a/share" method="post" enctype="multipart/form-data" onsubmit="return shareSubmit($(this))">
+
+        <textarea name="body"></textarea>
+
+        <div class="post">
+          <span class="max_info"></span>
+          <input class="submit" type="submit" value="发布" />
+          {% if feed.Id == "Home" || feed.Id == "Public" %}
+          <input type="hidden" name="feedid" value="{{ current_user.Id }}"/>
+          {% else %}
+          <input type="hidden" name="feedid" value="{{feed.Id}}" />
+          {% endif %}
+          <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+    
     {% for entry in feed.Entries %}
     <div class="entry" eid="{{ entry.Id }}">
       <div class="picture"><a href="/feed/{{ entry.From.Id }}"><img src="{{ entry.From.Picture }}"/></a></div>
@@ -71,16 +61,20 @@
         <div class="author">
           <span class="from"><a href="/feed/{{ entry.From.Id }}">{{ entry.From.Name|escape }}</a></span>
           {% if entry.To %}
-            <span class="to">to
               {% for recipient in entry.To %}
                 <a href="/feed/{{ recipient.Id }}">{{ recipient.Name|escape }}</a>{% if not forloop.Last %},{% endif %}
               {% endfor %}
-            </span>
           {% endif %}
         </div>
-        <div class="title">{{ entry.Body|safe }}</div>
+        <div class="content">{{ entry.Body|safe }}</div>
         {% if entry.Thumbnails %}
-          <div class="media">{% for thumbnail in entry.Thumbnails %}<a href="{{ thumbnail.Link|escape }}"><img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} style="width:{{ thumbnail.Width }}px;height:{{ thumbnail.Height }}px"{% endif %} alt=""/></a>{% endfor %}</div>
+          <div class="media">
+            {% for thumbnail in entry.Thumbnails %}
+              <a href="{{ thumbnail.Link|escape }}">
+                <img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} style="width:{{ thumbnail.Width }}px;height:{{ thumbnail.Height }}px"{% endif %} alt="" />
+              </a>
+            {% endfor %}
+          </div>
         {% endif %}
         <div class="info">
           <a href="/e/{{ entry.Id }}" class="permalink">{{ entry.Date }}</a>
@@ -113,23 +107,38 @@
             {% if comment.Placeholder %}
               <a href="#" class="expandcomments">{{ comment.Body|safe }}</a>
             {% else %}
-              {{ comment.Body|safe }}
+              <span>{{ comment.Body|safe }}</span>
               {% if comment.From %} - <a href="/feed/{{ comment.From.Id }}">{{ comment.From.Name|escape }}</a>{% endif %}
             {% endif %}
           </div>
         {% endfor %}
       </div>
     </div>
-    <div class="clear"></div>
     {% endfor %}
 
     {% if show_paging %}
     <div class="pager bottom">
-      <a href="?start={{ prev_start }}">&laquo; Prev</a>
+      <a href="?start={{ prev_start }}">&laquo; Prev</a> 
       <a href="?start={{ next_start }}">Next &raquo;</a>
     </div>
     {% endif %}
 
   </div>
 
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.appData = {{appData|safe}};
+</script>
+
+{% if dev %}
+  {% for filename in jsFiles %}
+  <script src="/app/build/static/js/{{filename}}"></script>
+  {% endfor %}
+{% else %}
+  <script src="/static/js/bundle.min.js"></script>
+{% endif %}
 {% endblock %}

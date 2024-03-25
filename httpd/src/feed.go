@@ -128,6 +128,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	if prevStart < 0 {
 		prevStart = 0
 	}
+
 	data := pongo2.Context{
 		"show_header": true,
 		"show_share":  contains(feed.Commands, "post"),
