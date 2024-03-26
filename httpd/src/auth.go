@@ -2,10 +2,10 @@
 package server
 
 import (
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -124,7 +124,7 @@ func (s *Server) AuthCallback(c *gin.Context) {
 }
 
 func GoogleAuthConfig(keyPath string, debug bool) *oauth2.Config {
-	jsonKey, err := ioutil.ReadFile(keyPath)
+	jsonKey, err := os.ReadFile(keyPath)
 	if err != nil {
 		log.Fatal(err)
 	}
