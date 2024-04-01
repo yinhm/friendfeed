@@ -487,6 +487,21 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 }
 
 func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, error) {
+	profileUuid, err := uuid.FromString(entry.ProfileUuid)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := model.GetProfileFromUuid(s.mdb, profileUuid)
+	if err != nil || profile == nil {
+		return nil, err
+	}
+	if entry.From == nil {
+		entry.From = &pb.Feed{
+			Id:   profile.Id,
+			Name: profile.Name,
+			Type: profile.Type,
+		}
+	}
 	// key, err := store.PutEntry(s.rdb, entry, false) // always use false
 	key, err := model.PutEntry(s.rdb, entry) // always use false
 	if err != nil {
