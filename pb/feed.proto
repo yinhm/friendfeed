@@ -257,6 +257,45 @@ message Entry {
   string type = 19;
 }
 
+message Tweet {
+  string id = 1;
+  string created_at = 2;
+  string text = 3;
+  TweetUser user = 4;
+
+  // share without adding comment
+  bool is_retweet = 5;
+  // share with added comment
+  bool is_quote = 6;
+  Tweet retweet = 7;
+
+  repeated Thumbnail medias = 8;
+
+  int32 reply_count = 9;
+  int32 retweet_count = 10;
+  int32 quote_count = 11;
+  int32 favorite_count = 12;
+  int32 view_count = 13;
+
+  string in_reply_to = 14;
+
+  // replies
+  // reply_to
+  // related_tweetshashtagsz
+  // hashtags
+}
+
+message TweetUser {
+  string id = 1;
+  string created_at = 2;
+  string name = 3;
+  string screen_name = 4;
+  string profile_image_url = 5;
+  string description = 6;
+
+  int64 followers_count = 7;
+}
+
 // Comment
 // id - The id of the comment
 // date - The date the comment was posted.

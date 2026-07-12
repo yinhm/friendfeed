@@ -149,3 +149,12 @@ func DeleteFanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 		return EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime)
 	})
 }
+
+func PutTweet(db *store.Store, tweet *pb.Tweet) error {
+	_, err := Tweet.Put(db, []byte(tweet.Id), tweet)
+	return err
+}
+
+func DeleteTweet(db *store.Store, tweetId string) error {
+	return Tweet.Delete(db, []byte(tweetId))
+}

@@ -18,6 +18,7 @@ const (
 	TableFeed     store.KeyPrefix = 1
 	TableFeedinfo store.KeyPrefix = 2
 	TableEntry    store.KeyPrefix = 3
+	TableTweet    store.KeyPrefix = 6
 	TableUserMap  store.KeyPrefix = 4
 
 	// Prev iter was broken on rocksdb when this was coded,
@@ -55,6 +56,7 @@ var (
 	// Feedinfo should be generated from Profile and Feed?
 	Feedinfo   = NewTable(KeyPrefixToBytes(TableFeedinfo))
 	Entry      = NewTable(KeyPrefixToBytes(TableEntry))
+	Tweet      = NewTable(KeyPrefixToBytes(TableTweet))
 	EntryIndex = NewTable(KeyPrefixToBytes(TableEntryIndex))
 	UserMap    = NewTable(KeyPrefixToBytes(TableUserMap))
 	Profile    = NewTable(KeyPrefixToBytes(TableProfile))

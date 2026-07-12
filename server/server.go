@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -509,6 +510,48 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 	}
 	s.spread(key.String())
 	return entry, nil
+}
+
+func (s *ApiServer) PostTweet(ctx context.Context, tweet *pb.Tweet) (*pb.Entry, error) {
+	if tweet.User == nil {
+		return nil, errors.New("no user info")
+	}
+	if tweet.InReplyTo != "" {
+		return nil, errors.New("reply not allowed")
+	}
+
+	if err := model.PutTweet(s.rdb, tweet); err != nil {
+		return nil, err
+	}
+
+	profileUuid := model.UniqueKeyFrom("twitter", tweet.User.ScreenName)
+	from := &pb.Feed{
+		Uuid: profileUuid.String(),
+		Id:   tweet.User.ScreenName,
+		Name: tweet.User.Name,
+		Type: "user",
+	}
+
+	uuid1 := model.UniqueKeyFrom("twitter", tweet.Id)
+	url := "https://twitter.com/" + tweet.User.ScreenName + "/status/" + tweet.Id
+	entry := &pb.Entry{
+		Id:      uuid1.String(),
+		Url:     url,
+		Date:    tweet.CreatedAt,
+		Body:    tweet.Text,
+		RawBody: tweet.Text,
+		RawLink: url,
+		From:    from,
+		// To:         []*pb.Feed{from},
+		Thumbnails: tweet.Medias,
+		Via: &pb.Via{
+			Name: "Twitter",
+			Url:  url,
+		},
+		ProfileUuid: profileUuid.String(),
+	}
+
+	return s.PostEntry(ctx, entry)
 }
 
 func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.EntryRequest, error) {
