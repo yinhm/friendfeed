@@ -23,6 +23,12 @@ func TestRebuildTimelines(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Legacy OAuth rows can be bound by login name without carrying UUID.
+	if _, err := model.OAuth.Put(db, model.KeyFromString("twitter", "active-user"), &pb.OAuthUser{
+		Name: "user", Provider: "twitter", UserId: "active-user",
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	followKey := model.NewKeyFrom(model.Follow.Prefix, userID.Bytes(), followedID.Bytes())
 	if err := db.Set(followKey, []byte("1")); err != nil {
@@ -56,7 +62,7 @@ func TestRebuildTimelines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.profiles != 2 || stats.follows != 1 || stats.entries != 3 {
+	if stats.profiles != 1 || stats.follows != 1 || stats.entries != 2 {
 		t.Fatalf("unexpected rebuild stats: %+v", stats)
 	}
 
@@ -70,5 +76,77 @@ func TestRebuildTimelines(t *testing.T) {
 	}
 	if len(values) != 2 || values[0] != "followed-entry" || values[1] != "own-entry" {
 		t.Fatalf("unexpected rebuilt timeline: %v", values)
+	}
+}
+
+func TestExplicitTimelineUserDoesNotRequireOAuthMetadata(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	userID := uuid.Must(uuid.NewV4())
+	if err := model.UpdateProfile(db, &pb.Profile{Uuid: userID.String(), Id: "yinhm", Type: "user"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := model.EntryIndex.Index(db, userID, time.Unix(100, 0), []byte("own-entry")); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := rebuildTimelines(db, timelineRebuildOptions{user: "yinhm", maxFeeds: 20, dryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.profiles != 1 || stats.entries != 1 {
+		t.Fatalf("unexpected explicit-user stats: %+v", stats)
+	}
+}
+
+func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	followerID := uuid.Must(uuid.NewV4())
+	feedID := uuid.Must(uuid.NewV4())
+	follower := &pb.Profile{Uuid: followerID.String(), Id: "follower", Type: "user"}
+	feed := &pb.Profile{Uuid: feedID.String(), Id: "feed", Type: "user"}
+	for _, profile := range []*pb.Profile{follower, feed} {
+		if err := model.UpdateProfile(db, profile); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// The current field names intentionally hold legacy wire semantics:
+	// Feedinfo.Followers (field 11) was subscriptions.
+	if err := model.PutFeedinfo(db, follower.Uuid, &pb.Feedinfo{
+		Uuid: follower.Uuid, Id: follower.Id, Followers: []*pb.Profile{feed},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Feedinfo.Following (field 10) was subscribers. This is reciprocal
+	// evidence for the same edge and must be deduplicated.
+	if err := model.PutFeedinfo(db, feed.Uuid, &pb.Feedinfo{
+		Uuid: feed.Uuid, Id: feed.Id, Following: []*pb.Profile{follower},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	dryStats, err := rebuildSocialGraph(db, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dryStats.edges != 1 || db.Exist(model.NewKeyFrom(model.Follow.Prefix, followerID.Bytes(), feedID.Bytes())) {
+		t.Fatalf("unexpected social graph dry run: %+v", dryStats)
+	}
+
+	stats, err := rebuildSocialGraph(db, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.feedinfos != 2 || stats.edges != 1 || stats.skipped != 0 {
+		t.Fatalf("unexpected social graph stats: %+v", stats)
+	}
+	followKey := model.NewKeyFrom(model.Follow.Prefix, followerID.Bytes(), feedID.Bytes())
+	followerKey := model.NewKeyFrom(model.Follower.Prefix, feedID.Bytes(), followerID.Bytes())
+	if !db.Exist(followKey) || !db.Exist(followerKey) {
+		t.Fatal("rebuild did not create both Follow and Follower keys")
 	}
 }

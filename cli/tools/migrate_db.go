@@ -128,6 +128,114 @@ type timelineRebuildOptions struct {
 	dryRun   bool
 }
 
+type socialGraphEdge struct {
+	follower uuid.UUID
+	feed     uuid.UUID
+}
+
+type socialGraphRebuildStats struct {
+	feedinfos int
+	edges     int
+	skipped   int
+}
+
+func rebuildSocialGraph(db *store.Store, dryRun bool) (socialGraphRebuildStats, error) {
+	stats := socialGraphRebuildStats{}
+	profilesByID := make(map[string]uuid.UUID)
+	profilesByUUID := make(map[uuid.UUID]struct{})
+	if err := model.Profile.Iter(db, func(key, raw []byte) error {
+		profile := new(pb.Profile)
+		if err := proto.Unmarshal(raw, profile); err != nil {
+			return fmt.Errorf("decode profile at %x: %w", key, err)
+		}
+		if profile.Deleted {
+			return nil
+		}
+		id, err := uuid.FromString(profile.Uuid)
+		if err != nil {
+			return fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+		}
+		profilesByID[profile.Id] = id
+		profilesByUUID[id] = struct{}{}
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+
+	resolveProfile := func(profile *pb.Profile) (uuid.UUID, bool) {
+		if profile == nil {
+			return uuid.Nil, false
+		}
+		if id, err := uuid.FromString(profile.Uuid); err == nil {
+			if _, exists := profilesByUUID[id]; exists {
+				return id, true
+			}
+		}
+		id, exists := profilesByID[profile.Id]
+		return id, exists
+	}
+
+	edges := make(map[socialGraphEdge]struct{})
+	if err := model.Feedinfo.Iter(db, func(key, raw []byte) error {
+		info := new(pb.Feedinfo)
+		if err := proto.Unmarshal(raw, info); err != nil {
+			return fmt.Errorf("decode legacy feedinfo at %x: %w", key, err)
+		}
+		owner, exists := resolveProfile(&pb.Profile{Uuid: info.Uuid, Id: info.Id})
+		if !exists {
+			stats.skipped++
+			return nil
+		}
+		stats.feedinfos++
+
+		// Historical Feedinfo data predates the protobuf rename:
+		// field 10 (now Following) was subscribers, and field 11 (now
+		// Followers) was subscriptions.
+		for _, subscriber := range info.Following {
+			if follower, ok := resolveProfile(subscriber); ok && follower != owner {
+				edges[socialGraphEdge{follower: follower, feed: owner}] = struct{}{}
+			} else {
+				stats.skipped++
+			}
+		}
+		for _, subscription := range info.Followers {
+			if feed, ok := resolveProfile(subscription); ok && feed != owner {
+				edges[socialGraphEdge{follower: owner, feed: feed}] = struct{}{}
+			} else {
+				stats.skipped++
+			}
+		}
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+	if stats.feedinfos == 0 {
+		return stats, errors.New("no legacy feedinfo records found; refusing to clear social graph")
+	}
+	stats.edges = len(edges)
+	if dryRun {
+		return stats, nil
+	}
+
+	if _, err := purge_table(db, model.Follow.Prefix); err != nil {
+		return stats, fmt.Errorf("clear Follow table: %w", err)
+	}
+	if _, err := purge_table(db, model.Follower.Prefix); err != nil {
+		return stats, fmt.Errorf("clear Follower table: %w", err)
+	}
+	for edge := range edges {
+		followKey := model.NewKeyFrom(model.Follow.Prefix, edge.follower.Bytes(), edge.feed.Bytes())
+		followerKey := model.NewKeyFrom(model.Follower.Prefix, edge.feed.Bytes(), edge.follower.Bytes())
+		if err := db.Set(followKey, []byte("1")); err != nil {
+			return stats, fmt.Errorf("write Follow edge %s -> %s: %w", edge.follower, edge.feed, err)
+		}
+		if err := db.Set(followerKey, []byte("1")); err != nil {
+			return stats, fmt.Errorf("write Follower edge %s <- %s: %w", edge.feed, edge.follower, err)
+		}
+	}
+	return stats, nil
+}
+
 func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options timelineRebuildOptions) (int, int, int, error) {
 	profileID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
@@ -195,18 +303,67 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 
 func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timelineRebuildStats, error) {
 	stats := timelineRebuildStats{}
-	err := model.Profile.Iter(db, func(key, raw []byte) error {
+	var profiles []*pb.Profile
+	profilesByID := make(map[string]uuid.UUID)
+	if err := model.Profile.Iter(db, func(key, raw []byte) error {
 		profile := new(pb.Profile)
 		if err := proto.Unmarshal(raw, profile); err != nil {
 			return fmt.Errorf("decode profile at %x: %w", key, err)
 		}
-		if profile.Deleted || (options.user != "" && profile.Id != options.user) {
+		if profile.Deleted {
 			return nil
+		}
+		profileID, err := uuid.FromString(profile.Uuid)
+		if err != nil {
+			return fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+		}
+		profiles = append(profiles, profile)
+		profilesByID[profile.Id] = profileID
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+
+	activeProfiles := make(map[uuid.UUID]struct{})
+	if err := model.OAuth.Iter(db, func(key, raw []byte) error {
+		oauth := new(pb.OAuthUser)
+		if err := proto.Unmarshal(raw, oauth); err != nil {
+			return fmt.Errorf("decode OAuth record at %x: %w", key, err)
+		}
+		profileID, err := uuid.FromString(oauth.Uuid)
+		if err == nil {
+			activeProfiles[profileID] = struct{}{}
+			return nil
+		}
+		// Older OAuth rows were sometimes stored before their profile UUID
+		// was bound. Their login name still matches Profile.Id.
+		if profileID, exists := profilesByID[oauth.Name]; exists {
+			activeProfiles[profileID] = struct{}{}
+		}
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+	if len(activeProfiles) == 0 && options.user == "" {
+		return stats, errors.New("no profiles with OAuth information found")
+	}
+
+	for _, profile := range profiles {
+		if options.user != "" && profile.Id != options.user {
+			continue
+		}
+		if options.user != "" {
+			log.Printf("explicit user %s selected; OAuth metadata check bypassed", profile.Id)
+		} else {
+			profileID := profilesByID[profile.Id]
+			if _, active := activeProfiles[profileID]; !active {
+				continue
+			}
 		}
 
 		follows, entries, existing, err := rebuildTimelineForProfile(db, profile, options)
 		if err != nil {
-			return err
+			return stats, err
 		}
 		stats.profiles++
 		stats.follows += follows
@@ -217,12 +374,11 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 			action = "would rebuild"
 		}
 		log.Printf("%s timeline for %s: %d existing entries, %d source feeds, %d source entries", action, profile.Id, existing, follows+1, entries)
-		return nil
-	})
-	if err == nil && options.user != "" && stats.profiles == 0 {
+	}
+	if options.user != "" && stats.profiles == 0 {
 		return stats, fmt.Errorf("profile %q not found", options.user)
 	}
-	return stats, err
+	return stats, nil
 }
 
 // We should open original db ad readonly mode.
@@ -232,7 +388,9 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 // migrate only the legacy public feed cache metadata
 // ./tools -from old_db -to new_db -c public_feed
 // rebuild Home timelines from each profile's own feed and Follow edges
-// ./tools -from old_db -to new_db -c rebuild_timeline -user yinhm -max-feeds 20 -dry-run
+// ./tools -to new_db -c rebuild_timeline -user yinhm -max-feeds 20 -dry-run
+// rebuild Follow and Follower tables from legacy Feedinfo metadata
+// ./tools -to new_db -c rebuild_social_graph -dry-run
 //
 // sync all data from db
 // ./tools -from old_db -to new_db -c db
@@ -246,12 +404,22 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 func main() {
 	flag.Parse()
 
-	db := store.NewStore(fromPath)
-	mdb := store.NewMetaStore(fromPath + "/meta")
-	ndb := store.NewStore(toPath)
+	if toPath == "" {
+		log.Fatal("-to is required")
+	}
+	needsSource := command != "rebuild_timeline" && command != "rebuild_social_graph"
+	if needsSource && fromPath == "" {
+		log.Fatal("-from is required for command ", command)
+	}
 
-	db.Options()
+	ndb := store.NewStore(toPath)
 	ndb.SetSync(false)
+	var db, mdb *store.Store
+	if needsSource {
+		db = store.NewStore(fromPath)
+		mdb = store.NewMetaStore(fromPath + "/meta")
+		db.Options()
+	}
 
 	// opt := ndb.Options()
 	// log.Println(opt.MemTableSize)
@@ -336,9 +504,16 @@ func main() {
 			if err := proto.Unmarshal(v, msg); err != nil {
 				return err
 			}
-			if msg.UserId != "" && msg.AccessToken != "" && msg.AccessTokenSecret != "" && msg.Provider != "" {
+			if msg.UserId != "" && msg.Provider != "" {
+				if msg.Uuid == "" && msg.Name != "" {
+					if profile, err := model.GetProfileFromUserId(ndb, msg.Name); err == nil {
+						msg.Uuid = profile.Uuid
+					}
+				}
 				log.Println(hex.EncodeToString(k), msg)
-				model.PutOAuthUser(ndb, msg)
+				if _, err := model.PutOAuthUser(ndb, msg); err != nil {
+					return err
+				}
 			}
 			return nil
 		})
@@ -365,6 +540,15 @@ func main() {
 			ndb.Flush()
 		}
 		log.Printf("timeline summary: %d profiles, %d existing entries, %d follows, %d source entries, dry-run=%t", stats.profiles, stats.existing, stats.follows, stats.entries, dryRun)
+	case "rebuild_social_graph":
+		stats, err := rebuildSocialGraph(ndb, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if !dryRun {
+			ndb.Flush()
+		}
+		log.Printf("social graph summary: %d feedinfos, %d edges, %d skipped references, dry-run=%t", stats.feedinfos, stats.edges, stats.skipped, dryRun)
 	case "sync":
 		// EntryIndex
 		model.EntryIndex.Iter(db, func(k, v []byte) error {
@@ -548,6 +732,10 @@ func main() {
 	}
 
 	ndb.Close()
-	mdb.Close()
-	db.Close()
+	if mdb != nil {
+		mdb.Close()
+	}
+	if db != nil {
+		db.Close()
+	}
 }
