@@ -19,11 +19,17 @@ import (
 var fromPath string
 var toPath string
 var command string
+var timelineUser string
+var timelineMaxFeeds int
+var dryRun bool
 
 func init() {
 	flag.StringVar(&fromPath, "from", "", "from directory")
 	flag.StringVar(&toPath, "to", "", "to directory")
 	flag.StringVar(&command, "c", "", "command to do")
+	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
+	flag.IntVar(&timelineMaxFeeds, "max-feeds", 0, "maximum source feeds per timeline (0 is unlimited)")
+	flag.BoolVar(&dryRun, "dry-run", false, "report timeline rebuild without writing changes")
 }
 
 func purge_table(db *store.Store, prefix store.Key) (int, error) {
@@ -113,75 +119,109 @@ type timelineRebuildStats struct {
 	profiles int
 	follows  int
 	entries  int
+	existing int
 }
 
-func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile) (int, int, error) {
+type timelineRebuildOptions struct {
+	user     string
+	maxFeeds int
+	dryRun   bool
+}
+
+func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options timelineRebuildOptions) (int, int, int, error) {
 	profileID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
-		return 0, 0, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+		return 0, 0, 0, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
 	}
 
 	timelineID := model.UniqueKeyFrom(fmt.Sprintf("%x", profileID), "user", "timeline")
 	timelinePrefix := model.NewUUIDKey(model.TableEntryIndex, timelineID)
-	if _, err := purge_table(db, timelinePrefix); err != nil {
-		return 0, 0, fmt.Errorf("clear timeline for %s: %w", profile.Id, err)
+	existing, err := db.ForwardScan(timelinePrefix, func(i int, key, value []byte) error {
+		return nil
+	})
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("count timeline for %s: %w", profile.Id, err)
+	}
+	if !options.dryRun {
+		if _, err := purge_table(db, timelinePrefix); err != nil {
+			return 0, 0, existing, fmt.Errorf("clear timeline for %s: %w", profile.Id, err)
+		}
 	}
 
-	feeds := map[uuid.UUID]struct{}{profileID: {}}
+	feeds := []uuid.UUID{profileID}
+	seenFeeds := map[uuid.UUID]struct{}{profileID: {}}
+	selectedFollows := 0
 	followPrefix := model.NewKeyFrom(model.Follow.Prefix, profileID.Bytes())
-	follows, err := db.ForwardScan(followPrefix, func(i int, key, value []byte) error {
+	_, err = db.ForwardScan(followPrefix, func(i int, key, value []byte) error {
+		if options.maxFeeds > 0 && len(feeds) >= options.maxFeeds {
+			return &store.Error{Code: store.StopIteration, Msg: "feed limit reached"}
+		}
 		feedID, err := uuid.FromBytes(key[len(followPrefix):])
 		if err != nil {
 			return fmt.Errorf("invalid follow key %x: %w", key, err)
 		}
-		feeds[feedID] = struct{}{}
+		if _, exists := seenFeeds[feedID]; !exists {
+			seenFeeds[feedID] = struct{}{}
+			feeds = append(feeds, feedID)
+			selectedFollows++
+		}
 		return nil
 	})
 	if err != nil {
-		return 0, 0, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
+		return 0, 0, existing, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
 	}
 
 	entries := 0
-	for feedID := range feeds {
+	for _, feedID := range feeds {
 		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
 		_, err := db.ForwardScan(feedPrefix, func(i int, key, value []byte) error {
-			indexSuffix := key[len(feedPrefix):]
-			timelineKey := model.NewKeyFrom(timelinePrefix, indexSuffix)
-			if err := db.Set(timelineKey, value); err != nil {
-				return err
+			if !options.dryRun {
+				indexSuffix := key[len(feedPrefix):]
+				timelineKey := model.NewKeyFrom(timelinePrefix, indexSuffix)
+				if err := db.Set(timelineKey, value); err != nil {
+					return err
+				}
 			}
 			entries++
 			return nil
 		})
 		if err != nil {
-			return follows, entries, fmt.Errorf("copy feed %s into %s timeline: %w", feedID, profile.Id, err)
+			return selectedFollows, entries, existing, fmt.Errorf("copy feed %s into %s timeline: %w", feedID, profile.Id, err)
 		}
 	}
 
-	return follows, entries, nil
+	return selectedFollows, entries, existing, nil
 }
 
-func rebuildTimelines(db *store.Store) (timelineRebuildStats, error) {
+func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timelineRebuildStats, error) {
 	stats := timelineRebuildStats{}
 	err := model.Profile.Iter(db, func(key, raw []byte) error {
 		profile := new(pb.Profile)
 		if err := proto.Unmarshal(raw, profile); err != nil {
 			return fmt.Errorf("decode profile at %x: %w", key, err)
 		}
-		if profile.Deleted {
+		if profile.Deleted || (options.user != "" && profile.Id != options.user) {
 			return nil
 		}
 
-		follows, entries, err := rebuildTimelineForProfile(db, profile)
+		follows, entries, existing, err := rebuildTimelineForProfile(db, profile, options)
 		if err != nil {
 			return err
 		}
 		stats.profiles++
 		stats.follows += follows
 		stats.entries += entries
-		log.Printf("rebuilt timeline for %s: %d follows, %d entries", profile.Id, follows, entries)
+		stats.existing += existing
+		action := "rebuilt"
+		if options.dryRun {
+			action = "would rebuild"
+		}
+		log.Printf("%s timeline for %s: %d existing entries, %d source feeds, %d source entries", action, profile.Id, existing, follows+1, entries)
 		return nil
 	})
+	if err == nil && options.user != "" && stats.profiles == 0 {
+		return stats, fmt.Errorf("profile %q not found", options.user)
+	}
 	return stats, err
 }
 
@@ -192,7 +232,7 @@ func rebuildTimelines(db *store.Store) (timelineRebuildStats, error) {
 // migrate only the legacy public feed cache metadata
 // ./tools -from old_db -to new_db -c public_feed
 // rebuild Home timelines from each profile's own feed and Follow edges
-// ./tools -from old_db -to new_db -c rebuild_timeline
+// ./tools -from old_db -to new_db -c rebuild_timeline -user yinhm -max-feeds 20 -dry-run
 //
 // sync all data from db
 // ./tools -from old_db -to new_db -c db
@@ -316,12 +356,15 @@ func main() {
 		}
 		ndb.Flush()
 	case "rebuild_timeline":
-		stats, err := rebuildTimelines(ndb)
+		options := timelineRebuildOptions{user: timelineUser, maxFeeds: timelineMaxFeeds, dryRun: dryRun}
+		stats, err := rebuildTimelines(ndb, options)
 		if err != nil {
 			log.Fatal(err)
 		}
-		ndb.Flush()
-		log.Printf("rebuilt timelines: %d profiles, %d follows, %d entries", stats.profiles, stats.follows, stats.entries)
+		if !dryRun {
+			ndb.Flush()
+		}
+		log.Printf("timeline summary: %d profiles, %d existing entries, %d follows, %d source entries, dry-run=%t", stats.profiles, stats.existing, stats.follows, stats.entries, dryRun)
 	case "sync":
 		// EntryIndex
 		model.EntryIndex.Iter(db, func(k, v []byte) error {

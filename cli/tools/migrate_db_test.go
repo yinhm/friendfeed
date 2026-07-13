@@ -39,7 +39,20 @@ func TestRebuildTimelines(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stats, err := rebuildTimelines(db)
+	dryStats, err := rebuildTimelines(db, timelineRebuildOptions{user: "user", maxFeeds: 1, dryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dryStats.profiles != 1 || dryStats.existing != 1 || dryStats.follows != 0 || dryStats.entries != 1 {
+		t.Fatalf("unexpected dry-run stats: %+v", dryStats)
+	}
+	stalePrefix := model.NewUUIDKey(model.TableEntryIndex, timelineID)
+	staleCount, err := db.ForwardScan(stalePrefix, func(i int, key, value []byte) error { return nil })
+	if err != nil || staleCount != 1 {
+		t.Fatalf("dry-run modified timeline: count=%d, err=%v", staleCount, err)
+	}
+
+	stats, err := rebuildTimelines(db, timelineRebuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
