@@ -5,12 +5,15 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
+	"path"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/flosch/pongo2"
@@ -73,6 +76,33 @@ func FaviconHandler(c *gin.Context) {
 	c.Writer.Write(favicon)
 }
 
+func embeddedAssetHandler(assets fs.FS) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		assetPath := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
+		data, err := fs.ReadFile(assets, assetPath)
+		if err != nil {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+
+		contentType := mime.TypeByExtension(path.Ext(assetPath))
+		switch path.Ext(assetPath) {
+		case ".js", ".mjs":
+			contentType = "application/javascript; charset=utf-8"
+		case ".css":
+			contentType = "text/css; charset=utf-8"
+		case ".map", ".json":
+			contentType = "application/json; charset=utf-8"
+		}
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Data(http.StatusOK, contentType, data)
+	}
+}
+
 func Serve(s *server.Server, config *util.Config) {
 	gauthConfig := server.GoogleAuthConfig(config.GAuthKeyFile, options.Debug)
 	goth.UseProviders(
@@ -87,7 +117,11 @@ func Serve(s *server.Server, config *util.Config) {
 	}
 
 	r := gin.Default()
-	r.HTMLRender = NewFriendRender()
+	templateFS, err := fs.Sub(assetsFS, "templates")
+	if err != nil {
+		log.Fatal(err)
+	}
+	r.HTMLRender = NewFriendRender(templateFS, options.Debug)
 	// session
 	store := sessions.NewCookieStore([]byte(options.SecretKey))
 	r.Use(sessions.Sessions("ffdbsess", store))
@@ -99,12 +133,7 @@ func Serve(s *server.Server, config *util.Config) {
 		r.Static("/static", "./static")
 		r.Static("/app/build/static", "./app/build/static")
 	} else {
-		r.GET("/static/*path", func(c *gin.Context) {
-			c.FileFromFS(c.Request.URL.Path, http.FS(assetsFS))
-		})
-		r.GET("/app/build/static/*path", func(c *gin.Context) {
-			c.FileFromFS(c.Request.URL.Path, http.FS(assetsFS))
-		})
+		r.GET("/static/*path", embeddedAssetHandler(assetsFS))
 	}
 
 	// oauth2
@@ -177,18 +206,6 @@ func main() {
 		log.Fatalf("Connection error: %v", err)
 	}
 	defer rpcConn.Close()
-
-	if !options.Debug {
-		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
-		if err != nil {
-			log.Fatal(err)
-		}
-		path := filepath.Join(dir, "templates")
-		log.Printf("==> chdir to: %s", path)
-		if err = os.Chdir(path); err != nil {
-			panic("chdir failed")
-		}
-	}
 
 	s := server.NewServer(rpcConn, assetsFS, cfg, options.SecretKey, options.Debug)
 	go Serve(s, cfg)

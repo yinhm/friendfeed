@@ -261,15 +261,13 @@ def deploy_web():
 
         with cd(code_root):
             run('git reset --hard && git checkout master && git pull')
-            run("cd %s/httpd && npm install && gulp && gulp release" % code_root)
+            run("cd %s/httpd/app && corepack enable pnpm && pnpm install --frozen-lockfile && pnpm run build" % code_root)
             run("cd %s/httpd && go get ." % code_root)
             run("cd httpd && go build")
 
     with cd(web_path):
         bin_path = join(code_root, 'httpd', 'httpd')
-        tpl_path = join(code_root, 'httpd', 'templates')
         sudo("mv %s ffweb" % bin_path)
-        sudo("cp -a %s . " % tpl_path)
         sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_group, web_path))
     
     with settings(warn_only=True):
