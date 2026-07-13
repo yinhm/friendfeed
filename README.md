@@ -110,11 +110,11 @@ Web Dev
 
 build js
 
-    sudo apt-get install nodejs
-    sudo npm install -g gulp
-    cd httpd
-    npm install
-    gulp watch
+    # Install Node.js 24 LTS (the exact version is in .nvmrc)
+    cd httpd/app
+    corepack enable pnpm
+    pnpm install --frozen-lockfile
+    pnpm start
 
 Start develop
 
