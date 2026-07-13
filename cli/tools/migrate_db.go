@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/gob"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -31,10 +32,89 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 	})
 }
 
+const publicFeedIndexSize = 1000
+
+func publicFeedIndexKey(prefix store.KeyPrefix, id uuid.UUID) store.Key {
+	return model.NewUUIDKey(prefix, id)
+}
+
+func normalizePublicFeedIndex(raw []byte) ([]byte, int, error) {
+	var entries []string
+	if err := gob.NewDecoder(bytes.NewReader(raw)).Decode(&entries); err != nil {
+		return nil, 0, err
+	}
+
+	normalized := make([]string, publicFeedIndexSize)
+	copy(normalized, entries)
+
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(normalized); err != nil {
+		return nil, 0, err
+	}
+
+	count := 0
+	for _, entry := range normalized {
+		if entry != "" {
+			count++
+		}
+	}
+	return buf.Bytes(), count, nil
+}
+
+func migratePublicFeedIndex(db, mdb, ndb *store.Store, overwrite bool) error {
+	currentID := uuid.NewV5(uuid.NamespaceURL, "index:public:cache")
+	currentKey := publicFeedIndexKey(model.TableMeta, currentID)
+	if !overwrite && ndb.Exist(currentKey) {
+		log.Println("public feed index already exists; skipping legacy metadata")
+		return nil
+	}
+
+	zeroID := uuid.Nil
+	legacyMetaKey := publicFeedIndexKey(model.TableMeta, zeroID)
+	// Before TableIndexCache was removed, its numeric prefix was 6.
+	legacyIndexCacheKey := publicFeedIndexKey(store.KeyPrefix(6), zeroID)
+	candidates := []struct {
+		name string
+		db   *store.Store
+		key  store.Key
+	}{
+		{"meta/current", mdb, currentKey},
+		{"data/current", db, currentKey},
+		{"meta/zero-uuid", mdb, legacyMetaKey},
+		{"data/zero-uuid", db, legacyMetaKey},
+		{"meta/index-cache", mdb, legacyIndexCacheKey},
+		{"data/index-cache", db, legacyIndexCacheKey},
+	}
+
+	for _, candidate := range candidates {
+		raw, err := candidate.db.Get(candidate.key)
+		if err != nil {
+			return fmt.Errorf("read public feed index from %s: %w", candidate.name, err)
+		}
+		if len(raw) == 0 {
+			continue
+		}
+
+		normalized, count, err := normalizePublicFeedIndex(raw)
+		if err != nil {
+			return fmt.Errorf("decode public feed index from %s: %w", candidate.name, err)
+		}
+		if err := ndb.Set(currentKey, normalized); err != nil {
+			return fmt.Errorf("write migrated public feed index: %w", err)
+		}
+		log.Printf("migrated public feed index from %s: %d entries", candidate.name, count)
+		return nil
+	}
+
+	return errors.New("public feed index metadata not found in source databases")
+}
+
 // We should open original db ad readonly mode.
 //
 // migrate meta db should and only need sync_meta
 // ./tools -from old_db -to new_db -c sync_meta
+// migrate only the legacy public feed cache metadata
+// ./tools -from old_db -to new_db -c public_feed
 //
 // sync all data from db
 // ./tools -from old_db -to new_db -c db
@@ -148,6 +228,14 @@ func main() {
 			log.Println(err)
 		}
 		log.Println("oauth user count: ", n)
+		if err := migratePublicFeedIndex(db, mdb, ndb, false); err != nil {
+			log.Println("public feed index:", err)
+		}
+		ndb.Flush()
+	case "public_feed":
+		if err := migratePublicFeedIndex(db, mdb, ndb, true); err != nil {
+			log.Fatal(err)
+		}
 		ndb.Flush()
 	case "sync":
 		// EntryIndex
