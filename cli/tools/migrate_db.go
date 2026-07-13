@@ -109,12 +109,90 @@ func migratePublicFeedIndex(db, mdb, ndb *store.Store, overwrite bool) error {
 	return errors.New("public feed index metadata not found in source databases")
 }
 
+type timelineRebuildStats struct {
+	profiles int
+	follows  int
+	entries  int
+}
+
+func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile) (int, int, error) {
+	profileID, err := uuid.FromString(profile.Uuid)
+	if err != nil {
+		return 0, 0, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+	}
+
+	timelineID := model.UniqueKeyFrom(fmt.Sprintf("%x", profileID), "user", "timeline")
+	timelinePrefix := model.NewUUIDKey(model.TableEntryIndex, timelineID)
+	if _, err := purge_table(db, timelinePrefix); err != nil {
+		return 0, 0, fmt.Errorf("clear timeline for %s: %w", profile.Id, err)
+	}
+
+	feeds := map[uuid.UUID]struct{}{profileID: {}}
+	followPrefix := model.NewKeyFrom(model.Follow.Prefix, profileID.Bytes())
+	follows, err := db.ForwardScan(followPrefix, func(i int, key, value []byte) error {
+		feedID, err := uuid.FromBytes(key[len(followPrefix):])
+		if err != nil {
+			return fmt.Errorf("invalid follow key %x: %w", key, err)
+		}
+		feeds[feedID] = struct{}{}
+		return nil
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
+	}
+
+	entries := 0
+	for feedID := range feeds {
+		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
+		_, err := db.ForwardScan(feedPrefix, func(i int, key, value []byte) error {
+			indexSuffix := key[len(feedPrefix):]
+			timelineKey := model.NewKeyFrom(timelinePrefix, indexSuffix)
+			if err := db.Set(timelineKey, value); err != nil {
+				return err
+			}
+			entries++
+			return nil
+		})
+		if err != nil {
+			return follows, entries, fmt.Errorf("copy feed %s into %s timeline: %w", feedID, profile.Id, err)
+		}
+	}
+
+	return follows, entries, nil
+}
+
+func rebuildTimelines(db *store.Store) (timelineRebuildStats, error) {
+	stats := timelineRebuildStats{}
+	err := model.Profile.Iter(db, func(key, raw []byte) error {
+		profile := new(pb.Profile)
+		if err := proto.Unmarshal(raw, profile); err != nil {
+			return fmt.Errorf("decode profile at %x: %w", key, err)
+		}
+		if profile.Deleted {
+			return nil
+		}
+
+		follows, entries, err := rebuildTimelineForProfile(db, profile)
+		if err != nil {
+			return err
+		}
+		stats.profiles++
+		stats.follows += follows
+		stats.entries += entries
+		log.Printf("rebuilt timeline for %s: %d follows, %d entries", profile.Id, follows, entries)
+		return nil
+	})
+	return stats, err
+}
+
 // We should open original db ad readonly mode.
 //
 // migrate meta db should and only need sync_meta
 // ./tools -from old_db -to new_db -c sync_meta
 // migrate only the legacy public feed cache metadata
 // ./tools -from old_db -to new_db -c public_feed
+// rebuild Home timelines from each profile's own feed and Follow edges
+// ./tools -from old_db -to new_db -c rebuild_timeline
 //
 // sync all data from db
 // ./tools -from old_db -to new_db -c db
@@ -237,6 +315,13 @@ func main() {
 			log.Fatal(err)
 		}
 		ndb.Flush()
+	case "rebuild_timeline":
+		stats, err := rebuildTimelines(ndb)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ndb.Flush()
+		log.Printf("rebuilt timelines: %d profiles, %d follows, %d entries", stats.profiles, stats.follows, stats.entries)
 	case "sync":
 		// EntryIndex
 		model.EntryIndex.Iter(db, func(k, v []byte) error {

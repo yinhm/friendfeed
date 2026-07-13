@@ -12,4 +12,5 @@ httpd/static/js/[0-9]*.js*
 httpd/static/css/bundle.min.css
 httpd/static/css/main.*.css*
 cli/tools/*
+!cli/tools/migrate_db_test.go
 twitter/cookies.json
