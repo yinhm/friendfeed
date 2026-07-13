@@ -7,5 +7,9 @@ cli/cli
 conf/*
 httpd/node_modules
 httpd/static/js/bundle*.js
+httpd/static/js/main.*.js*
+httpd/static/js/[0-9]*.js*
+httpd/static/css/bundle.min.css
+httpd/static/css/main.*.css*
 cli/tools/*
 twitter/cookies.json
