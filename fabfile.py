@@ -121,14 +121,7 @@ def deploy_config():
     if not exists(env.project_path):
         sudo('mkdir -p %s' % env.project_path)
 
-    template = 'conf/gcs.json'
     context = copy(env)
-    key_path = '/srv/ff/gcs.json'
-    upload_template(template, key_path,
-                    context=context, backup=False, use_sudo=True)
-    sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))
-    sudo('chmod 600 %s' % (key_path))
-
     template = 'conf/config.json'
     key_path = '/srv/ff/config.json'
     upload_template(template, key_path,

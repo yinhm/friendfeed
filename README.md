@@ -4,10 +4,8 @@ A FriendFeed Clone
   This project created by a handful of FriendFeed enthusiasts, as FriendFeed
   was shutting down[1].
 
-Google Cloud
-============
-
-You may need to create bucket in console.developers.google.com.
+Google Compute Engine
+=====================
 
 Init Google Cloud
 
@@ -18,13 +16,9 @@ Login, eg:
     gcloud auth login
     gcloud config set project "GCEAppId"
 
-Set storage bucket to public
-
-    gsutil defacl ch -g AllUsers:R gs://GCSBucketId
-
 SSH
 
-    gcloud compute --project "GCSAppId" ssh --zone "us-central1-f" "instance-1"
+    gcloud compute --project "GCEAppId" ssh --zone "us-central1-f" "instance-1"
 
 Attach Disk
 ==========
@@ -79,11 +73,6 @@ Server Config
     cp conf/example.config.json conf/config.json
 
   Change config.json according to your project.
-
-Media
-====
-
-All medias will be archived to Google Cloud Storage if it was from friendfeed.
 
 RocksDB
 =======
@@ -156,8 +145,6 @@ You need fabric in your local machine if you run fab.
 Setup once
 
   * Create Google Cloud Engine
-  * Create Google Cloud Storage Bucket, config file save to conf/gcs.json
-  * Media config as described in previous section.
 
 ```
     openssl rand 40 -base64 > conf/salt.conf

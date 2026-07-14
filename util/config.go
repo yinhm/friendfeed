@@ -13,9 +13,6 @@ type Config struct {
 	Address    string `json:"address"`
 	DBPath     string `json:"db_path"`
 	Debug      bool   `json:"debug"`
-	GcsAppId   string `json:"gcs_app_id"`
-	GcsBucket  string `json:"gcs_bucket"`
-	GcsKeyFile string `json:"gcs_key_file"`
 
 	MediaPath          string `json:"media_path"`
 	GAuthKeyFile       string `json:"gauth_key_file"`
