@@ -130,6 +130,20 @@ Or use Gin(recommend)
     export CONFIG_FILE=/srv/ff/config.json
     gin -p 8080
 
+migrate
+=======
+
+rebuild social graph after db migrated
+
+  ./tools -to new_db -c rebuild_social_graph
+
+rebuild user timeline after social graph
+
+for one user:
+  ./tools -to new_db -c rebuild_timeline -user yinhm
+
+for all users:
+./tools -to new_db -c rebuild_timeline
 
 Deploy FriendFeed
 =================
