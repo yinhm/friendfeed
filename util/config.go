@@ -10,10 +10,11 @@ import (
 // Server Config
 // ----------------------------
 type Config struct {
-	Address    string `json:"address"`
-	DBPath     string `json:"db_path"`
-	Debug      bool   `json:"debug"`
+	Address string `json:"address"`
+	DBPath  string `json:"db_path"`
+	Debug   bool   `json:"debug"`
 
+	ServerDomain       string `json:"server_domain"`
 	MediaPath          string `json:"media_path"`
 	GAuthKeyFile       string `json:"gauth_key_file"`
 	TwitterApiKey      string `json:"twitter_api_key"`

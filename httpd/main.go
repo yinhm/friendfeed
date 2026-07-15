@@ -9,6 +9,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -104,7 +105,10 @@ func embeddedAssetHandler(assets fs.FS) gin.HandlerFunc {
 }
 
 func Serve(s *server.Server, config *util.Config) {
-	gauthConfig := server.GoogleAuthConfig(config.GAuthKeyFile, options.Debug)
+	gauthConfig := server.GoogleAuthConfig(config.GAuthKeyFile)
+	if options.Debug {
+		gauthConfig.RedirectURL, _ = url.JoinPath(config.ServerDomain, "/auth/google/callback")
+	}
 	goth.UseProviders(
 		twitter.New(config.TwitterApiKey, config.TwitterApiSecret, config.TwitterApiCallback),
 		gplus.New(gauthConfig.ClientID, gauthConfig.ClientSecret, gauthConfig.RedirectURL),

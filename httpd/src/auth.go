@@ -123,15 +123,12 @@ func (s *Server) AuthCallback(c *gin.Context) {
 	http.Redirect(c.Writer, c.Request, next, http.StatusFound)
 }
 
-func GoogleAuthConfig(keyPath string, debug bool) *oauth2.Config {
+func GoogleAuthConfig(keyPath string) *oauth2.Config {
 	jsonKey, err := os.ReadFile(keyPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	conf, _ := google.ConfigFromJSON(jsonKey, "profile")
-	if debug {
-		conf.RedirectURL = "http://localhost:8080/auth/google/callback"
-	}
 	return conf
 }
 
