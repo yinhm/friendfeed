@@ -11,6 +11,106 @@ import (
 	"github.com/yinhm/friendfeed/store"
 )
 
+func TestMigrateMediaURL(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+		ok   bool
+	}{
+		{
+			name: "GCS profile image",
+			in:   "https://storage.googleapis.com/lastff01/p-c6f8dca854f011ddb489003048343a40-large-1002",
+			want: "https://m.friendfeed.me/p-c6f8dca854f011ddb489003048343a40-large-1002",
+			ok:   true,
+		},
+		{
+			name: "legacy thumbnail host",
+			in:   "http://m.friendfeed-media.com/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
+			want: "http://m.friendfeed.me/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
+			ok:   true,
+		},
+		{name: "external image", in: "https://example.com/image.jpg", want: "https://example.com/image.jpg"},
+		{name: "already migrated", in: "https://m.friendfeed.me/image.jpg", want: "https://m.friendfeed.me/image.jpg"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := migrateMediaURL(tt.in)
+			if got != tt.want || ok != tt.ok {
+				t.Fatalf("migrateMediaURL(%q) = %q, %t; want %q, %t", tt.in, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
+func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+	db.SetSync(false)
+
+	profileID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{
+		Uuid:    profileID.String(),
+		Id:      "user",
+		Picture: "https://storage.googleapis.com/lastff01/p-avatar-large",
+	}
+	if err := model.UpdateProfile(db, profile); err != nil {
+		t.Fatal(err)
+	}
+	entryID := uuid.Must(uuid.NewV4())
+	entry := &pb.Entry{
+		Id: entryID.String(),
+		Thumbnails: []*pb.Thumbnail{
+			{Url: "http://m.friendfeed-media.com/thumbnail"},
+			{Url: "https://example.com/external.jpg"},
+		},
+	}
+	if _, err := model.Entry.Put(db, entryID.Bytes(), entry); err != nil {
+		t.Fatal(err)
+	}
+
+	dryStats, err := migrateMediaURLs(db, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dryStats.profiles != 1 || dryStats.entries != 1 || dryStats.thumbnails != 1 {
+		t.Fatalf("unexpected dry-run stats: %+v", dryStats)
+	}
+	unchanged, err := model.GetProfileFromUuid(db, profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.Picture != profile.Picture {
+		t.Fatalf("dry-run changed profile picture to %q", unchanged.Picture)
+	}
+
+	stats, err := migrateMediaURLs(db, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats != dryStats {
+		t.Fatalf("migration stats %+v differ from dry-run %+v", stats, dryStats)
+	}
+	migratedProfile, err := model.GetProfileFromUuid(db, profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migratedProfile.Picture != "https://m.friendfeed.me/p-avatar-large" {
+		t.Fatalf("unexpected profile picture: %q", migratedProfile.Picture)
+	}
+	migratedEntry, err := model.GetEntry(db, entryID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := migratedEntry.Thumbnails[0].Url; got != "http://m.friendfeed.me/thumbnail" {
+		t.Fatalf("unexpected thumbnail URL: %q", got)
+	}
+	if got := migratedEntry.Thumbnails[1].Url; got != "https://example.com/external.jpg" {
+		t.Fatalf("external thumbnail was changed: %q", got)
+	}
+}
+
 func TestRebuildTimelines(t *testing.T) {
 	db := store.NewStore(t.TempDir())
 	defer db.Close()

@@ -8,6 +8,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
@@ -137,6 +139,101 @@ type socialGraphRebuildStats struct {
 	feedinfos int
 	edges     int
 	skipped   int
+}
+
+type mediaURLMigrationStats struct {
+	profiles   int
+	entries    int
+	thumbnails int
+}
+
+func migrateMediaURL(rawURL string) (string, bool) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL, false
+	}
+
+	switch strings.ToLower(parsed.Hostname()) {
+	case "storage.googleapis.com":
+		const bucketPrefix = "/lastff01/"
+		if !strings.HasPrefix(parsed.Path, bucketPrefix) {
+			return rawURL, false
+		}
+		parsed.Path = "/" + strings.TrimPrefix(parsed.Path, bucketPrefix)
+	case "m.friendfeed-media.com":
+		// The object path and URL scheme are already correct for R2.
+	default:
+		return rawURL, false
+	}
+
+	parsed.Host = "m.friendfeed.me"
+	return parsed.String(), true
+}
+
+func migrateMediaURLs(db *store.Store, dryRun bool) (mediaURLMigrationStats, error) {
+	stats := mediaURLMigrationStats{}
+
+	if err := model.Profile.Iter(db, func(key, raw []byte) error {
+		profile := new(pb.Profile)
+		if err := proto.Unmarshal(raw, profile); err != nil {
+			return fmt.Errorf("decode profile at %x: %w", key, err)
+		}
+		picture, changed := migrateMediaURL(profile.Picture)
+		if !changed {
+			return nil
+		}
+		profile.Picture = picture
+		stats.profiles++
+		if dryRun {
+			return nil
+		}
+		value, err := proto.Marshal(profile)
+		if err != nil {
+			return fmt.Errorf("encode profile %q: %w", profile.Id, err)
+		}
+		if err := db.Set(key, value); err != nil {
+			return fmt.Errorf("write migrated profile %q: %w", profile.Id, err)
+		}
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+
+	if err := model.Entry.Iter(db, func(key, raw []byte) error {
+		entry := new(pb.Entry)
+		if err := proto.Unmarshal(raw, entry); err != nil {
+			return fmt.Errorf("decode entry at %x: %w", key, err)
+		}
+		changed := false
+		for _, thumbnail := range entry.Thumbnails {
+			if thumbnail == nil {
+				continue
+			}
+			if migrated, ok := migrateMediaURL(thumbnail.Url); ok {
+				thumbnail.Url = migrated
+				stats.thumbnails++
+				changed = true
+			}
+		}
+		if !changed {
+			return nil
+		}
+		stats.entries++
+		if dryRun {
+			return nil
+		}
+		value, err := proto.Marshal(entry)
+		if err != nil {
+			return fmt.Errorf("encode entry %q: %w", entry.Id, err)
+		}
+		if err := db.Set(key, value); err != nil {
+			return fmt.Errorf("write migrated entry %q: %w", entry.Id, err)
+		}
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+	return stats, nil
 }
 
 func rebuildSocialGraph(db *store.Store, dryRun bool) (socialGraphRebuildStats, error) {
@@ -391,6 +488,8 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 // ./tools -to new_db -c rebuild_timeline -user yinhm -max-feeds 20 -dry-run
 // rebuild Follow and Follower tables from legacy Feedinfo metadata
 // ./tools -to new_db -c rebuild_social_graph -dry-run
+// migrate legacy GCS and FriendFeed media URLs in profiles and entries
+// ./tools -to new_db -c migrate_media_urls -dry-run
 //
 // sync all data from db
 // ./tools -from old_db -to new_db -c db
@@ -407,7 +506,7 @@ func main() {
 	if toPath == "" {
 		log.Fatal("-to is required")
 	}
-	needsSource := command != "rebuild_timeline" && command != "rebuild_social_graph"
+	needsSource := command != "rebuild_timeline" && command != "rebuild_social_graph" && command != "migrate_media_urls"
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
 	}
@@ -549,6 +648,15 @@ func main() {
 			ndb.Flush()
 		}
 		log.Printf("social graph summary: %d feedinfos, %d edges, %d skipped references, dry-run=%t", stats.feedinfos, stats.edges, stats.skipped, dryRun)
+	case "migrate_media_urls":
+		stats, err := migrateMediaURLs(ndb, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if !dryRun {
+			ndb.Flush()
+		}
+		log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, dry-run=%t", stats.profiles, stats.entries, stats.thumbnails, dryRun)
 	case "sync":
 		// EntryIndex
 		model.EntryIndex.Iter(db, func(k, v []byte) error {
@@ -684,7 +792,8 @@ func main() {
 		// }
 		// log.Println(profile)
 
-		entryId := "c8e5fe86df10e285f1ff12acac102d44"
+		// entryId := "c8e5fe86df10e285f1ff12acac102d44"
+		entryId := "744b310d5dca442d82f1ec2366554b1e"
 		// entryId := "0000012820141462fa7290a658763ae1"
 		entry, err := model.GetEntry(db, entryId)
 		if err != nil {
