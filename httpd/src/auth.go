@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -45,20 +46,34 @@ func LogoutHandler(c *gin.Context) {
 
 func extractNextPath(next string) string {
 	n, err := url.Parse(next)
-	if err != nil {
+	if err != nil || n.IsAbs() || n.Host != "" {
 		return "/"
 	}
 	path := n.Path
-	if path == "" {
-		path = "/"
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
+		return "/"
+	}
+	if n.RawQuery != "" {
+		path += "?" + n.RawQuery
 	}
 	return path
 }
 
+func oauthNextKey(provider string) string {
+	return "oauth_next_" + provider
+}
+
 func AuthProvider(c *gin.Context) {
+	provider := c.Params.ByName("provider")
+	sess := sessions.Default(c)
+	sess.Set(oauthNextKey(provider), extractNextPath(c.Request.URL.Query().Get("next")))
+	if err := sess.Save(); err != nil {
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
 	fn := gothic.GetProviderName
 	gothic.GetProviderName = func(req *http.Request) (string, error) {
-		provider := c.Params.ByName("provider")
 		if provider == "" {
 			return fn(req)
 		}
@@ -117,9 +132,13 @@ func (s *Server) AuthCallback(c *gin.Context) {
 	sess := sessions.Default(c)
 	sess.Set("user_id", u.UserID)
 	sess.Set("uuid", profile.Uuid)
-	sess.Save()
-
-	next := extractNextPath(c.Request.URL.Query().Get("state"))
+	next, _ := sess.Get(oauthNextKey(provider)).(string)
+	sess.Delete(oauthNextKey(provider))
+	if err := sess.Save(); err != nil {
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	next = extractNextPath(next)
 	http.Redirect(c.Writer, c.Request, next, http.StatusFound)
 }
 
