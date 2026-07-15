@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eapache/queue"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -41,4 +42,27 @@ func TestFeedIndex(t *testing.T) {
 	assert.Equal(t, 1000, cap(index.bufq))
 
 	index.doneCh <- struct{}{}
+}
+
+func TestFeedIndexRebuildFullDuplicateBuffer(t *testing.T) {
+	oldbuf := make([]string, MinQueue)
+	for i := range oldbuf {
+		oldbuf[i] = "duplicate"
+	}
+
+	pending := queue.New()
+	pending.Add("duplicate")
+	index := &FeedIndex{
+		bufq:  oldbuf,
+		iq:    pending,
+		dirty: true,
+	}
+
+	index.rebuild(nil)
+
+	assert.Len(t, index.bufq, MinQueue)
+	assert.Equal(t, "duplicate", index.bufq[0])
+	for i := 1; i < len(index.bufq); i++ {
+		assert.Empty(t, index.bufq[i])
+	}
 }

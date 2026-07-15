@@ -119,7 +119,7 @@ func (f *FeedIndex) rebuild(db *store.Store) {
 		f.iq.Remove()
 	}
 
-	for j := 0; i < MinQueue; j++ {
+	for j := 0; j < len(oldbuf) && i < MinQueue; j++ {
 		item := oldbuf[j]
 		if item == "" {
 			break
