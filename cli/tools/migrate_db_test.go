@@ -44,6 +44,43 @@ func TestMigrateMediaURL(t *testing.T) {
 	}
 }
 
+func TestMigrateLegacyGoogleOAuthRecords(t *testing.T) {
+	source := store.NewStore(t.TempDir())
+	defer source.Close()
+	target := store.NewStore(t.TempDir())
+	defer target.Close()
+
+	profileID := uuid.Must(uuid.NewV4())
+	legacy := &pb.OAuthUser{
+		Uuid: profileID.String(), UserId: "114770841089446623145",
+		Provider: "gplus", Name: "yinhm", Email: "user@example.com",
+	}
+	legacyTable := model.NewTable(model.KeyPrefixToBytes(legacyGoogleOAuthPrefix))
+	if _, err := legacyTable.Put(source, model.KeyFromString("google", legacy.UserId), legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := model.PutOAuthUser(target, &pb.OAuthUser{
+		Uuid: uuid.Must(uuid.NewV4()).String(), Provider: "google", UserId: legacy.UserId,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := migrateOAuthRecords(source, target, legacyGoogleOAuthPrefix, "google")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("migrated %d legacy Google records; want 1", count)
+	}
+	_, migrated, err := model.GetOAuthUser(target, "google", legacy.UserId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migrated.Uuid != profileID.String() || migrated.Provider != "google" {
+		t.Fatalf("unexpected migrated Google OAuth record: %v", migrated)
+	}
+}
+
 func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
 	db := store.NewStore(t.TempDir())
 	defer db.Close()

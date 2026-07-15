@@ -42,6 +42,10 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 
 const publicFeedIndexSize = 1000
 
+// Before OAuth providers were merged into TableOAuth, Google OAuth records
+// used table prefix 105. That prefix is TableFile in the current schema.
+const legacyGoogleOAuthPrefix store.KeyPrefix = 105
+
 func publicFeedIndexKey(prefix store.KeyPrefix, id uuid.UUID) store.Key {
 	return model.NewUUIDKey(prefix, id)
 }
@@ -145,6 +149,38 @@ type mediaURLMigrationStats struct {
 	profiles   int
 	entries    int
 	thumbnails int
+}
+
+func migrateOAuthRecords(source, target *store.Store, prefix store.KeyPrefix, provider string) (int, error) {
+	return source.ForwardScan(model.KeyPrefixToBytes(prefix), func(i int, key, raw []byte) error {
+		msg := new(pb.OAuthUser)
+		if err := proto.Unmarshal(raw, msg); err != nil {
+			return fmt.Errorf("decode OAuth record at %x: %w", key, err)
+		}
+		if provider != "" {
+			msg.Provider = provider
+		}
+		if msg.UserId == "" || msg.Provider == "" {
+			return nil
+		}
+		if msg.Uuid == "" && msg.Name != "" {
+			if profile, err := model.GetProfileFromUserId(target, msg.Name); err == nil {
+				msg.Uuid = profile.Uuid
+			}
+		}
+		log.Printf("migrate OAuth: provider=%s user_id=%s uuid=%s", msg.Provider, msg.UserId, msg.Uuid)
+		if provider != "" {
+			// The legacy provider table is authoritative. This also repairs an
+			// incorrect row created by a login attempted before migration.
+			if err := model.OAuth.Delete(target, model.KeyFromString(msg.Provider, msg.UserId)); err != nil {
+				return fmt.Errorf("replace OAuth record %s:%s: %w", msg.Provider, msg.UserId, err)
+			}
+		}
+		if _, err := model.PutOAuthUser(target, msg); err != nil {
+			return fmt.Errorf("write OAuth record %s:%s: %w", msg.Provider, msg.UserId, err)
+		}
+		return nil
+	})
 }
 
 func migrateMediaURL(rawURL string) (string, bool) {
@@ -598,28 +634,15 @@ func main() {
 		}
 		log.Println("profile count: ", n)
 
-		n, err = mdb.ForwardScan(model.TableOAuth.Bytes(), func(i int, k, v []byte) error {
-			msg := &pb.OAuthUser{}
-			if err := proto.Unmarshal(v, msg); err != nil {
-				return err
-			}
-			if msg.UserId != "" && msg.Provider != "" {
-				if msg.Uuid == "" && msg.Name != "" {
-					if profile, err := model.GetProfileFromUserId(ndb, msg.Name); err == nil {
-						msg.Uuid = profile.Uuid
-					}
-				}
-				log.Println(hex.EncodeToString(k), msg)
-				if _, err := model.PutOAuthUser(ndb, msg); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		twitterCount, err := migrateOAuthRecords(mdb, ndb, model.TableOAuth, "")
 		if err != nil {
-			log.Println(err)
+			log.Fatal(err)
 		}
-		log.Println("oauth user count: ", n)
+		googleCount, err := migrateOAuthRecords(mdb, ndb, legacyGoogleOAuthPrefix, "google")
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("oauth user count: twitter/current=%d legacy-google=%d", twitterCount, googleCount)
 		if err := migratePublicFeedIndex(db, mdb, ndb, false); err != nil {
 			log.Println("public feed index:", err)
 		}
