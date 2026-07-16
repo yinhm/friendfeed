@@ -63,6 +63,12 @@ func oauthNextKey(provider string) string {
 	return "oauth_next_" + provider
 }
 
+func setGothProvider(req *http.Request, provider string) {
+	query := req.URL.Query()
+	query.Set("provider", provider)
+	req.URL.RawQuery = query.Encode()
+}
+
 func AuthProvider(c *gin.Context) {
 	provider := c.Params.ByName("provider")
 	sess := sessions.Default(c)
@@ -72,26 +78,23 @@ func AuthProvider(c *gin.Context) {
 		return
 	}
 
-	fn := gothic.GetProviderName
-	gothic.GetProviderName = func(req *http.Request) (string, error) {
-		if provider == "" {
-			return fn(req)
+	setGothProvider(c.Request, provider)
+	for attempt := 1; attempt <= 2; attempt++ {
+		authURL, err := gothic.GetAuthURL(c.Writer, c.Request)
+		if err == nil {
+			http.Redirect(c.Writer, c.Request, authURL, http.StatusTemporaryRedirect)
+			return
 		}
-		return provider, nil
+		if attempt == 2 {
+			c.String(http.StatusBadRequest, err.Error())
+			return
+		}
+		log.Printf("OAuth request-token attempt failed for %s; retrying once: %v", provider, err)
 	}
-	gothic.BeginAuthHandler(c.Writer, c.Request)
 }
 
 func (s *Server) AuthCallback(c *gin.Context) {
-	fn := gothic.GetProviderName
-	gothic.GetProviderName = func(req *http.Request) (string, error) {
-		provider := c.Params.ByName("provider")
-		if provider == "" {
-			return fn(req)
-		}
-		return provider, nil
-	}
-
+	setGothProvider(c.Request, c.Params.ByName("provider"))
 	provider, _ := gothic.GetProviderName(c.Request)
 	u, err := gothic.CompleteUserAuth(c.Writer, c.Request)
 	if err != nil {
