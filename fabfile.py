@@ -24,7 +24,7 @@ def production():
     env.user = 'root'
 
     #  name of your project - no spaces, no special chars
-    env.project = 'ff'
+    env.project = 'ffdb'
     #  hg repository of your project
     env.repository = 'git@github.com:yinhm/ffdb.git'
     #  type of repository (git or hg)
@@ -99,7 +99,7 @@ def bootstrap():
     sudo("apt-get -y install unzip")
     sudo("apt-get -y install tmux")
     sudo("apt-get -y install nginx")
-    sudo("apt-get -y install nodejs npm")
+    sudo("apt-get -y install nodejs")
 
     # sudo ("apt-get -y install debhelper libsnappy-dev libgflags-dev libjemalloc-dev libbz2-dev zlib1g-dev")
     # sudo("sudo apt-get -y install devscripts")
@@ -113,7 +113,7 @@ def deploy_env():
     
     with cd(build_path):
         sudo("curl -L https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz | tar zx")
-        sudo("./godeb install 1.22.1")
+        sudo("./godeb install 1.26.4")
 
 
 @task
@@ -123,7 +123,7 @@ def deploy_config():
 
     context = copy(env)
     template = 'conf/config.json'
-    key_path = '/srv/ff/config.json'
+    key_path = join(env.project_path, "config.json")
     upload_template(template, key_path,
                     context=context, backup=False, use_sudo=True)
     sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))
@@ -132,7 +132,7 @@ def deploy_config():
 @task
 def deploy_db():
     go_path = env.go_path
-    db_path = "/srv/ff/db"
+    db_path = join(env.project_path, "db")
     code_root = env.code_root
     
     if not exists(code_root):
@@ -232,20 +232,20 @@ def deploy_web():
     # key file
     template = 'conf/gauth.json'
     context = copy(env)
-    key_path = '/srv/ff/gauth.json'
+    key_path = join(env.project_path, "gauth.json")
     upload_template(template, key_path,
                     context=context, backup=False, use_sudo=True)
     sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))
     sudo('chmod 600 %s' % (key_path))
     
 
-    template = 'conf/ffweb.conf'
+    template = 'conf/ffweb.service'
     context = copy(env)
     context.salt = open('conf/salt.conf').read().strip()
-    context.config_file = '/srv/ff/config.json'
+    context.config_file = join(env.project_path, "config.json")
     context.web_path = web_path
     context.www_public_path = web_path
-    upload_template(template, '/etc/init/ffweb.conf',
+    upload_template(template, '/etc/systemd/system/ffweb.service',
                     context=context, backup=False, use_sudo=True)
 
     with shell_env(GOPATH=go_path):
@@ -258,15 +258,16 @@ def deploy_web():
             run("cd %s/httpd && go get ." % code_root)
             run("cd httpd && go build")
 
-    with cd(web_path):
         bin_path = join(code_root, 'httpd', 'httpd')
-        sudo("mv %s ffweb" % bin_path)
-        sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_group, web_path))
+        web_bin_path = join(go_path, "bin/ffweb")
+        sudo("mv %s %s" % (bin_path, web_bin_path))
+        sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_group, web_bin_path))
     
-    with settings(warn_only=True):
-        sudo("stop ffweb")
+    # with settings(warn_only=True):
+    #     sudo("stop ffweb")
 
-    sudo("start ffweb")
+    sudo("systemctl enable ffweb")
+    sudo("systemctl restart ffweb")
 
 
 # friendfeed.me

@@ -110,17 +110,28 @@ purge and rebuild meta if wrong oauth:
 Deploy FriendFeed
 =================
 
-You need fabric in your local machine if you run fab.
+Install Fabric 1 locally:
+``` 
+  python3 -m venv .venv
+  . .venv/bin/activate
+  pip install 'fabric<2'
+  fab --version
+```
 
-    sudo apt-get install -y fabric
+Verify SSH access:
+```
+  ssh YourServer
+  fab production --list
+```
 
-
-Setup once
-
-  * Create Google Cloud Engine
+Generate the cookie secret:
 
 ```
     openssl rand 40 -base64 > conf/salt.conf
+```
+
+First deployment：
+```
     fab production bootstrap
     fab production deploy_env
     fab production deploy_config
@@ -128,14 +139,12 @@ Setup once
 
 SSL && Nginx
 
-    fab production deploy_ssl
+    // fab production deploy_ssl
     fab production deploy_nginx
 
 Routine update
 
     fab production deploy_db
-    fab production deploy_client
+    // fab production deploy_client
     fab production deploy_web
-
-deploy_client only start one client, if you need more, start ffclient manually.
 
