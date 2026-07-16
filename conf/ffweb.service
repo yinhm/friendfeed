@@ -1,0 +1,16 @@
+[Unit]
+Description=ffweb
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%(web_path)s
+ExecStart=/srv/gopath/bin/ffweb -p 8080 -s=%(salt)s -c=%(config_file)s 1>>%(ffweb_logfile)s 2>>%(ffweb_logfile)s
+KillMode=process
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+LimitNPROC=65536
+
+[Install]
+WantedBy=multi-user.target
