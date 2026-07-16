@@ -2,15 +2,12 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/pb"
@@ -59,20 +56,10 @@ func main() {
 		cfg.Debug = debug
 	}
 
-	filename := fmt.Sprintf("ffdb.%s.log", time.Now().Format("20060102"))
-	logf, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer logf.Close()
-
-	log.SetOutput(io.MultiWriter(logf, os.Stdout))
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	util.RedirectStderr(logf)
 
 	if cfg.Debug {
 		server.SetLogLevel(logrus.DebugLevel)
-		server.SetLogFile(logf)
 		log.Printf("verbose log mode enabled\n")
 	}
 

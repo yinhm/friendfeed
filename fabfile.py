@@ -50,9 +50,7 @@ def production():
     env.code_root = join(env.go_path, 'src/github.com/yinhm/friendfeed')
     env.httpcache_path = join(env.project_path, 'httpcache')
 
-    env.ff_logfile = join(env.deploy_root, 'logs', 'ffdb.log')
     env.ffclient_logfile = join(env.deploy_root, 'logs', 'ffclient.log')
-    env.ffweb_logfile = join(env.deploy_root, 'logs', 'ffweb.log')
     env.ffweb_bind = "127.0.0.1:8080"
 
     env.nginx_https = True
@@ -139,16 +137,11 @@ def deploy_db():
         sudo('mkdir -p %s' % env.project_path)
         sudo('mkdir -p %s/bin' % go_path)
         sudo('mkdir -p %s' % dirname(code_root))
-        sudo('mkdir -p %s' % dirname(env.ff_logfile))
-
         sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_user, go_path))
 
     if not exists(db_path):
         sudo('mkdir -p %s' % db_path)
         sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, db_path))
-
-    sudo('chown %s %s' % (env.runner_user, dirname(env.ff_logfile)))
-    sudo('chmod -R 775 %s' % dirname(env.ff_logfile))
 
     template = 'conf/ffdb.service'
     context = copy(env)
@@ -167,8 +160,9 @@ def deploy_db():
 
     sudo('chown %s:%s %s/bin/ffdb' % (env.runner_user, env.runner_group, go_path))
 
-    sudo("systemctl enable ffdb")
-    sudo("systemctl restart ffdb")
+    sudo("systemctl daemon-reload")
+    sudo("systemctl enable ffdb.service")
+    sudo("systemctl restart ffdb.service")
 
 
 @task
@@ -221,12 +215,9 @@ def deploy_web():
     code_root = env.code_root
 
     web_path = join(env.project_path, "www")
-    log_file = env.ffweb_logfile
-
     if not exists(web_path):
         sudo('mkdir -p %s' % web_path)
         sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, web_path))
-        sudo('chown %s %s' % (env.runner_user, dirname(log_file)))
 
 
     # key file
@@ -263,11 +254,9 @@ def deploy_web():
         sudo("mv %s %s" % (bin_path, web_bin_path))
         sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_group, web_bin_path))
     
-    # with settings(warn_only=True):
-    #     sudo("stop ffweb")
-
-    sudo("systemctl enable ffweb")
-    sudo("systemctl restart ffweb")
+    sudo("systemctl daemon-reload")
+    sudo("systemctl enable ffweb.service")
+    sudo("systemctl restart ffweb.service")
 
 
 # friendfeed.me

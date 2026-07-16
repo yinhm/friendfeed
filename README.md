@@ -148,3 +148,29 @@ Routine update
     // fab production deploy_client
     fab production deploy_web
 
+Systemd logs
+============
+
+`ffdb` and `ffweb` write stdout and stderr to journald:
+
+    journalctl -f -u ffdb.service -u ffweb.service
+
+Useful service and log commands:
+
+    systemctl status ffdb.service ffweb.service
+    systemctl restart ffdb.service ffweb.service
+    journalctl -u ffdb.service --since today
+    journalctl -u ffweb.service -n 200 --no-pager
+
+For persistent, bounded logs, configure `/etc/systemd/journald.conf`:
+
+    [Journal]
+    Storage=persistent
+    SystemMaxUse=2G
+    MaxRetentionSec=30day
+    Compress=yes
+
+Then apply it:
+
+    sudo mkdir -p /var/log/journal
+    sudo systemctl restart systemd-journald

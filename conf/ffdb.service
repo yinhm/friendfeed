@@ -1,14 +1,20 @@
 [Unit]
-Description=ffdb
-After=network.target
+Description=FriendFeed database and API server
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
+User=%(runner_user)s
+Group=%(runner_group)s
 WorkingDirectory=%(project_path)s
-ExecStart=/srv/gopath/bin/ffdb -c %(project_path)s/config.json 1>>%(ff_logfile)s 2>>%(ff_logfile)s
-KillMode=process
-Restart=always
+ExecStart=%(go_path)s/bin/ffdb -c %(project_path)s/config.json
+Restart=on-failure
 RestartSec=3
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ffdb
 LimitNOFILE=65536
 LimitNPROC=65536
 
