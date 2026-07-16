@@ -4,52 +4,6 @@ A FriendFeed Clone
   This project created by a handful of FriendFeed enthusiasts, as FriendFeed
   was shutting down[1].
 
-Google Compute Engine
-=====================
-
-Init Google Cloud
-
-    curl https://sdk.cloud.google.com | bash
-
-Login, eg:
-
-    gcloud auth login
-    gcloud config set project "GCEAppId"
-
-SSH
-
-    gcloud compute --project "GCEAppId" ssh --zone "us-central1-f" "instance-1"
-
-Attach Disk
-==========
-    gcloud compute zones list
-    gcloud compute regions describe us-central1
-    gcloud compute regions list
-
-    // create then select regoin
-    gcloud compute disks create ffdb --size 500GB
-    gcloud compute instances attach-disk "instance-1" --disk ffdb --zone "us-central1-f"
-
-  ssh to instance
-
-    sudo mkdir /mnt/tmp
-    sudo /usr/share/google/safe_format_and_mount -m "mkfs.ext4 -F" /dev/sdb /mnt/tmp
-
-    sudo sh -c 'cat "/dev/sdb /srv ext4 noatime 0 0" >> /etc/fstab'
-    sudo mount /srv
-
-  WARN: Google Cloud Disk IOPS performance limits grow linearly with the size
-  of the persistent disk volume, you may not want to create disk <=200GB.
-
-Firewall
-========
-
-If you need remote clients, you need to create gcloud firewall rules:
-
-    gcloud compute firewall-rules list
-    gcloud compute firewall-rules create ffapi --allow tcp:8901 --source-tags=instance-1 --source-ranges=REMOTE_IP/32 --description="ffapi"
-
-
 Golang Env
 ==========
 
@@ -58,7 +12,7 @@ Golang Env
     echo "export PATH=$GOPATH/bin:$PATH" >> ~/.bashrc
 
     cd ~/src && curl -L https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz \
-         | tar zx --strip 1 && ./godeb install 1.4.2
+         | tar zx --strip 1 && ./godeb install 1.26.4
     mkdir /srv/gopath/bin && mv godeb /srv/gopath/bin/
 
     sudo apt-get install git-core -y
@@ -73,18 +27,6 @@ Server Config
     cp conf/example.config.json conf/config.json
 
   Change config.json according to your project.
-
-RocksDB
-=======
-
-···
-sudo apt install librocksdb-dev
-CGO_CFLAGS="-I/usr/include/rocksdb" \
-CGO_LDFLAGS="-L/usr/lib/ -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy -llz4 -lzstd" \
-  go get github.com/tecbot/gorocksdb
-
-    // fab production deploy_env
-···
 
 Google OAUTH2
 ============
@@ -142,7 +84,7 @@ migrate to R2
 migrate all to new db
 ```
 ./tools -from old_db -to new_db -c db
-./tools -from old_db -to new_db -c meta
+// ./tools -from old_db -to new_db -c meta # may not needed
 ./tools -from old_db -to new_db -c sync_meta
 
 ./tools -from old_db -to new_db -c public_feed
@@ -153,7 +95,17 @@ migrate all to new db
 
 ./tools -from old_db -to new_db -c profile
 ./tools -from old_db -to new_db -c debug
+
 ```
+
+
+purge and rebuild meta if wrong oauth:
+```
+./tools -from old_db -to new_db -c purge_profile
+./tools -from old_db -to new_db -c purge_oauth
+./tools -from old_db -to new_db -c sync_meta
+```
+
 
 Deploy FriendFeed
 =================
@@ -187,7 +139,3 @@ Routine update
 
 deploy_client only start one client, if you need more, start ffclient manually.
 
-
-Notice: The FriendFeed clone project is not affiliated with FriendFeed.
-
-[1] http://blog.friendfeed.com/2015/03/dear-friendfeed-community-were.html
