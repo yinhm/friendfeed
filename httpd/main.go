@@ -205,7 +205,10 @@ func main() {
 			// grpc.MaxCallSendMsgSize(64*1024*1024),
 		),
 	}
-	rpcConn, err := grpc.Dial(options.Rpc, opts...)
+	if cfg.Address == "" {
+		cfg.Address = options.Rpc
+	}
+	rpcConn, err := grpc.Dial(cfg.Address, opts...)
 	if err != nil {
 		log.Fatalf("Connection error: %v", err)
 	}

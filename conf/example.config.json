@@ -1,5 +1,5 @@
 {
-  "address": ":12019",
+  "address": "localhost:12019",
   "db_path": "/tmp/fftestdb",
   "media_path": "/tmp/fftestdb/files",
   "gauth_key_file": "/srv/ff/gauth.json",

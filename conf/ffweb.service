@@ -9,7 +9,7 @@ Type=simple
 User=%(runner_user)s
 Group=%(runner_group)s
 WorkingDirectory=%(project_path)s
-ExecStart=%(go_path)s/bin/ffweb -p 8080 -s=%(salt)s -c=%(config_file)s
+ExecStart=%(go_path)s/bin/ffweb -p 8902 -s=%(salt)s -c=%(config_file)s
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=30

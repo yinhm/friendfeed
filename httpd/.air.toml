@@ -10,7 +10,7 @@ tmp_dir = "/tmp"
   exclude_regex = []
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = "./httpd -p=8080 -s='randombitsreplacedlkjsa' -c='/srv/ffdb/config.json' -d"
+  full_bin = "./httpd -p=8080 -s='randombitsreplacedlkjsa' -c='/srv/ffdev/config.json' -d"
   include_dir = []
   include_ext = ["go", "tpl", "tmpl", "html", 'jsx', 'js']
   kill_delay = "0s"
