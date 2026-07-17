@@ -199,6 +199,9 @@ func (s *Server) feedWritable(c *gin.Context, feedUuid string) bool {
 	if err != nil {
 		return false
 	}
+	if user.Uuid == "" {
+		return false
+	}
 	if user.Uuid == feedUuid {
 		return true
 	}

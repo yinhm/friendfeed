@@ -110,6 +110,9 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 }
 
 func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
+	requestedShare, _ := data["show_share"].(bool)
+	data["show_share"] = showShareForUser(CurrentUserUuid(c), requestedShare)
+
 	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
 		c.Request.Header.Get("Content-Type") == "application/json" {
 		c.JSON(200, data)
@@ -122,6 +125,10 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 		data["appData"] = string(encoded)
 		s.HTML(c, 200, "feed.html", data)
 	}
+}
+
+func showShareForUser(userUuid string, requested bool) bool {
+	return userUuid != "" && requested
 }
 
 func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {

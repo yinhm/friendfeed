@@ -16,6 +16,8 @@ test('renders the feed container from window.appData', () => {
 
   const {container} = render(<App />);
   expect(container.querySelector('#feed')).toBeInTheDocument();
+  expect(container.querySelector('[role="status"]')).not.toBeInTheDocument();
+  expect(container.querySelector('[contenteditable="true"]')).not.toBeInTheDocument();
 });
 
 test('renders the sharing editor with React 19', async () => {
