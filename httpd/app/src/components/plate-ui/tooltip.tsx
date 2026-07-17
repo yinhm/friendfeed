@@ -17,10 +17,10 @@ export const TooltipContent = withCn(
 );
 
 export function withTooltip<
-  T extends React.ComponentType<any> | keyof HTMLElementTagNameMap,
+  T extends React.ElementType,
 >(Component: T) {
   return React.forwardRef<
-    React.ElementRef<T>,
+    React.ComponentRef<T>,
     React.ComponentPropsWithoutRef<T> & {
       tooltip?: React.ReactNode;
       tooltipContentProps?: Omit<
