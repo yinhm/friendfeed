@@ -1,5 +1,6 @@
 import React from 'react';
 import { EntryContent } from './content'
+import {EntryLike} from './entry-like';
 import {getJSON, postJSON, postForm, intersperse} from './utils';
 
 
@@ -589,38 +590,6 @@ class EntryCommentForm extends React.Component{
           </form>
           </div>
     );
-  }
-}
-
-class EntryLike extends React.Component{
-
-  getInitialState() {
-    return {expanded: false};
-  }
-
-  expandLikes= (event) => {
-    if (this.state.expanded) {
-      return;
-    }
-
-    event.preventDefault();
-    this.props.expandLikes();
-    this.setState({expanded: true});
-  }
-
-  render() {
-    var like = this.props.like;
-    if (like.placeholder) {
-      return (
-        <a href="#nolink" onClick={this.expandLikes}>{like.body}</a>
-      );
-    } else {
-      return (
-        <a href={'/feed/' + like.from.id }>
-          {like.from.name}
-        </a>
-      );
-    }
   }
 }
 
