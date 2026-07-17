@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { App } from './App';
 
 test('renders the feed container from window.appData', () => {
@@ -18,7 +18,7 @@ test('renders the feed container from window.appData', () => {
   expect(container.querySelector('#feed')).toBeInTheDocument();
 });
 
-test('renders the sharing editor with React 19', () => {
+test('renders the sharing editor with React 19', async () => {
   window.appData = {
     feed: {uuid: 'public', entries: []},
     show_header: false,
@@ -32,5 +32,8 @@ test('renders the sharing editor with React 19', () => {
   };
 
   const {container} = render(<App />);
-  expect(container.querySelector('[contenteditable="true"]')).toBeInTheDocument();
+  // the editor is lazy-loaded, wait for the chunk to resolve
+  await waitFor(() => {
+    expect(container.querySelector('[contenteditable="true"]')).toBeInTheDocument();
+  });
 });

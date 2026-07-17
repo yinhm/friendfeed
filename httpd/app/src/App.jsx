@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { Entry } from './entry';
 import { getJSON, postJSON, postForm } from './utils';
-import OnPageEditor from './editor';
 import { FeedContext } from './context'
+
+// The Plate editor pulls in ~1.5 MB of slate/radix/plate code; load it
+// on demand instead of making every reader download it.
+const OnPageEditor = lazy(() => import('./editor'));
 
 function FeedPagin(props) {
   var prev = null;
@@ -183,7 +186,9 @@ export class Feed extends React.Component{
     var editorNodes = "";
     if (this.state.show_share === true) {
       editorNodes = (
-        <OnPageEditor feedUuid={feed.uuid} postEntry={this.onPostEntry} />
+        <Suspense fallback={null}>
+          <OnPageEditor feedUuid={feed.uuid} postEntry={this.onPostEntry} />
+        </Suspense>
       )
     }
 

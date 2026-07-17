@@ -1,6 +1,8 @@
-import React, { useContext } from 'react';
-import OnPageEditor from './editor';
+import React, { useContext, lazy, Suspense } from 'react';
 import { FeedContext } from './context'
+
+// Lazy-loaded: the Plate editor is a heavy chunk only needed when editing.
+const OnPageEditor = lazy(() => import('./editor'));
 
 
 export function EntryContent(props) {
@@ -14,11 +16,13 @@ export function EntryContent(props) {
 
     if (props.onpageEdit || feedCfg.onpage_edit === true) {
         return (
-            <OnPageEditor
-                id={props.id}
-                feedUuid={feedCfg.feed_uuid}
-                content={props.rawBody}
-                postEntry={onPostEntry} />
+            <Suspense fallback={null}>
+                <OnPageEditor
+                    id={props.id}
+                    feedUuid={feedCfg.feed_uuid}
+                    content={props.rawBody}
+                    postEntry={onPostEntry} />
+            </Suspense>
         );
     }
 

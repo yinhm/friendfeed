@@ -19,6 +19,9 @@ export default defineConfig(({ mode }) => ({
     outDir: 'build',
     emptyOutDir: true,
     sourcemap: mode === 'development',
+    // Keep all CSS in the single entry stylesheet: chunk-split CSS files
+    // would not be picked up by the Go templates / publish script.
+    cssCodeSplit: false,
     rollupOptions: {
       // No index.html: the Go templates are the HTML shell.
       input: path.join(srcDir, 'index.jsx'),
@@ -27,7 +30,13 @@ export default defineConfig(({ mode }) => ({
         // Go server and scripts/publish-build.mjs rely on.
         entryFileNames: 'static/js/[name].js',
         chunkFileNames: 'static/js/[name]-[hash].js',
-        assetFileNames: 'static/[ext]/[name][extname]',
+        assetFileNames: (assetInfo) =>
+          // The merged CSS must keep the deterministic name publish expects —
+          // and must NOT be Vite's default "style.css", which would clobber
+          // our hand-written static/css/style.css during publish.
+          assetInfo.name?.endsWith('.css')
+            ? 'static/css/index.css'
+            : 'static/[ext]/[name][extname]',
       },
     },
   },
