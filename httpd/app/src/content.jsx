@@ -1,7 +1,6 @@
 import React, { useContext } from 'react';
 import OnPageEditor from './editor';
 import { FeedContext } from './context'
-// import { Tabular } from './table'
 
 
 export function EntryContent(props) {

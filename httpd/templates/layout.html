@@ -4,11 +4,8 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>{{ title|escape }} - FriendFeed</title>
     <meta name="viewport" content="initial-scale=1, maximum-scale=1" />
-    <link rel="stylesheet" href="/static/css/pure-min.css">
 
-    <!-- Style dependencies -->
-    <!-- <link href="https://unpkg.com/normalize.css@^8.0.1" rel="stylesheet" /> -->
-    <!-- Blueprint stylesheets -->
+    <!-- React bundle styles (tailwind reset + editor) -->
     {% if dev %}
       {% for filename in cssFiles %}
       <link href="/app/build/static/css/{{filename}}" rel="stylesheet" />
@@ -16,37 +13,29 @@
     {% else %}
       <link href="/static/css/bundle.min.css" rel="stylesheet" />
     {% endif %}
-    <link href="/static/css/blueprint-icons.css" rel="stylesheet" />
-    <link href="/static/css/blueprint.css" rel="stylesheet" />
-    <link href="/static/css/table.css" rel="stylesheet" />
 
-    <link rel="stylesheet" href="/static/css/style.css?v=22">
+    <!-- Page styles -->
+    <link rel="stylesheet" href="/static/css/style.css?v=23">
 </head>
 
 <body>
     {%if onpage %}
-    <div class="pure-g topmenu">
-        <div class="pure-u-1">
-            <div class="pure-menu pure-menu-horizontal">
-                <a href="/" class="pure-menu-heading pure-menu-link">Home</a>
-                <ul class="pure-menu-list">
-                    <li class="pure-menu-item">
-                        <a href="/public" class="pure-menu-link">Public</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
+    <div class="topmenu">
+        <a href="/" class="nav-heading">Home</a>
+        <ul class="nav-list">
+            <li><a href="/public">Public</a></li>
+        </ul>
     </div>
     {% endif %}
 
-    <div class="pure-g page">
+    <div class="page">
 
-        <div class="pure-u-4-5">
+        <div class="main">
             {% block content %} {% endblock %}
         </div>
 
         {%if !onpage %}
-        <div class="pure-u-1-5">
+        <div class="sidebar">
             <div class="menu">
                 <div class="section">
                     <h3>Friends</h3>
