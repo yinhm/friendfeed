@@ -273,10 +273,14 @@ th {
 }
 
 .entry .info,
-.entry .likes,
-.entry .comment {
+.entry .likes {
     color: #666;
     font-size: 13px;
+}
+
+.entry .comment {
+    color: #666;
+    font-size: 14px;
 }
 
 .entry .info a,
@@ -314,11 +318,20 @@ th {
     font-style: italic;
 }
 
+/* comment edit form: a plain input area, not a speech bubble */
+.entry .comment.form {
+    color: black;
+    background: none;
+    padding-left: 0;
+}
+
 .entry .comment textarea {
+    box-sizing: border-box;
     min-width: 100%;
     max-width: 100%;
-    height: 18px;
-    padding: 3px;
+    height: 4em;
+    padding: 4px;
+    font-size: 14px;
 }
 
 .entry .comment form span {
