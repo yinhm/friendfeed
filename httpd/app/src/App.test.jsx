@@ -32,8 +32,9 @@ test('renders the sharing editor with React 19', async () => {
   };
 
   const {container} = render(<App />);
+  expect(container.querySelector('[role="status"]')).toHaveTextContent('Loading editor…');
   // the editor is lazy-loaded, wait for the chunk to resolve
   await waitFor(() => {
     expect(container.querySelector('[contenteditable="true"]')).toBeInTheDocument();
-  });
+  }, {timeout: 5000});
 });

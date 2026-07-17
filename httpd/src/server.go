@@ -86,7 +86,7 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		// Only the entry module gets a script tag; code-split chunks are
 		// imported by the entry itself as ES modules.
 		for _, fileName := range files {
-			if !fileName.IsDir() && fileName.Name() == "index.js" {
+			if !fileName.IsDir() && fileName.Name() == "bundle.min.js" {
 				jsFiles = append(jsFiles, fileName.Name())
 			}
 		}

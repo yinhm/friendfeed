@@ -28,14 +28,16 @@ export default defineConfig(({ mode }) => ({
       output: {
         // Mirror the CRA layout (build/static/js, build/static/css) that the
         // Go server and scripts/publish-build.mjs rely on.
-        entryFileNames: 'static/js/[name].js',
+        // Emit the exact URL loaded by the templates. Lazy chunks import this
+        // same module, avoiding a second evaluation of the React runtime.
+        entryFileNames: 'static/js/bundle.min.js',
         chunkFileNames: 'static/js/[name]-[hash].js',
         assetFileNames: (assetInfo) =>
-          // The merged CSS must keep the deterministic name publish expects —
+          // The merged CSS must keep the deterministic name templates expect —
           // and must NOT be Vite's default "style.css", which would clobber
           // our hand-written static/css/style.css during publish.
           assetInfo.name?.endsWith('.css')
-            ? 'static/css/index.css'
+            ? 'static/css/bundle.min.css'
             : 'static/[ext]/[name][extname]',
       },
     },

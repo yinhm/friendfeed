@@ -16,7 +16,7 @@ export function EntryContent(props) {
 
     if (props.onpageEdit || feedCfg.onpage_edit === true) {
         return (
-            <Suspense fallback={null}>
+            <Suspense fallback={<div className="editor-loading" role="status">Loading editor…</div>}>
                 <OnPageEditor
                     id={props.id}
                     feedUuid={feedCfg.feed_uuid}

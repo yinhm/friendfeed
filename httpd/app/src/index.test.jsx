@@ -1,5 +1,4 @@
-import { waitFor } from '@testing-library/react';
-import { vi } from 'vitest';
+import { act, waitFor } from '@testing-library/react';
 
 // Regression test for the entry-page crash: on pages without the sidebar
 // there is no #search element; createRoot(null) threw, which marked the
@@ -18,18 +17,14 @@ function setAppData() {
   };
 }
 
-test('entry module mounts only existing roots and is idempotent', async () => {
+test('entry module mounts only existing roots', async () => {
   document.body.innerHTML = '<div id="root"></div>'; // no #search, like /e/* pages
   setAppData();
 
-  await import('./index'); // must not throw despite missing #search
+  await act(async () => {
+    await import('./index'); // must not throw despite missing #search
+  });
   await waitFor(() => {
     expect(document.querySelector('#root #feed')).toBeInTheDocument();
   });
-
-  // production: chunk imports ./index.js while the page loaded bundle.min.js,
-  // so the module can be evaluated a second time — must stay a no-op
-  vi.resetModules();
-  await import('./index');
-  expect(document.querySelectorAll('#root #feed')).toHaveLength(1);
 });

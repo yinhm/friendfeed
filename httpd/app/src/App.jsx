@@ -186,7 +186,7 @@ export class Feed extends React.Component{
     var editorNodes = "";
     if (this.state.show_share === true) {
       editorNodes = (
-        <Suspense fallback={null}>
+        <Suspense fallback={<div className="editor-loading" role="status">Loading editor…</div>}>
           <OnPageEditor feedUuid={feed.uuid} postEntry={this.onPostEntry} />
         </Suspense>
       )

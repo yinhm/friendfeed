@@ -14,12 +14,11 @@ pnpm test      # vitest
 
 ## How it integrates
 
-- `vite build` emits `build/static/js/index.js` and `build/static/css/index.css`
+- `vite build` emits `build/static/js/bundle.min.js` and `build/static/css/bundle.min.css`
   (single self-contained ESM bundle; the Go templates load it with
   `<script type="module">`).
 - `scripts/publish-build.mjs` copies `build/static/*` into `../static/` and
-  renames the entry to `../static/js/bundle.min.js` and
-  `../static/css/bundle.min.css`, which the Go binary embeds and serves in
+  copies those files to `../static`, which the Go binary embeds and serves in
   production.
 - In Go debug mode (`httpd -d`) the templates instead serve the files under
   `build/static/` directly. `air` (see `.air.toml`) reruns `yarn build` on
