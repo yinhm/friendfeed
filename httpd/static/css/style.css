@@ -70,8 +70,15 @@ div.content img,
 }
 
 @media (max-width: 600px) {
+    /* Stack vertically, sidebar (search + menu) above the feed */
     .page {
-        display: block;
+        flex-direction: column;
+        padding: 15px 12px;
+    }
+
+    .sidebar {
+        order: -1;
+        margin-bottom: 15px;
     }
 }
 
@@ -97,18 +104,31 @@ div.content img,
 }
 
 .menu {
-    /* float: right; */
     width: 70%;
     border: 1px solid silver;
     background: #eee;
     padding: 8px;
 }
 
+@media (min-width: 601px) {
+    /* Navigation is always open on desktop; hide the disclosure toggle */
+    .menu > summary {
+        display: none;
+    }
+}
+
 @media (max-width: 600px) {
+    /* Navigation collapses into a <details> bar */
     .menu {
-        float: none;
         width: 100%;
-        padding: auto;
+        box-sizing: border-box;
+    }
+
+    .menu > summary {
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+        padding: 2px 0;
     }
 }
 

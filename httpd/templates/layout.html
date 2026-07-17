@@ -3,7 +3,7 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>{{ title|escape }} - FriendFeed</title>
-    <meta name="viewport" content="initial-scale=1, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!-- React bundle styles (tailwind reset + editor) -->
     {% if dev %}
@@ -15,7 +15,7 @@
     {% endif %}
 
     <!-- Page styles -->
-    <link rel="stylesheet" href="/static/css/style.css?v=24">
+    <link rel="stylesheet" href="/static/css/style.css?v=27">
 </head>
 
 <body>
@@ -36,7 +36,8 @@
 
         {%if !onpage %}
         <div class="sidebar">
-            <div class="menu">
+            <details class="menu" open>
+                <summary>Navigation</summary>
                 <div class="section">
                     <h3>Friends</h3>
                     <ul>
@@ -70,7 +71,7 @@
 
                 <div id="search">
                 </div>
-            </div>
+            </details>
         </div>
         {% endif %}
 

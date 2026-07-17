@@ -6,6 +6,7 @@ import './App.css';
 import './styles/globals.css';
 import { App } from './App';
 import { Search } from './search';
+import { initNavigation } from './navigation';
 
 // Guard every mount: pages without the sidebar have no #search element, and
 // a throw here marks the module as errored — which then makes lazy chunks
@@ -33,5 +34,7 @@ if (!window.__ffdbMounted) {
       </React.StrictMode>
     );
   }
+
+  initNavigation();
 }
 
