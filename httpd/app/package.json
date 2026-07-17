@@ -20,10 +20,9 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@styled-icons/boxicons-regular": "^10.47.0",
     "@styled-icons/material": "^10.47.0",
-    "@types/jest": "^29.5.12",
-    "@types/node": "^20.11.30",
-    "@types/react": "^18.2.67",
-    "@types/react-dom": "^18.2.22",
+    "@types/node": "^20.19.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@udecode/cn": "^31.0.0",
     "@udecode/plate": "^31.0.0",
     "@udecode/plate-alignment": "^31.0.0",
@@ -67,12 +66,11 @@
     "immutable": "5.0.0-beta.5",
     "install": "^0.13.0",
     "lucide-react": "^0.359.0",
-    "react": "^18.2.0",
+    "react": "^19.0.0",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
-    "react-dom": "^18.2.0",
+    "react-dom": "^19.0.0",
     "react-lite-youtube-embed": "^2.4.0",
-    "react-scripts": "5.0.1",
     "react-tweet": "^3.2.0",
     "slate": "^0.102.0",
     "slate-history": "^0.100.0",
@@ -82,20 +80,27 @@
     "tailwind-merge": "^2.2.2",
     "tailwindcss-animate": "^1.0.7",
     "throttle-debounce": "^5.0.0",
-    "typescript": "^5.4.3",
-    "web-vitals": "^3.5.2"
+    "typescript": "^5.4.3"
   },
   "scripts": {
-    "start": "DISABLE_ESLINT_PLUGIN=true react-scripts start",
-    "build": "react-scripts build && node scripts/publish-build.mjs",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "dev": "vite build --watch --mode development",
+    "build": "vite build && node scripts/publish-build.mjs",
+    "test": "vitest run"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "pnpm": {
+    "overrides": {
+      "react": "$react",
+      "react-dom": "$react-dom",
+      "@types/react": "$@types/react",
+      "@types/react-dom": "$@types/react-dom"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "react": "19",
+        "react-dom": "19",
+        "@types/react": "19"
+      }
+    }
   },
   "browserslist": {
     "production": [
@@ -112,6 +117,10 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "tailwindcss": "^3.4.1"
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^26.1.0",
+    "tailwindcss": "^3.4.1",
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4"
   }
 }

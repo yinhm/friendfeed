@@ -3,7 +3,7 @@ import {fireEvent, render, screen} from '@testing-library/react';
 import {EntryLike} from './entry-like';
 
 test('expands placeholder likes once when clicked', () => {
-  const expandLikes = jest.fn();
+  const expandLikes = vi.fn();
   render(
     <EntryLike
       like={{placeholder: true, body: '12 other people'}}

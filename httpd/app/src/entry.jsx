@@ -85,11 +85,8 @@ export class Entry extends React.Component {
   }
 
   handleNewComment = () => {
-    if (this.state.new_comment_form) {
-      // focus
-      React.findDOMNode(this.refs.commentInput).focus();
-    } else {
-      // make form
+    if (!this.state.new_comment_form) {
+      // make form; the textarea focuses itself via autoFocus
       this.updateState({new_comment_form: true});
     }
   }
@@ -581,7 +578,7 @@ class EntryCommentForm extends React.Component{
     return (
           <div className="comment form">
           <form method="post">
-            <textarea autoFocus name="body" ref="commentInput"
+            <textarea autoFocus name="body"
                       onChange={this.handleChange}
                       value={this.state.value} />
             <input type="submit" value="Post"

@@ -136,9 +136,9 @@ window.appData = {{appData|safe}};
 
 {% if dev %}
   {% for filename in jsFiles %}
-  <script src="/app/build/static/js/{{filename}}"></script>
+  <script type="module" src="/app/build/static/js/{{filename}}"></script>
   {% endfor %}
 {% else %}
-  <script src="/static/js/bundle.min.js"></script>
+  <script type="module" src="/static/js/bundle.min.js"></script>
 {% endif %}
 {% endblock %}
