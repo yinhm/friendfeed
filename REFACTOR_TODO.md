@@ -41,7 +41,7 @@
 
 ### model/
 - [x] 删 `model/entry.go:158` `DeleteTweet`、`model/key.go:21` `NewBlankUUIDKey`
-- [ ] 删注释掉的死代码块：`model/key_test.go:78-160`（~83 行）、`entry.go:69,73,78`、`profile.go:39,60` 等
+- [x] 删 `model/key_test.go:78-160` 中整块已失效的旧测试；保留业务代码中的注释调试信息
 
 ### store/
 - [ ] 删 `store/store.go:96` `DestroyStore`（未实现）、:17-18 死常量、`codes.go:7-8` `OK`/`Unknown`
