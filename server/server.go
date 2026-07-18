@@ -166,22 +166,6 @@ func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb
 	return BuildGraph(feedinfo), nil
 }
 
-func (s *ApiServer) ArchiveProfilePicture(id string) string {
-	url := fmt.Sprintf("http://friendfeed-api.com/v2/picture/%s?size=large", id)
-	ok, picUrl, _ := CheckRedirect(url)
-	if !ok {
-		log.Printf("retrieve %s's picture failed.", id)
-		return ""
-	}
-
-	newObj, err := s.fs.FromUrl("", picUrl, "")
-	if err != nil {
-		log.Println("Mirror media failed:", err)
-		return picUrl
-	}
-	return newObj.Url
-}
-
 func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 	var entryCount int32
 	var dateStart string
