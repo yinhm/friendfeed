@@ -35,7 +35,7 @@
 - [x] 删 `server/helper.go:23` `FormatEntry`（与 `FormatFeedEntry` 完全重复）
 - [x] 删 `server/server.go:67` `SetLogFile`
 - [x] 删 `server/server.go:173` `ArchiveProfilePicture`（依赖的 friendfeed-api.com 已关停）
-- [ ] 删整个 `server/utils.go`（`CheckRedirect` 唯一调用者是上面的死代码，且有 body 未关闭问题）
+- [x] 删整个 `server/utils.go`（`CheckRedirect` 唯一调用者是上面的死代码，且有 body 未关闭问题）
 - [ ] 删 `server/command.go:250` `TempFix`（一次性修复脚本，未挂载）
 - [ ] 删 `server/stock.go:366` 的 `fmt.Println` 调试残留
 
