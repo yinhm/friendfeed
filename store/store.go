@@ -2,7 +2,6 @@ package store
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"sync/atomic"
@@ -91,7 +90,7 @@ func NewMetaStore(dbpath string) *Store {
 }
 
 func DestroyStore(dbpath string, options *pebble.Options) error {
-	return fmt.Errorf("DestroyStore not implemented...")
+	return errors.New("DestroyStore not implemented...")
 }
 
 func NewStoreOptions() *pebble.Options {

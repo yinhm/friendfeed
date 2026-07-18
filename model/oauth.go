@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
@@ -41,7 +40,7 @@ func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 			uuid1, _ := uuid.FromString(u.Uuid)
 			uuid2, _ := uuid.FromString(v.Uuid)
 			if uuid1 != uuid2 {
-				return nil, fmt.Errorf("user mismatch")
+				return nil, errors.New("user mismatch")
 			}
 		}
 		if u.Uuid == "" {
@@ -82,7 +81,7 @@ func BindOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 
 	// not the same user?
 	if msg.Uuid != "" {
-		return nil, fmt.Errorf("can not bind to another user.")
+		return nil, errors.New("can not bind to another user.")
 	}
 
 	// first time bind

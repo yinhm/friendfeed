@@ -144,7 +144,7 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 // TODO: build graph if it not exists
 func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb.Graph, error) {
 	if req.Uuid == "" {
-		return nil, fmt.Errorf("bad request")
+		return nil, errors.New("bad request")
 	}
 	profileUuid, err := uuid.FromString(req.Uuid)
 	if err != nil {

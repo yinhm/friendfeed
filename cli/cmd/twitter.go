@@ -4,12 +4,13 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
-	"context"
 	ttext "github.com/cupcake/text-entities-go"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
@@ -77,7 +78,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 	updated := time.Unix(job.Service.Updated, 0)
 	authinfo := job.Service.Oauth
 	if authinfo == nil {
-		return 0, fmt.Errorf("skip job: no authinfo")
+		return 0, errors.New("skip job: no authinfo")
 	}
 
 	config := oauth1.NewConfig(fa.tcCfg.ApiKey, fa.tcCfg.ApiSecret)

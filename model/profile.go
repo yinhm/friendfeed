@@ -1,7 +1,7 @@
 package model
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
@@ -47,7 +47,7 @@ func GetProfileFromUserId(db *store.Store, id string) (*pb.Profile, error) {
 	k := NewKeyFrom(TableUserMap.Bytes(), []byte(id))
 	rawdata, err := db.Get(k)
 	if err != nil || string(rawdata) == "" {
-		return nil, fmt.Errorf("GetProfile error: missing id->uuid map")
+		return nil, errors.New("GetProfile error: missing id->uuid map")
 	}
 	uuid1, err := uuid.FromBytes(rawdata)
 	if err != nil {
@@ -64,7 +64,7 @@ func GetProfileFromUuid(db *store.Store, uuid1 uuid.UUID) (*pb.Profile, error) {
 		return nil, err
 	}
 	if msg.Deleted {
-		return nil, fmt.Errorf("Profile deleted")
+		return nil, errors.New("Profile deleted")
 	}
 	return msg, nil
 }

@@ -1,7 +1,7 @@
 package model
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/yinhm/friendfeed/pb"
@@ -59,7 +59,7 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 		if cmt.Id == comment.Id {
 			// recheck perm
 			if cmt.From.Id != comment.From.Id {
-				return nil, nil, fmt.Errorf("403: perm error")
+				return nil, nil, errors.New("403: perm error")
 			}
 			idx = i
 			break

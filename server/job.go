@@ -1,12 +1,12 @@
 package server
 
 import (
+	"context"
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"log"
 	"time"
 
-	"context"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -133,7 +133,7 @@ func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
 	}
 
 	if job == nil {
-		return nil, fmt.Errorf("no more job available")
+		return nil, errors.New("no more job available")
 	}
 
 	kb, _ := hex.DecodeString(job.Key)
