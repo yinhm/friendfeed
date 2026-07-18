@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"log"
 	"net"
@@ -80,5 +81,7 @@ func main() {
 	go waitShutdown(rpcServer, apiServer)
 
 	pb.RegisterApiServer(rpcServer, apiServer)
-	rpcServer.Serve(lis)
+	if err := rpcServer.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+		log.Fatalf("RPC server failed: %v", err)
+	}
 }

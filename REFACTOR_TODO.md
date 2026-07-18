@@ -88,7 +88,7 @@
 - [x] `media/media.go:106` — 补 `os.MkdirAll` 错误检查；写文件权限 0755 → 0644
 - [x] `media/media.go:68` — `Exists` 对 `os.ErrNotExist` 返回 `(false, nil)` 并修测试断言
 - [x] `server/command.go:19` — `Command` switch 增加 default 分支，不再吞子命令 error
-- [ ] `server.go:83`（根目录）— 处理 `rpcServer.Serve(lis)` 返回的 error
+- [x] `server.go:83`（根目录）— 处理 `rpcServer.Serve(lis)` 返回的 error，忽略正常 Stop 的 `grpc.ErrServerStopped`
 
 ## 四、中优先级：重复代码合并
 
