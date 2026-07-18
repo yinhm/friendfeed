@@ -92,7 +92,7 @@
 
 ## 四、中优先级：重复代码合并
 
-- [ ] `server/stock.go` — 四个 `Archive*` 流式 handler 抽公共函数（回调或泛型），每个收敛到 ~10 行
+- [x] `server/stock.go` — 四个常规 `Archive*` 流式 handler 抽泛型公共函数；保留 EOF 时需批量落库的 `ArchiveXRXD` 独立流程
 - [ ] `server/server.go` — 合并 `ArchiveFeed`/`ForceArchiveFeed`（:189 vs :242）
 - [ ] `server/server.go` — 统一 `cachedFeed`/`ForwardFetchFeed`/`Search` 三处分页逻辑，修 `found > PageSize` 的 off-by-one（实际返回 PageSize+1 条）
 - [ ] `server/stock.go` — `GetStockList`/`GetStock` 抽 `loadStockList()`

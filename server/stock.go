@@ -18,34 +18,46 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
-	logger.Debugln("Starting ArchiveKLine...")
+func archiveStockStream[T any](
+	s *ApiServer,
+	name string,
+	recv func() (T, error),
+	archive func(T) error,
+	sendAndClose func(*pb.ArchiveSummary) error,
+) error {
+	logger.Debugf("Starting %s...", name)
 	var count int32
-	var dateStart int32
-	var dateEnd int32
 	startTime := time.Now()
 
-	// disable pebble.Sync since we cannot do batch easily
-	// and sync was too slow for large data.
-	// diable it so we can do 100K/1s records via stream.
+	// Streaming large imports with Pebble sync writes is prohibitively slow.
 	s.rdb.SetSync(false)
 	defer s.rdb.SetSync(true)
 
 	for {
-		kReq, err := stream.Recv()
+		req, err := recv()
 		if err == io.EOF {
-			return stream.SendAndClose(&pb.ArchiveSummary{
+			return sendAndClose(&pb.ArchiveSummary{
 				Count:       count,
-				DateStart:   dateStart,
-				DateEnd:     dateEnd,
 				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {
+			logger.Debugf("%s error: %v", name, err)
 			return err
 		}
 		count++
 
+		if err := archive(req); err != nil {
+			logger.Debugf("%s error: %v", name, err)
+			return err
+		}
+	}
+}
+
+func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
+	var dateStart int32
+	var dateEnd int32
+	return archiveStockStream(s, "ArchiveKLine", stream.Recv, func(kReq *pb.KLineRequest) error {
 		// Stock KLine:
 		// ------------------------------------------------
 		// K-> | TableKLine |   uuid   | reverse flake id |
@@ -56,7 +68,7 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 		flakeid := s.rdb.TimeTravelReverseId(oldtime)
 		uuid1 := model.UniqueKeyFrom(kReq.Symbol)
 		k := model.NewKeyFrom(uuid1.Bytes(), flakeid[:])
-		_, err = model.KLine.Put(s.rdb, k, kReq.KLine)
+		_, err := model.KLine.Put(s.rdb, k, kReq.KLine)
 		if err != nil {
 			return err
 		}
@@ -65,7 +77,12 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 			dateStart = kReq.KLine.Date
 		}
 		dateEnd = kReq.KLine.Date
-	}
+		return nil
+	}, func(summary *pb.ArchiveSummary) error {
+		summary.DateStart = dateStart
+		summary.DateEnd = dateEnd
+		return stream.SendAndClose(summary)
+	})
 }
 
 // XRXD 除权除息同步为全量更新
@@ -121,104 +138,29 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 // --------------------------
 // 根据 Rawdata.DataType 归档股票数据
 func (s *ApiServer) ArchiveRawdata(stream pb.Api_ArchiveRawdataServer) error {
-	logger.Debugln("Starting ArchiveRawdata...")
-	var count int32
-	startTime := time.Now()
-
-	// disable pebble.Sync since we cannot do batch easily
-	// and sync was too slow for large data.
-	s.rdb.SetSync(false)
-	defer s.rdb.SetSync(true)
-
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&pb.ArchiveSummary{
-				Count:       count,
-				ElapsedTime: int32(time.Since(startTime).Seconds()),
-			})
-		}
-		if err != nil {
-			logger.Debugf("ArchiveRawdata error: %v", err)
-			return err
-		}
-		count++
-
+	return archiveStockStream(s, "ArchiveRawdata", stream.Recv, func(req *pb.Rawdata) error {
 		key := model.KeyFromString(req.Symbol, req.DataType)
-		_, err = model.Stock.Put(s.rdb, key, req)
-		if err != nil {
-			logger.Debugf("ArchiveRawdata error: %v", err)
-			return err
-		}
-	}
+		_, err := model.Stock.Put(s.rdb, key, req)
+		return err
+	}, stream.SendAndClose)
 }
 
 // 归档财务数据
 func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) error {
-	logger.Debugln("Starting ArchiveFundamental...")
-	var count int32
-	startTime := time.Now()
-
-	// disable pebble.Sync since we cannot do batch easily
-	// and sync was too slow for large data.
-	s.rdb.SetSync(false)
-	defer s.rdb.SetSync(true)
-
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&pb.ArchiveSummary{
-				Count:       count,
-				ElapsedTime: int32(time.Since(startTime).Seconds()),
-			})
-		}
-		if err != nil {
-			logger.Debugf("ArchiveFundamental error: %v", err)
-			return err
-		}
-		count++
-
+	return archiveStockStream(s, "ArchiveFundamental", stream.Recv, func(req *pb.Fundamental) error {
 		uuid1 := model.UniqueKeyFrom(req.Symbol, "Fundamental")
-		_, err = model.Stock.Put(s.rdb, uuid1.Bytes(), req)
-		if err != nil {
-			logger.Debugf("ArchiveFundamental error: %v", err)
-			return err
-		}
-	}
+		_, err := model.Stock.Put(s.rdb, uuid1.Bytes(), req)
+		return err
+	}, stream.SendAndClose)
 }
 
 // 归档股票基本信息
 func (s *ApiServer) ArchiveStockInfo(stream pb.Api_ArchiveStockInfoServer) error {
-	logger.Debugln("Starting ArchiveStockInfo...")
-	var count int32
-	startTime := time.Now()
-
-	// disable pebble.Sync since we cannot do batch easily
-	// and sync was too slow for large data.
-	s.rdb.SetSync(false)
-	defer s.rdb.SetSync(true)
-
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&pb.ArchiveSummary{
-				Count:       count,
-				ElapsedTime: int32(time.Since(startTime).Seconds()),
-			})
-		}
-		if err != nil {
-			logger.Debugf("ArchiveStockInfo error: %v", err)
-			return err
-		}
-		count++
-
+	return archiveStockStream(s, "ArchiveStockInfo", stream.Recv, func(req *pb.StockInfo) error {
 		key := model.KeyFromString(req.Symbol, "StockInfo")
-		_, err = model.Stock.Put(s.rdb, key, req)
-		if err != nil {
-			logger.Debugf("ArchiveStockInfo error: %v", err)
-			return err
-		}
-	}
+		_, err := model.Stock.Put(s.rdb, key, req)
+		return err
+	}, stream.SendAndClose)
 }
 
 // 获取证券代码列表
