@@ -358,7 +358,9 @@ func (s *Server) CommentDeleteHandler(c *gin.Context) {
 		Entry   string `form:"entry" binding:"required"`
 		Comment string `form:"comment" binding:"required"`
 	}
-	c.MustBindWith(&form, binding.Form)
+	if err := c.MustBindWith(&form, binding.Form); err != nil {
+		return
+	}
 
 	// TODO: check perm
 	profile, _ := s.CurrentUser(c)
