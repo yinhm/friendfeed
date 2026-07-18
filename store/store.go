@@ -14,11 +14,6 @@ import (
 	"github.com/yinhm/friendfeed/store/flake"
 )
 
-const (
-	defaultWorkerId     = 1
-	defaultDatacenterId = 1
-)
-
 type ScanCallback func(int, []byte, []byte) error
 
 type Error struct {

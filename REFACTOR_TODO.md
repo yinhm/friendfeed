@@ -44,7 +44,7 @@
 - [x] 删 `model/key_test.go:78-160` 中整块已失效的旧测试；保留业务代码中的注释调试信息
 
 ### store/
-- [ ] 删 `store/store.go:96` `DestroyStore`（未实现）、:17-18 死常量、`codes.go:7-8` `OK`/`Unknown`
+- [x] 删 `store/store.go` 中无引用的私有常量 `defaultWorkerId`、`defaultDatacenterId`
 - [ ] 删 `store/key.go:19-118` CockroachDB 死链：`KeyMin`/`KeyMax`/`BytesNext`/`bytesPrefixEnd`/`Next`/`IsPrev`/`PrefixEnd`/`Equal`/`Compare`
 - [ ] 删 `store/iterator.go` 死方法：`Prev`/`SeekLT`/`Last`/`UnsafeRawKey`/`ValueProto` 及多余 `options` 字段
 - [ ] 删 `store/store.go:73,143` `NewMetaStore`/`NewMetaStoreOptions`（仅注释引用）
@@ -159,4 +159,5 @@
 - `model/key.go` 的 `SeekZero` — 当前由 `Table.Keys` 用于构造扫描范围，并非死代码。是否移除取决于 `Keys` 查询语义的最终决定；相关注释代码块暂不混合清理。
 - `model/types.go` 的导出类型、表变量和表前缀 — 原清单拟删除 `ProtoMessageFunc`/`NewMessage`、`TableMax`、`UserMap/File/JobFeed/JobRunning/Config/Topic` 等。复查发现 `UserMap` 仍被迁移工具使用，多个 `Table*` 前缀被生产代码使用或属于持久化 schema 保留编号；其余符号也构成公共 API。删除前需分别确认外部调用和数据兼容性，不能按零引用整组删除。
 - `model/feed.go` 的 `GetFeedinfo`/`PutFeedinfo` — 虽标记 Obsoleted 且新运行时已将 Feedinfo 虚拟化，但它们是导出 API，旧 Feedinfo 表仍用于迁移时重建社交图。需确认外部工具和历史数据兼容策略后再决定是否删除。
+- `store.DestroyStore` 与错误码 `OK`/`Unknown` — 均为导出 API；`DestroyStore` 虽仍是 stub，但可能是预留能力，错误码数值也可能被外部调用者依赖。不能仅凭仓库内零引用删除。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
