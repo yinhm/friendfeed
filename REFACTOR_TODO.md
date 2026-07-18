@@ -56,7 +56,7 @@
 - [x] 删 `cli/config.toml`（另一个项目 ctdx 的配置残留）
 
 ### httpd/（含前端）
-- [ ] 删 `httpd/app/src/options.js`（341 行，其 import 的文件均已不存在）
+- [x] 删 `httpd/app/src/options.js`（341 行，其 import 的文件均已不存在）
 - [ ] 删 `httpd/src/auth.go:157` `CurrentUserId`、`httpd/src/filter.go` 的 `timeSince` filter
 - [ ] 删 `httpd/src/server.go:33-37` `Server` 四个死字段（`secretKey`/`httpclient`/`assets`/`worker`）及 `NewServer` 多余参数
 - [ ] 处理 `httpd/src/account.go:12` 空 `AccountHandler`（实现重定向或删路由）
