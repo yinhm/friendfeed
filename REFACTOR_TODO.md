@@ -65,7 +65,6 @@
 ### twitter/（Python）与部署
 - [x] 删 Python 私有死代码：`crawler.py` 未用的 datetime/json/pickle import、`client.py` 未用的 time import 与 `_DESCRIPTION`；保留配置数据 `zh_names`
 - [x] 停止运行时构造未使用的 `from_feed`；将构造与使用方式一起保留为调试注释
-- [ ] 删 `fabfile.py:168-207` 过时的 `deploy_client` 任务（引用已不存在的 `client/` 目录与 upstart）
 - [ ] 删 `fabfile.py` 的 `test_if`/`line_in_file` 互引用死函数与未读 env 变量
 - [ ] 补齐 `twitter/pip.txt` 缺失依赖（twikit、pandas、numpy）并锁定版本
 
@@ -167,4 +166,5 @@
 - httpd 处理器注释块 — `CurrentFeedinfo` 旧实现、SSR 模板切换、gRPC send-size、旧 import 路由、Babel 初始化及 `entry.go` 的编辑/格式化说明均具有调试、兼容或设计记录价值；按“注释调试信息仍需保留”的决定不做批量删除。
 - `twitter/client.py` 的 `get_ohlcs`/`adjust` — 两者实现股票复权数据转换，是可被外部脚本显式导入的模块级公共函数，且 `get_ohlcs` 实际调用 `adjust`；不能仅凭仓库内零引用删除。相关 pandas/numpy/datetime import 也随该能力保留。
 - `twitter/config.py` 的 `zh_names` — 当前仓库内无引用，但它与实际使用的 `screen_names` 一样属于可供外部抓取脚本导入的账号配置数据；不能仅凭零引用删除。待确认中文账号抓取入口已永久弃用后再处理。
+- `fabfile.py` 的 `deploy_client` — 当前引用已不存在的 `client/`、`conf/ffclient.conf` 和 Upstart，确实不可执行；但它是 Fabric 对外任务，README 仍记录独立部署 client 的意图。应先提供基于 `cli/` 与 systemd 的替代任务，再决定迁移或删除，不能仅以当前失效为由抹掉接口。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
