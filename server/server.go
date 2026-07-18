@@ -64,10 +64,6 @@ func SetLogLevel(level logrus.Level) {
 	logrus.SetLevel(level)
 }
 
-func SetLogFile(f *os.File) {
-	logrus.SetOutput(io.MultiWriter(f, os.Stdout))
-}
-
 func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 	rdb := store.NewStore(dbpath)
 	// mdb := store.NewMetaStore(dbpath + "/meta")
