@@ -20,14 +20,6 @@ func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) err
 	return nil
 }
 
-func FormatEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
-	if err := fmtEntryProfile(mdb, entry); err != nil {
-		return err
-	}
-	// fmtLikes(req, entry)
-	return nil
-}
-
 func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	// refetch user profile
 	var err error
