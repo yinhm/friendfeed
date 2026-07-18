@@ -58,7 +58,7 @@
 ### httpd/（含前端）
 - [x] 删 `httpd/app/src/options.js`（341 行，其 import 的文件均已不存在）
 - [x] 删模板未使用的 `httpd/src/filter.go` `timeSince` filter；保留导出的 `CurrentUserId`
-- [ ] 处理 `httpd/src/account.go:12` 空 `AccountHandler`（实现重定向或删路由）
+- [x] 处理 `httpd/src/account.go:12` 空 `AccountHandler`（重定向到 `/account/import`）
 - [ ] 删 `httpd/templates/_feed.html` 及连带死逻辑（`feed.html:14-29` 的 subscribe 表单等）
 - [ ] 删前端死代码：`App.css`/`logo.svg`/`utils.js dprint`、`editor.jsx`/`content.jsx`/`App.jsx` 的注释代码块、`entry.jsx` 的 console.log 与引用不存在方法的 `onFocus`
 - [ ] 删各处理器的注释代码块：`httpd/src/server.go:156-177`、`main.go:51,152,205`、`feed.go:171`、`entry.go` 多处

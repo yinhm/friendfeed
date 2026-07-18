@@ -10,6 +10,7 @@ import (
 )
 
 func (s *Server) AccountHandler(c *gin.Context) {
+	c.Redirect(http.StatusFound, "/account/import")
 }
 
 func (s *Server) ImportHandler(c *gin.Context) {
