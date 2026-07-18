@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -89,7 +90,7 @@ func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
 	entry := new(pb.Entry)
 	err = Entry.Get(db, uuid1.Bytes(), entry)
 	if err != nil {
-		return nil, fmt.Errorf("entry not found: %s", uuidStr)
+		return nil, fmt.Errorf("entry %s: %w", uuidStr, err)
 	}
 	return entry, nil
 }
@@ -102,7 +103,10 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 
 	entry, err := GetEntry(db, uuidStr)
 	if err != nil {
-		return nil // blink delete
+		if errors.Is(err, ErrNotFound) {
+			return nil // blind delete
+		}
+		return err
 	}
 
 	// delete entry from user feed

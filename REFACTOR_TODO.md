@@ -9,8 +9,7 @@
 - [x] `server/command.go:140` — `RedoFailedJob` 疑似逻辑反转：入队失败才删除 running 记录，应是成功后删除
 - [x] `server/stock.go:395` — `GetKLines` 中 `Bars > 3650` 被钳为 1 而非 3650，确认是否笔误
 - [x] `server/server.go:334` ↔ `server/index.go:87` — `cachedFeed` 无锁遍历 `bufq`，与 `rebuild` 并发重写存在数据竞争；读取时持锁或快照拷贝
-- [ ] `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 结果不落库（URL 改写发生在 `PutEntry` 之后）且 `Mirror` 恒返回 not implemented，每 entry 还起一个 goroutine 白跑；实现或删除整条链路
-- [ ] `model/entry.go:103` — `DeleteEntry` 把任何 DB 错误都当"不存在"吞掉，应只在 `errors.Is(err, ErrNotFound)` 时吞
+- [x] `model/entry.go:103` — `DeleteEntry` 把任何 DB 错误都当"不存在"吞掉，应只在 `errors.Is(err, ErrNotFound)` 时吞
 - [ ] `media/media.go:116` — `Fetch` 的 `resp.Body` 未关闭，HTTP 连接泄漏
 - [ ] `cli/cmd/wallpaper.go:70` — `resp.Body` 未关闭
 - [ ] `search/search.go:13` — 全局 `Indexer` 在 goroutine 里赋值（`server.go:76`），启动竞速期 `PutEntry` 触发索引会 nil panic；改为同步初始化
@@ -160,3 +159,4 @@
 ## 七、未决定项目（待评估，暂不执行）
 
 - `httpd/src/server.go:116` — `renderFeed` JSON 分支不做 sanitize：HTML 分支对 `entry.Body` 做了 `htmlSanitizer.Sanitize`，XHR/JSON 分支返回原始 Body，前端轮询后用 `dangerouslySetInnerHTML`（`app/src/content.jsx:46`）渲染。曾尝试把 sanitize 移到分支判断之前（2026-07-17），后撤销。待定：服务端统一 sanitize 是否会破坏前端期望的原始内容，还是应由前端渲染时处理。
+- `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。

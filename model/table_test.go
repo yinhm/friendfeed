@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"log"
 	"os"
 	"testing"
@@ -159,4 +160,20 @@ func (s *TableTestSuite) TestArchiveHistory() {
 	//No archive history
 	_, err := GetArchiveHistory(s.db, "not-exists")
 	assert.NotNil(s.T(), err)
+}
+
+func (s *TableTestSuite) TestDeleteEntryPropagatesReadError() {
+	entryUUID := uuid.Must(uuid.NewV4())
+	key := Entry.PrefixAppend(entryUUID.Bytes())
+	err := s.db.Put(key, []byte{0xff})
+	assert.NoError(s.T(), err)
+
+	err = DeleteEntry(s.db, entryUUID.String())
+	assert.Error(s.T(), err)
+	assert.False(s.T(), errors.Is(err, ErrNotFound))
+
+	// Blind deletion remains successful for a genuinely missing entry.
+	missingUUID := uuid.Must(uuid.NewV4())
+	err = DeleteEntry(s.db, missingUUID.String())
+	assert.NoError(s.T(), err)
 }
