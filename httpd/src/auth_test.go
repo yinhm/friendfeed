@@ -1,6 +1,13 @@
 package server
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/contrib/sessions"
+	"github.com/gin-gonic/gin"
+)
 
 func TestExtractNextPath(t *testing.T) {
 	tests := map[string]string{
@@ -34,6 +41,57 @@ func TestShowShareForUser(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if got := showShareForUser(test.userUuid, test.requested); got != test.want {
 				t.Fatalf("showShareForUser(%q, %t) = %t; want %t", test.userUuid, test.requested, got, test.want)
+			}
+		})
+	}
+}
+
+func TestLoginRequiredStopsAnonymousRequests(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name         string
+		xhr          bool
+		wantStatus   int
+		wantLocation string
+	}{
+		{
+			name:         "browser request redirects to login",
+			wantStatus:   http.StatusFound,
+			wantLocation: "/auth/google?next=%2Fprivate%3Ftab%3D1",
+		},
+		{
+			name:       "ajax request returns unauthorized",
+			xhr:        true,
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handlerRan := false
+			router := gin.New()
+			router.Use(sessions.Sessions("test", sessions.NewCookieStore([]byte("test-secret"))))
+			router.GET("/private", LoginRequired(), func(c *gin.Context) {
+				handlerRan = true
+				c.Status(http.StatusNoContent)
+			})
+
+			request := httptest.NewRequest(http.MethodGet, "/private?tab=1", nil)
+			if test.xhr {
+				request.Header.Set("X-Requested-With", "XMLHttpRequest")
+			}
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+
+			if handlerRan {
+				t.Fatal("protected handler ran for an anonymous request")
+			}
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d; want %d", recorder.Code, test.wantStatus)
+			}
+			if location := recorder.Header().Get("Location"); location != test.wantLocation {
+				t.Fatalf("Location = %q; want %q", location, test.wantLocation)
 			}
 		})
 	}

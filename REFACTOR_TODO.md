@@ -6,7 +6,6 @@
 ## 一、疑似 bug（需业务确认，优先于重构）
 
 - [x] `httpd/src/auth.go:20` — `LoginRequired` 重定向后未 `Abort()`，后续受保护 handler 仍执行
-- [ ] `httpd/src/server.go:116` — `renderFeed` JSON 分支不做 sanitize，配合前端 `dangerouslySetInnerHTML`（`app/src/content.jsx:46`）存在 XSS 缺口；把 sanitize 移到分支判断之前
 - [ ] `server/command.go:140` — `RedoFailedJob` 疑似逻辑反转：入队失败才删除 running 记录，应是成功后删除
 - [ ] `server/stock.go:395` — `GetKLines` 中 `Bars > 3650` 被钳为 1 而非 3650，确认是否笔误
 - [ ] `server/server.go:334` ↔ `server/index.go:87` — `cachedFeed` 无锁遍历 `bufq`，与 `rebuild` 并发重写存在数据竞争；读取时持锁或快照拷贝
@@ -157,3 +156,7 @@
 - `fabfile.py` 基于 Fabric 1.x（已 EOL），迁移是大工程
 - `model/feed.go` 的 Feedinfo 表整体退役评估
 - `media.Mirror` 未实现导致的整条媒体镜像链路空转，需决定实现还是放弃
+
+## 七、未决定项目（待评估，暂不执行）
+
+- `httpd/src/server.go:116` — `renderFeed` JSON 分支不做 sanitize：HTML 分支对 `entry.Body` 做了 `htmlSanitizer.Sanitize`，XHR/JSON 分支返回原始 Body，前端轮询后用 `dangerouslySetInnerHTML`（`app/src/content.jsx:46`）渲染。曾尝试把 sanitize 移到分支判断之前（2026-07-17），后撤销。待定：服务端统一 sanitize 是否会破坏前端期望的原始内容，还是应由前端渲染时处理。
