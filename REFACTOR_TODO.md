@@ -40,7 +40,7 @@
 - [x] 删 `server/stock.go:366` 的 `fmt.Println` 调试残留
 
 ### model/
-- [ ] 删 `model/entry.go:158` `DeleteTweet`、`model/key.go:21` `NewBlankUUIDKey`
+- [x] 删 `model/entry.go:158` `DeleteTweet`、`model/key.go:21` `NewBlankUUIDKey`
 - [ ] 删 `model/table.go` 死方法群：`GetRaw`(:78)、`Keys`(:122，另有迭代器泄漏 bug)、`Iter`(:141)、`IterValue`(:154)、`Find`(:167)、`ToStringKey`(:61)
 - [ ] 删 `model/key.go:66` `SeekZero` 及 :50-64 注释掉的函数
 - [ ] 删 `model/types.go`：`ProtoMessageFunc`/`NewMessage`(:13,18)、`TableMax`(:47)、6 个死表变量（`UserMap/File/JobFeed/JobRunning/Config/Topic`）+ 3 个死常量
