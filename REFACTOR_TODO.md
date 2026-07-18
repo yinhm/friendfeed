@@ -63,7 +63,6 @@
 - [x] 删未引用的 `logo.svg` 及 `entry.jsx` 中引用不存在方法的 `onFocus`；保留实际加载的 `App.css` 和调试信息
 
 ### twitter/（Python）与部署
-- [ ] 删 `twitter/client.py:130-206` 死代码 `get_ohlcs`/`adjust`（连带清理未用 import）
 - [ ] 删未用 import/常量：`crawler.py:8,9,11`（datetime/json/pickle）、`client.py:4`（time）、`client.py:22`（_DESCRIPTION）、`config.py:68`（zh_names）
 - [ ] 删 `twitter/crawler.py:85-89` 从未使用的 `from_feed`、:142-144 注释代码块
 - [ ] 删 `fabfile.py:168-207` 过时的 `deploy_client` 任务（引用已不存在的 `client/` 目录与 upstart）
@@ -166,4 +165,5 @@
 - `httpd/templates/_feed.html` — 当前生产路径不渲染该模板，但 `PublicHandler` 中保留了切换到它的注释调试代码。按“注释调试信息仍需保留”的决定，不单独删除其依赖模板；待确认该备用 SSR 路径不再需要后再一起清理。
 - 前端调试代码清理 — `App.css` 仍由 `index.jsx` 加载；`utils.js` 的 `dprint` 被保留的注释调试代码引用，`editor.jsx`/`content.jsx`/`App.jsx` 的注释块及 `entry.jsx` 的 `console.log` 均属于要求保留的调试信息，不能按死代码批量删除。
 - httpd 处理器注释块 — `CurrentFeedinfo` 旧实现、SSR 模板切换、gRPC send-size、旧 import 路由、Babel 初始化及 `entry.go` 的编辑/格式化说明均具有调试、兼容或设计记录价值；按“注释调试信息仍需保留”的决定不做批量删除。
+- `twitter/client.py` 的 `get_ohlcs`/`adjust` — 两者实现股票复权数据转换，是可被外部脚本显式导入的模块级公共函数，且 `get_ohlcs` 实际调用 `adjust`；不能仅凭仓库内零引用删除。相关 pandas/numpy/datetime import 也随该能力保留。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
