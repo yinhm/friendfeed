@@ -32,7 +32,7 @@ func NewIndex(indexPath string) bleve.Index {
 		log.Println("Load mapping....")
 		mapping := bleve.NewIndexMapping()
 		err := mapping.AddCustomTokenizer("gse",
-			map[string]interface{}{
+			map[string]any{
 				"type":       "gse",
 				"user_dicts": "./data/dict/zh/dict.txt",
 			},
@@ -43,7 +43,7 @@ func NewIndex(indexPath string) bleve.Index {
 
 		log.Println("custom analyer")
 		err = mapping.AddCustomAnalyzer("gse",
-			map[string]interface{}{
+			map[string]any{
 				"type":      "gse",
 				"tokenizer": "gse",
 			},
@@ -74,11 +74,11 @@ func NewIndex(indexPath string) bleve.Index {
 // 	searchResult, _ := index.Search(searchRequest)
 // }
 
-func NewConstructor(config map[string]interface{}, cache *registry.Cache) (analysis.Tokenizer, error) {
+func NewConstructor(config map[string]any, cache *registry.Cache) (analysis.Tokenizer, error) {
 	return NewTokenizer(), nil
 }
 
-func NewAnalyzer(config map[string]interface{}, cache *registry.Cache) (analysis.Analyzer, error) {
+func NewAnalyzer(config map[string]any, cache *registry.Cache) (analysis.Analyzer, error) {
 	tokenizerName, ok := config["tokenizer"].(string)
 	if !ok {
 		return nil, errors.New("must specify tokenizer")

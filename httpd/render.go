@@ -52,7 +52,7 @@ func NewFriendRender(assets fs.FS, debug bool) *FriendRender {
 	return &FriendRender{templates: templates}
 }
 
-func (p *FriendRender) Instance(name string, data interface{}) render.Render {
+func (p *FriendRender) Instance(name string, data any) render.Render {
 	template := pongo2.Must(p.templates.FromCache(name))
 
 	return &HTMLRender{

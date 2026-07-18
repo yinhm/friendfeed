@@ -23,7 +23,7 @@ func NewMockIndex() *MockIndex {
 // identifier is bound to analyzed data and will be retrieved by search
 // requests. See Index interface documentation for details about mapping
 // rules.
-func (i MockIndex) Index(id string, data interface{}) error {
+func (i MockIndex) Index(id string, data any) error {
 	return nil
 }
 
@@ -84,7 +84,7 @@ func (i MockIndex) Mapping() mapping.IndexMapping {
 func (i MockIndex) Stats() *bleve.IndexStat {
 	return nil
 }
-func (i MockIndex) StatsMap() (a map[string]interface{}) {
+func (i MockIndex) StatsMap() (a map[string]any) {
 	return
 }
 
