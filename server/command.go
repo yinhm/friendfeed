@@ -139,9 +139,10 @@ func (s *ApiServer) RedoFailedJob() error {
 
 		_, err := s.EnqueJob(context.Background(), job)
 		if err != nil {
-			return s.mdb.Delete(k)
+			// Keep the running record so the job is retried next time.
+			return err
 		}
-		return nil
+		return s.mdb.Delete(k)
 	})
 
 	if err != nil {

@@ -6,7 +6,7 @@
 ## 一、疑似 bug（需业务确认，优先于重构）
 
 - [x] `httpd/src/auth.go:20` — `LoginRequired` 重定向后未 `Abort()`，后续受保护 handler 仍执行
-- [ ] `server/command.go:140` — `RedoFailedJob` 疑似逻辑反转：入队失败才删除 running 记录，应是成功后删除
+- [x] `server/command.go:140` — `RedoFailedJob` 疑似逻辑反转：入队失败才删除 running 记录，应是成功后删除
 - [ ] `server/stock.go:395` — `GetKLines` 中 `Bars > 3650` 被钳为 1 而非 3650，确认是否笔误
 - [ ] `server/server.go:334` ↔ `server/index.go:87` — `cachedFeed` 无锁遍历 `bufq`，与 `rebuild` 并发重写存在数据竞争；读取时持锁或快照拷贝
 - [ ] `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 结果不落库（URL 改写发生在 `PutEntry` 之后）且 `Mirror` 恒返回 not implemented，每 entry 还起一个 goroutine 白跑；实现或删除整条链路

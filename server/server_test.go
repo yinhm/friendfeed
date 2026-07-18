@@ -105,6 +105,37 @@ func (s *RpcTestSuite) TestServerJob() {
 	assert.NotNil(s.T(), err)
 }
 
+func (s *RpcTestSuite) TestRedoFailedJob() {
+	// Simulate a job pulled by a worker that never finished: it lives in
+	// TableJobRunning and is gone from the queue.
+	_, err := s.srv.EnqueJob(context.Background(), s.job)
+	assert.Nil(s.T(), err)
+	_, err = s.srv.GetFeedJob(context.Background(), &pb.Worker{Id: "test-worker"})
+	assert.Nil(s.T(), err)
+
+	// Queue is drained, one running job remains.
+	_, err = s.srv.dequeJob()
+	assert.NotNil(s.T(), err)
+
+	err = s.srv.RedoFailedJob()
+	assert.Nil(s.T(), err)
+
+	// The running record is deleted and the job is back in the queue.
+	running, err := s.srv.ListJobQueue(model.TableJobRunning)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 0, len(running))
+
+	got, err := s.srv.dequeJob()
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), s.job.Id, got.Id)
+
+	// A second redo with an empty running table must not enqueue a duplicate.
+	err = s.srv.RedoFailedJob()
+	assert.Nil(s.T(), err)
+	_, err = s.srv.dequeJob()
+	assert.NotNil(s.T(), err)
+}
+
 func (s *RpcTestSuite) TestMdbReopen() {
 	// mdb reopen bug: Corruption on wrong key size
 	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
