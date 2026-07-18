@@ -82,7 +82,7 @@ func (e *Entry) FormatLikes(max int32) {
 	if max == 0 && length > 4 {
 		collapsing := &Like{
 			Body:        fmt.Sprintf("%d other people", length-3),
-			Num:         int32(length - 2),
+			Num:         int32(length - 3),
 			Placeholder: true,
 		}
 		e.Likes = e.Likes[:3]
