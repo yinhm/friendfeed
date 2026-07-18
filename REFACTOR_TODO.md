@@ -65,7 +65,6 @@
 ### twitter/（Python）与部署
 - [x] 删 Python 私有死代码：`crawler.py` 未用的 datetime/json/pickle import、`client.py` 未用的 time import 与 `_DESCRIPTION`；保留配置数据 `zh_names`
 - [x] 停止运行时构造未使用的 `from_feed`；将构造与使用方式一起保留为调试注释
-- [ ] 补齐 `twitter/pip.txt` 缺失依赖（twikit、pandas、numpy）并锁定版本
 
 ### 构建产物瘦身（httpd 二进制 105MB 的根因）
 - [ ] 修 `httpd/app/scripts/publish-build.mjs`：发布前清空 `static/js`、`static/css`（保留手写 `style.css`）
@@ -167,4 +166,5 @@
 - `twitter/config.py` 的 `zh_names` — 当前仓库内无引用，但它与实际使用的 `screen_names` 一样属于可供外部抓取脚本导入的账号配置数据；不能仅凭零引用删除。待确认中文账号抓取入口已永久弃用后再处理。
 - `fabfile.py` 的 `deploy_client` — 当前引用已不存在的 `client/`、`conf/ffclient.conf` 和 Upstart，确实不可执行；但它是 Fabric 对外任务，README 仍记录独立部署 client 的意图。应先提供基于 `cli/` 与 systemd 的替代任务，再决定迁移或删除，不能仅以当前失效为由抹掉接口。
 - `fabfile.py` 的 `line_in_file`/`test_if` 与 env 属性 — `line_in_file` 带 `@task`，是 Fabric 对外命令，`test_if` 是其实际依赖，并非互引用死函数；部分 env 属性虽无仓库内直接读取，也可能供 Fabric 扩展、模板或外部任务使用。需先界定部署 API 后再清理。
+- `twitter/pip.txt` 依赖补齐与版本锁定 — `twikit`、`pandas`、`numpy` 确为运行时依赖，但版本选择会同时影响 Python 支持范围、gRPC/protobuf 兼容性和抓取 API 行为；用户决定暂时跳过，待确定部署 Python 版本与升级策略后再处理。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
