@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gofrs/uuid"
@@ -31,7 +32,7 @@ func GetOAuthUser(db *store.Store, provider, userId string) (store.Key, *pb.OAut
 // OAuth info updated when login from upstream provider
 func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	_, v, err := GetOAuthUser(db, u.Provider, u.UserId)
-	if err != nil && err != ErrNotFound {
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
 

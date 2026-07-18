@@ -216,7 +216,7 @@ func (db *Store) Get(key []byte) ([]byte, error) {
 		value = valueCopy
 		closer.Close()
 	}
-	if err == pebble.ErrNotFound || len(value) == 0 {
+	if errors.Is(err, pebble.ErrNotFound) || len(value) == 0 {
 		return nil, nil
 	}
 	return value, err

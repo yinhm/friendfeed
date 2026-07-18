@@ -836,7 +836,7 @@ func main() {
 
 		// test oauth user in new db
 		_, msg, err := model.GetOAuthUser(ndb, "twitter", "5289142")
-		if err != nil && err != model.ErrNotFound {
+		if err != nil && !errors.Is(err, model.ErrNotFound) {
 			log.Printf("oauth user not found: %s", err)
 		}
 		log.Printf("oauth user: <%s>", msg)

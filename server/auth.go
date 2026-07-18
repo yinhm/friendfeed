@@ -1,10 +1,11 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"time"
 
-	"context"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
@@ -13,7 +14,7 @@ import (
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
 	logger.Debugf("auth info: <%s>", authinfo)
 	_, msg, err := model.GetOAuthUser(s.mdb, authinfo.Provider, authinfo.UserId)
-	if err != nil && err != model.ErrNotFound {
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
 		logger.Debugf("oauth user not found: %s", err)
 		return nil, err
 	}
@@ -36,7 +37,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	profileUUid, _ := uuid.FromString(authinfo.Uuid)
 	profile, err := model.GetProfileFromUuid(s.mdb, profileUUid)
 	if err != nil {
-		if err == model.ErrNotFound {
+		if errors.Is(err, model.ErrNotFound) {
 			profile, err = model.NewProfileFromOAuthUser(s.mdb, authinfo)
 			if err != nil {
 				return nil, err

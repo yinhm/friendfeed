@@ -28,7 +28,7 @@ func NewIndex(indexPath string) bleve.Index {
 
 	// open the index
 	idx, err := bleve.Open(indexPath)
-	if err == bleve.ErrorIndexMetaMissing {
+	if errors.Is(err, bleve.ErrorIndexMetaMissing) {
 		log.Println("Load mapping....")
 		mapping := bleve.NewIndexMapping()
 		err := mapping.AddCustomTokenizer("gse",
