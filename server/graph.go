@@ -1,10 +1,10 @@
 package server
 
 import (
+	"context"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
-	"golang.org/x/net/context"
 )
 
 func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb.FollowResponse, error) {

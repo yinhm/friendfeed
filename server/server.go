@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"context"
 	"github.com/blevesearch/bleve/v2"
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
@@ -20,7 +21,6 @@ import (
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
 	"github.com/yinhm/friendfeed/util"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"

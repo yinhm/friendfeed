@@ -4,10 +4,10 @@ import (
 	"strings"
 	"time"
 
+	"context"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
-	"golang.org/x/net/context"
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {

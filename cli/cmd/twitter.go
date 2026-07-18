@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"context"
 	ttext "github.com/cupcake/text-entities-go"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
 	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
 	"github.com/yinhm/friendfeed/pb"
-	"golang.org/x/net/context"
 )
 
 // serveCmd represents the serve command

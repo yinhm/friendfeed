@@ -72,7 +72,7 @@
 
 ## 三、高优先级重构：机械化现代替换（go 1.21）
 
-- [ ] `golang.org/x/net/context` → 标准库 `context`（全仓约 12 处：`server/` 7 处、`cli/cmd/` 4 处、`httpd/src/server.go:23`）
+- [x] `golang.org/x/net/context` → 标准库 `context`（全仓约 12 处：`server/` 7 处、`cli/cmd/` 4 处、`httpd/src/server.go:23`）
 - [ ] `grpc.WithInsecure()` → `grpc.WithTransportCredentials(insecure.NewCredentials())`（`cli/cmd/root.go:42`、`httpd/main.go:202`、`server/server_test.go:508`）
 - [ ] 删 `server/server.go:48` 的 `rand.Seed(...)`（Go 1.20+ 自动播种）
 - [ ] 哨兵错误改 `errors.Is`：`server/auth.go:16,39`、`model/oauth.go:34`、`store/store.go:215`、`search/search.go:31`、`cli/tools/migrate_db.go:843`

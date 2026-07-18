@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"context"
 	"github.com/cockroachdb/pebble"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
-	"golang.org/x/net/context"
 	"google.golang.org/protobuf/proto"
 )
 

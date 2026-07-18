@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"time"
 
+	"context"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
-	"golang.org/x/net/context"
 )
 
 var wallpaperCmd = &cobra.Command{

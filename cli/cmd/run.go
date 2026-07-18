@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	"context"
 	"github.com/spf13/cobra"
 	"github.com/yinhm/friendfeed/pb"
-	"golang.org/x/net/context"
 )
 
 var runTaskName string

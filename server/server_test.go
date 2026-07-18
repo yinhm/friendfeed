@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"context"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -16,7 +17,6 @@ import (
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
 	"github.com/yinhm/friendfeed/util"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
