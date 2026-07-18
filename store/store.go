@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/pebble"
@@ -37,7 +38,7 @@ type Store struct {
 	closed bool
 	idGen  *flake.Generator
 
-	syncOption *pebble.WriteOptions
+	syncWrites atomic.Bool
 }
 
 func NewStore(dbpath string) *Store {
@@ -65,7 +66,7 @@ func NewStore(dbpath string) *Store {
 	db.idGen = flake.NewGenerator()
 	db.closed = false
 
-	db.syncOption = &pebble.WriteOptions{Sync: true}
+	db.syncWrites.Store(true)
 
 	return db
 }
@@ -89,6 +90,7 @@ func NewMetaStore(dbpath string) *Store {
 	}
 	db.rdb = rdb
 	db.idGen = flake.NewGenerator()
+	db.syncWrites.Store(true)
 
 	return db
 }
@@ -197,7 +199,14 @@ func (db *Store) Options() *pebble.Options {
 }
 
 func (db *Store) SetSync(syncOrNot bool) {
-	db.syncOption = &pebble.WriteOptions{Sync: syncOrNot}
+	db.syncWrites.Store(syncOrNot)
+}
+
+func (db *Store) writeOptions() *pebble.WriteOptions {
+	if db.syncWrites.Load() {
+		return pebble.Sync
+	}
+	return pebble.NoSync
 }
 
 func (db *Store) Flush() {
@@ -222,7 +231,7 @@ func (db *Store) Put(key, value []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	return db.rdb.Set(key, value, db.syncOption)
+	return db.rdb.Set(key, value, db.writeOptions())
 }
 
 func (db *Store) Set(key, value []byte) error {
@@ -233,7 +242,7 @@ func (db *Store) Delete(key []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	return db.rdb.Delete(key, db.syncOption)
+	return db.rdb.Delete(key, db.writeOptions())
 }
 
 func (db *Store) Exist(key []byte) bool {

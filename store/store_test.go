@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -57,6 +58,35 @@ func (s *DBTestSuite) TestDBGetPut() {
 
 	value, err = s.rdb.Get([]byte("key2"))
 	assert.Nil(s.T(), err)
+}
+
+func (s *DBTestSuite) TestSetSyncConcurrentWrites() {
+	const writes = 100
+	errs := make(chan error, writes)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < writes; i++ {
+			s.rdb.SetSync(i%2 == 0)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < writes; i++ {
+			key := []byte(fmt.Sprintf("concurrent-key-%d", i))
+			if err := s.rdb.Put(key, []byte("value")); err != nil {
+				errs <- err
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		assert.NoError(s.T(), err)
+	}
 }
 
 func (s *DBTestSuite) TestMetaStore() {
