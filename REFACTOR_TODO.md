@@ -13,7 +13,7 @@
 - [x] `media/media.go:116` — `Fetch` 的 `resp.Body` 未关闭，HTTP 连接泄漏
 - [x] `cli/cmd/wallpaper.go:70` — `resp.Body` 未关闭
 - [x] `search/search.go:13` — 全局 `Indexer` 在 goroutine 里赋值（`server.go:76`），启动竞速期 `PutEntry` 触发索引会 nil panic；改为同步初始化
-- [ ] `cli/cmd/twitter.go:71` — `defer stream.CloseAndRecv()` 在 err 检查之前，失败时 nil interface 求值 panic
+- [x] `cli/cmd/twitter.go:71` — `defer stream.CloseAndRecv()` 在 err 检查之前，失败时 nil interface 求值 panic
 - [ ] `cli/cmd/wallpaper.go:117` — `Thumbnail` 出错后继续使用可能为 nil 的 `thumbObj`
 - [ ] `pb/helper.go:79` — `FormatLikes` 中 `Body` 用 `length-3` 而 `Num` 用 `length-2`，对照 `FormatComments`（皆 `length-2`）疑似不一致
 - [ ] `twitter/client.py:87` — `resp.klines` 应为 `resp.KLines`，一调用即抛 AttributeError

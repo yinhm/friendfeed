@@ -69,10 +69,10 @@ func (fa *FeedAgent) process(job *pb.FeedJob) error {
 
 func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 	stream, err := fa.client.ArchiveFeed(context.Background())
-	defer stream.CloseAndRecv()
 	if err != nil {
 		return 0, err
 	}
+	defer stream.CloseAndRecv()
 
 	updated := time.Unix(job.Service.Updated, 0)
 	authinfo := job.Service.Oauth
