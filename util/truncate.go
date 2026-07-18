@@ -14,7 +14,6 @@
 package util
 
 import (
-	"html"
 	"regexp"
 	"unicode"
 	"unicode/utf8"
@@ -37,7 +36,6 @@ type htmlTag struct {
 
 // Truncate truncates a given string to the specified length.
 func Truncate(text string, length int, ellipsis string) string {
-	isHTML := true
 	// ellipsis = html.EscapeString(ellipsis)
 
 	if utf8.RuneCountInString(text) <= length {
@@ -52,21 +50,19 @@ func Truncate(text string, length int, ellipsis string) string {
 			continue
 		}
 
-		if isHTML {
-			// Make sure we keep tag of HTML tags
-			slice := text[i:]
-			m := tagRE.FindStringSubmatchIndex(slice)
-			if len(m) > 0 && m[0] == 0 {
-				nextTag = i + m[1]
-				tagname := slice[m[4]:m[5]]
-				lastWordIndex = lastNonSpace
-				_, singlet := htmlSinglets[tagname]
-				if !singlet && m[6] == -1 {
-					tags = append(tags, htmlTag{name: tagname, pos: i, openTag: m[2] == -1})
-				}
-
-				continue
+		// Make sure we keep tag of HTML tags
+		slice := text[i:]
+		m := tagRE.FindStringSubmatchIndex(slice)
+		if len(m) > 0 && m[0] == 0 {
+			nextTag = i + m[1]
+			tagname := slice[m[4]:m[5]]
+			lastWordIndex = lastNonSpace
+			_, singlet := htmlSinglets[tagname]
+			if !singlet && m[6] == -1 {
+				tags = append(tags, htmlTag{name: tagname, pos: i, openTag: m[2] == -1})
 			}
+
+			continue
 		}
 
 		currentLen++
@@ -85,34 +81,28 @@ func Truncate(text string, length int, ellipsis string) string {
 				endTextPos = lastWordIndex
 			}
 			out := text[0:endTextPos]
-			if isHTML {
-				out += ellipsis
-				// Close out any open HTML tags
-				var currentTag *htmlTag
-				for i := len(tags) - 1; i >= 0; i-- {
-					tag := tags[i]
-					if tag.pos >= endTextPos || currentTag != nil {
-						if currentTag != nil && currentTag.name == tag.name {
-							currentTag = nil
-						}
-						continue
+			out += ellipsis
+			// Close out any open HTML tags
+			var currentTag *htmlTag
+			for i := len(tags) - 1; i >= 0; i-- {
+				tag := tags[i]
+				if tag.pos >= endTextPos || currentTag != nil {
+					if currentTag != nil && currentTag.name == tag.name {
+						currentTag = nil
 					}
-
-					if tag.openTag {
-						out += ("</" + tag.name + ">")
-					} else {
-						currentTag = &tag
-					}
+					continue
 				}
 
-				return out
+				if tag.openTag {
+					out += ("</" + tag.name + ">")
+				} else {
+					currentTag = &tag
+				}
 			}
-			return html.EscapeString(out) + ellipsis
+
+			return out
 		}
 	}
 
-	if isHTML {
-		return text
-	}
-	return html.EscapeString(text)
+	return text
 }
