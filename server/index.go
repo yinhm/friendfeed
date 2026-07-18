@@ -17,7 +17,7 @@ import (
 const MinQueue = 1000
 
 type FeedIndex struct {
-	sync.Mutex
+	sync.RWMutex
 	Id     string
 	Uuid   uuid.UUID
 	bufq   []string
@@ -80,12 +80,11 @@ func (f *FeedIndex) remove(i int) {
 }
 
 func (f *FeedIndex) rebuild(db *store.Store) {
+	f.Lock()
+	defer f.Unlock()
 	if !f.dirty {
 		return
 	}
-
-	f.Lock()
-	defer f.Unlock()
 
 	oldbuf := make([]string, MinQueue)
 	copy(oldbuf, f.bufq)
@@ -143,6 +142,15 @@ func (f *FeedIndex) rebuild(db *store.Store) {
 	}
 
 	f.dirty = false
+}
+
+func (f *FeedIndex) snapshot() []string {
+	f.RLock()
+	defer f.RUnlock()
+
+	bufq := make([]string, len(f.bufq))
+	copy(bufq, f.bufq)
+	return bufq
 }
 
 func (f *FeedIndex) load(db *store.Store) error {

@@ -66,3 +66,12 @@ func TestFeedIndexRebuildFullDuplicateBuffer(t *testing.T) {
 		assert.Empty(t, index.bufq[i])
 	}
 }
+
+func TestFeedIndexSnapshotIsIndependent(t *testing.T) {
+	index := &FeedIndex{bufq: []string{"first", "second"}}
+
+	snapshot := index.snapshot()
+	snapshot[0] = "changed"
+
+	assert.Equal(t, "first", index.bufq[0])
+}

@@ -328,16 +328,17 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 
 	start := req.Start
 	index := s.cached[req.Id]
+	bufq := index.snapshot()
 
 	var entries []*pb.Entry
 	found := 0
-	for i := 0; i < len(index.bufq); i++ {
+	for i := 0; i < len(bufq); i++ {
 		if start > 0 {
 			start--
 			continue
 		}
 
-		key := index.bufq[i]
+		key := bufq[i]
 		if key == "" {
 			break
 		}
