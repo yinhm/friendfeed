@@ -64,7 +64,7 @@
 
 ### twitter/（Python）与部署
 - [x] 删 Python 私有死代码：`crawler.py` 未用的 datetime/json/pickle import、`client.py` 未用的 time import 与 `_DESCRIPTION`；保留配置数据 `zh_names`
-- [ ] 删 `twitter/crawler.py:85-89` 从未使用的 `from_feed`、:142-144 注释代码块
+- [x] 停止运行时构造未使用的 `from_feed`；将构造与使用方式一起保留为调试注释
 - [ ] 删 `fabfile.py:168-207` 过时的 `deploy_client` 任务（引用已不存在的 `client/` 目录与 upstart）
 - [ ] 删 `fabfile.py` 的 `test_if`/`line_in_file` 互引用死函数与未读 env 变量
 - [ ] 补齐 `twitter/pip.txt` 缺失依赖（twikit、pandas、numpy）并锁定版本
