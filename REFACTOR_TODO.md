@@ -53,7 +53,7 @@
 ### util/ + cli/
 - [x] 保留导出的跨平台 `RedirectStderr` API；修复不支持平台分支引用不存在的 `Errorf`
 - [x] 删 `util/truncate.go:40` 恒真 `isHTML` 及不可达分支
-- [ ] 删 `cli/config.toml`（另一个项目 ctdx 的配置残留）
+- [x] 删 `cli/config.toml`（另一个项目 ctdx 的配置残留）
 - [ ] 删 `cli/cmd/root.go:23,64` 从未读取的 `config.debug` 字段
 - [ ] 清理 `cli/tools/migrate_db.go` "debug" case 的注释死代码块（:766-774 等）与硬编码 ID
 
