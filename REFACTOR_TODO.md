@@ -10,7 +10,7 @@
 - [x] `server/stock.go:395` — `GetKLines` 中 `Bars > 3650` 被钳为 1 而非 3650，确认是否笔误
 - [x] `server/server.go:334` ↔ `server/index.go:87` — `cachedFeed` 无锁遍历 `bufq`，与 `rebuild` 并发重写存在数据竞争；读取时持锁或快照拷贝
 - [x] `model/entry.go:103` — `DeleteEntry` 把任何 DB 错误都当"不存在"吞掉，应只在 `errors.Is(err, ErrNotFound)` 时吞
-- [ ] `media/media.go:116` — `Fetch` 的 `resp.Body` 未关闭，HTTP 连接泄漏
+- [x] `media/media.go:116` — `Fetch` 的 `resp.Body` 未关闭，HTTP 连接泄漏
 - [ ] `cli/cmd/wallpaper.go:70` — `resp.Body` 未关闭
 - [ ] `search/search.go:13` — 全局 `Indexer` 在 goroutine 里赋值（`server.go:76`），启动竞速期 `PutEntry` 触发索引会 nil panic；改为同步初始化
 - [ ] `cli/cmd/twitter.go:71` — `defer stream.CloseAndRecv()` 在 err 检查之前，失败时 nil interface 求值 panic
