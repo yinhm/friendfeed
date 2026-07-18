@@ -40,7 +40,9 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 	case "SuperAdmin":
 		s.SuperAdmin(cmd.Arg1)
 	case "BackupDB":
-		s.BackupDB()
+		if err := s.BackupDB(); err != nil {
+			return nil, err
+		}
 	case "DBMetrics":
 		s.DBMetrics()
 	case "CreateSystemProfile":
@@ -239,14 +241,17 @@ func (s *ApiServer) BackupDB() error {
 	logger.Warnf("db backup to: %s", backupPath)
 
 	ndb := store.NewStore(backupPath)
-
 	ndb.SetSync(false)
-	defer ndb.SetSync(true)
+	defer ndb.Close()
 
 	for iter.First(); iter.Valid(); iter.Next() {
-		ndb.Set(iter.Key(), iter.Value())
+		if err := ndb.Set(iter.Key(), iter.Value()); err != nil {
+			return fmt.Errorf("backup key %x: %w", iter.Key(), err)
+		}
 	}
-	ndb.Close()
+	if err := iter.Error(); err != nil {
+		return fmt.Errorf("iterate source database: %w", err)
+	}
 	return nil
 }
 
