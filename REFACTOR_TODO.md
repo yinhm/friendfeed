@@ -76,7 +76,7 @@
 - [x] `grpc.WithInsecure()` → `grpc.WithTransportCredentials(insecure.NewCredentials())`（`cli/cmd/root.go:42`、`httpd/main.go:202`、`server/server_test.go:508`）
 - [x] 删 `server/server.go:48` 的 `rand.Seed(...)`（Go 1.20+ 自动播种）
 - [x] 哨兵错误改 `errors.Is`：`server/auth.go:16,39`、`model/oauth.go:34`、`store/store.go:215`、`search/search.go:31`、`cli/tools/migrate_db.go:843`
-- [ ] 类型断言改 `errors.As`：`server/server.go:220`、`store/store.go:300`
+- [x] `store/store.go` 的错误类型断言改 `errors.As`；`server/server.go` 对应断言已随不可达 `ExistItem` 分支删除
 - [ ] `fmt.Errorf` 无格式参数 → `errors.New`（`server/server.go:154`、`job.go:129`、`model/` 多处、`cli/cmd/twitter.go:80`）
 - [ ] 错误包装 `%s` → `%w`：`model/table.go:70`、`entry.go:92`、`media/media.go:84`、`cli/cmd/twitter.go:99`
 - [ ] `ioutil` → `io`/`os`：`media/media.go:5,122`、`cli/cmd/wallpaper.go`、`util/config.go`
