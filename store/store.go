@@ -9,7 +9,6 @@ import (
 
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
-	"github.com/golang/glog"
 	"github.com/yinhm/friendfeed/store/flake"
 )
 
@@ -37,7 +36,7 @@ type Store struct {
 
 func NewStore(dbpath string) *Store {
 	if err := mkdir(dbpath); err != nil {
-		glog.Fatalf("Can not create db: %s", err)
+		log.Fatalf("Can not create db: %s", err)
 	}
 
 	db := new(Store)

@@ -84,7 +84,7 @@
 - [x] `endTime.Sub(startTime)` → `time.Since`（`server/server.go`、`stock.go`）；`util.FormatTime` 的反向时间差改 `time.Until`
 - [x] `util/config.go:26` — `NewConfigFromJSON` 读取失败时返回 error，不在库函数中 `log.Fatal`；httpd 启动日志保留配置路径和原始错误
 - [x] `store/utils.go` — `mkdir` 简化为一行 `os.MkdirAll`，删 snake_case 的 `path_exists`
-- [ ] `store/store.go:45,62` — 统一 `glog`/`log` Fatal 混用
+- [x] `store/store.go:45,62` — 统一使用标准库 `log`，移除单点 `glog` Fatal
 - [ ] `media/media.go:106` — 补 `os.MkdirAll` 错误检查；写文件权限 0755 → 0644
 - [ ] `media/media.go:68` — `Exists` 对 `os.ErrNotExist` 返回 `(false, nil)` 并修测试断言
 - [ ] `server/command.go:19` — `Command` switch 增加 default 分支，不再吞子命令 error
