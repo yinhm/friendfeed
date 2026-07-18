@@ -136,6 +136,26 @@ func (s *RpcTestSuite) TestRedoFailedJob() {
 	assert.NotNil(s.T(), err)
 }
 
+func (s *RpcTestSuite) TestEnqueJobReportsError() {
+	// EnqueJob must report failures instead of swallowing them: it used to
+	// ignore the mdb.Put error and report success, which made RedoFailedJob
+	// drop the running record. The failure is injected at proto.Marshal
+	// because pebble panics (rather than errors) on a closed instance.
+	_, err := s.srv.EnqueJob(context.Background(), &pb.FeedJob{Id: "\xff"})
+	assert.NotNil(s.T(), err)
+}
+
+func (s *RpcTestSuite) TestRedoFailedJobCommandError() {
+	// A corrupt running record must surface through the Command RPC
+	// instead of being reported as success.
+	key := store.NewFlakeKey(model.TableJobRunning, s.srv.mdb.NextId())
+	err := s.srv.mdb.Put(key.Bytes(), []byte{0xff})
+	assert.Nil(s.T(), err)
+
+	_, err = s.srv.Command(context.Background(), &pb.CommandRequest{Command: "RedoFailedJob"})
+	assert.NotNil(s.T(), err)
+}
+
 func (s *RpcTestSuite) TestMdbReopen() {
 	// mdb reopen bug: Corruption on wrong key size
 	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())

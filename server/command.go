@@ -26,7 +26,9 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 	case "FixTooMuchJobs":
 		s.FixTooMuchJobs()
 	case "RedoFailedJob":
-		s.RedoFailedJob()
+		if err := s.RedoFailedJob(); err != nil {
+			return nil, err
+		}
 	case "RefetchUserFeed":
 		s.RefetchUserFeed()
 	case "TestJob":

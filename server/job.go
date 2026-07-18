@@ -84,7 +84,9 @@ func (s *ApiServer) EnqueJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob,
 	if err != nil {
 		return nil, err
 	}
-	s.mdb.Put(key.Bytes(), bytes)
+	if err := s.mdb.Put(key.Bytes(), bytes); err != nil {
+		return nil, err
+	}
 	return job, nil
 }
 
