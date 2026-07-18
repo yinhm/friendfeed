@@ -392,8 +392,10 @@ func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KL
 	prefix := model.NewPrefixKeyFrom(model.TableKLine, uuid1.Bytes())
 	// fmt.Printf("scan key, %s\n", prefix.String())
 
-	if req.Bars <= 0 || req.Bars > 3650 {
+	if req.Bars <= 0 {
 		req.Bars = 1
+	} else if req.Bars > 3650 {
+		req.Bars = 3650
 	}
 
 	var klines []*pb.KLine

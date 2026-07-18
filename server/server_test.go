@@ -584,10 +584,15 @@ func (s *RpcTestSuite) TestKLines() {
 
 	err = stream.Send(kp)
 	assert.Nil(s.T(), err)
+	kp.KLine = proto.Clone(kp.KLine).(*pb.KLine)
+	kp.KLine.Date = int32(dt.Add(-24 * time.Hour).Unix())
+	kp.KLine.High = 7788.0
+	err = stream.Send(kp)
+	assert.Nil(s.T(), err)
 
 	resp, err := stream.CloseAndRecv()
 	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), int32(1), resp.Count)
+	assert.Equal(s.T(), int32(2), resp.Count)
 
 	// now scan key
 	// 0000012f093cc15911635c5c822f0b31db5089f8000006aee6c8de801c697aa5a6ca0000
@@ -601,9 +606,16 @@ func (s *RpcTestSuite) TestKLines() {
 	}
 	klineResp, err := api.GetKLines(ctx, req)
 	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), 1, len(klineResp.KLines))
+	assert.Equal(s.T(), 2, len(klineResp.KLines))
 	kline := klineResp.KLines[0]
 	assert.EqualValues(s.T(), 8848.0, kline.High)
+
+	// Requests above the supported maximum are capped at 3650, not reset
+	// to one result.
+	req.Bars = 3651
+	klineResp, err = api.GetKLines(ctx, req)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 2, len(klineResp.KLines))
 
 	// ListStock
 	reqStockList := &pb.StockList{
