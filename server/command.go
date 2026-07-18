@@ -22,34 +22,53 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 	case "ReportRunningJobs":
 		s.DebugRunningJobs()
 	case "PurgeJobs":
-		s.PurgeJobs()
+		if err := s.PurgeJobs(); err != nil {
+			return nil, err
+		}
 	case "FixTooMuchJobs":
-		s.FixTooMuchJobs()
+		if err := s.FixTooMuchJobs(); err != nil {
+			return nil, err
+		}
 	case "RedoFailedJob":
 		if err := s.RedoFailedJob(); err != nil {
 			return nil, err
 		}
 	case "RefetchUserFeed":
-		s.RefetchUserFeed()
+		if err := s.RefetchUserFeed(); err != nil {
+			return nil, err
+		}
 	case "TestJob":
-		s.TestJob()
+		if err := s.TestJob(); err != nil {
+			return nil, err
+		}
 	case "PurgePrefix":
-		s.PurgePrefix(model.Feedinfo.Prefix)
+		if err := s.PurgePrefix(model.Feedinfo.Prefix); err != nil {
+			return nil, err
+		}
 	case "MarkDelete":
-		s.MarkDelete(cmd.Arg1)
+		if _, err := s.MarkDelete(cmd.Arg1); err != nil {
+			return nil, err
+		}
 	case "SuperAdmin":
-		s.SuperAdmin(cmd.Arg1)
+		if _, err := s.SuperAdmin(cmd.Arg1); err != nil {
+			return nil, err
+		}
 	case "BackupDB":
 		if err := s.BackupDB(); err != nil {
 			return nil, err
 		}
 	case "DBMetrics":
-		s.DBMetrics()
+		if err := s.DBMetrics(); err != nil {
+			return nil, err
+		}
 	case "CreateSystemProfile":
-		s.CreateSystemProfile()
+		if err := s.CreateSystemProfile(); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown command %q", cmd.Command)
 	}
 
-	// TODO: nothing here
 	return new(pb.CommandResponse), nil
 }
 
