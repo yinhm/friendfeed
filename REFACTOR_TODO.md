@@ -61,7 +61,6 @@
 - [x] 处理 `httpd/src/account.go:12` 空 `AccountHandler`（重定向到 `/account/import`）
 - [x] 删 `feed.html` 中无对应路由且命令不可达的 subscribe/unsubscribe 表单；保留注释调试路径引用的 `_feed.html`
 - [x] 删未引用的 `logo.svg` 及 `entry.jsx` 中引用不存在方法的 `onFocus`；保留实际加载的 `App.css` 和调试信息
-- [ ] 删各处理器的注释代码块：`httpd/src/server.go:156-177`、`main.go:51,152,205`、`feed.go:171`、`entry.go` 多处
 
 ### twitter/（Python）与部署
 - [ ] 删 `twitter/client.py:130-206` 死代码 `get_ohlcs`/`adjust`（连带清理未用 import）
@@ -166,4 +165,5 @@
 - `httpd/src/server.go` 的 `Server.secretKey`/`httpclient`/`assets`/`worker` — 四个私有字段只在构造时写入，但删除它们会连带改变导出构造函数 `NewServer` 的签名；保留参数并改成 no-op 也不是可接受的设计。待确认 httpd 包无外部调用者或设计兼容的新构造 API 后整体处理。
 - `httpd/templates/_feed.html` — 当前生产路径不渲染该模板，但 `PublicHandler` 中保留了切换到它的注释调试代码。按“注释调试信息仍需保留”的决定，不单独删除其依赖模板；待确认该备用 SSR 路径不再需要后再一起清理。
 - 前端调试代码清理 — `App.css` 仍由 `index.jsx` 加载；`utils.js` 的 `dprint` 被保留的注释调试代码引用，`editor.jsx`/`content.jsx`/`App.jsx` 的注释块及 `entry.jsx` 的 `console.log` 均属于要求保留的调试信息，不能按死代码批量删除。
+- httpd 处理器注释块 — `CurrentFeedinfo` 旧实现、SSR 模板切换、gRPC send-size、旧 import 路由、Babel 初始化及 `entry.go` 的编辑/格式化说明均具有调试、兼容或设计记录价值；按“注释调试信息仍需保留”的决定不做批量删除。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
