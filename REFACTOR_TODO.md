@@ -19,7 +19,7 @@
 - [x] `twitter/client.py:87` — `resp.klines` 应为 `resp.KLines`，一调用即抛 AttributeError
 - [x] `twitter/crawler.py:41` — 格式串无占位符却 `% GROUP_NAME`，`--run init` 必抛 TypeError
 - [x] `twitter/crawler.py:62` — `except UserNotFound` 后未 return，第 68 行 `user.id` 必抛 NameError
-- [ ] `twitter/client.py:173` — `adjust()` 分支返回 `True`，正常路径返回 DataFrame，类型不一致
+- [x] `twitter/client.py:173` — `adjust()` 分支返回 `True`，正常路径返回 DataFrame，类型不一致
 - [ ] `twitter/crawler.py:29` — **安全**：明文 Twitter 账号/密码已进 git 历史，改读环境变量并轮换密码
 - [ ] `fabfile.py:291` — `deploy_nginx` 引用的 `conf/nginx_http.conf` 不存在，任务必失败
 - [ ] `server/job.go:87,112,155` — 三处 `s.mdb.Put` 错误被丢弃；`job.go:159` `ListJobQueue` 命名返回 err 恒为 nil
