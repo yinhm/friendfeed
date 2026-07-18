@@ -16,7 +16,7 @@
 - [x] `cli/cmd/twitter.go:71` — `defer stream.CloseAndRecv()` 在 err 检查之前，失败时 nil interface 求值 panic
 - [x] `cli/cmd/wallpaper.go:117` — `Thumbnail` 出错后继续使用可能为 nil 的 `thumbObj`
 - [x] `pb/helper.go:79` — `FormatLikes` 中 `Body` 用 `length-3` 而 `Num` 用 `length-2`，对照 `FormatComments`（皆 `length-2`）疑似不一致
-- [ ] `twitter/client.py:87` — `resp.klines` 应为 `resp.KLines`，一调用即抛 AttributeError
+- [x] `twitter/client.py:87` — `resp.klines` 应为 `resp.KLines`，一调用即抛 AttributeError
 - [ ] `twitter/crawler.py:41` — 格式串无占位符却 `% GROUP_NAME`，`--run init` 必抛 TypeError
 - [ ] `twitter/crawler.py:62` — `except UserNotFound` 后未 return，第 68 行 `user.id` 必抛 NameError
 - [ ] `twitter/client.py:173` — `adjust()` 分支返回 `True`，正常路径返回 DataFrame，类型不一致
