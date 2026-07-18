@@ -51,7 +51,7 @@
 - [x] 清理 `server/server.go` 中处理 `ExistItem` 的不可达分支
 
 ### util/ + cli/
-- [ ] 删 `util/redirect_stderr*.go` 三个文件（无调用者，且引用了不存在的 `Errorf`）
+- [x] 保留导出的跨平台 `RedirectStderr` API；修复不支持平台分支引用不存在的 `Errorf`
 - [ ] 删 `util/text.go:18` `UrlToLink`、`util/format.go` 死链（`LongTime`/`layoutDayMonth`/`Month`/`Year` + 注释块）
 - [ ] 删 `util/truncate.go:40` 恒真 `isHTML` 及不可达分支
 - [ ] 删 `cli/cmd/wallpaper.go:175-349` 的 175 行硬编码 `OldWallpapers`

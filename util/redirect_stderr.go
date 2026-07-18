@@ -4,9 +4,12 @@
 
 package util
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 // redirectStderr to the file passed in
 func RedirectStderr(f *os.File) {
-	Errorf(nil, "Can't redirect stderr to file")
+	log.Print("Can't redirect stderr to file on this platform")
 }
