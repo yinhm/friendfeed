@@ -24,7 +24,7 @@
 - [x] `fabfile.py:291` — `deploy_nginx` 引用的 `conf/nginx_http.conf` 不存在，任务必失败
 - [x] `server/job.go:87,112,155` — 三处 `s.mdb.Put` 错误被丢弃；`job.go:159` `ListJobQueue` 命名返回 err 恒为 nil
 - [x] `server/command.go:244` — `BackupDB` 的 `ndb.Set` 逐条丢弃错误，备份可能静默丢数据
-- [ ] `server/index.go:74` — `Push` 向缓冲为 1 的 channel 发送，rebuild 期间会阻塞 gRPC handler；改非阻塞 select
+- [x] `server/index.go:74` — `Push` 向缓冲为 1 的 channel 发送，rebuild 期间会阻塞 gRPC handler；改非阻塞 select
 - [ ] `httpd/src/server.go:361` — `CommentDeleteHandler` 丢弃 `MustBindWith` 错误，绑定失败仍返回 200
 - [ ] `helper.go:120`（server）— `entry.Thumbnails[0]` 无长度检查，脏数据会 panic；同类 `httpd/src/server.go:226`、`entry.go:44` 的 `feed.Entries[0]`
 - [ ] `store/store.go:199` — `SetSync` 替换指针与并发读取存在数据竞争（当前未实际触发，至少注明非并发安全）

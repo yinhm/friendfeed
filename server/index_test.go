@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/eapache/queue"
 	"github.com/gofrs/uuid"
@@ -74,4 +75,28 @@ func TestFeedIndexSnapshotIsIndependent(t *testing.T) {
 	snapshot[0] = "changed"
 
 	assert.Equal(t, "first", index.bufq[0])
+}
+
+func TestFeedIndexPushDoesNotBlockWhenNotificationPending(t *testing.T) {
+	index := &FeedIndex{
+		iq:     queue.New(),
+		itemCh: make(chan string, 1),
+	}
+	index.itemCh <- "pending"
+
+	done := make(chan struct{})
+	go func() {
+		index.Push("next")
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Push blocked on a full notification channel")
+	}
+
+	assert.True(t, index.dirty)
+	assert.Equal(t, 1, index.iq.Length())
+	assert.Equal(t, "next", index.iq.Get(0))
 }

@@ -71,7 +71,10 @@ func (f *FeedIndex) Push(uuid string) {
 	f.dirty = true
 	f.Unlock()
 
-	f.itemCh <- uuid
+	select {
+	case f.itemCh <- uuid:
+	default:
+	}
 }
 
 func (f *FeedIndex) remove(i int) {
