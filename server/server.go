@@ -195,17 +195,6 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 			// no error or new key
 			s.spread(key.String())
 		}
-		// Retuen if not force update and all entries are exists
-		// TODO: client dead lock???
-		if serr, ok := err.(*store.Error); ok {
-			if serr.Code == store.ExistItem {
-				err = nil
-				// tooMuchExistsItem++
-				// if tooMuchExistsItem > 200 {
-				// 	return fmt.Errorf("Too much exists entries.")
-				// }
-			}
-		}
 		if err != nil {
 			log.Println("db error:", err)
 		}

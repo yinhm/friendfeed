@@ -48,7 +48,7 @@
 - [x] 删 `store/iterator.go` 内部多余的 `options` 字段
 - [x] 保留 `MetaKey`/`NewMetaKey` 与 `UUIDFlakeKey`：前者用于 job history，后者用于 entry index 生产路径，并非仅测试使用
 - [x] 删 `cli/tools/migrate_db.go` 中未使用返回值的 `db.Options()` 调用
-- [ ] 清理 `store/codes.go:10` `ExistItem`（无生产者）及 `server/server.go:218-228` 不可达分支
+- [x] 清理 `server/server.go` 中处理 `ExistItem` 的不可达分支
 
 ### util/ + cli/
 - [ ] 删 `util/redirect_stderr*.go` 三个文件（无调用者，且引用了不存在的 `Errorf`）
@@ -162,4 +162,5 @@
 - `store.Iterator` 的 `Prev`/`SeekLT`/`Last`/`UnsafeRawKey`/`ValueProto` — 当前仓库内虽无调用，但都是导出方法，属于 iterator 公共能力；不能仅按零引用删除。
 - `store.NewMetaStore`/`NewMetaStoreOptions` — 不只是导出 API，`cli/tools/migrate_db.go` 仍实际调用它们读取旧版独立 meta 数据库。属于迁移兼容路径，不能按“仅注释引用”删除。
 - `store.Store.Options()` — 迁移工具中未使用返回值的调用已删除，但方法本身是导出 API，可能供外部诊断或调优使用，不能仅按仓库内零引用删除。
+- `store.ExistItem` — 当前仓库内没有生产者，但它是导出错误码，外部调用者可能依赖其符号和值；保留错误码，仅删除内部不可达消费分支。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
