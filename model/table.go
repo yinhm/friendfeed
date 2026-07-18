@@ -131,6 +131,7 @@ func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	start := buf.Bytes()
 
 	iter := db.NewIterator(start)
+	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		keys = append(keys, t.ToStringKey(iter.Key()))
 	}
