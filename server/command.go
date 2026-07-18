@@ -255,32 +255,6 @@ func (s *ApiServer) BackupDB() error {
 	return nil
 }
 
-func (s *ApiServer) TempFix() error {
-	log.Println("TempFix...")
-
-	prefix := model.Profile.Prefix
-	_, err := s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-		msg := &pb.Profile{}
-		if err := proto.Unmarshal(v, msg); err != nil {
-			return err
-		}
-
-		shDesc := fmt.Sprintf("<%s, %s>", "SH", msg.Id)
-		szDesc := fmt.Sprintf("<%s, %s>", "SZ", msg.Id)
-		if len(msg.Id) == 6 &&
-			(msg.Description == shDesc || msg.Description == szDesc) {
-			logger.Warnf("deleting: %s", msg.Id)
-			return s.rdb.Delete(k)
-		}
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *ApiServer) CreateSystemProfile() error {
 	log.Println("CreateSystemProfile...")
 
