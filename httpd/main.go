@@ -196,7 +196,7 @@ func main() {
 
 	cfg, err := util.NewConfigFromJSON(options.ConfigFile)
 	if err != nil {
-		log.Fatal("no config file")
+		log.Fatalf("load config %q: %v", options.ConfigFile, err)
 	}
 
 	opts := []grpc.DialOption{

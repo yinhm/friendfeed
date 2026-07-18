@@ -82,7 +82,7 @@
 - [x] `ioutil` → `io`/`os`：`media/media.go:5,122`、`cli/cmd/wallpaper.go`、`util/config.go`
 - [x] `interface{}` → `any`：`search/search.go:35,46,77,81`、`search/mock.go`、`httpd/render.go:55`
 - [x] `endTime.Sub(startTime)` → `time.Since`（`server/server.go`、`stock.go`）；`util.FormatTime` 的反向时间差改 `time.Until`
-- [ ] `util/config.go:26` — `NewConfigFromJSON` 失败时 `log.Fatal` 改为返回 error（4 个调用方都在等这个 err）
+- [x] `util/config.go:26` — `NewConfigFromJSON` 读取失败时返回 error，不在库函数中 `log.Fatal`；httpd 启动日志保留配置路径和原始错误
 - [ ] `store/utils.go` — `mkdir` 简化为一行 `os.MkdirAll`，删 snake_case 的 `path_exists`
 - [ ] `store/store.go:45,62` — 统一 `glog`/`log` Fatal 混用
 - [ ] `media/media.go:106` — 补 `os.MkdirAll` 错误检查；写文件权限 0755 → 0644

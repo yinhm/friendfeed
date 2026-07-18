@@ -2,7 +2,6 @@ package util
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 )
 
@@ -25,7 +24,7 @@ type Config struct {
 func NewConfigFromJSON(filename string) (*Config, error) {
 	rawdata, err := os.ReadFile(filename)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	config := new(Config)
