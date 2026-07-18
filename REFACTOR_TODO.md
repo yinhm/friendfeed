@@ -17,7 +17,7 @@
 - [x] `cli/cmd/wallpaper.go:117` — `Thumbnail` 出错后继续使用可能为 nil 的 `thumbObj`
 - [x] `pb/helper.go:79` — `FormatLikes` 中 `Body` 用 `length-3` 而 `Num` 用 `length-2`，对照 `FormatComments`（皆 `length-2`）疑似不一致
 - [x] `twitter/client.py:87` — `resp.klines` 应为 `resp.KLines`，一调用即抛 AttributeError
-- [ ] `twitter/crawler.py:41` — 格式串无占位符却 `% GROUP_NAME`，`--run init` 必抛 TypeError
+- [x] `twitter/crawler.py:41` — 格式串无占位符却 `% GROUP_NAME`，`--run init` 必抛 TypeError
 - [ ] `twitter/crawler.py:62` — `except UserNotFound` 后未 return，第 68 行 `user.id` 必抛 NameError
 - [ ] `twitter/client.py:173` — `adjust()` 分支返回 `True`，正常路径返回 DataFrame，类型不一致
 - [ ] `twitter/crawler.py:29` — **安全**：明文 Twitter 账号/密码已进 git 历史，改读环境变量并轮换密码
