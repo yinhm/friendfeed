@@ -46,7 +46,7 @@
 ### store/
 - [x] 删 `store/store.go` 中无引用的私有常量 `defaultWorkerId`、`defaultDatacenterId`
 - [x] 删 `store/iterator.go` 内部多余的 `options` 字段
-- [ ] 删 `store/key.go:169-198` `MetaKey`/`NewMetaKey`、:283-314 `UUIDFlakeKey`（仅测试使用，连测试一起删）
+- [x] 保留 `MetaKey`/`NewMetaKey` 与 `UUIDFlakeKey`：前者用于 job history，后者用于 entry index 生产路径，并非仅测试使用
 - [ ] 删 `store/store.go:195` `Store.Options()`（注意 `cli/tools/migrate_db.go:556` 有一句无效调用一并删）
 - [ ] 清理 `store/codes.go:10` `ExistItem`（无生产者）及 `server/server.go:218-228` 不可达分支
 
