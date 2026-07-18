@@ -97,7 +97,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 	tweets, _, err := api.Timelines.UserTimeline(params)
 	if err != nil {
 		log.Printf("UserTimeline: %s", err)
-		return 0, fmt.Errorf("UserTimeline: %s", err)
+		return 0, fmt.Errorf("UserTimeline: %w", err)
 	}
 
 	n := 0

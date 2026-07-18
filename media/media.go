@@ -142,7 +142,7 @@ func (c *LocalStorage) Thumbnail(obj *Object) (*Object, error) {
 	fullpath := filepath.Join(c.path, obj.Path)
 	fromImage, err := imaging.Open(fullpath)
 	if err != nil {
-		return nil, fmt.Errorf("error while open image: %s", err)
+		return nil, fmt.Errorf("error while open image: %w", err)
 	}
 
 	obj.Width = int32(fromImage.Bounds().Dx())
@@ -157,7 +157,7 @@ func (c *LocalStorage) Thumbnail(obj *Object) (*Object, error) {
 	dstFilepath := fullpath + thumbSuffix
 	// imaging.Save guest image format from extension
 	if err := imaging.Save(dst, dstFilepath); err != nil {
-		return nil, fmt.Errorf("error while saving image: %s", err)
+		return nil, fmt.Errorf("error while saving image: %w", err)
 	}
 
 	thumbObj := &Object{

@@ -67,7 +67,7 @@ func (t *Table) Get(db *store.Store, key store.Key, msg proto.Message) error {
 	raw, err := db.Get(k)
 	// log.Printf("db.Get(%s,...), %v", k.String(), raw)
 	if err != nil {
-		return fmt.Errorf("Get key <%s> error: %s", key, err)
+		return fmt.Errorf("Get key <%s> error: %w", key, err)
 	}
 	if raw == nil {
 		return ErrNotFound
