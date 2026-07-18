@@ -1,17 +1,16 @@
 package server
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"os"
 	"sync"
 	"time"
 
-	"context"
 	"github.com/blevesearch/bleve/v2"
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
@@ -45,8 +44,6 @@ type ApiServer struct {
 }
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
-
 	logger = logrus.StandardLogger()
 	logrus.SetLevel(logrus.InfoLevel)
 	logrus.SetOutput(os.Stdout)
