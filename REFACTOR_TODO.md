@@ -67,8 +67,8 @@
 - [x] 停止运行时构造未使用的 `from_feed`；将构造与使用方式一起保留为调试注释
 
 ### 构建产物瘦身（httpd 二进制 105MB 的根因）
-- [ ] 修 `httpd/app/scripts/publish-build.mjs`：发布前清空 `static/js`、`static/css`（保留手写 `style.css`）
-- [ ] 删除 `httpd/static/js/` 下 3 套旧 CRA bundle（各 ~2MB + 6.4MB sourcemap）、旧 chunk 及 `static/css/` 重复文件
+- [x] 修 `httpd/app/scripts/publish-build.mjs`：发布前清空 `static/js`、`static/css`（保留手写 `style.css`）
+- [x] 删除 `httpd/static/js/` 下 3 套旧 CRA bundle、约 19.3 MB sourcemap、旧 chunk 及 `static/css/` 重复文件；production Vite 构建不生成 sourcemap
 
 ## 三、高优先级重构：机械化现代替换（go 1.21）
 
