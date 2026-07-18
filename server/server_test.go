@@ -156,6 +156,16 @@ func (s *RpcTestSuite) TestRedoFailedJobCommandError() {
 	assert.NotNil(s.T(), err)
 }
 
+func (s *RpcTestSuite) TestListJobQueueReportsDecodeError() {
+	key := store.NewFlakeKey(model.TableJobRunning, s.srv.mdb.NextId())
+	err := s.srv.mdb.Put(key.Bytes(), []byte{0xff})
+	assert.Nil(s.T(), err)
+
+	jobs, err := s.srv.ListJobQueue(model.TableJobRunning)
+	assert.Nil(s.T(), jobs)
+	assert.NotNil(s.T(), err)
+}
+
 func (s *RpcTestSuite) TestMdbReopen() {
 	// mdb reopen bug: Corruption on wrong key size
 	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())

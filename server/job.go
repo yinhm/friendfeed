@@ -111,7 +111,9 @@ func (s *ApiServer) GetFeedJob(ctx context.Context, in *pb.Worker) (*pb.FeedJob,
 	if err != nil {
 		return nil, err
 	}
-	s.mdb.Put(key.Bytes(), bytes)
+	if err := s.mdb.Put(key.Bytes(), bytes); err != nil {
+		return nil, err
+	}
 	return job, nil
 }
 
@@ -119,13 +121,16 @@ func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
 	var job *pb.FeedJob
 
 	key := store.NewFlakeKey(model.TableJobFeed, s.mdb.NextId())
-	s.mdb.ForwardScan(key.Prefix().Bytes(), func(i int, k, v []byte) error {
+	_, err := s.mdb.ForwardScan(key.Prefix().Bytes(), func(i int, k, v []byte) error {
 		job = &pb.FeedJob{}
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
 		}
 		return &store.Error{Msg: "ok", Code: store.StopIteration}
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	if job == nil {
 		return nil, fmt.Errorf("no more job available")
@@ -154,13 +159,15 @@ func (s *ApiServer) FinishJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob
 	if err != nil {
 		return nil, err
 	}
-	s.mdb.Put(key.Bytes(), bytes)
+	if err := s.mdb.Put(key.Bytes(), bytes); err != nil {
+		return nil, err
+	}
 	return job, nil
 }
 
 func (s *ApiServer) ListJobQueue(prefix store.IKey) (jobs []*pb.FeedJob, err error) {
 	log.Println("listing running job...")
-	s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
+	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
 		job := &pb.FeedJob{}
 		if err := proto.Unmarshal(value, job); err != nil {
 			return err
