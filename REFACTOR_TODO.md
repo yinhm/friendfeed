@@ -41,7 +41,6 @@
 
 ### model/
 - [x] 删 `model/entry.go:158` `DeleteTweet`、`model/key.go:21` `NewBlankUUIDKey`
-- [ ] 删 `model/types.go`：`ProtoMessageFunc`/`NewMessage`(:13,18)、`TableMax`(:47)、6 个死表变量（`UserMap/File/JobFeed/JobRunning/Config/Topic`）+ 3 个死常量
 - [ ] 删 `model/feed.go:22` `GetFeedinfo`（注释自称 Obsoleted）
 - [ ] 删注释掉的死代码块：`model/key_test.go:78-160`（~83 行）、`entry.go:69,73,78`、`profile.go:39,60` 等
 
@@ -159,4 +158,5 @@
 - `httpd/src/server.go:116` — `renderFeed` JSON 分支不做 sanitize：HTML 分支对 `entry.Body` 做了 `htmlSanitizer.Sanitize`，XHR/JSON 分支返回原始 Body，前端轮询后用 `dangerouslySetInnerHTML`（`app/src/content.jsx:46`）渲染。曾尝试把 sanitize 移到分支判断之前（2026-07-17），后撤销。待定：服务端统一 sanitize 是否会破坏前端期望的原始内容，还是应由前端渲染时处理。
 - `model/table.go` 方法群（`GetRaw`、`Keys`、`Iter`、`IterValue`、`Find`、`ToStringKey`）— 部分方法当前仓库内无调用者，但可能属于运维或外部使用接口；不能仅凭静态零引用删除。`Keys` 的迭代器泄漏已修复，查询范围语义仍待确认。需先确认 API 边界、外部调用和长期维护意图。
 - `model/key.go` 的 `SeekZero` — 当前由 `Table.Keys` 用于构造扫描范围，并非死代码。是否移除取决于 `Keys` 查询语义的最终决定；相关注释代码块暂不混合清理。
+- `model/types.go` 的导出类型、表变量和表前缀 — 原清单拟删除 `ProtoMessageFunc`/`NewMessage`、`TableMax`、`UserMap/File/JobFeed/JobRunning/Config/Topic` 等。复查发现 `UserMap` 仍被迁移工具使用，多个 `Table*` 前缀被生产代码使用或属于持久化 schema 保留编号；其余符号也构成公共 API。删除前需分别确认外部调用和数据兼容性，不能按零引用整组删除。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
