@@ -8,8 +8,7 @@ import (
 // iterator is a wrapper around a pebble.Iterator
 type Iterator struct {
 	// Underlying iterator for the DB.
-	iter    *pebble.Iterator
-	options pebble.IterOptions
+	iter *pebble.Iterator
 }
 
 func KeyUpperBound(b []byte) []byte {
@@ -33,12 +32,10 @@ func PrefixIteratorOptions(prefix []byte) *pebble.IterOptions {
 
 // Instantiates a new Pebble iterator wrapper
 func newIterator(db pebble.Reader, opts *pebble.IterOptions) *Iterator {
-	p := &Iterator{
-		options: *opts,
-	}
+	p := &Iterator{}
 
 	// old version pebble.Reader.NewIter does not return err
-	iter, err := db.NewIter(&p.options)
+	iter, err := db.NewIter(opts)
 	if iter == nil || err != nil {
 		panic("unable to create iterator")
 	}

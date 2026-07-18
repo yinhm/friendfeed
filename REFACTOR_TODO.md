@@ -45,7 +45,7 @@
 
 ### store/
 - [x] 删 `store/store.go` 中无引用的私有常量 `defaultWorkerId`、`defaultDatacenterId`
-- [ ] 删 `store/iterator.go` 死方法：`Prev`/`SeekLT`/`Last`/`UnsafeRawKey`/`ValueProto` 及多余 `options` 字段
+- [x] 删 `store/iterator.go` 内部多余的 `options` 字段
 - [ ] 删 `store/store.go:73,143` `NewMetaStore`/`NewMetaStoreOptions`（仅注释引用）
 - [ ] 删 `store/key.go:169-198` `MetaKey`/`NewMetaKey`、:283-314 `UUIDFlakeKey`（仅测试使用，连测试一起删）
 - [ ] 删 `store/store.go:195` `Store.Options()`（注意 `cli/tools/migrate_db.go:556` 有一句无效调用一并删）
@@ -160,4 +160,5 @@
 - `model/feed.go` 的 `GetFeedinfo`/`PutFeedinfo` — 虽标记 Obsoleted 且新运行时已将 Feedinfo 虚拟化，但它们是导出 API，旧 Feedinfo 表仍用于迁移时重建社交图。需确认外部工具和历史数据兼容策略后再决定是否删除。
 - `store.DestroyStore` 与错误码 `OK`/`Unknown` — 均为导出 API；`DestroyStore` 虽仍是 stub，但可能是预留能力，错误码数值也可能被外部调用者依赖。不能仅凭仓库内零引用删除。
 - `store/key.go` 的 key-ordering 方法链（`KeyMin`/`KeyMax`/`BytesNext`/`Next`/`IsPrev`/`PrefixEnd`/`Equal`/`Compare`）— 除内部 helper `bytesPrefixEnd` 外均为导出 API，且 helper 被导出方法使用。不能仅因源自 CockroachDB、仓库内零引用就整组删除；需先决定 `store.Key` 的公共 API 边界。
+- `store.Iterator` 的 `Prev`/`SeekLT`/`Last`/`UnsafeRawKey`/`ValueProto` — 当前仓库内虽无调用，但都是导出方法，属于 iterator 公共能力；不能仅按零引用删除。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
