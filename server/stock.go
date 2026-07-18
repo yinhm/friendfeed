@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -363,7 +362,6 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 	// []*xrxd gob encoding
 	var xrxds []*pb.XRXD
 
-	fmt.Println("get key: ", hex.EncodeToString(key))
 	rawdata, err := s.rdb.Get(key)
 	if err != nil {
 		return nil, err
