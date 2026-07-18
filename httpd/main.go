@@ -23,6 +23,7 @@ import (
 	server "github.com/yinhm/friendfeed/httpd/src"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
@@ -199,7 +200,7 @@ func main() {
 	}
 
 	opts := []grpc.DialOption{
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(1024 * 1024 * 64),
 			// grpc.MaxCallSendMsgSize(64*1024*1024),

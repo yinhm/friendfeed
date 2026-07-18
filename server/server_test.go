@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
@@ -8,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"context"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -18,6 +18,7 @@ import (
 	"github.com/yinhm/friendfeed/store"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -566,7 +567,7 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 }
 
 func (s *RpcTestSuite) TestKLines() {
-	conn, err := grpc.Dial("localhost:12019", grpc.WithInsecure())
+	conn, err := grpc.Dial("localhost:12019", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(s.T(), err)
 	defer conn.Close()
 
