@@ -20,8 +20,7 @@ const (
 )
 
 func FormatTime(t time.Time) string {
-	//lint:ignore S1024 how time.Until(t) better than t.sub...
-	delta := t.Sub(time.Now())
+	delta := time.Until(t)
 	diff := int(delta.Seconds())
 
 	lbl := "ago"

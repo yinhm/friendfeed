@@ -34,12 +34,11 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 	for {
 		kReq, err := stream.Recv()
 		if err == io.EOF {
-			endTime := time.Now()
 			return stream.SendAndClose(&pb.ArchiveSummary{
 				Count:       count,
 				DateStart:   dateStart,
 				DateEnd:     dateEnd,
-				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {
@@ -102,10 +101,9 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 				}
 			}
 
-			endTime := time.Now()
 			return stream.SendAndClose(&pb.ArchiveSummary{
 				Count:       count,
-				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {
@@ -135,10 +133,9 @@ func (s *ApiServer) ArchiveRawdata(stream pb.Api_ArchiveRawdataServer) error {
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-			endTime := time.Now()
 			return stream.SendAndClose(&pb.ArchiveSummary{
 				Count:       count,
-				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {
@@ -170,10 +167,9 @@ func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) e
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-			endTime := time.Now()
 			return stream.SendAndClose(&pb.ArchiveSummary{
 				Count:       count,
-				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {
@@ -205,10 +201,9 @@ func (s *ApiServer) ArchiveStockInfo(stream pb.Api_ArchiveStockInfoServer) error
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-			endTime := time.Now()
 			return stream.SendAndClose(&pb.ArchiveSummary{
 				Count:       count,
-				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {

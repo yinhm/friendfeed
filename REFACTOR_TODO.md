@@ -81,7 +81,7 @@
 - [x] 错误包装 `%s` → `%w`：`model/table.go`、`media/media.go`、`cli/cmd/twitter.go`；`entry.go` 已使用 `%w`，URL 字符串格式化保持 `%s`
 - [x] `ioutil` → `io`/`os`：`media/media.go:5,122`、`cli/cmd/wallpaper.go`、`util/config.go`
 - [x] `interface{}` → `any`：`search/search.go:35,46,77,81`、`search/mock.go`、`httpd/render.go:55`
-- [ ] `endTime.Sub(startTime)` → `time.Since`（`server/server.go:205`、`stock.go` 多处、`util/format.go:23`）
+- [x] `endTime.Sub(startTime)` → `time.Since`（`server/server.go`、`stock.go`）；`util.FormatTime` 的反向时间差改 `time.Until`
 - [ ] `util/config.go:26` — `NewConfigFromJSON` 失败时 `log.Fatal` 改为返回 error（4 个调用方都在等这个 err）
 - [ ] `store/utils.go` — `mkdir` 简化为一行 `os.MkdirAll`，删 snake_case 的 `path_exists`
 - [ ] `store/store.go:45,62` — 统一 `glog`/`log` Fatal 混用

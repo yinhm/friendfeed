@@ -174,12 +174,11 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 	for {
 		entry, err := stream.Recv()
 		if err == io.EOF {
-			endTime := time.Now()
 			return stream.SendAndClose(&pb.FeedSummary{
 				EntryCount:  entryCount,
 				DateStart:   dateStart,
 				DateEnd:     dateEnd,
-				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {
@@ -216,12 +215,11 @@ func (s *ApiServer) ForceArchiveFeed(stream pb.Api_ForceArchiveFeedServer) error
 	for {
 		entry, err := stream.Recv()
 		if err == io.EOF {
-			endTime := time.Now()
 			return stream.SendAndClose(&pb.FeedSummary{
 				EntryCount:  entryCount,
 				DateStart:   dateStart,
 				DateEnd:     dateEnd,
-				ElapsedTime: int32(endTime.Sub(startTime).Seconds()),
+				ElapsedTime: int32(time.Since(startTime).Seconds()),
 			})
 		}
 		if err != nil {
