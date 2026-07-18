@@ -2,8 +2,8 @@ package util
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
+	"os"
 )
 
 // ----------------------------
@@ -23,7 +23,7 @@ type Config struct {
 }
 
 func NewConfigFromJSON(filename string) (*Config, error) {
-	rawdata, err := ioutil.ReadFile(filename)
+	rawdata, err := os.ReadFile(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
