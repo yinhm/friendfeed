@@ -116,7 +116,7 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 
 		dice := rand.Intn(10)
 		logger.Debugf("entry key: <%x, dice: %d>", hex.EncodeToString(k), dice)
-		if dice == 5 {
+		if dice == 5 && len(entry.Thumbnails) > 0 && entry.Thumbnails[0] != nil {
 			url = entry.Thumbnails[0].Url
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
 		}

@@ -27,6 +27,9 @@ func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
 
 	// FIME: forgot why FetchEntry return feed...
 	feed, err := s.client.FetchEntry(ctx, req)
+	if err == nil {
+		_, err = firstEntry(feed)
+	}
 	if RequestError(c, err) {
 		return nil, err
 	}

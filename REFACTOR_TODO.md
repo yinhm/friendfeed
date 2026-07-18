@@ -26,7 +26,7 @@
 - [x] `server/command.go:244` — `BackupDB` 的 `ndb.Set` 逐条丢弃错误，备份可能静默丢数据
 - [x] `server/index.go:74` — `Push` 向缓冲为 1 的 channel 发送，rebuild 期间会阻塞 gRPC handler；改非阻塞 select
 - [x] `httpd/src/server.go:361` — `CommentDeleteHandler` 丢弃 `MustBindWith` 错误，绑定失败仍返回 200
-- [ ] `helper.go:120`（server）— `entry.Thumbnails[0]` 无长度检查，脏数据会 panic；同类 `httpd/src/server.go:226`、`entry.go:44` 的 `feed.Entries[0]`
+- [x] `helper.go:120`（server）— `entry.Thumbnails[0]` 无长度检查，脏数据会 panic；同类 `httpd/src/server.go:226`、`entry.go:44` 的 `feed.Entries[0]`
 - [ ] `store/store.go:199` — `SetSync` 替换指针与并发读取存在数据竞争（当前未实际触发，至少注明非并发安全）
 
 ## 二、高优先级重构：死代码清理（已验证无调用者）

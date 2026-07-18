@@ -220,11 +220,15 @@ func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	if RequestError(c, err) {
 		return
 	}
+	entry, err := firstEntry(feed)
+	if RequestError(c, err) {
+		return
+	}
 
 	profile, _ := s.CurrentUser(c)
 	graph, _ := s.CurrentGraph(c)
-	feed.Entries[0].RebuildCommentsCommand(profile, graph)
-	c.JSON(200, feed.Entries[0].Comments)
+	entry.RebuildCommentsCommand(profile, graph)
+	c.JSON(200, entry.Comments)
 }
 
 func (s *Server) ExpandLikeHandler(c *gin.Context) {
@@ -238,7 +242,18 @@ func (s *Server) ExpandLikeHandler(c *gin.Context) {
 	if RequestError(c, err) {
 		return
 	}
-	c.JSON(200, feed.Entries[0].Likes)
+	entry, err := firstEntry(feed)
+	if RequestError(c, err) {
+		return
+	}
+	c.JSON(200, entry.Likes)
+}
+
+func firstEntry(feed *pb.Feed) (*pb.Entry, error) {
+	if feed == nil || len(feed.Entries) == 0 || feed.Entries[0] == nil {
+		return nil, status.Error(codes.NotFound, "entry not found")
+	}
+	return feed.Entries[0], nil
 }
 
 func (s *Server) LikeHandler(c *gin.Context) {
