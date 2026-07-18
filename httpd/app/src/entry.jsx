@@ -685,8 +685,7 @@ class EntryComment extends React.Component{
     } else {
       var body = `${comment.body} - <a href="/feed/${comment.from.id}">${comment.from.name}</a>`;
       return (
-        <div onFocus={this.showCommands}
-             className="comment" title={comment.date}>
+        <div className="comment" title={comment.date}>
           <span dangerouslySetInnerHTML={{__html: body}}></span>
           {cmds}
         </div>
