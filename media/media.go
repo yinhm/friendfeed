@@ -1,6 +1,7 @@
 package media
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,6 +70,9 @@ func (c *LocalStorage) Exists(name string) (bool, error) {
 	_, fullPath := c.shardFilepath(name)
 	// filepath := filepath.Join(c.path, name)
 	if _, err := os.Stat(fullPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
 		return false, err
 	}
 	return true, nil

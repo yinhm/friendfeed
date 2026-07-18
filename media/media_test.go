@@ -15,7 +15,7 @@ func TestMedia(t *testing.T) {
 
 	ms := NewLocalStorage(cfg, 640)
 	found, err := ms.Exists("not-exist-file")
-	assert.NotNil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, found)
 
 	filename, fullpath := ms.shardFilepath("qq_logo_2x-640.jpg")
