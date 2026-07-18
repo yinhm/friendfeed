@@ -46,3 +46,20 @@ func TestMedia(t *testing.T) {
 
 	os.RemoveAll(ms.path)
 }
+
+func TestPostWritesNonExecutableFile(t *testing.T) {
+	ms := NewLocalStorage(&util.Config{MediaPath: t.TempDir()}, 640)
+	obj := &Object{Filename: "media-file", Content: []byte("content")}
+
+	if _, err := ms.Post(obj); err != nil {
+		t.Fatal(err)
+	}
+	_, fullPath := ms.shardFilepath(obj.Filename)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0644); got != want {
+		t.Fatalf("media file permissions = %o, want %o", got, want)
+	}
+}

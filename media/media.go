@@ -103,8 +103,10 @@ func (c *LocalStorage) FromUrl(filename, src, mimetype string) (*Object, error) 
 func (c *LocalStorage) Post(obj *Object) (*Object, error) {
 	outFile, fullPath := c.shardFilepath(obj.Filename)
 
-	os.MkdirAll(filepath.Dir(fullPath), 0755)
-	if err := os.WriteFile(fullPath, obj.Content, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return obj, err
+	}
+	if err := os.WriteFile(fullPath, obj.Content, 0644); err != nil {
 		return obj, err
 	}
 
