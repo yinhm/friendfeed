@@ -59,7 +59,7 @@
 - [x] 删 `httpd/app/src/options.js`（341 行，其 import 的文件均已不存在）
 - [x] 删模板未使用的 `httpd/src/filter.go` `timeSince` filter；保留导出的 `CurrentUserId`
 - [x] 处理 `httpd/src/account.go:12` 空 `AccountHandler`（重定向到 `/account/import`）
-- [ ] 删 `httpd/templates/_feed.html` 及连带死逻辑（`feed.html:14-29` 的 subscribe 表单等）
+- [x] 删 `feed.html` 中无对应路由且命令不可达的 subscribe/unsubscribe 表单；保留注释调试路径引用的 `_feed.html`
 - [ ] 删前端死代码：`App.css`/`logo.svg`/`utils.js dprint`、`editor.jsx`/`content.jsx`/`App.jsx` 的注释代码块、`entry.jsx` 的 console.log 与引用不存在方法的 `onFocus`
 - [ ] 删各处理器的注释代码块：`httpd/src/server.go:156-177`、`main.go:51,152,205`、`feed.go:171`、`entry.go` 多处
 
@@ -164,4 +164,5 @@
 - `cli/tools/migrate_db.go` 的 `debug` case — 硬编码用户、entry、OAuth ID 及注释切换代码属于迁移排障素材；按“调试信息即使注释也需保留”的决定不做清理。若未来改造，应先设计可传参的诊断命令替代，而不是直接删除。
 - `httpd/src/auth.go` 的 `CurrentUserId` — 当前仓库内无调用，但它是导出函数，且与仍在使用的 `CurrentUserUuid` 构成 session accessor API；不能仅凭零引用删除。待确认 httpd 包的公共 API 边界后再处理。
 - `httpd/src/server.go` 的 `Server.secretKey`/`httpclient`/`assets`/`worker` — 四个私有字段只在构造时写入，但删除它们会连带改变导出构造函数 `NewServer` 的签名；保留参数并改成 no-op 也不是可接受的设计。待确认 httpd 包无外部调用者或设计兼容的新构造 API 后整体处理。
+- `httpd/templates/_feed.html` — 当前生产路径不渲染该模板，但 `PublicHandler` 中保留了切换到它的注释调试代码。按“注释调试信息仍需保留”的决定，不单独删除其依赖模板；待确认该备用 SSR 路径不再需要后再一起清理。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
