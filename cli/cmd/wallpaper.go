@@ -117,7 +117,7 @@ func downloadBingWallpaper() error {
 		}
 		thumbObj, err := mfs.Thumbnail(obj)
 		if err != nil {
-			fmt.Println(err)
+			return fmt.Errorf("create thumbnail for %s: %w", img.EndDate, err)
 		}
 
 		f1 := &pb.File{
