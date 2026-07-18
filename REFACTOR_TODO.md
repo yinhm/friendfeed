@@ -53,7 +53,6 @@
 ### util/ + cli/
 - [x] 保留导出的跨平台 `RedirectStderr` API；修复不支持平台分支引用不存在的 `Errorf`
 - [x] 删 `util/truncate.go:40` 恒真 `isHTML` 及不可达分支
-- [ ] 删 `cli/cmd/wallpaper.go:175-349` 的 175 行硬编码 `OldWallpapers`
 - [ ] 删 `cli/config.toml`（另一个项目 ctdx 的配置残留）
 - [ ] 删 `cli/cmd/root.go:23,64` 从未读取的 `config.debug` 字段
 - [ ] 清理 `cli/tools/migrate_db.go` "debug" case 的注释死代码块（:766-774 等）与硬编码 ID
@@ -163,4 +162,5 @@
 - `store.Store.Options()` — 迁移工具中未使用返回值的调用已删除，但方法本身是导出 API，可能供外部诊断或调优使用，不能仅按仓库内零引用删除。
 - `store.ExistItem` — 当前仓库内没有生产者，但它是导出错误码，外部调用者可能依赖其符号和值；保留错误码，仅删除内部不可达消费分支。
 - `util.UrlToLink` 与时间常量 `Month`/`Year`/`LongTime` — 均为导出 API，不能仅凭仓库内零引用删除；私有 `layoutDayMonth` 只存在于仍需保留的注释逻辑中，也不单独清理。待确认公共 API 边界及注释功能是否会恢复后再处理。
+- `cli/cmd/wallpaper.go` 的 `OldWallpapers` — 当前仓库内无调用，但它是导出变量，且保存了可用于历史壁纸回填的原始数据；不能仅凭零引用删除。待确认历史数据是否已永久迁移、是否仍有外部回填工具依赖后再处理。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
