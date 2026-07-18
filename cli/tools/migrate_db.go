@@ -553,11 +553,7 @@ func main() {
 	if needsSource {
 		db = store.NewStore(fromPath)
 		mdb = store.NewMetaStore(fromPath + "/meta")
-		db.Options()
 	}
-
-	// opt := ndb.Options()
-	// log.Println(opt.MemTableSize)
 
 	switch command {
 	case "db":
