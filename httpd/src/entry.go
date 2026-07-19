@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,8 @@ import (
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/exp/utf8string"
 )
+
+const maxUploadRequestBytes = 20 << 20
 
 func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
 	req := &pb.EntryRequest{Uuid: uuid}
@@ -175,9 +178,16 @@ func (s *Server) EntryDeleteHandler(c *gin.Context) {
 }
 
 func (s *Server) UploadHandler(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
+
 	// eid := c.PostForm("eid")
 	file, err := c.FormFile("file")
 	if err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			c.String(http.StatusRequestEntityTooLarge, "uploaded file is too large")
+			return
+		}
 		c.String(http.StatusBadRequest, fmt.Sprintf("error on formdata: %s", err.Error()))
 		return
 	}
