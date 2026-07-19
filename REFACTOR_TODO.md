@@ -119,7 +119,7 @@
 - [x] `httpd/main.go:62` — 硬编码 base64 favicon 改 serve 嵌入的 `static/favicon.ico`（且 MIME 声明错误）
 - [x] `httpd/src/entry.go:174` — `UploadHandler` 加 `http.MaxBytesReader` 限制
 - [x] `httpd/main.go` — `r.Run` 错误处理、HTTP graceful shutdown
-- [ ] `httpd/render.go:56` — `pongo2.Must` + 非检查断言改返回错误
+- [x] `httpd/render.go:56` — `pongo2.Must` + 非检查断言改返回错误
 - [ ] 测试侧：`server_test.go:55` 固定端口 :12019；`search_test.go` 改 `t.TempDir()`；`media_test.go` 外网依赖改 `httptest.Server`
 - [ ] `media/` — `shardFilepath` 简化为 `filepath.Join` 一行；`Object.Bucket` 死字段；`Fetch`/`Post` 冗余返回值简化（动接口，需改 3 个调用文件）
 - [ ] `twitter/` 风格：`class Client(object)` 去 `(object)`、print % 改 f-string、`if args.run ==` 改 `elif`、变量遮蔽 `uuid`、`quote` 的 None 判断

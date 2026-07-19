@@ -121,7 +121,11 @@ func Serve(s *server.Server, config *util.Config) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	r.HTMLRender = NewFriendRender(templateFS, options.Debug)
+	friendRender, err := NewFriendRender(templateFS, options.Debug)
+	if err != nil {
+		return err
+	}
+	r.HTMLRender = friendRender
 	// session
 	store := sessions.NewCookieStore([]byte(options.SecretKey))
 	r.Use(sessions.Sessions("ffdbsess", store))
