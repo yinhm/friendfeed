@@ -108,7 +108,6 @@
 
 ## 五、低优先级：风格与小清理
 
-- [ ] 日志统一：stdlib `log` / logrus `logger` / glog 混用（`server/command.go`、`httpd/src/feed.go:90`、`entry.go:129` 等）
 - [ ] 命名：`uuid1` 多处、`profileUUid`（auth.go:36）、`rumCmd`→`runCmd`、`BASE_URL`→`baseURL`、`_oauthUserIdFrom`→`oauthUserIdFrom`、`Url`→`URL`（media Object）
 - [ ] 拼写：`stoped`→`stopped`（根 server.go）、"Falke"→"Flake"（flake.go）、"comptabile"（model/entry.go:15）、"diable"（stock.go:31）、`EnqueJob`（job.go，改名需动 .proto）
 - [ ] 冗余写法：`entries[:]`（server.go:372 等）、`[]byte(kb)`/`string(item)`（index.go:102）、`store.KeyFromString(k)[:]`、`buf.Write(b[:])`
@@ -169,3 +168,4 @@
 - `model.KeyFromString` vs `store.KeyFromString` — 两者同名但有 package 限定，不构成实际符号冲突；新增 `KeyFromParts` 并保留兼容包装只会扩大 API，收益不足，已完整撤销。真正需要评估的是 store 侧“合法 hex 则解码，否则原样返回”的模糊持久化键语义，待统一设计 key API 时再处理。
 - `util/text.go` 与 `cli/cmd/twitter.go` 的 linkify 重复 — 曾新增带 hashtag URL format 参数的公共 `Linkify` 和回调式替换 helper，但该抽象扩大了 util API、参数约束不清，用户判定实现不可接受，已完整撤销。待从文本实体及 HTML 输出模型重新设计后再讨论。
 - `twitter/crawler.py` 的 `fetch_user` 复用 `tweet_to_pb` — `fetch_user` 当前构造并发布 legacy `Entry`，而 `tweet_to_pb` 构造归档用 `Tweet`。直接调用只为复用少数字段会额外耦合 TweetUser 和统计字段；改为 `PostTweet` 则会改变写入模型。需先决定 `fetch_user` 是否继续维护 Entry feed，不能机械合并。
+- 日志框架统一 — `server` 的 logrus 承担级别控制并接管 gRPC 日志，CLI、迁移工具、store 等使用 stdlib `log`，httpd 另有单点 glog。全局替换会影响日志级别、stdout/stderr、库包依赖及 systemd/journald 行为；需先确定目标框架和各二进制的日志策略，再按 package 边界迁移，不能作为机械清理执行。
