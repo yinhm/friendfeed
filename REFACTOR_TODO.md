@@ -118,7 +118,7 @@
 - [x] `httpd/main.go:112` — 废弃的 gplus provider 改 `goth/providers/google`，删全局 map 篡改 hack
 - [x] `httpd/main.go:62` — 硬编码 base64 favicon 改 serve 嵌入的 `static/favicon.ico`（且 MIME 声明错误）
 - [x] `httpd/src/entry.go:174` — `UploadHandler` 加 `http.MaxBytesReader` 限制
-- [ ] `httpd/main.go` — `r.Run` 错误处理、HTTP graceful shutdown
+- [x] `httpd/main.go` — `r.Run` 错误处理、HTTP graceful shutdown
 - [ ] `httpd/render.go:56` — `pongo2.Must` + 非检查断言改返回错误
 - [ ] 测试侧：`server_test.go:55` 固定端口 :12019；`search_test.go` 改 `t.TempDir()`；`media_test.go` 外网依赖改 `httptest.Server`
 - [ ] `media/` — `shardFilepath` 简化为 `filepath.Join` 一行；`Object.Bucket` 死字段；`Fetch`/`Post` 冗余返回值简化（动接口，需改 3 个调用文件）

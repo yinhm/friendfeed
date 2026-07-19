@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -14,6 +16,7 @@ import (
 	"path"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/contrib/sessions"
@@ -48,14 +51,6 @@ func init() {
 	flag.StringVar(&options.ConfigFile, "c", "/srv/ffdb/config.json", "Config file")
 
 	// babel.Init(runtime.NumCPU())
-}
-
-func waitShutdown() {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	<-c
-	log.Println("shutdown webserver...")
 }
 
 func NotFoundHandler(c *gin.Context) {
@@ -102,7 +97,7 @@ func embeddedAssetHandler(assets fs.FS) gin.HandlerFunc {
 	}
 }
 
-func Serve(s *server.Server, config *util.Config) {
+func Serve(s *server.Server, config *util.Config) error {
 	gauthConfig := server.GoogleAuthConfig(config.GAuthKeyFile)
 	if options.Debug {
 		gauthConfig.RedirectURL, _ = url.JoinPath(config.ServerDomain, "/auth/google/callback")
@@ -187,8 +182,39 @@ func Serve(s *server.Server, config *util.Config) {
 
 	r.NoRoute(NotFoundHandler)
 
-	fmt.Println("Starting server...")
-	r.Run(fmt.Sprintf(":%v", options.Port))
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%v", options.Port),
+		Handler: r,
+	}
+	serverError := make(chan error, 1)
+	go func() {
+		serverError <- httpServer.ListenAndServe()
+	}()
+
+	shutdownSignal := make(chan os.Signal, 1)
+	signal.Notify(shutdownSignal, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(shutdownSignal)
+
+	log.Printf("starting webserver on %s", httpServer.Addr)
+	select {
+	case err := <-serverError:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-shutdownSignal:
+		log.Println("shutting down webserver...")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(ctx); err != nil {
+		return fmt.Errorf("shutdown webserver: %w", err)
+	}
+	if err := <-serverError; !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 func main() {
@@ -216,6 +242,7 @@ func main() {
 	defer rpcConn.Close()
 
 	s := server.NewServer(rpcConn, assetsFS, cfg, options.SecretKey, options.Debug)
-	go Serve(s, cfg)
-	waitShutdown()
+	if err := Serve(s, cfg); err != nil {
+		log.Fatalf("webserver: %v", err)
+	}
 }
