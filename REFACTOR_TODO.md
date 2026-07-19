@@ -111,7 +111,7 @@
 - [x] 私有命名：`profileUUid`→`profileUUID`、`rumCmd`→`runCmd`、`BASE_URL`→`baseURL`、`_oauthUserIdFrom`→`oauthUserIDFrom`
 - [x] 将多处无语义的局部变量 `uuid1` 按上下文改名
 - [x] 拼写：`stoped`→`stopped`、"Falke"→"Flake"、"comptabile"→"compatible"、"diable"→"disable"
-- [ ] 冗余写法：`entries[:]`（server.go:372 等）、`[]byte(kb)`/`string(item)`（index.go:102）、`store.KeyFromString(k)[:]`、`buf.Write(b[:])`
+- [x] 冗余写法：`entries[:]`（server.go:372 等）、`[]byte(kb)`/`string(item)`（index.go:102）、`store.KeyFromString(k)[:]`、`buf.Write(b[:])`
 - [ ] `time.Tick` → `time.NewTicker`（`server/job.go:17,25`）
 - [ ] `helper.go:103`（server）日志文案复制错误；`stock.go:231` 注释复制错误；`store/store.go:80` 注释 `128 << 20 // 512 MB` 应为 128 MB
 - [ ] `model/table.go:85`、`key.go:45` — 局部变量遮蔽 `bytes` 包

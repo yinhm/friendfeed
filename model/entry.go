@@ -42,19 +42,19 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = EntryIndex.Index(db, userUuid, oldtime, key[:])
+	err = EntryIndex.Index(db, userUuid, oldtime, key)
 	if err != nil {
 		return nil, err
 	}
 	if userUuid != feedUuid { // post to group
-		err = EntryIndex.Index(db, feedUuid, oldtime, key[:])
+		err = EntryIndex.Index(db, feedUuid, oldtime, key)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// fanout to feed followers(user timeline)
-	FanoutEntry(db, userUuid, feedUuid, oldtime, key[:])
+	FanoutEntry(db, userUuid, feedUuid, oldtime, key)
 
 	// index entry body
 	if entry.Body != "" {

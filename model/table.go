@@ -124,7 +124,7 @@ func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	buf.Write(t.Prefix)
 	if len(ks) > 0 {
 		for _, k := range ks {
-			buf.Write(store.KeyFromString(k)[:])
+			buf.Write(store.KeyFromString(k))
 		}
 	}
 	buf.Write(SeekZero())
@@ -168,7 +168,7 @@ func (t *Table) IterValue(db *store.Store, fn func(raw []byte) error) error {
 func (t *Table) Find(db *store.Store, fHash string, fn func(raw []byte) error) error {
 	var buf bytes.Buffer
 	buf.Write(t.Prefix)
-	buf.Write(store.KeyFromString(fHash)[:])
+	buf.Write(store.KeyFromString(fHash))
 	kp := buf.Bytes()
 
 	iter := db.NewIterator(kp)

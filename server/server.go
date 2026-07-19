@@ -334,7 +334,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		Name:    "Everyone's feed",
 		Type:    "group",
 		Private: false,
-		Entries: entries[:],
+		Entries: entries,
 	}
 	return feed, nil
 }
@@ -416,7 +416,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		Type:        profile.Type,
 		Private:     profile.Private,
 		Description: profile.Description,
-		Entries:     entries[:],
+		Entries:     entries,
 	}
 	return feed, nil
 }
@@ -664,7 +664,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 		Name:    "Search result",
 		Type:    "group",
 		Private: false,
-		Entries: entries[:],
+		Entries: entries,
 	}
 	return feed, nil
 }

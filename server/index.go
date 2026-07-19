@@ -101,8 +101,8 @@ func (f *FeedIndex) rebuild(db *store.Store) {
 
 		// skip deleted entry
 		kb, _ := hex.DecodeString(item)
-		if db != nil && !db.Exist([]byte(kb)) {
-			logger.Debugf("skip key: %s", string(item))
+		if db != nil && !db.Exist(kb) {
+			logger.Debugf("skip key: %s", item)
 			continue
 		}
 
@@ -129,8 +129,8 @@ func (f *FeedIndex) rebuild(db *store.Store) {
 
 		// skip deleted entry
 		kb, _ := hex.DecodeString(item)
-		if db != nil && !db.Exist([]byte(kb)) {
-			logger.Debugf("skip key: %s", string(item))
+		if db != nil && !db.Exist(kb) {
+			logger.Debugf("skip key: %s", item)
 			continue
 		}
 

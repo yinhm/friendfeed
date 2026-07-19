@@ -30,7 +30,7 @@ func NewPrefixKeyFrom(t store.KeyPrefix, u []byte) store.Key {
 func NewKeyFrom(bs ...[]byte) store.Key {
 	var buf bytes.Buffer
 	for _, b := range bs {
-		buf.Write(b[:])
+		buf.Write(b)
 	}
 	return buf.Bytes()
 }
