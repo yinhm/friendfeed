@@ -67,8 +67,8 @@ func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 	mdb := rdb
 
 	cached := make(map[string]*FeedIndex)
-	uuid1 := uuid.NewV5(uuid.NamespaceURL, "index:public:cache")
-	cached["public"] = NewFeedIndex(rdb, "public", uuid1)
+	publicIndexUUID := uuid.NewV5(uuid.NamespaceURL, "index:public:cache")
+	cached["public"] = NewFeedIndex(rdb, "public", publicIndexUUID)
 	cached["public"].load(mdb)
 
 	srv := &ApiServer{
@@ -496,10 +496,10 @@ func (s *ApiServer) PostTweet(ctx context.Context, tweet *pb.Tweet) (*pb.Entry, 
 		Type: "user",
 	}
 
-	uuid1 := model.UniqueKeyFrom("twitter", tweet.Id)
+	entryUUID := model.UniqueKeyFrom("twitter", tweet.Id)
 	url := "https://twitter.com/" + tweet.User.ScreenName + "/status/" + tweet.Id
 	entry := &pb.Entry{
-		Id:      uuid1.String(),
+		Id:      entryUUID.String(),
 		Url:     url,
 		Date:    tweet.CreatedAt,
 		Body:    tweet.Text,
@@ -548,11 +548,11 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 		return nil, err
 	}
 
-	uuid1, err := uuid.FromString(req.User)
+	userUUID, err := uuid.FromString(req.User)
 	if err != nil {
 		return nil, err
 	}
-	profile, err := model.GetProfileFromUuid(s.mdb, uuid1)
+	profile, err := model.GetProfileFromUuid(s.mdb, userUUID)
 	if err != nil || profile == nil {
 		return nil, err
 	}

@@ -20,8 +20,8 @@ func (s *TableTestSuite) TestProfile() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "c6f8dca854f011ddb489003048343a40", profile.Uuid)
 
-	uuid1 := uuid.Must(uuid.FromString("c6f8dca854f011ddb489003048343a40"))
-	profile, err = GetProfileFromUuid(s.db, uuid1)
+	profileUUID := uuid.Must(uuid.FromString("c6f8dca854f011ddb489003048343a40"))
+	profile, err = GetProfileFromUuid(s.db, profileUUID)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "yinhm", profile.Id)
 

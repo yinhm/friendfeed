@@ -66,8 +66,8 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 		// ------------------------------------------------
 		oldtime := time.Unix(int64(kReq.KLine.Date), 0)
 		flakeid := s.rdb.TimeTravelReverseId(oldtime)
-		uuid1 := model.UniqueKeyFrom(kReq.Symbol)
-		k := model.NewKeyFrom(uuid1.Bytes(), flakeid[:])
+		symbolUUID := model.UniqueKeyFrom(kReq.Symbol)
+		k := model.NewKeyFrom(symbolUUID.Bytes(), flakeid[:])
 		_, err := model.KLine.Put(s.rdb, k, kReq.KLine)
 		if err != nil {
 			return err
@@ -148,8 +148,8 @@ func (s *ApiServer) ArchiveRawdata(stream pb.Api_ArchiveRawdataServer) error {
 // 归档财务数据
 func (s *ApiServer) ArchiveFundamental(stream pb.Api_ArchiveFundamentalServer) error {
 	return archiveStockStream(s, "ArchiveFundamental", stream.Recv, func(req *pb.Fundamental) error {
-		uuid1 := model.UniqueKeyFrom(req.Symbol, "Fundamental")
-		_, err := model.Stock.Put(s.rdb, uuid1.Bytes(), req)
+		fundamentalUUID := model.UniqueKeyFrom(req.Symbol, "Fundamental")
+		_, err := model.Stock.Put(s.rdb, fundamentalUUID.Bytes(), req)
 		return err
 	}, stream.SendAndClose)
 }
@@ -170,8 +170,8 @@ func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb
 	s.rdb.SetSync(false)
 	defer s.rdb.SetSync(true)
 
-	uuid1 := model.UniqueKeyFrom("stock", "list")
-	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
+	stockListUUID := model.UniqueKeyFrom("stock", "list")
+	key := model.NewPrefixKeyFrom(model.TableStock, stockListUUID.Bytes())
 
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -207,8 +207,8 @@ func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb
 // 获取证券代码列表
 func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb.StockList, error) {
 	logger.Debugf("GetStockList of <%s,%s>", req.Market, req.Match)
-	uuid1 := model.UniqueKeyFrom("stock", "list")
-	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
+	stockListUUID := model.UniqueKeyFrom("stock", "list")
+	key := model.NewPrefixKeyFrom(model.TableStock, stockListUUID.Bytes())
 
 	resp := &pb.StockList{}
 
@@ -251,8 +251,8 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 // TODO: optimise
 func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Stock, error) {
 	logger.Debugf("GetStock of <%s>", req.Symbol)
-	uuid1 := model.UniqueKeyFrom("stock", "list")
-	key := model.NewPrefixKeyFrom(model.TableStock, uuid1.Bytes())
+	stockListUUID := model.UniqueKeyFrom("stock", "list")
+	key := model.NewPrefixKeyFrom(model.TableStock, stockListUUID.Bytes())
 
 	var stocks []*pb.Stock
 	rawdata, err := s.rdb.Get(key)
@@ -323,8 +323,8 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 // 获取 KLine bars 高开低收数据
 func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KLineResponse, error) {
 	logger.Debugf("GetKLines of <%s, %d>", req.Symbol, req.Bars)
-	uuid1 := model.UniqueKeyFrom(req.Symbol)
-	prefix := model.NewPrefixKeyFrom(model.TableKLine, uuid1.Bytes())
+	symbolUUID := model.UniqueKeyFrom(req.Symbol)
+	prefix := model.NewPrefixKeyFrom(model.TableKLine, symbolUUID.Bytes())
 	// fmt.Printf("scan key, %s\n", prefix.String())
 
 	if req.Bars <= 0 {
@@ -353,9 +353,9 @@ func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KL
 func (s *ApiServer) GetFundamental(ctx context.Context, req *pb.StockRequest) (*pb.Fundamental, error) {
 	logger.Debugf("GetFundamental of <%s>", req.Symbol)
 
-	uuid1 := model.UniqueKeyFrom(req.Symbol, "Fundamental")
+	fundamentalUUID := model.UniqueKeyFrom(req.Symbol, "Fundamental")
 	msg := new(pb.Fundamental)
-	err := model.Stock.Get(s.rdb, uuid1.Bytes(), msg)
+	err := model.Stock.Get(s.rdb, fundamentalUUID.Bytes(), msg)
 
 	if err != nil {
 		return nil, err
@@ -418,10 +418,10 @@ func (s *ApiServer) SendReport(ctx context.Context, req *pb.Report) (*pb.Respons
 
 	dt := time.Now().UTC()
 	name := fmt.Sprintf("%x", profile.Uuid) + "/" + dt.Format(time.RFC3339)
-	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
+	entryUUID := uuid.NewV5(uuid.NamespaceURL, name)
 
 	entry := &pb.Entry{
-		Id:          fmt.Sprintf("%x", uuid1),
+		Id:          fmt.Sprintf("%x", entryUUID),
 		Title:       req.Title,
 		RawBody:     req.Body,
 		Body:        req.Body,

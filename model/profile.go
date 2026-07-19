@@ -26,20 +26,20 @@ func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profi
 }
 
 func UpdateProfile(db *store.Store, profile *pb.Profile) error {
-	uuid1, err := uuid.FromString(profile.Uuid)
+	profileUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
 		return err
 	}
 
 	// user id(login) to uuid map
 	k := NewKeyFrom(TableUserMap.Bytes(), []byte(profile.Id))
-	if err := db.Put(k, uuid1.Bytes()); err != nil {
+	if err := db.Put(k, profileUUID.Bytes()); err != nil {
 		return err
 	}
 	// log.Println("id->uuid map updated", profile.Id, "->", profile.Uuid)
 
 	// uuid map to user basic profile info
-	_, err = Profile.Put(db, uuid1.Bytes(), profile)
+	_, err = Profile.Put(db, profileUUID.Bytes(), profile)
 	return err
 }
 
@@ -49,17 +49,17 @@ func GetProfileFromUserId(db *store.Store, id string) (*pb.Profile, error) {
 	if err != nil || string(rawdata) == "" {
 		return nil, errors.New("GetProfile error: missing id->uuid map")
 	}
-	uuid1, err := uuid.FromBytes(rawdata)
+	profileUUID, err := uuid.FromBytes(rawdata)
 	if err != nil {
 		return nil, err
 	}
-	return GetProfileFromUuid(db, uuid1)
+	return GetProfileFromUuid(db, profileUUID)
 }
 
-func GetProfileFromUuid(db *store.Store, uuid1 uuid.UUID) (*pb.Profile, error) {
-	// key := NewUUIDKey(TableProfile, uuid1)
+func GetProfileFromUuid(db *store.Store, profileUUID uuid.UUID) (*pb.Profile, error) {
+	// key := NewUUIDKey(TableProfile, profileUUID)
 	msg := new(pb.Profile)
-	err := Profile.Get(db, uuid1.Bytes(), msg)
+	err := Profile.Get(db, profileUUID.Bytes(), msg)
 	if err != nil {
 		return nil, err
 	}

@@ -61,14 +61,14 @@ func TestUniqueKey(t *testing.T) {
 	assert.Equal(t, "000006aee6c8de8042010af000030000", fmt.Sprintf("%x", flakeid))
 
 	market, symbol := "SH", "600519"
-	uuid1 := UniqueKeyFrom(market, symbol)
-	key1 := store.NewUUIDFlakeKey(TableKLine, uuid1, flakeid)
+	symbolUUID := UniqueKeyFrom(market, symbol)
+	key1 := store.NewUUIDFlakeKey(TableKLine, symbolUUID, flakeid)
 
 	uuid2 := UniqueKeyFrom(market, symbol)
 	key2 := NewPrefixKeyFrom(TableKLine, uuid2.Bytes())
 
-	assert.Equal(t, "093cc15911635c5c822f0b31db5089f8", fmt.Sprintf("%x", uuid1))
-	assert.Equal(t, uuid1, uuid2)
+	assert.Equal(t, "093cc15911635c5c822f0b31db5089f8", fmt.Sprintf("%x", symbolUUID))
+	assert.Equal(t, symbolUUID, uuid2)
 	assert.Contains(t, key1.String(), key2.String())
 	assert.Equal(t, 20, len(key2))
 	for i := 0; i < 20; i++ {

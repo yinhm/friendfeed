@@ -759,12 +759,12 @@ func runCountMetaCommand(mdb, ndb *store.Store) {
 				// ndb.Set(k, v) // profile
 			} else {
 				count++
-				uuid1, err := uuid.FromBytes(v)
+				mappedUUID, err := uuid.FromBytes(v)
 				if err != nil {
 					fmt.Println(k, v) // cache
 				} else {
 					v2, _ := model.UserMap.GetRaw(ndb, k)
-					fmt.Println(string(k), uuid1.String(), bytes.Equal(v, v2))
+					fmt.Println(string(k), mappedUUID.String(), bytes.Equal(v, v2))
 					// update id->uuid map here
 				}
 			}

@@ -83,11 +83,11 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	profile, _ := s.CurrentUser(c)
 	dt := time.Now().UTC()
 	name := profile.Uuid + "/" + dt.Format(time.RFC3339)
-	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
+	entryUUID := uuid.NewV5(uuid.NamespaceURL, name)
 	entry := &pb.Entry{}
 
 	if form.Id == "" { // new entry
-		entry.Id = uuid1.String()
+		entry.Id = entryUUID.String()
 		entry.Date = dt.Format(time.RFC3339)
 	} else { // edit entry
 		// only allow edit self entry for now
@@ -195,8 +195,8 @@ func (s *Server) UploadHandler(c *gin.Context) {
 		return
 	}
 
-	uuid1 := model.UniqueKeyFrom("web", "upload", file.Filename, randhash())
-	filename := fmt.Sprintf("%x", uuid1)
+	fileUUID := model.UniqueKeyFrom("web", "upload", file.Filename, randhash())
+	filename := fmt.Sprintf("%x", fileUUID)
 
 	obj := &media.Object{
 		Filename: filename,

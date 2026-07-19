@@ -52,10 +52,10 @@ func downloadBingWallpaper() error {
 	}
 	mfs := media.NewLocalStorage(cfg, 640)
 
-	uuid1 := model.UniqueKeyFrom("bing", "wallpaper")
+	feedUUID := model.UniqueKeyFrom("bing", "wallpaper")
 
 	feedinfo := &pb.Feedinfo{
-		Uuid:        uuid1.String(),
+		Uuid:        feedUUID.String(),
 		Id:          "bingwallpaper",
 		Name:        "Bing Wallpaper",
 		Type:        "sys",
@@ -94,8 +94,8 @@ func downloadBingWallpaper() error {
 		url := fmt.Sprintf("http://cn.bing.com%s_UHD.jpg", img.UrlBase)
 		log.Println(img.EndDate, url, img.CopyRight)
 
-		uuid1 := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
-		outFile := fmt.Sprintf("%x", uuid1)
+		entryUUID := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
+		outFile := fmt.Sprintf("%x", entryUUID)
 		if found, _ := mfs.Exists(outFile); found {
 			log.Printf("File exists, skipping %s...", img.EndDate)
 			continue
@@ -146,7 +146,7 @@ func downloadBingWallpaper() error {
 		}
 
 		entry := &pb.Entry{
-			Id:         fmt.Sprintf("%x", uuid1),
+			Id:         fmt.Sprintf("%x", entryUUID),
 			Date:       dt.Format(time.RFC3339),
 			Files:      []*pb.File{f1},
 			Thumbnails: []*pb.Thumbnail{f2},

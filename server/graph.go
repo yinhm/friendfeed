@@ -10,18 +10,18 @@ import (
 func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb.FollowResponse, error) {
 	logger.Debugf("GraphFollow, <%s, %s>", req.ProfileUuid, req.FeedUuid)
 
-	uuid1, err := uuid.FromString(req.ProfileUuid)
+	profileUUID, err := uuid.FromString(req.ProfileUuid)
 	if err != nil {
 		return nil, err
 	}
-	uuid2, err := uuid.FromString(req.FeedUuid)
+	feedUUID, err := uuid.FromString(req.FeedUuid)
 	if err != nil {
 		return nil, err
 	}
 
 	followed := false
-	followkey := model.NewKeyFrom(model.Follow.Prefix, uuid1.Bytes(), uuid2.Bytes())
-	followerkey := model.NewKeyFrom(model.Follower.Prefix, uuid2.Bytes(), uuid1.Bytes())
+	followkey := model.NewKeyFrom(model.Follow.Prefix, profileUUID.Bytes(), feedUUID.Bytes())
+	followerkey := model.NewKeyFrom(model.Follower.Prefix, feedUUID.Bytes(), profileUUID.Bytes())
 	switch req.Action {
 	case "follow":
 		// follow

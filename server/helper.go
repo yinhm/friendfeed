@@ -30,11 +30,11 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 			return err
 		}
 	} else {
-		uuid1, err := uuid.FromString(entry.ProfileUuid)
+		profileUUID, err := uuid.FromString(entry.ProfileUuid)
 		if err != nil {
 			return err
 		}
-		profile, err = model.GetProfileFromUuid(mdb, uuid1)
+		profile, err = model.GetProfileFromUuid(mdb, profileUUID)
 		if err != nil {
 			return err
 		}
@@ -74,12 +74,12 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 }
 
 func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
-	uuid1, err := uuid.FromString(profile.Uuid)
+	profileUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
 		logger.Debugf("RandomPictureFromWallpaper: %s", err)
 		return ""
 	}
-	profile, err = model.GetProfileFromUuid(db, uuid1)
+	profile, err = model.GetProfileFromUuid(db, profileUUID)
 	if err != nil {
 		logger.Debugf("RandomPictureFromWallpaper, no profile: %s", err)
 		return ""

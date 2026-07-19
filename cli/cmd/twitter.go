@@ -112,7 +112,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 
 		url := "https://twitter.com/" + tweet.User.ScreenName + "/status/" + tweet.IDStr
 		// deterministic uuid otherwise feed will be polluted
-		uuid1 := uuid.NewV5(uuid.NamespaceURL, url)
+		entryUUID := uuid.NewV5(uuid.NamespaceURL, url)
 		tt, err := tweet.CreatedAtTime()
 		if err != nil || tt.Before(updated) {
 			fmt.Printf("skip updated: %s\n", tt)
@@ -161,7 +161,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 		}
 
 		entry := &pb.Entry{
-			Id:      uuid1.String(),
+			Id:      entryUUID.String(),
 			Url:     url,
 			Date:    tt.Format(time.RFC3339),
 			Body:    body,
@@ -177,7 +177,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 			ProfileUuid: job.Profile.Uuid,
 		}
 
-		// fmt.Printf("stream.send: %s\n", uuid1.String())
+		// fmt.Printf("stream.send: %s\n", entryUUID.String())
 
 		if err := stream.Send(entry); err != nil {
 			log.Printf("%v.Send(%v) = %v", stream, entry, err)

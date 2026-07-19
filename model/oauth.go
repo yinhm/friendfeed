@@ -37,9 +37,9 @@ func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 
 	if v != nil {
 		if u.Uuid != "" && v.Uuid != "" {
-			uuid1, _ := uuid.FromString(u.Uuid)
-			uuid2, _ := uuid.FromString(v.Uuid)
-			if uuid1 != uuid2 {
+			incomingUUID, _ := uuid.FromString(u.Uuid)
+			storedUUID, _ := uuid.FromString(v.Uuid)
+			if incomingUUID != storedUUID {
 				return nil, errors.New("user mismatch")
 			}
 		}
@@ -50,9 +50,9 @@ func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 
 	// New user, uuid are the same for OauthUser/Profile/Feed/Feedinfo
 	if u.Uuid == "" {
-		uuid1 := UniqueKeyFrom(u.Provider, u.UserId)
-		// u.Uuid = fmt.Sprintf("%x", uuid1)
-		u.Uuid = uuid1.String()
+		userUUID := UniqueKeyFrom(u.Provider, u.UserId)
+		// u.Uuid = fmt.Sprintf("%x", userUUID)
+		u.Uuid = userUUID.String()
 	}
 
 	// create/refresh OAuth User info

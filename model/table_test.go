@@ -106,8 +106,8 @@ func (s *TableTestSuite) TestPutEntry() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), mEntry.Id, sEntry.Id)
 
-	uuid1, _ := uuid.FromString(p.Uuid)
-	key := store.NewUUIDKey(TableEntryIndex, uuid1)
+	profileUUID, _ := uuid.FromString(p.Uuid)
+	key := store.NewUUIDKey(TableEntryIndex, profileUUID)
 	n, err := s.db.ForwardScan(key.Bytes(), func(i int, k, v []byte) error {
 		return nil
 	})

@@ -27,11 +27,11 @@ type FeedIndex struct {
 	dirty  bool
 }
 
-func NewFeedIndex(db *store.Store, id string, uuid1 uuid.UUID) *FeedIndex {
+func NewFeedIndex(db *store.Store, id string, indexUUID uuid.UUID) *FeedIndex {
 	iq := queue.New()
 	index := &FeedIndex{
 		Id:     id,
-		Uuid:   uuid1,
+		Uuid:   indexUUID,
 		iq:     iq,
 		bufq:   make([]string, MinQueue),
 		itemCh: make(chan string, 1),

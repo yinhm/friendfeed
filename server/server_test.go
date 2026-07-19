@@ -472,14 +472,14 @@ func (s *RpcTestSuite) TestPostProfile() {
 
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	// Given FeedIndex, load and dump to db
-	uuid1 := "c6f8dca854f011ddb489003048343a40"
+	entryID := "c6f8dca854f011ddb489003048343a40"
 	index := NewFeedIndex(nil, "public", uuid.Must(uuid.NewV4()))
 	err := index.load(s.srv.mdb)
 	assert.Nil(s.T(), err)
 
 	for i := 0; i < 10; i++ {
 		// index.itemCh <- uuid
-		index.Push(uuid1)
+		index.Push(entryID)
 	}
 
 	index.rebuild(nil)
@@ -532,8 +532,8 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	// new entry id
 	dt := time.Now().UTC()
 	name := profile.Uuid + "/" + dt.Format(time.RFC3339)
-	uuid1 := uuid.NewV5(uuid.NamespaceURL, name)
-	entry.Id = uuid1.String()
+	entryUUID := uuid.NewV5(uuid.NamespaceURL, name)
+	entry.Id = entryUUID.String()
 
 	entry, err = s.srv.PostEntry(context.Background(), entry)
 	assert.Nil(s.T(), err)

@@ -313,9 +313,9 @@ func (s *Server) CommentHandler(c *gin.Context) {
 	}
 
 	var err error
-	var uuid1 uuid.UUID
+	var commentUUID uuid.UUID
 	if id != "" {
-		uuid1, err = uuid.FromString(id)
+		commentUUID, err = uuid.FromString(id)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
 			return
@@ -323,9 +323,9 @@ func (s *Server) CommentHandler(c *gin.Context) {
 	} else {
 		comment.Date = time.Now().UTC().Format(time.RFC3339)
 		name := entryId + profile.Uuid + comment.Date
-		uuid1 = uuid.NewV5(uuid.NamespaceURL, name)
+		commentUUID = uuid.NewV5(uuid.NamespaceURL, name)
 	}
-	comment.Id = uuid1.String()
+	comment.Id = commentUUID.String()
 
 	req := &pb.CommentRequest{
 		Entry:   entryId,

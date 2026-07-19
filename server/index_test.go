@@ -12,12 +12,12 @@ import (
 
 func TestFeedIndex(t *testing.T) {
 	// Given feed index, push and rebuild
-	uuid1 := "c6f8dca854f011ddb489003048343a40"
+	entryID := "c6f8dca854f011ddb489003048343a40"
 	index := NewFeedIndex(nil, "public", uuid.Must(uuid.NewV4()))
 
 	for i := 0; i < 10; i++ {
 		// index.itemCh <- uuid
-		index.Push(uuid1)
+		index.Push(entryID)
 	}
 
 	index.rebuild(nil)
@@ -28,8 +28,8 @@ func TestFeedIndex(t *testing.T) {
 	}
 
 	for i := 0; i < MinQueue; i++ {
-		uuid1 := fmt.Sprintf("uuid-%d", i)
-		index.Push(uuid1)
+		entryID := fmt.Sprintf("uuid-%d", i)
+		index.Push(entryID)
 	}
 
 	index.rebuild(nil)

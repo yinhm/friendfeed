@@ -76,13 +76,13 @@ func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 }
 
 func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
-	uuid1, err := uuid.FromString(uuidStr)
+	entryUUID, err := uuid.FromString(uuidStr)
 	if err != nil {
 		return nil, err
 	}
 
 	entry := new(pb.Entry)
-	err = Entry.Get(db, uuid1.Bytes(), entry)
+	err = Entry.Get(db, entryUUID.Bytes(), entry)
 	if err != nil {
 		return nil, fmt.Errorf("entry %s: %w", uuidStr, err)
 	}
@@ -90,7 +90,7 @@ func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
 }
 
 func DeleteEntry(db *store.Store, uuidStr string) error {
-	uuid1, err := uuid.FromString(uuidStr)
+	entryUUID, err := uuid.FromString(uuidStr)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		DeleteFanoutEntry(db, profileUuid, feedUuid, oldtime)
 	}
 
-	if err = Entry.Delete(db, uuid1.Bytes()); err != nil {
+	if err = Entry.Delete(db, entryUUID.Bytes()); err != nil {
 		return err
 	}
 

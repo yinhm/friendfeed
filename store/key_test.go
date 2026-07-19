@@ -65,8 +65,8 @@ func TestFlakeKey(t *testing.T) {
 
 func TestUUIDKey(t *testing.T) {
 	// Giving prefix, convert to bytes
-	uuid1 := new(uuid.UUID)
-	assert.Equal(t, uuid1.String(), "00000000-0000-0000-0000-000000000000")
+	emptyUUID := new(uuid.UUID)
+	assert.Equal(t, emptyUUID.String(), "00000000-0000-0000-0000-000000000000")
 
 	id, err := uuid.FromString("c6f8dca8-54f0-11dd-b489-003048343a40")
 	assert.Nil(t, err)

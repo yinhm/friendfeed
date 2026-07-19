@@ -77,11 +77,11 @@ func (s *ApiServer) BindUserFeed(ctx context.Context, user *pb.OAuthUser) (*pb.O
 
 func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*pb.Profile, error) {
 	logger.Debugf("FetchProfile: %s", req.Uuid)
-	uuid1, err := uuid.FromString(req.Uuid)
+	profileUUID, err := uuid.FromString(req.Uuid)
 	if err != nil {
 		return nil, err
 	}
-	profile, err := model.GetProfileFromUuid(s.mdb, uuid1)
+	profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
 	if err != nil {
 		logger.Debugf("FetchProfile: %s", err)
 		return nil, err
@@ -91,10 +91,10 @@ func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*
 
 func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {
 	logger.Debugf("DeleteService: <%s, %s>", req.User, req.Service)
-	uuid1, err := uuid.FromString(req.User)
+	userUUID, err := uuid.FromString(req.User)
 	if err != nil {
 		return nil, err
 	}
-	model.DeleteService(s.rdb, uuid1, req.Service)
+	model.DeleteService(s.rdb, userUUID, req.Service)
 	return &pb.Feedinfo{}, nil
 }

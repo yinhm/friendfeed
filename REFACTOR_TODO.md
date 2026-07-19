@@ -109,7 +109,7 @@
 ## 五、低优先级：风格与小清理
 
 - [x] 私有命名：`profileUUid`→`profileUUID`、`rumCmd`→`runCmd`、`BASE_URL`→`baseURL`、`_oauthUserIdFrom`→`oauthUserIDFrom`
-- [ ] 将多处无语义的局部变量 `uuid1` 按上下文改名
+- [x] 将多处无语义的局部变量 `uuid1` 按上下文改名
 - [ ] 拼写：`stoped`→`stopped`（根 server.go）、"Falke"→"Flake"（flake.go）、"comptabile"（model/entry.go:15）、"diable"（stock.go:31）、`EnqueJob`（job.go，改名需动 .proto）
 - [ ] 冗余写法：`entries[:]`（server.go:372 等）、`[]byte(kb)`/`string(item)`（index.go:102）、`store.KeyFromString(k)[:]`、`buf.Write(b[:])`
 - [ ] `time.Tick` → `time.NewTicker`（`server/job.go:17,25`）

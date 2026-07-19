@@ -99,9 +99,9 @@ func (t *Table) Delete(db *store.Store, key store.Key) error {
 // Reversed Entry index:
 // K-> | table | user uuid | Maxime - ts-flake |
 // V-> |      +++++   entry key   ++++++      |
-func (t *Table) Index(db *store.Store, uuid1 uuid.UUID, oldtime time.Time, entryKey store.Key) error {
+func (t *Table) Index(db *store.Store, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
 	flakeid := db.TimeTravelReverseId(oldtime)
-	k := store.NewUUIDFlakeKey(TableEntryIndex, uuid1, flakeid)
+	k := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeid)
 
 	// remove the last 8 bytes(Worker ID (MAC addr) + Seqn)
 	iEnd := k.Len() - 8
@@ -113,9 +113,9 @@ func (t *Table) Index(db *store.Store, uuid1 uuid.UUID, oldtime time.Time, entry
 	return db.Put(k.Bytes(), entryKey)
 }
 
-func (t *Table) RemoveIndex(db *store.Store, uuid1 uuid.UUID, oldtime time.Time) error {
+func (t *Table) RemoveIndex(db *store.Store, indexUUID uuid.UUID, oldtime time.Time) error {
 	flakeid := db.TimeTravelReverseId(oldtime)
-	k := store.NewUUIDFlakeKey(TableEntryIndex, uuid1, flakeid)
+	k := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeid)
 	return db.Delete(k.Bytes())
 }
 
