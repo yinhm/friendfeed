@@ -82,12 +82,12 @@ func (t *Table) GetRaw(db *store.Store, key store.Key) ([]byte, error) {
 
 func (t *Table) Put(db *store.Store, key store.Key, msg proto.Message) (store.Key, error) {
 	k := t.PrefixAppend(key)
-	bytes, err := proto.Marshal(msg)
+	encoded, err := proto.Marshal(msg)
 	if err != nil {
 		return nil, err
 	}
 	// log.Printf("db.Set(%s,...), %v", k.String(), msg)
-	return k, db.Set(k, bytes)
+	return k, db.Set(k, encoded)
 }
 
 // blind delete, no error if not exists

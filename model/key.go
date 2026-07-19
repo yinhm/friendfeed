@@ -36,9 +36,9 @@ func NewKeyFrom(bs ...[]byte) store.Key {
 }
 
 func KeyPrefixToBytes(t store.KeyPrefix) []byte {
-	var bytes [4]byte
-	binary.BigEndian.PutUint32(bytes[:], uint32(t))
-	return bytes[:]
+	var prefix [4]byte
+	binary.BigEndian.PutUint32(prefix[:], uint32(t))
+	return prefix[:]
 }
 
 // func NewStockKey() store.Key {
