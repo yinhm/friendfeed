@@ -98,7 +98,6 @@
 - [x] `model/entry.go` — 合并 `FanoutEntry`/`DeleteFanoutEntry`（:66 vs :139，仅差 Index/RemoveIndex）
 - [x] `model/like.go:15,39,79` — 三处查找循环改 `slices.IndexFunc`
 - [x] `model/` — 提取 `TimelineUUID` 消除 3 处重复（`entry.go:68,141`、`server/server.go:394`）
-- [ ] 删 `model/key.go:44` `KeyPrefixToBytes`，统一用 `store.KeyPrefix.Bytes()`
 - [ ] 解决命名撞车：`model.KeyFromString` vs `store.KeyFromString` 同名不同义（store 侧自带 FIXME），至少一侧改名
 - [ ] `store/store.go` — `NewStoreOptions`/`NewMetaStoreOptions` 25 行逐字重复抽 `configureLevels`；`NewStore`/`NewMetaStore` 合并为私有 `open()`
 - [ ] `store/key.go` — 四个 key 类型的 `Bytes()` 统一实现，去 `unsafe.Sizeof` 与永不触发的 panic
@@ -168,3 +167,4 @@
 - `GetStockList`/`GetStock` 数据读取重构 — 当前整表以 gob blob 持久化，简单抽 `loadStockList` 只有代码去重价值；改为按 symbol 索引又会改变数据 schema 和迁移要求。用户决定完整撤销并跳过本项，待结合股票数据设计统一处理。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
 - `server/command.go`/`server/job.go` 的 job 重复代码合并 — `PurgeJobs`/`FixTooMuchJobs` 的双表扫描在错误处理、计数语义上需进一步确认；`TestJob`/`RefetchUserFeed` 的 job 构造还涉及 profile/service 选择和时间戳语义。用户要求完整撤销本次重构，待明确底层抽象边界后再讨论。
+- `model.KeyPrefixToBytes` — 实现与 `store.KeyPrefix.Bytes()` 等价，但它是导出 API，且迁移测试仍用它构造 legacy table。不能仅因内部可替代就直接删除；需先确认外部调用与 model/store API 边界，再决定保留兼容包装还是做破坏性移除。
