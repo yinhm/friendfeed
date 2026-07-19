@@ -61,8 +61,7 @@ func (c *LocalStorage) shardFilepath(filename string) (string, string) {
 		return filename, filepath.Join(c.path, filename)
 	}
 
-	outFile := filename[:2] + "/" + filename[2:]
-	outFile = outFile[:1] + "/" + outFile[1:]
+	outFile := filepath.Join(filename[:1], filename[1:2], filename[2:])
 	return outFile, filepath.Join(c.path, outFile)
 }
 
