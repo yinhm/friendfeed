@@ -96,7 +96,7 @@
 - [x] `httpd/src/feed.go` — 五个 feed handler 的 `prevStart` + pongo2.Context 块（5×12 行）抽 helper
 - [x] `httpd/src/server.go` — 合并 `LikeHandler`/`LikeDeleteHandler`（仅差一个 bool）；合并 `ExpandCommentHandler`/`ExpandLikeHandler`
 - [x] `model/entry.go` — 合并 `FanoutEntry`/`DeleteFanoutEntry`（:66 vs :139，仅差 Index/RemoveIndex）
-- [ ] `model/like.go:15,39,79` — 三处查找循环改 `slices.IndexFunc`
+- [x] `model/like.go:15,39,79` — 三处查找循环改 `slices.IndexFunc`
 - [ ] `model/` — 提取 `TimelineUUID` 消除 3 处重复（`entry.go:68,141`、`server/server.go:394`）
 - [ ] 删 `model/key.go:44` `KeyPrefixToBytes`，统一用 `store.KeyPrefix.Bytes()`
 - [ ] 解决命名撞车：`model.KeyFromString` vs `store.KeyFromString` 同名不同义（store 侧自带 FIXME），至少一侧改名

@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/yinhm/friendfeed/pb"
@@ -12,13 +13,9 @@ import (
 func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
 	var err error
 	var key store.Key
-	index := -1
-	for i, like := range entry.Likes {
-		if like.From.Id == profile.Id {
-			index = i
-			break
-		}
-	}
+	index := slices.IndexFunc(entry.Likes, func(like *pb.Like) bool {
+		return like.From.Id == profile.Id
+	})
 	if index == -1 {
 		like := &pb.Like{
 			Date: time.Now().Format(time.RFC3339),
@@ -36,13 +33,9 @@ func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb
 
 func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
 	var err error
-	index := -1
-	for i, like := range entry.Likes {
-		if like.From.Id == profile.Id {
-			index = i
-			break
-		}
-	}
+	index := slices.IndexFunc(entry.Likes, func(like *pb.Like) bool {
+		return like.From.Id == profile.Id
+	})
 	if index >= 0 {
 		entry.Likes = append(entry.Likes[:index], entry.Likes[index+1:]...)
 		_, err = PutEntry(db, entry)
@@ -76,13 +69,9 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 
 func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commentId string) (*pb.Entry, error) {
 	var err error
-	index := -1
-	for i, cmt := range entry.Comments {
-		if commentId == cmt.Id {
-			index = i
-			break
-		}
-	}
+	index := slices.IndexFunc(entry.Comments, func(comment *pb.Comment) bool {
+		return comment.Id == commentId
+	})
 	if index >= 0 {
 		entry.Comments = append(entry.Comments[:index], entry.Comments[index+1:]...)
 		_, err = PutEntry(db, entry)
