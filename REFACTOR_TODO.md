@@ -93,7 +93,6 @@
 ## 四、中优先级：重复代码合并
 
 - [x] `server/stock.go` — 四个常规 `Archive*` 流式 handler 抽泛型公共函数；保留 EOF 时需批量落库的 `ArchiveXRXD` 独立流程
-- [ ] `server/server.go` — 统一 `cachedFeed`/`ForwardFetchFeed`/`Search` 三处分页逻辑，修 `found > PageSize` 的 off-by-one（实际返回 PageSize+1 条）
 - [ ] `server/stock.go` — `GetStockList`/`GetStock` 抽 `loadStockList()`
 - [ ] `server/command.go` — `PurgeJobs`/`FixTooMuchJobs` 双表重复改循环；`TestJob`/`RefetchUserFeed` 抽 `buildTwitterJob`
 - [ ] `httpd/src/feed.go` — 五个 feed handler 的 `prevStart` + pongo2.Context 块（5×12 行）抽 helper
@@ -167,4 +166,5 @@
 - `fabfile.py` 的 `line_in_file`/`test_if` 与 env 属性 — `line_in_file` 带 `@task`，是 Fabric 对外命令，`test_if` 是其实际依赖，并非互引用死函数；部分 env 属性虽无仓库内直接读取，也可能供 Fabric 扩展、模板或外部任务使用。需先界定部署 API 后再清理。
 - `twitter/pip.txt` 依赖补齐与版本锁定 — `twikit`、`pandas`、`numpy` 确为运行时依赖，但版本选择会同时影响 Python 支持范围、gRPC/protobuf 兼容性和抓取 API 行为；用户决定暂时跳过，待确定部署 Python 版本与升级策略后再处理。
 - `server.ArchiveFeed`/`ForceArchiveFeed` — 用户确认该 archive 链路未来没有维护价值，不再为两者抽公共实现；2026-07-18 的合并改动已撤销。后续应在确认无部署依赖后整体退役接口，而不是继续重构内部代码。
+- feed/search 分页统一与 off-by-one — `cachedFeed`/`ForwardFetchFeed`/`Search` 当前多取第 `PageSize+1` 条，httpd 用 `len(entries) > PageSize` 判断是否显示下一页，但又未在渲染前截掉探测条目，造成每页多一条且翻页重复。`pb.Feed` 没有 `has_more/next` 元数据，不能只在 server 截断，否则前端无法判断下一页。需先决定扩展协议，或在 httpd 计算 `show_paging` 后统一截断，再抽公共分页逻辑。
 - `server/server.go:233` + `media/media.go:77` — `mirrorMedia` 媒体镜像链：`Mirror` 自初始提交起即为 stub（恒返回 not implemented），链路从未真正下载过文件，且 URL 改写发生在 `PutEntry` 之后不落库。2026-07-18 曾删除 `mirrorMedia` 及其调用，**用户决定保留该代码**（未来要实现镜像功能），已撤销删除。未来实现方向：补全 `Mirror`（`Fetch`+`Post`）并把镜像调到 `PutEntry` 之前。
