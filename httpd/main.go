@@ -27,7 +27,7 @@ import (
 
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
-	"github.com/markbates/goth/providers/gplus"
+	"github.com/markbates/goth/providers/google"
 	"github.com/markbates/goth/providers/twitter"
 )
 
@@ -112,10 +112,13 @@ func Serve(s *server.Server, config *util.Config) {
 	}
 	goth.UseProviders(
 		twitter.New(config.TwitterApiKey, config.TwitterApiSecret, config.TwitterApiCallback),
-		gplus.New(gauthConfig.ClientID, gauthConfig.ClientSecret, gauthConfig.RedirectURL),
+		google.New(
+			gauthConfig.ClientID,
+			gauthConfig.ClientSecret,
+			gauthConfig.RedirectURL,
+			"profile", "email", "openid",
+		),
 	)
-	providers := goth.GetProviders()
-	providers["google"] = providers["gplus"]
 
 	if !options.Debug {
 		gin.SetMode(gin.ReleaseMode)

@@ -115,7 +115,7 @@
 - [x] `time.Tick` → `time.NewTicker`（`server/job.go:17,25`）
 - [x] 修正 server helper/stock 的复制日志文案；store 的 128 MB/512 MB 错误注释已随 `openStore` 重构移除
 - [x] `model/table.go:85`、`key.go:45` — 局部变量遮蔽 `bytes` 包
-- [ ] `httpd/main.go:112` — 废弃的 gplus provider 改 `goth/providers/google`，删全局 map 篡改 hack
+- [x] `httpd/main.go:112` — 废弃的 gplus provider 改 `goth/providers/google`，删全局 map 篡改 hack
 - [ ] `httpd/main.go:62` — 硬编码 base64 favicon 改 serve 嵌入的 `static/favicon.ico`（且 MIME 声明错误）
 - [ ] `httpd/src/entry.go:174` — `UploadHandler` 加 `http.MaxBytesReader` 限制
 - [ ] `httpd/main.go` — `r.Run` 错误处理、HTTP graceful shutdown
