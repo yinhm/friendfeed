@@ -92,7 +92,7 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 
 	bingUuid := model.UniqueKeyFrom("bing", "wallpaper")
 	preKey := model.NewUUIDKey(model.TableEntryIndex, bingUuid)
-	logger.Infof("ForwardFetchFeed: %s", preKey.String())
+	logger.Infof("RandomPictureFromWallpaper: %s", preKey.String())
 
 	url := ""
 	_, _ = db.ForwardScan(preKey, func(i int, k, v []byte) error {

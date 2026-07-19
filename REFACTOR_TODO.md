@@ -113,7 +113,7 @@
 - [x] 拼写：`stoped`→`stopped`、"Falke"→"Flake"、"comptabile"→"compatible"、"diable"→"disable"
 - [x] 冗余写法：`entries[:]`（server.go:372 等）、`[]byte(kb)`/`string(item)`（index.go:102）、`store.KeyFromString(k)[:]`、`buf.Write(b[:])`
 - [x] `time.Tick` → `time.NewTicker`（`server/job.go:17,25`）
-- [ ] `helper.go:103`（server）日志文案复制错误；`stock.go:231` 注释复制错误；`store/store.go:80` 注释 `128 << 20 // 512 MB` 应为 128 MB
+- [x] 修正 server helper/stock 的复制日志文案；store 的 128 MB/512 MB 错误注释已随 `openStore` 重构移除
 - [ ] `model/table.go:85`、`key.go:45` — 局部变量遮蔽 `bytes` 包
 - [ ] `httpd/main.go:112` — 废弃的 gplus provider 改 `goth/providers/google`，删全局 map 篡改 hack
 - [ ] `httpd/main.go:62` — 硬编码 base64 favicon 改 serve 嵌入的 `static/favicon.ico`（且 MIME 声明错误）

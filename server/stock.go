@@ -276,7 +276,7 @@ func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Sto
 // 获取证券基本信息
 // 证券所属行业等
 func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb.StockInfo, error) {
-	logger.Debugf("GetStock of <%s>", req.Symbol)
+	logger.Debugf("GetStockInfo of <%s>", req.Symbol)
 
 	key := model.KeyFromString(req.Symbol, "StockInfo")
 	msg := new(pb.StockInfo)
