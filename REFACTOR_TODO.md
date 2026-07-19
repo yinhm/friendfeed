@@ -122,7 +122,7 @@
 - [x] `httpd/render.go:56` — `pongo2.Must` + 非检查断言改返回错误
 - [x] 测试侧：`server_test.go:55` 固定端口 :12019；`search_test.go` 改 `t.TempDir()`；`media_test.go` 外网依赖改 `httptest.Server`
 - [x] `media/` — `shardFilepath` 简化为 `filepath.Join` 一行；保留供 S3 类存储使用的 `Object.Bucket` 及 `Fetch`/`Post` 接口契约
-- [ ] `twitter/` 风格：`class Client(object)` 去 `(object)`、print % 改 f-string、`if args.run ==` 改 `elif`、变量遮蔽 `uuid`、`quote` 的 None 判断
+- [~] 略过：`twitter/` 风格清理（`class Client(object)`、print 格式、命令分支、变量命名及 quote 判断）
 - [ ] `Makefile` — 根与 `twitter/Makefile` 补 `.PHONY`，可加 `proto-py` 统一入口
 - [ ] `pb/helper.go` — 冗余 `if !ownerOrSuper { ownerOrSuper = true }` 块、末尾裸 `return`、`RebuildCommentsCommand` 死参数 `graph`
 
