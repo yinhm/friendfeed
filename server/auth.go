@@ -34,8 +34,8 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, "twitter", authinfo.UserId)
 
 	// exists profile
-	profileUUid, _ := uuid.FromString(authinfo.Uuid)
-	profile, err := model.GetProfileFromUuid(s.mdb, profileUUid)
+	profileUUID, _ := uuid.FromString(authinfo.Uuid)
+	profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			profile, err = model.NewProfileFromOAuthUser(s.mdb, authinfo)
@@ -62,7 +62,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			Updated:  time.Now().Unix(),
 		}
 
-		err = model.PutService(s.rdb, profileUUid, service)
+		err = model.PutService(s.rdb, profileUUID, service)
 		if err != nil {
 			return nil, err
 		}

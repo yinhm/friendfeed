@@ -33,7 +33,7 @@ func init() {
 	rootCmd.AddCommand(wallpaperCmd)
 }
 
-const BASE_URL = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=10&mkt=zh-CN"
+const baseURL = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=10&mkt=zh-CN"
 
 type BingImage struct {
 	FullStartDate string `json:"fullstartdate"`
@@ -67,7 +67,7 @@ func downloadBingWallpaper() error {
 		return err
 	}
 
-	resp, err := http.Get(BASE_URL)
+	resp, err := http.Get(baseURL)
 	if err != nil {
 		return err
 	}

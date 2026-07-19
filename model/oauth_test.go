@@ -6,11 +6,11 @@ import (
 )
 
 func (s *TableTestSuite) TestOAuthUserUniqueKey() {
-	key := _oauthUserIdFrom("Twitter", "12345")
+	key := oauthUserIDFrom("Twitter", "12345")
 	assert.Equal(s.T(), "twitter:12345", string(key))
-	key = _oauthUserIdFrom("Google", "54321")
+	key = oauthUserIDFrom("Google", "54321")
 	assert.Equal(s.T(), "google:54321", string(key))
-	key = _oauthUserIdFrom("WeChat", "233")
+	key = oauthUserIDFrom("WeChat", "233")
 	assert.Equal(s.T(), "wechat:233", string(key))
 }
 
@@ -28,7 +28,7 @@ func (s *TableTestSuite) TestOAuthUser() {
 	_, err := PutOAuthUser(s.db, ptu)
 	assert.Nil(s.T(), err)
 
-	key := _oauthUserIdFrom(ptu.Provider, ptu.UserId)
+	key := oauthUserIDFrom(ptu.Provider, ptu.UserId)
 	msg := new(pb.OAuthUser)
 	err = OAuth.Get(s.db, key, msg)
 	assert.Nil(s.T(), err)

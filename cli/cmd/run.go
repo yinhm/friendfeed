@@ -10,7 +10,7 @@ import (
 
 var runTaskName string
 
-var rumCmd = &cobra.Command{
+var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "run a specific job",
 	Long: `执行特定任务:
@@ -47,6 +47,6 @@ List of Jobs
 }
 
 func init() {
-	rootCmd.AddCommand(rumCmd)
-	rumCmd.Flags().StringVar(&runTaskName, "t", "", "task")
+	rootCmd.AddCommand(runCmd)
+	runCmd.Flags().StringVar(&runTaskName, "t", "", "task")
 }

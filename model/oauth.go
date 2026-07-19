@@ -11,13 +11,13 @@ import (
 // example id: "twitter:233666"
 // Make sure combinated id never change
 // for example twitter user change its username
-func _oauthUserIdFrom(provider, userId string) store.Key {
+func oauthUserIDFrom(provider, userId string) store.Key {
 	return KeyFromString(provider, userId)
 }
 
 // return OAuth info for user like "twitter:233666"
 func GetOAuthUser(db *store.Store, provider, userId string) (store.Key, *pb.OAuthUser, error) {
-	internalUserId := _oauthUserIdFrom(provider, userId)
+	internalUserId := oauthUserIDFrom(provider, userId)
 
 	msg := new(pb.OAuthUser)
 	err := OAuth.Get(db, internalUserId, msg)
@@ -56,7 +56,7 @@ func PutOAuthUser(db *store.Store, u *pb.OAuthUser) (*pb.OAuthUser, error) {
 	}
 
 	// create/refresh OAuth User info
-	internalUserId := _oauthUserIdFrom(u.Provider, u.UserId)
+	internalUserId := oauthUserIDFrom(u.Provider, u.UserId)
 	_, err = OAuth.Put(db, internalUserId, u)
 	if err != nil {
 		return nil, err
