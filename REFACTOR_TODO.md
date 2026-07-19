@@ -99,7 +99,7 @@
 - [x] `model/like.go:15,39,79` — 三处查找循环改 `slices.IndexFunc`
 - [x] `model/` — 提取 `TimelineUUID` 消除 3 处重复（`entry.go:68,141`、`server/server.go:394`）
 - [x] `store/store.go` — `NewStoreOptions`/`NewMetaStoreOptions` 25 行逐字重复抽 `configureLevels`；`NewStore`/`NewMetaStore` 合并为私有 `openStore()`
-- [ ] `store/key.go` — 四个 key 类型的 `Bytes()` 统一实现，去 `unsafe.Sizeof` 与永不触发的 panic
+- [x] `store/key.go` — 四个 key 类型的 `Bytes()` 统一实现，去 `unsafe.Sizeof` 与永不触发的 panic
 - [ ] `search/mock.go` — MockIndex 改接口嵌入 `bleve.Index`，删 ~80 行手写样板
 - [ ] `util/text.go` 与 `cli/cmd/twitter.go:150` — 抽公共 linkify 逻辑（三处雷同）
 - [ ] `twitter/client.py:105-118` — 三个 `archive_*` 方法合并为 `_archive(rpc, func, name)`

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
-	"unsafe"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/store/flake"
@@ -136,15 +135,31 @@ type IKey interface {
 	Len() int
 }
 
+// keyPrefixSize is part of the persisted key format.
+const keyPrefixSize = 4
+
+func makeKeyBytes(prefix KeyPrefix, parts ...[]byte) []byte {
+	length := keyPrefixSize
+	for _, part := range parts {
+		length += len(part)
+	}
+	key := make([]byte, keyPrefixSize, length)
+	binary.BigEndian.PutUint32(key, uint32(prefix))
+	for _, part := range parts {
+		key = append(key, part...)
+	}
+	return key
+}
+
 // KeyPrefix
 func (p KeyPrefix) Bytes() []byte {
-	buf := make([]byte, p.Len())
+	buf := make([]byte, keyPrefixSize)
 	binary.BigEndian.PutUint32(buf, uint32(p))
 	return buf
 }
 
 func (p KeyPrefix) Len() int {
-	return int(unsafe.Sizeof(p))
+	return keyPrefixSize
 }
 
 // Exists for satisfying Key interface
@@ -176,13 +191,7 @@ func NewMetaKey(prefix KeyPrefix, meta string) *MetaKey {
 }
 
 func (k *MetaKey) Bytes() []byte {
-	var preBytes [4]byte
-	binary.BigEndian.PutUint32(preBytes[:], uint32(k.KeyPrefix))
-
-	var buf bytes.Buffer
-	buf.Write(preBytes[:])
-	buf.Write([]byte(k.Meta))
-	return buf.Bytes()
+	return makeKeyBytes(k.KeyPrefix, []byte(k.Meta))
 }
 
 func (k *MetaKey) Len() int {
@@ -213,15 +222,7 @@ func NewFlakeKey(prefix KeyPrefix, id flake.Id) *FlakeKey {
 }
 
 func (k *FlakeKey) Bytes() []byte {
-	buf := new(bytes.Buffer)
-	// nothing we can do if cannot allocate memory
-	if err := binary.Write(buf, binary.BigEndian, k.KeyPrefix); err != nil {
-		panic(err)
-	}
-	if err := binary.Write(buf, binary.BigEndian, k.Id); err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
+	return makeKeyBytes(k.KeyPrefix, k.Id[:])
 }
 
 func (k *FlakeKey) Len() int {
@@ -253,16 +254,11 @@ func NewUUIDKey(prefix KeyPrefix, id uuid.UUID) *UUIDKey {
 }
 
 func (k *UUIDKey) Bytes() []byte {
-	var buf bytes.Buffer
-	var tb [4]byte
-	binary.BigEndian.PutUint32(tb[:], uint32(k.KeyPrefix))
-	buf.Write(tb[:])
-	buf.Write(k.uuid[:])
-	return buf.Bytes()
+	return makeKeyBytes(k.KeyPrefix, k.uuid[:])
 }
 
 func (k *UUIDKey) Len() int {
-	return int(unsafe.Sizeof(k.uuid)) + k.Prefix().Len()
+	return uuid.Size + k.Prefix().Len()
 }
 
 func (k *UUIDKey) Prefix() IKey {
@@ -291,18 +287,11 @@ func NewUUIDFlakeKey(prefix KeyPrefix, uuid uuid.UUID, id flake.Id) *UUIDFlakeKe
 }
 
 func (k *UUIDFlakeKey) Bytes() []byte {
-	var preBytes [4]byte
-	binary.BigEndian.PutUint32(preBytes[:], uint32(k.KeyPrefix))
-
-	var buf bytes.Buffer
-	buf.Write(preBytes[:])
-	buf.Write(k.uuid[:])
-	buf.Write(k.Id[:])
-	return buf.Bytes()
+	return makeKeyBytes(k.KeyPrefix, k.uuid[:], k.Id[:])
 }
 
 func (k *UUIDFlakeKey) Len() int {
-	return k.UUIDKey.Len() + int(unsafe.Sizeof(k.Id))
+	return k.UUIDKey.Len() + len(k.Id)
 }
 
 func (k *UUIDFlakeKey) Prefix() IKey {

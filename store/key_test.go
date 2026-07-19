@@ -25,9 +25,9 @@ const (
 	TableMax KeyPrefix = 1e8
 )
 
-//-------------------------
+// -------------------------
 // testing keys
-//-------------------------
+// -------------------------
 func TestKeyPrefix(t *testing.T) {
 	// Giving prefix table, convert to bytes
 	var p1 KeyPrefix
@@ -40,6 +40,7 @@ func TestMetaKey(t *testing.T) {
 	assert.Equal(t, 10, key.Len())
 	assert.Equal(t, 4, key.Prefix().Len())
 	assert.Equal(t, key.Prefix().String()+"foobar", key.String())
+	assert.Equal(t, "00000068666f6f626172", hex.EncodeToString(key.Bytes()))
 }
 
 func TestFlakeKey(t *testing.T) {
