@@ -1,6 +1,10 @@
 package media
 
 import (
+	"image"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,10 +14,15 @@ import (
 )
 
 func TestMedia(t *testing.T) {
-	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
-	assert.Nil(t, err)
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		if err := png.Encode(w, image.NewRGBA(image.Rect(0, 0, 1000, 100))); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer imageServer.Close()
 
-	ms := NewLocalStorage(cfg, 640)
+	ms := NewLocalStorage(&util.Config{MediaPath: t.TempDir()}, 640)
 	found, err := ms.Exists("not-exist-file")
 	assert.NoError(t, err)
 	assert.False(t, found)
@@ -24,7 +33,7 @@ func TestMedia(t *testing.T) {
 
 	obj := &Object{
 		Filename: "qq_logo_2x",
-		Url:      "https://mat1.gtimg.com/pingjs/ext2020/qqindex2018/dist/img/qq_logo_2x.png",
+		Url:      imageServer.URL + "/image.png",
 	}
 
 	_, err = ms.Fetch(obj)
@@ -44,7 +53,6 @@ func TestMedia(t *testing.T) {
 	assert.Equal(t, "q/q/_logo_2x-640.jpg", tObj.Path)
 	assert.Equal(t, int32(640), tObj.Width)
 
-	os.RemoveAll(ms.path)
 }
 
 func TestPostWritesNonExecutableFile(t *testing.T) {

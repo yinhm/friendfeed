@@ -2,7 +2,6 @@ package search
 
 import (
 	"log"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 )
 
 func TestSearch(t *testing.T) {
-	dbpath := os.TempDir() + "/fftestdb"
+	dbpath := t.TempDir()
 
 	InitIndexService(filepath.Join(dbpath, "index"))
 
@@ -36,6 +35,4 @@ func TestSearch(t *testing.T) {
 	}
 
 	Indexer.Close()
-
-	os.RemoveAll(dbpath)
 }

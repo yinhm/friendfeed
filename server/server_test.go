@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -28,9 +27,10 @@ type RpcTestSuite struct {
 	srv       *ApiServer
 	rpcServer *grpc.Server
 
-	dbpath string
-	cfg    *util.Config
-	job    *pb.FeedJob
+	dbpath     string
+	rpcAddress string
+	cfg        *util.Config
+	job        *pb.FeedJob
 }
 
 func TestRpcTestSuite(t *testing.T) {
@@ -39,7 +39,7 @@ func TestRpcTestSuite(t *testing.T) {
 
 func (s *RpcTestSuite) SetupTest() {
 	log.Println("setup tests...")
-	s.dbpath = os.TempDir() + "/fftestdb"
+	s.dbpath = s.T().TempDir()
 	cfg, _ := util.NewConfigFromJSON("../conf/example.config.json")
 	s.cfg = cfg
 
@@ -53,10 +53,9 @@ func (s *RpcTestSuite) SetupTest() {
 		Updated:  time.Now().Unix(),
 	}
 
-	ln, err := net.Listen("tcp", ":12019")
-	if err != nil {
-		log.Fatalf("Can not bind : %s\n", err)
-	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	s.Require().NoError(err)
+	s.rpcAddress = ln.Addr().String()
 
 	s.rpcServer = grpc.NewServer()
 	s.srv = NewApiServer(s.dbpath, cfg)
@@ -70,7 +69,6 @@ func (s *RpcTestSuite) TearDownTest() {
 
 	s.srv.Shutdown()
 	s.rpcServer.Stop()
-	os.RemoveAll(s.dbpath)
 }
 
 func (s *RpcTestSuite) TestServerJob() {
@@ -567,7 +565,7 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 }
 
 func (s *RpcTestSuite) TestKLines() {
-	conn, err := grpc.Dial("localhost:12019", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(s.rpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(s.T(), err)
 	defer conn.Close()
 
