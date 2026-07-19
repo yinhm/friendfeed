@@ -101,7 +101,6 @@
 - [x] `store/store.go` — `NewStoreOptions`/`NewMetaStoreOptions` 25 行逐字重复抽 `configureLevels`；`NewStore`/`NewMetaStore` 合并为私有 `openStore()`
 - [x] `store/key.go` — 四个 key 类型的 `Bytes()` 统一实现，去 `unsafe.Sizeof` 与永不触发的 panic
 - [x] `search/mock.go` — MockIndex 改接口嵌入 `bleve.Index`，删 ~80 行手写样板
-- [ ] `util/text.go` 与 `cli/cmd/twitter.go:150` — 抽公共 linkify 逻辑（三处雷同）
 - [ ] `twitter/client.py:105-118` — 三个 `archive_*` 方法合并为 `_archive(rpc, func, name)`
 - [ ] `twitter/crawler.py` — media→Thumbnail 转换两段重复抽函数；`fetch_user` 复用 `tweet_to_pb`
 - [ ] `fabfile.py` — 三个 deploy 任务的 "code_root + git + build" 块抽 helper
@@ -168,3 +167,4 @@
 - `server/command.go`/`server/job.go` 的 job 重复代码合并 — `PurgeJobs`/`FixTooMuchJobs` 的双表扫描在错误处理、计数语义上需进一步确认；`TestJob`/`RefetchUserFeed` 的 job 构造还涉及 profile/service 选择和时间戳语义。用户要求完整撤销本次重构，待明确底层抽象边界后再讨论。
 - `model.KeyPrefixToBytes` — 实现与 `store.KeyPrefix.Bytes()` 等价，但它是导出 API，且迁移测试仍用它构造 legacy table。不能仅因内部可替代就直接删除；需先确认外部调用与 model/store API 边界，再决定保留兼容包装还是做破坏性移除。
 - `model.KeyFromString` vs `store.KeyFromString` — 两者同名但有 package 限定，不构成实际符号冲突；新增 `KeyFromParts` 并保留兼容包装只会扩大 API，收益不足，已完整撤销。真正需要评估的是 store 侧“合法 hex 则解码，否则原样返回”的模糊持久化键语义，待统一设计 key API 时再处理。
+- `util/text.go` 与 `cli/cmd/twitter.go` 的 linkify 重复 — 曾新增带 hashtag URL format 参数的公共 `Linkify` 和回调式替换 helper，但该抽象扩大了 util API、参数约束不清，用户判定实现不可接受，已完整撤销。待从文本实体及 HTML 输出模型重新设计后再讨论。
