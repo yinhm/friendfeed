@@ -70,6 +70,21 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 	return
 }
 
+func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {
+	prevStart := start - pageSize
+	if prevStart < 0 {
+		prevStart = 0
+	}
+	return pongo2.Context{
+		"title":       feed.Id,
+		"name":        feed.Id,
+		"feed":        feed,
+		"prev_start":  prevStart,
+		"next_start":  start + pageSize,
+		"show_paging": len(feed.Entries) > int(pageSize),
+	}
+}
+
 func (s *Server) HomeHandler(c *gin.Context) {
 	userUuid := CurrentUserUuid(c)
 	if userUuid == "" {
@@ -91,19 +106,8 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		return
 	}
 
-	prevStart := req.Start - req.PageSize
-	if prevStart < 0 {
-		prevStart = 0
-	}
-	data := pongo2.Context{
-		"show_share":  s.feedWritable(c, feed.Uuid),
-		"title":       feed.Id,
-		"name":        feed.Id,
-		"feed":        feed,
-		"prev_start":  prevStart,
-		"next_start":  req.Start + req.PageSize,
-		"show_paging": len(feed.Entries) > int(req.PageSize),
-	}
+	data := feedContext(feed, req.Start, req.PageSize)
+	data["show_share"] = s.feedWritable(c, feed.Uuid)
 	s.renderFeed(c, data)
 }
 
@@ -124,21 +128,9 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		return
 	}
 
-	prevStart := req.Start - req.PageSize
-	if prevStart < 0 {
-		prevStart = 0
-	}
-
-	data := pongo2.Context{
-		"show_header": true,
-		"show_share":  contains(feed.Commands, "post"),
-		"title":       feed.Id,
-		"name":        feed.Id,
-		"feed":        feed,
-		"prev_start":  prevStart,
-		"next_start":  req.Start + req.PageSize,
-		"show_paging": len(feed.Entries) > int(req.PageSize),
-	}
+	data := feedContext(feed, req.Start, req.PageSize)
+	data["show_header"] = true
+	data["show_share"] = contains(feed.Commands, "post")
 	s.renderFeed(c, data)
 }
 
@@ -155,19 +147,8 @@ func (s *Server) PublicHandler(c *gin.Context) {
 		return
 	}
 
-	prevStart := req.Start - req.PageSize
-	if prevStart < 0 {
-		prevStart = 0
-	}
-	data := pongo2.Context{
-		"show_share":  s.feedWritable(c, feed.Uuid),
-		"title":       feed.Id,
-		"name":        feed.Id,
-		"feed":        feed,
-		"prev_start":  prevStart,
-		"next_start":  req.Start + req.PageSize,
-		"show_paging": len(feed.Entries) > int(req.PageSize),
-	}
+	data := feedContext(feed, req.Start, req.PageSize)
+	data["show_share"] = s.feedWritable(c, feed.Uuid)
 	// s.HTML(c, 200, "_feed.html", data)
 	s.renderFeed(c, data)
 }
@@ -187,19 +168,8 @@ func (s *Server) SearchHandler(c *gin.Context) {
 		return
 	}
 
-	prevStart := req.Start - req.PageSize
-	if prevStart < 0 {
-		prevStart = 0
-	}
-	data := pongo2.Context{
-		"title":       feed.Id,
-		"name":        feed.Id,
-		"feed":        feed,
-		"prev_start":  prevStart,
-		"next_start":  req.Start + req.PageSize,
-		"show_paging": len(feed.Entries) > int(req.PageSize),
-		"query":       query,
-	}
+	data := feedContext(feed, req.Start, req.PageSize)
+	data["query"] = query
 	s.renderFeed(c, data)
 }
 
@@ -217,17 +187,6 @@ func (s *Server) TagHandler(c *gin.Context) {
 		return
 	}
 
-	prevStart := req.Start - req.PageSize
-	if prevStart < 0 {
-		prevStart = 0
-	}
-	data := pongo2.Context{
-		"title":       feed.Id,
-		"name":        feed.Id,
-		"feed":        feed,
-		"prev_start":  prevStart,
-		"next_start":  req.Start + req.PageSize,
-		"show_paging": len(feed.Entries) > int(req.PageSize),
-	}
+	data := feedContext(feed, req.Start, req.PageSize)
 	s.renderFeed(c, data)
 }

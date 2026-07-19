@@ -43,6 +43,41 @@ func TestFirstEntry(t *testing.T) {
 	}
 }
 
+func TestFeedContext(t *testing.T) {
+	feed := &pb.Feed{
+		Id:      "public",
+		Entries: make([]*pb.Entry, 31),
+	}
+	data := feedContext(feed, 15, 30)
+
+	if got := data["feed"]; got != feed {
+		t.Fatalf("feed = %#v; want %#v", got, feed)
+	}
+	if got := data["title"]; got != feed.Id {
+		t.Fatalf("title = %#v; want %q", got, feed.Id)
+	}
+	if got := data["name"]; got != feed.Id {
+		t.Fatalf("name = %#v; want %q", got, feed.Id)
+	}
+	if got := data["prev_start"]; got != int32(0) {
+		t.Fatalf("prev_start = %#v; want 0", got)
+	}
+	if got := data["next_start"]; got != int32(45) {
+		t.Fatalf("next_start = %#v; want 45", got)
+	}
+	if got := data["show_paging"]; got != true {
+		t.Fatalf("show_paging = %#v; want true", got)
+	}
+
+	data = feedContext(&pb.Feed{Entries: make([]*pb.Entry, 30)}, 60, 30)
+	if got := data["prev_start"]; got != int32(30) {
+		t.Fatalf("prev_start = %#v; want 30", got)
+	}
+	if got := data["show_paging"]; got != false {
+		t.Fatalf("show_paging = %#v; want false", got)
+	}
+}
+
 func TestCommentDeleteHandlerRejectsInvalidForm(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

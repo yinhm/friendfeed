@@ -93,7 +93,7 @@
 ## 四、中优先级：重复代码合并
 
 - [x] `server/stock.go` — 四个常规 `Archive*` 流式 handler 抽泛型公共函数；保留 EOF 时需批量落库的 `ArchiveXRXD` 独立流程
-- [ ] `httpd/src/feed.go` — 五个 feed handler 的 `prevStart` + pongo2.Context 块（5×12 行）抽 helper
+- [x] `httpd/src/feed.go` — 五个 feed handler 的 `prevStart` + pongo2.Context 块（5×12 行）抽 helper
 - [ ] `httpd/src/server.go` — 合并 `LikeHandler`/`LikeDeleteHandler`（仅差一个 bool）；合并 `ExpandCommentHandler`/`ExpandLikeHandler`
 - [ ] `model/entry.go` — 合并 `FanoutEntry`/`DeleteFanoutEntry`（:66 vs :139，仅差 Index/RemoveIndex）
 - [ ] `model/like.go:15,39,79` — 三处查找循环改 `slices.IndexFunc`
