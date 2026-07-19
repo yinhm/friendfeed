@@ -356,7 +356,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 			logger.Debugf("ForwardFetchFeed: profile <%s> not found for <%v>", req.Id, req.ProfileUuid)
 			return nil, status.Errorf(codes.NotFound, "profile not found")
 		}
-		fanoutUuid := model.UniqueKeyFrom(fmt.Sprintf("%x", profileUuid), "user", "timeline")
+		fanoutUuid := model.TimelineUUID(profileUuid)
 		prefix = store.NewUUIDKey(model.TableEntryIndex, fanoutUuid).Bytes()
 	} else { // from user.id
 		profile, err = model.GetProfileFromUserId(s.mdb, req.Id)

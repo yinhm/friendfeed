@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/yinhm/friendfeed/store"
 )
@@ -73,4 +74,10 @@ func TestUniqueKey(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		assert.Equal(t, key1.Bytes()[i], key2[i])
 	}
+}
+
+func TestTimelineUUIDPreservesExistingKey(t *testing.T) {
+	userUUID := uuid.Must(uuid.FromString("c6f8dca854f011ddb489003048343a40"))
+	want := UniqueKeyFrom(fmt.Sprintf("%x", userUUID), "user", "timeline")
+	assert.Equal(t, want, TimelineUUID(userUUID))
 }

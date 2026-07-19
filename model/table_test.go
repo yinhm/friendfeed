@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -193,7 +192,7 @@ func (s *TableTestSuite) TestFanoutEntryAndDeleteFanoutEntry() {
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), 1, n)
 
-	userTimeline := UniqueKeyFrom(fmt.Sprintf("%x", userUUID), "user", "timeline")
+	userTimeline := TimelineUUID(userUUID)
 	followerTimeline := UniqueKeyFrom(store.Key(followerUUID.Bytes()).String(), "user", "timeline")
 	assert.Equal(s.T(), 1, s.countEntryIndex(userTimeline))
 	assert.Equal(s.T(), 1, s.countEntryIndex(followerTimeline))

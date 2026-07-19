@@ -66,7 +66,7 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 
 func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time, entryKey store.Key) (n int, err error) {
-	fanOutToTimeline := UniqueKeyFrom(fmt.Sprintf("%x", userUuid), "user", "timeline")
+	fanOutToTimeline := TimelineUUID(userUuid)
 	// fmt.Println(hex.EncodeToString(fanOutToTimeline.Bytes()))
 	EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey)
 
@@ -136,7 +136,7 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 
 func DeleteFanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time) (n int, err error) {
-	fanOutToTimeline := UniqueKeyFrom(fmt.Sprintf("%x", userUuid), "user", "timeline")
+	fanOutToTimeline := TimelineUUID(userUuid)
 	EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime)
 
 	return updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {

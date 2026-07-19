@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -76,4 +77,8 @@ func joinKeyString(ids ...string) string {
 // SH:600519
 func UniqueKeyFrom(ids ...string) uuid.UUID {
 	return uuid.NewV5(uuid.NamespaceURL, joinKeyString(ids...))
+}
+
+func TimelineUUID(userUuid uuid.UUID) uuid.UUID {
+	return UniqueKeyFrom(fmt.Sprintf("%x", userUuid), "user", "timeline")
 }
