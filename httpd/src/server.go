@@ -210,6 +210,14 @@ func contains(slice []string, item string) bool {
 }
 
 func (s *Server) ExpandCommentHandler(c *gin.Context) {
+	s.expandEntry(c, true)
+}
+
+func (s *Server) ExpandLikeHandler(c *gin.Context) {
+	s.expandEntry(c, false)
+}
+
+func (s *Server) expandEntry(c *gin.Context, comments bool) {
 	uuid := c.Params.ByName("uuid")
 	req := &pb.EntryRequest{Uuid: uuid}
 
@@ -222,6 +230,11 @@ func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	}
 	entry, err := firstEntry(feed)
 	if RequestError(c, err) {
+		return
+	}
+
+	if !comments {
+		c.JSON(200, entry.Likes)
 		return
 	}
 
@@ -229,24 +242,6 @@ func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	graph, _ := s.CurrentGraph(c)
 	entry.RebuildCommentsCommand(profile, graph)
 	c.JSON(200, entry.Comments)
-}
-
-func (s *Server) ExpandLikeHandler(c *gin.Context) {
-	uuid := c.Params.ByName("uuid")
-	req := &pb.EntryRequest{Uuid: uuid}
-
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	feed, err := s.client.FetchEntry(ctx, req)
-	if RequestError(c, err) {
-		return
-	}
-	entry, err := firstEntry(feed)
-	if RequestError(c, err) {
-		return
-	}
-	c.JSON(200, entry.Likes)
 }
 
 func firstEntry(feed *pb.Feed) (*pb.Entry, error) {
@@ -257,33 +252,14 @@ func firstEntry(feed *pb.Feed) (*pb.Entry, error) {
 }
 
 func (s *Server) LikeHandler(c *gin.Context) {
-	c.Request.ParseForm()
-	entryId := c.Request.Form.Get("entry")
-	if entryId == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
-		return
-	}
-
-	uuid := CurrentUserUuid(c)
-	req := &pb.LikeRequest{
-		Entry: entryId,
-		User:  uuid,
-		Like:  true,
-	}
-
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	entry, err := s.client.LikeEntry(ctx, req)
-	if RequestError(c, err) {
-		return
-	}
-
-	entry.FormatLikes(int32(0))
-	c.JSON(200, entry.Likes)
+	s.updateLike(c, true)
 }
 
 func (s *Server) LikeDeleteHandler(c *gin.Context) {
+	s.updateLike(c, false)
+}
+
+func (s *Server) updateLike(c *gin.Context, like bool) {
 	c.Request.ParseForm()
 	entryId := c.Request.Form.Get("entry")
 	if entryId == "" {
@@ -295,7 +271,7 @@ func (s *Server) LikeDeleteHandler(c *gin.Context) {
 	req := &pb.LikeRequest{
 		Entry: entryId,
 		User:  uuid,
-		Like:  false,
+		Like:  like,
 	}
 
 	ctx, cancel := DefaultTimeoutContext()
