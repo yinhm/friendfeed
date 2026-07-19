@@ -25,6 +25,43 @@ func TestDBTestSuite(t *testing.T) {
 	suite.Run(t, new(DBTestSuite))
 }
 
+func TestStoreOptionsShareLevelConfiguration(t *testing.T) {
+	storeOptions := NewStoreOptions()
+	metaOptions := NewMetaStoreOptions()
+
+	for name, options := range map[string]*pebble.Options{
+		"store": storeOptions,
+		"meta":  metaOptions,
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Len(t, options.Levels, 7)
+			assert.Equal(t, 32<<10, options.Levels[0].BlockSize)
+			assert.Equal(t, 256<<10, options.Levels[0].IndexBlockSize)
+			assert.NotNil(t, options.Levels[0].FilterPolicy)
+			assert.Nil(t, options.Levels[6].FilterPolicy)
+		})
+	}
+
+	assert.Equal(t, 2, storeOptions.L0CompactionThreshold)
+	assert.Equal(t, 1000, storeOptions.L0StopWritesThreshold)
+	assert.NotNil(t, storeOptions.MaxConcurrentCompactions)
+	assert.Equal(t, 3, storeOptions.MaxConcurrentCompactions())
+	assert.Zero(t, metaOptions.L0CompactionThreshold)
+	assert.Zero(t, metaOptions.L0StopWritesThreshold)
+	assert.Nil(t, metaOptions.MaxConcurrentCompactions)
+}
+
+func TestNewMetaStore(t *testing.T) {
+	db := NewMetaStore(t.TempDir() + "/meta")
+	defer db.Close()
+
+	assert.True(t, db.syncWrites.Load())
+	assert.NoError(t, db.Put([]byte("key"), []byte("value")))
+	value, err := db.Get([]byte("key"))
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("value"), value)
+}
+
 func (s *DBTestSuite) SetupTest() {
 	log.Println("setup tests...")
 	dbpath := os.TempDir() + "/testffdb2"
