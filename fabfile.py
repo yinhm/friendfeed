@@ -127,6 +127,19 @@ def deploy_config():
     sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))
     sudo('chmod 600 %s' % (key_path))
 
+def _update_and_build(commands, clean=False):
+    with shell_env(GOPATH=env.go_path):
+        if not exists(env.code_root):
+            run('git clone %s %s' % (env.repository, env.code_root))
+
+        with cd(env.code_root):
+            if clean:
+                run('git reset --hard && git checkout master && git pull')
+            else:
+                run('git checkout master && git pull')
+            for command in commands:
+                run(command)
+
 @task
 def deploy_db():
     go_path = env.go_path
@@ -148,15 +161,8 @@ def deploy_db():
     upload_template(template, '/etc/systemd/system/ffdb.service',
                     context=context, backup=False, use_sudo=True)
 
-    with shell_env(GOPATH=go_path):
-        if not exists(code_root):
-            run('git clone %s %s' % (env.repository, code_root))
-
-        with cd(code_root):
-            run('git checkout master && git pull')
-            # run("go get -u -f")
-            run("go get .")
-            run("go install")
+    # run("go get -u -f")
+    _update_and_build(("go get .", "go install"))
 
     sudo('chown %s:%s %s/bin/ffdb' % (env.runner_user, env.runner_group, go_path))
 
@@ -191,15 +197,11 @@ def deploy_client():
     upload_template(template, '/etc/init/ffclient.conf',
                     context=context, backup=False, use_sudo=True)
 
-    with shell_env(GOPATH=go_path):
-        if not exists(code_root):
-            run('git clone %s %s' % (env.repository, code_root))
-
-        with cd(join(code_root, 'client')):
-            run('git checkout master && git pull')
-            # run("go get -u -f")
-            run("go get .")
-            run("go build && mv client %s/bin/ffclient" % go_path)
+    # run("go get -u -f")
+    _update_and_build((
+        "cd client && go get .",
+        "cd client && go build && mv client %s/bin/ffclient" % go_path,
+    ))
 
     with settings(warn_only=True):
         sudo("stop ffclient")
@@ -239,20 +241,16 @@ def deploy_web():
     upload_template(template, '/etc/systemd/system/ffweb.service',
                     context=context, backup=False, use_sudo=True)
 
-    with shell_env(GOPATH=go_path):
-        if not exists(code_root):
-            run('git clone %s %s' % (env.repository, code_root))
+    _update_and_build((
+        "cd httpd/app && corepack enable pnpm && pnpm install --frozen-lockfile && pnpm run build",
+        "cd httpd && go get .",
+        "cd httpd && go build",
+    ), clean=True)
 
-        with cd(code_root):
-            run('git reset --hard && git checkout master && git pull')
-            run("cd %s/httpd/app && corepack enable pnpm && pnpm install --frozen-lockfile && pnpm run build" % code_root)
-            run("cd %s/httpd && go get ." % code_root)
-            run("cd httpd && go build")
-
-        bin_path = join(code_root, 'httpd', 'httpd')
-        web_bin_path = join(go_path, "bin/ffweb")
-        sudo("mv %s %s" % (bin_path, web_bin_path))
-        sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_group, web_bin_path))
+    bin_path = join(code_root, 'httpd', 'httpd')
+    web_bin_path = join(go_path, "bin/ffweb")
+    sudo("mv %s %s" % (bin_path, web_bin_path))
+    sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_group, web_bin_path))
     
     sudo("systemctl daemon-reload")
     sudo("systemctl enable ffweb.service")

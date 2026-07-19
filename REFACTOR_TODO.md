@@ -103,7 +103,7 @@
 - [x] `search/mock.go` — MockIndex 改接口嵌入 `bleve.Index`，删 ~80 行手写样板
 - [x] `twitter/client.py:105-118` — 三个 `archive_*` 方法合并为 `_archive(rpc, func, name)`
 - [x] `twitter/crawler.py` — media→Thumbnail 转换两段重复抽 `media_to_thumbnails`
-- [ ] `fabfile.py` — 三个 deploy 任务的 "code_root + git + build" 块抽 helper
+- [x] `fabfile.py` — 三个 deploy 任务的 "code_root + git + build" 块抽 helper
 - [ ] `cli/tools/migrate_db.go:539` — 335 行巨型 switch 每个 case 抽独立函数
 
 ## 五、低优先级：风格与小清理
