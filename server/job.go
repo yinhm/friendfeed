@@ -14,16 +14,18 @@ import (
 )
 
 func (s *ApiServer) RefetchJobTicker() {
-	t := time.Tick(2 * time.Minute)
-	for range t {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
 		log.Printf("refetch user feeds.")
 		s.RefetchUserFeed()
 	}
 }
 
 func (s *ApiServer) IndexJobTicker() {
-	t := time.Tick(5 * time.Minute)
-	for range t {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
 		log.Printf("dump index to db.")
 		for _, idx := range s.cached {
 			idx.dump(s.mdb)
