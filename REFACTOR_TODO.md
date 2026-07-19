@@ -101,7 +101,7 @@
 - [x] `store/store.go` — `NewStoreOptions`/`NewMetaStoreOptions` 25 行逐字重复抽 `configureLevels`；`NewStore`/`NewMetaStore` 合并为私有 `openStore()`
 - [x] `store/key.go` — 四个 key 类型的 `Bytes()` 统一实现，去 `unsafe.Sizeof` 与永不触发的 panic
 - [x] `search/mock.go` — MockIndex 改接口嵌入 `bleve.Index`，删 ~80 行手写样板
-- [ ] `twitter/client.py:105-118` — 三个 `archive_*` 方法合并为 `_archive(rpc, func, name)`
+- [x] `twitter/client.py:105-118` — 三个 `archive_*` 方法合并为 `_archive(rpc, func, name)`
 - [ ] `twitter/crawler.py` — media→Thumbnail 转换两段重复抽函数；`fetch_user` 复用 `tweet_to_pb`
 - [ ] `fabfile.py` — 三个 deploy 任务的 "code_root + git + build" 块抽 helper
 - [ ] `cli/tools/migrate_db.go:539` — 335 行巨型 switch 每个 case 抽独立函数
