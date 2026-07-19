@@ -8,24 +8,17 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 		return
 	}
 
-	ownerOrSuper := false
+	ownerOrSuper := profile.IsSuper
 	commands := []string{"comment"}
-	if profile.IsSuper {
-		ownerOrSuper = true
-	}
 	if _, ok := graph.Admins[profile.Id]; ok {
-		if !ownerOrSuper {
-			ownerOrSuper = true
-		}
+		ownerOrSuper = true
 	}
 	// FIXME: subscriptions may huge
 	// if _, ok := graph.Subscriptions[author]; ok {
 	// 	// private check
 	// }
 	if profile.Id == e.From.Id {
-		if !ownerOrSuper {
-			ownerOrSuper = true
-		}
+		ownerOrSuper = true
 	} else {
 		// liked?
 		liked := false
@@ -48,7 +41,6 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 		commands = append(commands, "edit", "delete")
 	}
 	e.Commands = commands
-	return
 }
 
 func (e *Entry) RebuildCommentsCommand(profile *Profile, graph *Graph) {

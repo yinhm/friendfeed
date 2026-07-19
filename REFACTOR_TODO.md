@@ -124,7 +124,7 @@
 - [x] `media/` — `shardFilepath` 简化为 `filepath.Join` 一行；保留供 S3 类存储使用的 `Object.Bucket` 及 `Fetch`/`Post` 接口契约
 - [~] 略过：`twitter/` 风格清理（`class Client(object)`、print 格式、命令分支、变量命名及 quote 判断）
 - [~] 略过：`Makefile` 的 `.PHONY` 与 `proto-py` 入口调整
-- [ ] `pb/helper.go` — 冗余 `if !ownerOrSuper { ownerOrSuper = true }` 块、末尾裸 `return`、`RebuildCommentsCommand` 死参数 `graph`
+- [x] `pb/helper.go` — 简化 `ownerOrSuper`、删除末尾裸 `return`；保留 `RebuildCommentsCommand` 的 `graph` 契约不变
 
 ## 六、架构层面（仅记录，不在本清单执行）
 
