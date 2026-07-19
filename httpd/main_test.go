@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,5 +44,29 @@ func TestMissingEmbeddedAssetReturns404(t *testing.T) {
 
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", response.Code)
+	}
+}
+
+func TestFaviconHandlerServesEmbeddedIcon(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/favicon.ico", FaviconHandler)
+
+	request := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.Code)
+	}
+	if got := response.Header().Get("Content-Type"); got != "image/x-icon" {
+		t.Fatalf("unexpected favicon content type %q", got)
+	}
+	want, err := assetsFS.ReadFile("static/favicon.ico")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(response.Body.Bytes(), want) {
+		t.Fatal("favicon response does not match embedded asset")
 	}
 }
