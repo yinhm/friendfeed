@@ -514,6 +514,328 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 	return stats, nil
 }
 
+func runDBCommand(db, ndb *store.Store) {
+	prefix := []byte("")
+
+	log.Println("iter db now...")
+
+	// iter here
+	iter := db.NewIterator(prefix)
+	for iter.First(); iter.Valid(); iter.Next() {
+		ndb.Set(iter.Key(), iter.Value())
+	}
+	iter.Close()
+	ndb.Flush()
+	log.Println("iter done...")
+}
+
+func runMetaCommand(mdb, ndb *store.Store) {
+	prefix := []byte("")
+	log.Println("iter meta db now...")
+
+	// iter here
+	iter := mdb.NewIterator(prefix)
+	for iter.First(); iter.Valid(); iter.Next() {
+		ndb.Set(iter.Key(), iter.Value())
+	}
+
+	iter.Close()
+	ndb.Flush()
+	log.Println("iter done...")
+
+	prefix = model.TableProfile.Bytes()
+	n, err := mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+		return ndb.Set(k, v)
+	})
+	if err != nil {
+		log.Println("Error on scanning user profiles:", err)
+	}
+	log.Printf("Profiles: %d", n)
+	ndb.Flush()
+
+	// now test it
+	n, err = mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+		v2, err := ndb.Get(k)
+		if err != nil {
+			fmt.Println("value not fount")
+			return err
+		}
+
+		if !bytes.Equal(v, v2) {
+			fmt.Println(v)
+			fmt.Println(v2)
+			return errors.New("value not equal")
+		}
+		return nil
+	})
+	if err != nil {
+		log.Println("Error on compare profiles:", err)
+	}
+	log.Printf("Profiles: %d", n)
+}
+
+func runSyncMetaCommand(db, mdb, ndb *store.Store) {
+	log.Println("scan meta db now...")
+
+	n, err := mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
+		msg := &pb.Profile{}
+		if err := proto.Unmarshal(v, msg); err != nil {
+			return err
+		} else {
+			// ndb.Set(k, v)
+			return model.UpdateProfile(ndb, msg) // use UpdateProfile also update id->uuid map
+		}
+	})
+	if err != nil {
+		log.Println(err)
+	}
+	log.Println("profile count: ", n)
+
+	twitterCount, err := migrateOAuthRecords(mdb, ndb, model.TableOAuth, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	googleCount, err := migrateOAuthRecords(mdb, ndb, legacyGoogleOAuthPrefix, "google")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("oauth user count: twitter/current=%d legacy-google=%d", twitterCount, googleCount)
+	if err := migratePublicFeedIndex(db, mdb, ndb, false); err != nil {
+		log.Println("public feed index:", err)
+	}
+	ndb.Flush()
+}
+
+func runPublicFeedCommand(db, mdb, ndb *store.Store) {
+	if err := migratePublicFeedIndex(db, mdb, ndb, true); err != nil {
+		log.Fatal(err)
+	}
+	ndb.Flush()
+}
+
+func runRebuildTimelineCommand(ndb *store.Store) {
+	options := timelineRebuildOptions{user: timelineUser, maxFeeds: timelineMaxFeeds, dryRun: dryRun}
+	stats, err := rebuildTimelines(ndb, options)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !dryRun {
+		ndb.Flush()
+	}
+	log.Printf("timeline summary: %d profiles, %d existing entries, %d follows, %d source entries, dry-run=%t", stats.profiles, stats.existing, stats.follows, stats.entries, dryRun)
+}
+
+func runRebuildSocialGraphCommand(ndb *store.Store) {
+	stats, err := rebuildSocialGraph(ndb, dryRun)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !dryRun {
+		ndb.Flush()
+	}
+	log.Printf("social graph summary: %d feedinfos, %d edges, %d skipped references, dry-run=%t", stats.feedinfos, stats.edges, stats.skipped, dryRun)
+}
+
+func runMigrateMediaURLsCommand(ndb *store.Store) {
+	stats, err := migrateMediaURLs(ndb, dryRun)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !dryRun {
+		ndb.Flush()
+	}
+	log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, dry-run=%t", stats.profiles, stats.entries, stats.thumbnails, dryRun)
+}
+
+func runSyncCommand(db, ndb *store.Store) {
+	// EntryIndex
+	model.EntryIndex.Iter(db, func(k, v []byte) error {
+		return ndb.Set(k, v)
+	})
+	ndb.Flush()
+	log.Println("iter done...")
+
+	// Entry
+	i := 0
+	err := model.Entry.Iter(db, func(k, v []byte) error {
+		i++
+		return ndb.Set(k, v)
+	})
+	if err != nil {
+		log.Println(err)
+	}
+	log.Println("synced entry count: ", i)
+	ndb.Flush()
+	log.Println("entry iter done...")
+}
+
+func runProfileCommand(mdb, ndb *store.Store) {
+	prefix := model.TableProfile
+	j := 0
+	n, err := mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
+		profile := &pb.Profile{}
+		if err := proto.Unmarshal(v, profile); err != nil {
+			return err
+		}
+		if profile.Id == "yinhm" {
+			fmt.Printf("profile: %s\n", profile)
+
+			new_value, _ := ndb.Get(k)
+			// pb messge differ
+			// if !bytes.Equal(v, new_value) {
+			// 	fmt.Println(v)
+			// 	fmt.Println(new_value)
+			// 	return errors.New("value not equal")
+			// }
+			if err := proto.Unmarshal(new_value, profile); err != nil {
+				return err
+			}
+			fmt.Printf("new profile: %s\n", profile)
+
+			return nil
+		}
+		// fmt.Printf("profile: <%s, %s>\n", profile.Uuid, profile.Id)
+		// fmt.Println(profile)
+
+		j++
+		return nil
+	})
+	if err != nil {
+		fmt.Println("Error on scanning user profiles:", err)
+	}
+	fmt.Printf("Profiles: %d, %d have services.\n", n, j)
+}
+
+func runPurgeProfileCommand(ndb *store.Store) {
+	n, err := purge_table(ndb, model.TableProfile.Bytes())
+	if err != nil {
+		fmt.Println("Error on scanning user profiles:", err)
+	}
+	fmt.Printf("Profiles: %d has been removed.\n", n)
+	ndb.Flush()
+}
+
+func runPurgeOAuthCommand(ndb *store.Store) {
+	n, err := purge_table(ndb, model.TableOAuth.Bytes())
+	if err != nil {
+		fmt.Println("Error on scanning oauth:", err)
+	}
+	fmt.Printf("oauth: %d has been removed.\n", n)
+	ndb.Flush()
+}
+
+func runCountMetaCommand(mdb, ndb *store.Store) {
+	prefix := []byte("")
+	log.Println("iter meta db now...")
+
+	// prefix = model.TableProfile.Bytes()
+	n, _ := mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+		return nil
+	})
+	log.Printf("key counts: %d", n)
+
+	// now test it
+	// n, _ = mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
+	// 	return nil
+	// })
+	// count += n
+	// n, _ = mdb.ForwardScan(model.TableOAuth.Bytes(), func(i int, k, v []byte) error {
+	// 	return nil
+	// })
+	// count += n
+	// log.Printf("key counts: %d", count)
+
+	count := 0
+	count_parsed := 0
+	mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
+		msg := &pb.OAuthUser{}
+		if err := proto.Unmarshal(v, msg); err == nil {
+			count_parsed++
+			// model.PutOAuthUser(ndb, msg) // oauth format updated
+		} else {
+			msg := &pb.Profile{}
+			if err := proto.Unmarshal(v, msg); err == nil {
+				count_parsed++
+				// ndb.Set(k, v) // profile
+			} else {
+				count++
+				uuid1, err := uuid.FromBytes(v)
+				if err != nil {
+					fmt.Println(k, v) // cache
+				} else {
+					v2, _ := model.UserMap.GetRaw(ndb, k)
+					fmt.Println(string(k), uuid1.String(), bytes.Equal(v, v2))
+					// update id->uuid map here
+				}
+			}
+		}
+		return nil
+	})
+	fmt.Printf("known keys: %d id->uuid map keys: %d\n", count_parsed, count)
+}
+
+func runDebugCommand(db, mdb, ndb *store.Store) {
+	// map changed, this will fail
+	profile, err := model.GetProfileFromUserId(mdb, "yinhm")
+	if err != nil {
+		log.Println(err)
+	}
+	log.Println(profile)
+
+	// profile, err = model.GetProfileFromUserId(mdb, "veronicabelmont")
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+	// log.Println(profile)
+
+	// entryId := "c8e5fe86df10e285f1ff12acac102d44"
+	entryId := "744b310d5dca442d82f1ec2366554b1e"
+	// entryId := "0000012820141462fa7290a658763ae1"
+	entry, err := model.GetEntry(db, entryId)
+	if err != nil {
+		log.Println(err)
+	}
+	log.Println(entry)
+
+	entry, err = model.GetEntry(ndb, entryId)
+	if err != nil {
+		log.Println(err)
+	}
+	log.Println(entry)
+
+	// First entry
+	// model.Entry.Iter(ndb, func(k, v []byte) error {
+	// 	log.Println(model.Entry.ToStringKey(k))
+	// 	log.Println(hex.EncodeToString(k), hex.EncodeToString(v))
+
+	// 	return errors.New("stop iter")
+	// })
+
+	// test oauth user in new db
+	_, msg, err := model.GetOAuthUser(ndb, "twitter", "5289142")
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
+		log.Printf("oauth user not found: %s", err)
+	}
+	log.Printf("oauth user: <%s>", msg)
+
+	model.OAuth.Iter(ndb, func(k, v []byte) error {
+		log.Println(model.Entry.ToStringKey(k))
+		log.Println(hex.EncodeToString(k), hex.EncodeToString(v))
+
+		return errors.New("stop iter")
+	})
+
+	// uuidStr := "f82871b4-6b05-510a-9ae1-b626addf5b09"
+	// profile, err := model.GetProfileFromUuid(db, uuidStr)
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+	// log.Println(profile)
+
+	v, _ := model.UserMap.GetRaw(ndb, []byte("yinhm"))
+	log.Printf("id map: <%s>", v)
+}
+
 // We should open original db ad readonly mode.
 //
 // migrate meta db should and only need sync_meta
@@ -557,306 +879,31 @@ func main() {
 
 	switch command {
 	case "db":
-		prefix := []byte("")
-
-		log.Println("iter db now...")
-
-		// iter here
-		iter := db.NewIterator(prefix)
-		for iter.First(); iter.Valid(); iter.Next() {
-			ndb.Set(iter.Key(), iter.Value())
-		}
-		iter.Close()
-		ndb.Flush()
-		log.Println("iter done...")
+		runDBCommand(db, ndb)
 	case "meta":
-		prefix := []byte("")
-		log.Println("iter meta db now...")
-
-		// iter here
-		iter := mdb.NewIterator(prefix)
-		for iter.First(); iter.Valid(); iter.Next() {
-			ndb.Set(iter.Key(), iter.Value())
-		}
-
-		iter.Close()
-		ndb.Flush()
-		log.Println("iter done...")
-
-		prefix = model.TableProfile.Bytes()
-		n, err := mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-			return ndb.Set(k, v)
-		})
-		if err != nil {
-			log.Println("Error on scanning user profiles:", err)
-		}
-		log.Printf("Profiles: %d", n)
-		ndb.Flush()
-
-		// now test it
-		n, err = mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-			v2, err := ndb.Get(k)
-			if err != nil {
-				fmt.Println("value not fount")
-				return err
-			}
-
-			if !bytes.Equal(v, v2) {
-				fmt.Println(v)
-				fmt.Println(v2)
-				return errors.New("value not equal")
-			}
-			return nil
-		})
-		if err != nil {
-			log.Println("Error on compare profiles:", err)
-		}
-		log.Printf("Profiles: %d", n)
-
+		runMetaCommand(mdb, ndb)
 	case "sync_meta":
-		log.Println("scan meta db now...")
-
-		n, err := mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
-			msg := &pb.Profile{}
-			if err := proto.Unmarshal(v, msg); err != nil {
-				return err
-			} else {
-				// ndb.Set(k, v)
-				return model.UpdateProfile(ndb, msg) // use UpdateProfile also update id->uuid map
-			}
-		})
-		if err != nil {
-			log.Println(err)
-		}
-		log.Println("profile count: ", n)
-
-		twitterCount, err := migrateOAuthRecords(mdb, ndb, model.TableOAuth, "")
-		if err != nil {
-			log.Fatal(err)
-		}
-		googleCount, err := migrateOAuthRecords(mdb, ndb, legacyGoogleOAuthPrefix, "google")
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("oauth user count: twitter/current=%d legacy-google=%d", twitterCount, googleCount)
-		if err := migratePublicFeedIndex(db, mdb, ndb, false); err != nil {
-			log.Println("public feed index:", err)
-		}
-		ndb.Flush()
+		runSyncMetaCommand(db, mdb, ndb)
 	case "public_feed":
-		if err := migratePublicFeedIndex(db, mdb, ndb, true); err != nil {
-			log.Fatal(err)
-		}
-		ndb.Flush()
+		runPublicFeedCommand(db, mdb, ndb)
 	case "rebuild_timeline":
-		options := timelineRebuildOptions{user: timelineUser, maxFeeds: timelineMaxFeeds, dryRun: dryRun}
-		stats, err := rebuildTimelines(ndb, options)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if !dryRun {
-			ndb.Flush()
-		}
-		log.Printf("timeline summary: %d profiles, %d existing entries, %d follows, %d source entries, dry-run=%t", stats.profiles, stats.existing, stats.follows, stats.entries, dryRun)
+		runRebuildTimelineCommand(ndb)
 	case "rebuild_social_graph":
-		stats, err := rebuildSocialGraph(ndb, dryRun)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if !dryRun {
-			ndb.Flush()
-		}
-		log.Printf("social graph summary: %d feedinfos, %d edges, %d skipped references, dry-run=%t", stats.feedinfos, stats.edges, stats.skipped, dryRun)
+		runRebuildSocialGraphCommand(ndb)
 	case "migrate_media_urls":
-		stats, err := migrateMediaURLs(ndb, dryRun)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if !dryRun {
-			ndb.Flush()
-		}
-		log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, dry-run=%t", stats.profiles, stats.entries, stats.thumbnails, dryRun)
+		runMigrateMediaURLsCommand(ndb)
 	case "sync":
-		// EntryIndex
-		model.EntryIndex.Iter(db, func(k, v []byte) error {
-			return ndb.Set(k, v)
-		})
-		ndb.Flush()
-		log.Println("iter done...")
-
-		// Entry
-		i := 0
-		err := model.Entry.Iter(db, func(k, v []byte) error {
-			i++
-			return ndb.Set(k, v)
-		})
-		if err != nil {
-			log.Println(err)
-		}
-		log.Println("synced entry count: ", i)
-		ndb.Flush()
-		log.Println("entry iter done...")
+		runSyncCommand(db, ndb)
 	case "profile":
-		prefix := model.TableProfile
-		j := 0
-		n, err := mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-			profile := &pb.Profile{}
-			if err := proto.Unmarshal(v, profile); err != nil {
-				return err
-			}
-			if profile.Id == "yinhm" {
-				fmt.Printf("profile: %s\n", profile)
-
-				new_value, _ := ndb.Get(k)
-				// pb messge differ
-				// if !bytes.Equal(v, new_value) {
-				// 	fmt.Println(v)
-				// 	fmt.Println(new_value)
-				// 	return errors.New("value not equal")
-				// }
-				if err := proto.Unmarshal(new_value, profile); err != nil {
-					return err
-				}
-				fmt.Printf("new profile: %s\n", profile)
-
-				return nil
-			}
-			// fmt.Printf("profile: <%s, %s>\n", profile.Uuid, profile.Id)
-			// fmt.Println(profile)
-
-			j++
-			return nil
-		})
-		if err != nil {
-			fmt.Println("Error on scanning user profiles:", err)
-		}
-		fmt.Printf("Profiles: %d, %d have services.\n", n, j)
-
+		runProfileCommand(mdb, ndb)
 	case "purge_profile":
-		n, err := purge_table(ndb, model.TableProfile.Bytes())
-		if err != nil {
-			fmt.Println("Error on scanning user profiles:", err)
-		}
-		fmt.Printf("Profiles: %d has been removed.\n", n)
-		ndb.Flush()
-
+		runPurgeProfileCommand(ndb)
 	case "purge_oauth":
-		n, err := purge_table(ndb, model.TableOAuth.Bytes())
-		if err != nil {
-			fmt.Println("Error on scanning oauth:", err)
-		}
-		fmt.Printf("oauth: %d has been removed.\n", n)
-		ndb.Flush()
-
+		runPurgeOAuthCommand(ndb)
 	case "count_meta":
-		prefix := []byte("")
-		log.Println("iter meta db now...")
-
-		// prefix = model.TableProfile.Bytes()
-		n, _ := mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-			return nil
-		})
-		log.Printf("key counts: %d", n)
-
-		// now test it
-		// n, _ = mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
-		// 	return nil
-		// })
-		// count += n
-		// n, _ = mdb.ForwardScan(model.TableOAuth.Bytes(), func(i int, k, v []byte) error {
-		// 	return nil
-		// })
-		// count += n
-		// log.Printf("key counts: %d", count)
-
-		count := 0
-		count_parsed := 0
-		mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-			msg := &pb.OAuthUser{}
-			if err := proto.Unmarshal(v, msg); err == nil {
-				count_parsed++
-				// model.PutOAuthUser(ndb, msg) // oauth format updated
-			} else {
-				msg := &pb.Profile{}
-				if err := proto.Unmarshal(v, msg); err == nil {
-					count_parsed++
-					// ndb.Set(k, v) // profile
-				} else {
-					count++
-					uuid1, err := uuid.FromBytes(v)
-					if err != nil {
-						fmt.Println(k, v) // cache
-					} else {
-						v2, _ := model.UserMap.GetRaw(ndb, k)
-						fmt.Println(string(k), uuid1.String(), bytes.Equal(v, v2))
-						// update id->uuid map here
-					}
-				}
-			}
-			return nil
-		})
-		fmt.Printf("known keys: %d id->uuid map keys: %d\n", count_parsed, count)
-
+		runCountMetaCommand(mdb, ndb)
 	case "debug":
-		// map changed, this will fail
-		profile, err := model.GetProfileFromUserId(mdb, "yinhm")
-		if err != nil {
-			log.Println(err)
-		}
-		log.Println(profile)
-
-		// profile, err = model.GetProfileFromUserId(mdb, "veronicabelmont")
-		// if err != nil {
-		// 	log.Println(err)
-		// }
-		// log.Println(profile)
-
-		// entryId := "c8e5fe86df10e285f1ff12acac102d44"
-		entryId := "744b310d5dca442d82f1ec2366554b1e"
-		// entryId := "0000012820141462fa7290a658763ae1"
-		entry, err := model.GetEntry(db, entryId)
-		if err != nil {
-			log.Println(err)
-		}
-		log.Println(entry)
-
-		entry, err = model.GetEntry(ndb, entryId)
-		if err != nil {
-			log.Println(err)
-		}
-		log.Println(entry)
-
-		// First entry
-		// model.Entry.Iter(ndb, func(k, v []byte) error {
-		// 	log.Println(model.Entry.ToStringKey(k))
-		// 	log.Println(hex.EncodeToString(k), hex.EncodeToString(v))
-
-		// 	return errors.New("stop iter")
-		// })
-
-		// test oauth user in new db
-		_, msg, err := model.GetOAuthUser(ndb, "twitter", "5289142")
-		if err != nil && !errors.Is(err, model.ErrNotFound) {
-			log.Printf("oauth user not found: %s", err)
-		}
-		log.Printf("oauth user: <%s>", msg)
-
-		model.OAuth.Iter(ndb, func(k, v []byte) error {
-			log.Println(model.Entry.ToStringKey(k))
-			log.Println(hex.EncodeToString(k), hex.EncodeToString(v))
-
-			return errors.New("stop iter")
-		})
-
-		// uuidStr := "f82871b4-6b05-510a-9ae1-b626addf5b09"
-		// profile, err := model.GetProfileFromUuid(db, uuidStr)
-		// if err != nil {
-		// 	log.Println(err)
-		// }
-		// log.Println(profile)
-
-		v, _ := model.UserMap.GetRaw(ndb, []byte("yinhm"))
-		log.Printf("id map: <%s>", v)
+		runDebugCommand(db, mdb, ndb)
 	}
 
 	ndb.Close()
