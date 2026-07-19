@@ -93,7 +93,7 @@ func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
 
 	// disable pebble.Sync since we cannot do batch easily
 	// and sync was too slow for large data.
-	// diable it so we can do 100K/1s records via stream.
+	// disable it so we can do 100K/1s records via stream.
 	s.rdb.SetSync(false)
 	defer s.rdb.SetSync(true)
 

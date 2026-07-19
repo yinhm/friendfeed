@@ -44,7 +44,7 @@ func TestMetaKey(t *testing.T) {
 }
 
 func TestFlakeKey(t *testing.T) {
-	// Giving falke key, When convert to bytes
+	// Giving flake key, When convert to bytes
 	fid := flake.Id{}
 	suffix := hex.EncodeToString(fid[:])
 	key := &FlakeKey{TableFeed, fid}

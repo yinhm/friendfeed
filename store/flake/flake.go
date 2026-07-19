@@ -1,8 +1,8 @@
-// Falke: k-ordered id generation[1][2].
+// Flake: k-ordered id generation[1][2].
 //
 // Snowflake use 41bits timestamp(delta to TwitterEpoch) fix the max year to
 // 2079, which gives us a hard time on reverse search(rocksdb related), hence
-// we migrate to full falke implementation.
+// we migrate to full flake implementation.
 //
 // Original Go implementation from alindeman[3], all credits goes to the
 // author.
@@ -121,7 +121,7 @@ func (gen *Generator) NextId() (id Id, err error) {
 
 // make it variable so we can test
 // BUG: Fix NewWorkerId due to broken EntryIndex design
-// Old data need fix since falke id rely on MAC address,
+// Old data need fix since flake id rely on MAC address,
 // and it has been changed on cloud rapidly.
 var NewWorkerId = func() (id WorkerId) {
 	fixedWorkedId, _ := hex.DecodeString("42010af00003")

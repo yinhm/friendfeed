@@ -13,7 +13,7 @@ import (
 
 func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	if entry.FeedUuid == "" {
-		entry.FeedUuid = entry.ProfileUuid // backward comptabile
+		entry.FeedUuid = entry.ProfileUuid // backward compatible
 	}
 	userUuid, err := uuid.FromString(entry.ProfileUuid)
 	if err != nil {

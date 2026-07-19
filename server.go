@@ -39,11 +39,11 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
 
 	log.Printf("Signal %s received, shutdown server...", signal)
 	apiSrv.Shutdown()
-	log.Println("api server stoped.")
+	log.Println("api server stopped.")
 	search.Indexer.Close()
 	log.Println("index server closed.")
 	rpcSrv.Stop()
-	log.Println("rpc server stoped.")
+	log.Println("rpc server stopped.")
 }
 
 func main() {

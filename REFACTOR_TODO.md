@@ -110,7 +110,7 @@
 
 - [x] 私有命名：`profileUUid`→`profileUUID`、`rumCmd`→`runCmd`、`BASE_URL`→`baseURL`、`_oauthUserIdFrom`→`oauthUserIDFrom`
 - [x] 将多处无语义的局部变量 `uuid1` 按上下文改名
-- [ ] 拼写：`stoped`→`stopped`（根 server.go）、"Falke"→"Flake"（flake.go）、"comptabile"（model/entry.go:15）、"diable"（stock.go:31）、`EnqueJob`（job.go，改名需动 .proto）
+- [x] 拼写：`stoped`→`stopped`、"Falke"→"Flake"、"comptabile"→"compatible"、"diable"→"disable"
 - [ ] 冗余写法：`entries[:]`（server.go:372 等）、`[]byte(kb)`/`string(item)`（index.go:102）、`store.KeyFromString(k)[:]`、`buf.Write(b[:])`
 - [ ] `time.Tick` → `time.NewTicker`（`server/job.go:17,25`）
 - [ ] `helper.go:103`（server）日志文案复制错误；`stock.go:231` 注释复制错误；`store/store.go:80` 注释 `128 << 20 // 512 MB` 应为 128 MB
@@ -171,3 +171,4 @@
 - `twitter/crawler.py` 的 `fetch_user` 复用 `tweet_to_pb` — `fetch_user` 当前构造并发布 legacy `Entry`，而 `tweet_to_pb` 构造归档用 `Tweet`。直接调用只为复用少数字段会额外耦合 TweetUser 和统计字段；改为 `PostTweet` 则会改变写入模型。需先决定 `fetch_user` 是否继续维护 Entry feed，不能机械合并。
 - 日志框架统一 — `server` 的 logrus 承担级别控制并接管 gRPC 日志，CLI、迁移工具、store 等使用 stdlib `log`，httpd 另有单点 glog。全局替换会影响日志级别、stdout/stderr、库包依赖及 systemd/journald 行为；需先确定目标框架和各二进制的日志策略，再按 package 边界迁移，不能作为机械清理执行。
 - `media.Object.Url`→`URL` — `Object` 及其字段均为导出 API，直接重命名会破坏外部源码兼容；不能与私有命名清理混做。需先确认外部调用，或设计兼容迁移方案后再处理。
+- `EnqueJob`→`EnqueueJob` — 该拼写已进入 `pb/api.proto` 的 RPC 名和 gRPC 方法路径，并生成 Go/Python 公共客户端 API。直接改名会破坏现有客户端；如需迁移，应先新增正确拼写的兼容 RPC、保留旧方法，再制定退役周期。
