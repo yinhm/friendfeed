@@ -70,14 +70,8 @@ func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	// fmt.Println(hex.EncodeToString(fanOutToTimeline.Bytes()))
 	EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey)
 
-	prefix := NewPrefixKeyFrom(TableFollower, feedUuid.Bytes())
-	// fmt.Printf("scan key, %s\n", prefix.String())
-
-	return db.ForwardScan(prefix, func(i int, k, v []byte) error {
-		fk := ParseFollowerKey(k)
-		fanOutToTimeline := UniqueKeyFrom(fk.String(), "user", "timeline")
-		// fmt.Printf("fanout to: <%s, %x>", fk.String(), fanOutToTimeline)
-		return EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey)
+	return updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
+		return EntryIndex.Index(db, timelineUuid, oldtime, entryKey)
 	})
 }
 
@@ -145,12 +139,19 @@ func DeleteFanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	fanOutToTimeline := UniqueKeyFrom(fmt.Sprintf("%x", userUuid), "user", "timeline")
 	EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime)
 
-	prefix := NewPrefixKeyFrom(TableFollower, feedUuid.Bytes())
+	return updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
+		return EntryIndex.RemoveIndex(db, timelineUuid, oldtime)
+	})
+}
 
+func updateFollowerTimelines(db *store.Store, feedUuid uuid.UUID, update func(uuid.UUID) error) (n int, err error) {
+	prefix := NewPrefixKeyFrom(TableFollower, feedUuid.Bytes())
+	// fmt.Printf("scan key, %s\n", prefix.String())
 	return db.ForwardScan(prefix, func(i int, k, v []byte) error {
 		fk := ParseFollowerKey(k)
-		fanOutToTimeline := UniqueKeyFrom(fk.String(), "user", "timeline")
-		return EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime)
+		timelineUuid := UniqueKeyFrom(fk.String(), "user", "timeline")
+		// fmt.Printf("fanout to: <%s, %x>", fk.String(), timelineUuid)
+		return update(timelineUuid)
 	})
 }
 

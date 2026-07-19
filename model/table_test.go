@@ -2,9 +2,11 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
@@ -176,4 +178,37 @@ func (s *TableTestSuite) TestDeleteEntryPropagatesReadError() {
 	missingUUID := uuid.Must(uuid.NewV4())
 	err = DeleteEntry(s.db, missingUUID.String())
 	assert.NoError(s.T(), err)
+}
+
+func (s *TableTestSuite) TestFanoutEntryAndDeleteFanoutEntry() {
+	userUUID := uuid.Must(uuid.NewV4())
+	feedUUID := uuid.Must(uuid.NewV4())
+	followerUUID := uuid.Must(uuid.NewV4())
+	followerKey := NewKeyFrom(Follower.Prefix, feedUUID.Bytes(), followerUUID.Bytes())
+	assert.NoError(s.T(), s.db.Put(followerKey, []byte("1")))
+
+	entryTime := time.Now().UTC().Truncate(time.Second)
+	entryKey := Entry.PrefixAppend(uuid.Must(uuid.NewV4()).Bytes())
+	n, err := FanoutEntry(s.db, userUUID, feedUUID, entryTime, entryKey)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), 1, n)
+
+	userTimeline := UniqueKeyFrom(fmt.Sprintf("%x", userUUID), "user", "timeline")
+	followerTimeline := UniqueKeyFrom(store.Key(followerUUID.Bytes()).String(), "user", "timeline")
+	assert.Equal(s.T(), 1, s.countEntryIndex(userTimeline))
+	assert.Equal(s.T(), 1, s.countEntryIndex(followerTimeline))
+
+	n, err = DeleteFanoutEntry(s.db, userUUID, feedUUID, entryTime)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), 1, n)
+	assert.Equal(s.T(), 0, s.countEntryIndex(userTimeline))
+	assert.Equal(s.T(), 0, s.countEntryIndex(followerTimeline))
+}
+
+func (s *TableTestSuite) countEntryIndex(timelineUUID uuid.UUID) int {
+	n, err := s.db.ForwardScan(store.NewUUIDKey(TableEntryIndex, timelineUUID).Bytes(), func(i int, k, v []byte) error {
+		return nil
+	})
+	assert.NoError(s.T(), err)
+	return n
 }
