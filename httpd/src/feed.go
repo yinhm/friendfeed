@@ -82,6 +82,7 @@ func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {
 		"prev_start":  prevStart,
 		"next_start":  start + pageSize,
 		"show_paging": len(feed.Entries) > int(pageSize),
+		"show_share":  false,
 	}
 }
 
@@ -130,7 +131,6 @@ func (s *Server) FeedHandler(c *gin.Context) {
 
 	data := feedContext(feed, req.Start, req.PageSize)
 	data["show_header"] = true
-	data["show_share"] = contains(feed.Commands, "post")
 	s.renderFeed(c, data)
 }
 
@@ -148,7 +148,6 @@ func (s *Server) PublicHandler(c *gin.Context) {
 	}
 
 	data := feedContext(feed, req.Start, req.PageSize)
-	data["show_share"] = s.feedWritable(c, feed.Uuid)
 	// s.HTML(c, 200, "_feed.html", data)
 	s.renderFeed(c, data)
 }

@@ -68,6 +68,9 @@ func TestFeedContext(t *testing.T) {
 	if got := data["show_paging"]; got != true {
 		t.Fatalf("show_paging = %#v; want true", got)
 	}
+	if got := data["show_share"]; got != false {
+		t.Fatalf("show_share = %#v; want false", got)
+	}
 
 	data = feedContext(&pb.Feed{Entries: make([]*pb.Entry, 30)}, 60, 30)
 	if got := data["prev_start"]; got != int32(30) {
