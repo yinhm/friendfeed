@@ -1,5 +1,6 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {createPlateEditor} from '@udecode/plate-common/react';
+import {serializeHtml} from '@udecode/plate-html/react';
 
 import OnPageEditor from './editor';
 import {plugins} from './components/plate-plugins';
@@ -68,4 +69,28 @@ test('legacy HTML fallback still deserializes into editable content', () => {
   expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent(
     'Legacy HTML text'
   );
+});
+
+test('HTML serialization rejects unsafe link protocols', () => {
+  const editor = createPlateEditor({plugins});
+  editor.children = [
+    {
+      type: 'p',
+      children: [
+        {
+          type: 'a',
+          url: 'javascript:alert(1)',
+          children: [{text: 'unsafe link'}],
+        },
+      ],
+    },
+  ];
+
+  let html;
+  act(() => {
+    html = serializeHtml(editor, {nodes: editor.children});
+  });
+
+  expect(html).not.toMatch(/javascript:/i);
+  expect(html).toContain('unsafe link');
 });

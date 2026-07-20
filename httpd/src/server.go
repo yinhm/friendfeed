@@ -112,18 +112,24 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 	requestedShare, _ := data["show_share"].(bool)
 	data["show_share"] = showShareForUser(CurrentUserUuid(c), requestedShare)
+	sanitizeFeedEntries(data["feed"].(*pb.Feed))
 
 	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
 		c.Request.Header.Get("Content-Type") == "application/json" {
 		c.JSON(200, data)
 	} else {
-		for _, entry := range data["feed"].(*pb.Feed).Entries {
-			entry.Body = htmlSanitizer.Sanitize(entry.Body)
-		}
 		data["feed_body"] = ""
 		encoded, _ := json.Marshal(data)
 		data["appData"] = string(encoded)
 		s.HTML(c, 200, "feed.html", data)
+	}
+}
+
+func sanitizeFeedEntries(feed *pb.Feed) {
+	for _, entry := range feed.Entries {
+		if entry != nil {
+			entry.Body = htmlSanitizer.Sanitize(entry.Body)
+		}
 	}
 }
 

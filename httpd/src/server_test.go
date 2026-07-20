@@ -12,6 +12,22 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func TestSanitizeFeedEntries(t *testing.T) {
+	feed := &pb.Feed{Entries: []*pb.Entry{{
+		Body: `<p>safe<script>alert(1)</script><img src=x onerror=alert(2)></p>`,
+	}, nil}}
+
+	sanitizeFeedEntries(feed)
+
+	got := feed.Entries[0].Body
+	if strings.Contains(got, "<script") || strings.Contains(got, "onerror") {
+		t.Fatalf("unsafe entry body returned as JSON: %q", got)
+	}
+	if !strings.Contains(got, "safe") {
+		t.Fatalf("sanitized entry body lost safe text: %q", got)
+	}
+}
+
 func TestFirstEntry(t *testing.T) {
 	tests := []struct {
 		name string
