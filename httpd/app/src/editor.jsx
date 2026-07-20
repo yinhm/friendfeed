@@ -1,3 +1,5 @@
+// @ts-check
+
 'use client';
 
 import React, { useState, useMemo, useRef, useCallback } from 'react';
@@ -19,6 +21,17 @@ import { Editor } from 'components/plate-ui/editor';
 import { FloatingToolbar } from 'components/plate-ui/floating-toolbar';
 import { FloatingToolbarButtons } from 'components/plate-ui/floating-toolbar-buttons';
 
+/** @typedef {import('platejs').Value} Value */
+/** @typedef {import('platejs/react').PlateEditor} PlateEditor */
+
+/**
+ * @typedef {Object} OnPageEditorProps
+ * @property {string=} id
+ * @property {string} feedUuid
+ * @property {string=} content
+ * @property {(formData: FormData) => Promise<unknown>} postEntry
+ */
+
 
 // const editableProps = {
 //     placeholder: '开始记录...',
@@ -33,10 +46,12 @@ import { FloatingToolbarButtons } from 'components/plate-ui/floating-toolbar-but
 //     },
 // };
 
+/** @param {Value} nodes */
 const serializePlainText = nodes => {
     return nodes.map(n => Node.string(n)).join('\n')
 }
 
+/** @type {Value} */
 const initialValueEmpty = [
     {
         id: '1',
@@ -45,12 +60,13 @@ const initialValueEmpty = [
     },
 ];
 
+/** @param {OnPageEditorProps} params */
 const OnPageEditor = (params) => {
-    const editorRef = useRef(null);
+    const editorRef = useRef(/** @type {PlateEditor | null} */ (null));
 
     const eid = params.id + "editor";
     // const editorRef = useEditorRef(eid);
-    const [, setEditorValue] = useState(null);
+    const [, setEditorValue] = useState(/** @type {Value | null} */ (null));
     // const { setValue, resetEditor } = usePlateActions(eid);
     // const [value, setValue] = usePlateStates('myeditor').value();
     // const [setValue, resetEditor] = usePlateStates(eid).value();
@@ -67,13 +83,13 @@ const OnPageEditor = (params) => {
         if (params.content) {
             try {
                 // how to test content is raw?
-                return JSON.parse(params.content);
+                return /** @type {Value} */ (JSON.parse(params.content));
             } catch (e) {
                 // fail safe to html parse
                 const tmpEditor = createPlateEditor({ plugins });
-                return deserializeHtml(tmpEditor, {
+                return /** @type {Value} */ (deserializeHtml(tmpEditor, {
                     element: params.content,
-                });
+                }));
             }
         }
         return initialValueEmpty;
@@ -91,6 +107,7 @@ const OnPageEditor = (params) => {
     );
     editorRef.current = editor;
 
+    /** @param {Value} slateValue */
     const onChange = (slateValue) => {
         // console.log(JSON.stringify(slateValue));
         setEditorValue(slateValue);
@@ -124,7 +141,7 @@ const OnPageEditor = (params) => {
             .then(() => {
                 editor.tf.reset();
                 // setValue(initialValueEmpty);
-            }).catch(error => {
+            }).catch((/** @type {unknown} */ error) => {
                 console.error(error)
             });
     }, [editorRef, params])
@@ -137,8 +154,8 @@ const OnPageEditor = (params) => {
         >
             <Plate
                 editor={editor}
-                onChange={(newValue) => {
-                    onChange(newValue);
+                onChange={({ value }) => {
+                    onChange(value);
                 }}
             >
                 <div className="sharebox">

@@ -117,6 +117,7 @@
 - [ ] 为核心 JS/JSX 文件逐步启用类型检查，优先覆盖 `App.jsx`、`entry.jsx`、`editor.jsx` 和网络请求工具。
   - [x] `App.jsx` 已启用 `@ts-check`，补齐 feed、分页、context、FormData 与 `window.appData` 的 JSDoc 契约，并消除全部严格模式错误。
   - [x] `entry.jsx` 已启用 `@ts-check`，以共享 JSDoc 模型覆盖 entry、feed、thumbnail、comment、like、命令回调及表单事件，保持现有服务端 JSON 字段和交互流程。
+  - [x] `editor.jsx` 已启用 `@ts-check`，以 Plate 49 的公开 `Value`/`PlateEditor` 类型约束持久化内容、编辑器引用、组件参数与提交回调，并按新版 `onChange` 契约读取 `value`。
 - [ ] 评估增加 ESLint；lint 规则落地应独立提交，避免与功能迁移混杂。
 
 完成条件：类型覆盖提高，测试与构建通过，不改变服务端 JSON 契约。
