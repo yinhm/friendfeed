@@ -24,10 +24,10 @@
 
 ## 1. 清理依赖声明，不升级运行时代码
 
-- [ ] 逐一确认并移除没有直接 import 的依赖：`install`、`immutable`、`@styled-icons/boxicons-regular`、`@styled-icons/material`、`styled-components`、`throttle-debounce`。
-- [ ] 将 `typescript`、`@types/node`、`@types/react`、`@types/react-dom` 移到 `devDependencies`。
-- [ ] 将 `@types/node` 从 20.x 对齐到 Node 24 对应版本。
-- [ ] 重新生成 lockfile，确认被删除的包若仍是传递依赖，会由真正的上游包声明。
+- [x] 逐一确认并移除没有直接 import 的依赖：`install`、`immutable`、`@styled-icons/boxicons-regular`、`@styled-icons/material`、`styled-components`、`throttle-debounce`。
+- [x] 将 `typescript`、`@types/node`、`@types/react`、`@types/react-dom` 移到 `devDependencies`。
+- [x] 将 `@types/node` 从 20.x 对齐到 Node 24 对应版本。
+- [x] 重新生成 lockfile，确认被删除的包若仍是传递依赖，会由真正的上游包声明。
 
 完成条件：测试、类型检查和构建通过；运行时功能与 bundle 行为不变或体积下降。
 
