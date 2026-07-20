@@ -390,6 +390,7 @@ function EntryPicture(props) {
 
 /** @param {{feeds: FeedRef[]}} props */
 function EntryToFeeds(props) {
+  /** @type {React.ReactNode[]} */
   var feeds = props.feeds.map(function(feed, index) {
     return (
       <EntryToFeed feed={feed} key={feed.id+index} />
@@ -696,6 +697,7 @@ function EntryLikes(props) {
   }
 
   var expandLikes = props.expandLikes;
+  /** @type {React.ReactNode[]} */
   var likes = props.likes.map(function(like, index) {
     return (
       <EntryLike like={like} key={index}

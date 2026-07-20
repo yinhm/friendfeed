@@ -114,10 +114,11 @@
 
 - [x] TypeScript 已因 plugin-react 6 的语法要求从 5.4 更新到最小兼容的 5.6.3；现已精确升级至最后的 5.x（5.9.3），TypeScript 7 保留为独立评估项。
 - [x] TypeScript 5.9.3 未引入新的类型错误；未扩大既有 `skipLibCheck`，也未增加批量 `any` 规避。
-- [ ] 为核心 JS/JSX 文件逐步启用类型检查，优先覆盖 `App.jsx`、`entry.jsx`、`editor.jsx` 和网络请求工具。
+- [x] 为核心 JS/JSX 文件逐步启用类型检查，优先覆盖 `App.jsx`、`entry.jsx`、`editor.jsx` 和网络请求工具。
   - [x] `App.jsx` 已启用 `@ts-check`，补齐 feed、分页、context、FormData 与 `window.appData` 的 JSDoc 契约，并消除全部严格模式错误。
   - [x] `entry.jsx` 已启用 `@ts-check`，以共享 JSDoc 模型覆盖 entry、feed、thumbnail、comment、like、命令回调及表单事件，保持现有服务端 JSON 字段和交互流程。
   - [x] `editor.jsx` 已启用 `@ts-check`，以 Plate 49 的公开 `Value`/`PlateEditor` 类型约束持久化内容、编辑器引用、组件参数与提交回调，并按新版 `onChange` 契约读取 `value`。
+  - [x] `utils.js` 已启用 `@ts-check`，以泛型约束 JSON 请求响应，并补齐 URL、表单字段、FormData 与 `intersperse` 的输入输出契约。
 - [ ] 评估增加 ESLint；lint 规则落地应独立提交，避免与功能迁移混杂。
 
 完成条件：类型覆盖提高，测试与构建通过，不改变服务端 JSON 契约。

@@ -1,10 +1,17 @@
+// @ts-check
 
+/** @param {unknown} msg */
 export function dprint(msg) {
     if (typeof window !== 'undefined' && window.console && window.console.log) {
         window.console.log(msg);
     }
 }
 
+/**
+ * @template T
+ * @param {string} url
+ * @returns {Promise<T>}
+ */
 export function getJSON(url) {
     return fetch(url, {
         cache: 'no-cache',
@@ -20,6 +27,12 @@ export function getJSON(url) {
     }).then(response => response.json()) // parses response to JSON
 }
 
+/**
+ * @template T
+ * @param {string} url
+ * @param {Record<string, string>} data
+ * @returns {Promise<T>}
+ */
 export function postJSON(url, data) {
     const params = new URLSearchParams();
     for (var key in data) {
@@ -46,6 +59,12 @@ export function postJSON(url, data) {
 // on the request. Doing so will prevent the browser from being able to set the 
 // Content-Type header with the boundary expression it will use to delimit form 
 // fields in the request body.
+/**
+ * @template T
+ * @param {string} url
+ * @param {FormData} formData
+ * @returns {Promise<T>}
+ */
 export function postForm(url, formData) {
     return fetch(url, {
         body: formData,
@@ -61,18 +80,23 @@ export function postForm(url, formData) {
     }).then(response => response.json()) // parses response to JSON
 }
 
-/* intersperse: Return an array with the separator interspersed between
+/** intersperse: Return an array with the separator interspersed between
  * each element of the input array.
  *
  * > _([1,2,3]).intersperse(0)
  * [1,0,2,0,3]
+ *
+ * @template T, S
+ * @param {T[]} arr
+ * @param {S} sep
+ * @returns {(T | S)[]}
  */
 export function intersperse(arr, sep) {
     if (arr.length === 0) {
         return [];
     }
 
-    return arr.slice(1).reduce(function (xs, x, i) {
+    return arr.slice(1).reduce(function (xs, x) {
         return xs.concat([sep, x]);
-    }, [arr[0]]);
+    }, /** @type {(T | S)[]} */ ([arr[0]]));
 }
