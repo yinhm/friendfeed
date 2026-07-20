@@ -128,10 +128,11 @@
 - [x] 已评估 class components 迁移：无状态的 `App` 外壳可直接函数化；`Feed` 的轮询/发帖状态与 `Entry` 的 props/本地编辑状态同步必须先由回归测试锁定，避免机械改写生命周期。
   - `EntryCommand*`、`EntryCommentForm`、`EntryComment`、`EntryLike` 等叶子组件可独立迁移，但收益低于先解决 `App`/`Feed`/`Entry` 的状态边界。
   - 推荐顺序为：补 `Feed`/`Entry` 行为测试 → 迁移无状态 `App` → 迁移 `Feed` → 最后迁移 `Entry`；每步单独提交并验证。
-- [ ] 优先处理状态同步复杂的 `App` 和 `Entry`，迁移前先增加行为测试。
+- [x] 优先处理状态同步复杂的 `App` 和 `Entry`，迁移前先增加行为测试。
   - [x] 已增加迁移前行为测试，锁定 `Feed` 的 20 秒刷新/卸载清理/发帖置顶，以及 `Entry` 的父级刷新、展开 likes 和本地编辑状态同步语义。
   - [x] 无状态 `App` 外壳已迁移为 function component；它继续在渲染时读取当前 URL 与 `window.appData`，未引入多余 hook。
   - [x] `Feed` 已迁移为 function component；轮询使用 effect 清理并通过 ref 读取最新 URL，异步刷新保持 class `setState` 的局部合并语义，发帖使用不可变置顶更新。
+  - [x] 主 `Entry` 容器已迁移为 function component；新 `props.entry` 到达时同步未展开的服务端数据，本地展开/编辑状态保持优先，异步操作使用函数式 state 更新。
 - [ ] 不为追求写法统一而改动稳定组件；每次迁移应有明确收益。
 
 完成条件：属于可选维护工作，不阻塞前述安全与依赖升级。

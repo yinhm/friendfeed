@@ -1,6 +1,6 @@
 // @ts-check
 
-import React from 'react';
+import React, {useState} from 'react';
 import { EntryContent } from './content'
 import {EntryLike} from './entry-like';
 import {getJSON, postJSON, postForm, intersperse} from './utils';
@@ -30,10 +30,10 @@ import {getJSON, postJSON, postForm, intersperse} from './utils';
  * @typedef {{entry: EntryData, onpage_edit: boolean}} EntryProps
  * @typedef {object} EntryState
  * @property {EntryData} entry
+ * @property {EntryData} source_entry
  * @property {boolean} onpage_edit
  * @property {CommentData[] | undefined} comments
  * @property {LikeData[] | undefined} likes
- * @property {boolean} self_updating
  * @property {boolean} new_comment_form
  * @property {boolean} expanded_likes
  * @property {boolean} expanded_comments
@@ -41,109 +41,89 @@ import {getJSON, postJSON, postForm, intersperse} from './utils';
  * @property {string | null} comment_preserve
  */
 
-/** @extends {React.Component<EntryProps, EntryState>} */
-export class Entry extends React.Component {
+/** @param {EntryProps} nextProps @param {EntryState} state */
+function mergeEntryProps(nextProps, state) {
+  var newState = {...state};
 
-  /** @param {EntryProps} props */
-  constructor(props) {
-    super(props);
-    this.state = {
-      entry: this.props.entry,
-      onpage_edit: this.props.onpage_edit,
-      comments: this.props.entry.comments,
-      likes: this.props.entry.likes,
-      self_updating: false,
-      new_comment_form: false,
-      expanded_likes: false,
-      expanded_comments: false,
-      is_deleted: false,
-      comment_preserve: null
-    };
+  if (state.onpage_edit) {
+    console.log("no update entry content when on-page editing");
+  } else {
+    newState.entry = nextProps.entry;
+  }
+
+  // Merge server data only while the corresponding local view is untouched.
+  if (!state.expanded_comments && nextProps.entry.comments) {
+    var safeUpdate = !(state.comments ?? []).some((comment) => comment.is_editing);
+    if (safeUpdate) {
+      newState.comments = nextProps.entry.comments;
+    }
+  }
+  if (!state.expanded_likes) {
+    newState.likes = nextProps.entry.likes;
+  }
+  return newState;
+}
+
+/** @param {EntryProps} props */
+export function Entry(props) {
+  const [state, setEntryState] = useState(/** @type {EntryState} */ ({
+    entry: props.entry,
+    source_entry: props.entry,
+    onpage_edit: props.onpage_edit,
+    comments: props.entry.comments,
+    likes: props.entry.likes,
+    new_comment_form: false,
+    expanded_likes: false,
+    expanded_comments: false,
+    is_deleted: false,
+    comment_preserve: null,
+  }));
+
+  if (state.source_entry !== props.entry) {
+    setEntryState(current => ({
+      ...mergeEntryProps(props, current),
+      source_entry: props.entry,
+    }));
   }
 
   /** @param {Partial<EntryState>} newState */
-  updateState(newState) {
-    newState.self_updating = true;
-    this.setState({...this.state, ...newState});
-  }
-
-  // The new static getDerivedStateFromProps lifecycle is invoked after a component
-  // is instantiated as well as before it is re-rendered. It can return an object to
-  // update state, or null to indicate that the new props do not require any state updates.
-  /** @param {EntryProps} nextProps @param {EntryState} state */
-  static getDerivedStateFromProps(nextProps, state) {
-    // allways return self state, safe?
-    if (state.self_updating) {
-      console.log("no update top due to self-updating performed");
-      // reset self-updating, no merge props here
-      state.self_updating = false;
-      return state;
-    }
-
-    var new_state = Object.assign({}, state);
-
-    if (state.onpage_edit) {
-      console.log("no update entry content when on-page editing");
-    } else {
-      new_state.entry = nextProps.entry;
-      new_state.onpage_edit = state.onpage_edit;
-    }
-
-    // compare props from top component
-    // merge partial data if state not change
-    if (!state.expanded_comments && nextProps.entry.comments) {
-      var safe_update = true;
-      var comments = state.comments || [];
-      comments.forEach(function(cmt) {
-        if (cmt.is_editing) {
-          safe_update = false;
-        }
-      });
-      if (safe_update) {
-        new_state.comments = nextProps.entry.comments;
-      }
-    }
-    if (!state.expanded_likes) {
-      new_state.likes = nextProps.entry.likes;
-    }
-    return new_state;
-  }
+  const updateState = (newState) => {
+    setEntryState(current => ({...current, ...newState}));
+  };
 
   /** @param {React.SyntheticEvent} _event */
-  handleEdit = (_event) => {
+  const handleEdit = (_event) => {
     console.log("edit entry")
     // var onpageEdit = !this.state.onpage_edit;
-    this.setState({onpage_edit: true});
-  }
+    updateState({onpage_edit: true});
+  };
 
-  handleDelete = () => {
-    var entry = this.state.entry;
+  const handleDelete = () => {
+    var entry = state.entry;
     postJSON("/a/delete", {entry: entry.id})
       .then(() => {
-        var new_state = Object.assign({}, this.state);
-        new_state.is_deleted = true;
-        this.updateState(new_state);
+        updateState({is_deleted: true});
       });
-  }
+  };
 
-  handleNewComment = () => {
-    if (!this.state.new_comment_form) {
+  const handleNewComment = () => {
+    if (!state.new_comment_form) {
       // make form; the textarea focuses itself via autoFocus
-      this.updateState({new_comment_form: true});
+      updateState({new_comment_form: true});
     }
-  }
+  };
 
   /**
    * @param {string | undefined} id
    * @param {string} comment
    * @param {React.SyntheticEvent} event
    */
-  submitComment = (id, comment, event) => {
+  const submitComment = (id, comment, event) => {
     event.preventDefault();
-    var comments = this.state.comments || [];
+    var comments = state.comments || [];
     /** @type {{entry: string, body: string, id?: string}} */
     var args = {
-      entry: this.props.entry.id,
+      entry: props.entry.id,
       body: comment
     };
     if (id) {
@@ -159,98 +139,95 @@ export class Entry extends React.Component {
             }
             return cmt;
           });
-          this.updateState({comments: cmts});
+          updateState({comments: cmts});
         } else {
           comments.push(comment);
-          this.updateState({
+          updateState({
             comments: comments,
             new_comment_form: false
           });
         }
       });
-  }
+  };
 
   /**
    * @param {string | undefined} id
    * @param {string} body
    * @param {React.SyntheticEvent} _event
    */
-  cancelComment = (id, body, _event) => {
+  const cancelComment = (id, body, _event) => {
     if (id) {
       /** @type {CommentData[]} */
       var comments = [];
-      (this.state.comments ?? []).forEach(function(cmt) {
+      (state.comments ?? []).forEach(function(cmt) {
         if (id === cmt.id) {
           cmt.is_editing = false;
         }
         comments.push(cmt);
       });
-      this.updateState({comments: comments});
+      updateState({comments: comments});
     } else {
       if (body) {
-        this.updateState({comment_preserve: body});
+        updateState({comment_preserve: body});
       }
-      this.updateState({new_comment_form: false});
+      updateState({new_comment_form: false});
     }
-  }
+  };
 
-  expandComments = () => {
-    getJSON("/a/entry/" + this.props.entry.id)
+  const expandComments = () => {
+    getJSON("/a/entry/" + props.entry.id)
       .then(data => { // arrow function
-        this.setState({
+        updateState({
           expanded_comments: true,
           comments: data
         });
       });
-  }
+  };
 
-  expandLikes = () => {
-    getJSON("/a/expandlikes/" + this.props.entry.id)
+  const expandLikes = () => {
+    getJSON("/a/expandlikes/" + props.entry.id)
       .then(data => { // arrow function
-        this.updateState({
+        updateState({
           expanded_likes: true,
           likes: data
         });
       });
-  }
+  };
 
   /** @param {CommentData} comment */
-  editComment = (comment) => {
+  const editComment = (comment) => {
     /** @type {CommentData[]} */
     var comments = [];
-    (this.state.comments ?? []).forEach(function(cmt) {
+    (state.comments ?? []).forEach(function(cmt) {
       if (comment.id && comment.id === cmt.id) {
         cmt.is_editing = true;
       }
       comments.push(cmt);
     });
-    this.updateState({comments: comments});
-  }
+    updateState({comments: comments});
+  };
 
   /** @param {CommentData} comment */
-  deleteComment = (comment) => {
+  const deleteComment = (comment) => {
     if (!comment.id) {
       return comment;
     }
-    var data = {entry: this.state.entry.id, comment: comment.id}
+    var data = {entry: state.entry.id, comment: comment.id}
     postJSON("/a/comment/delete", data)
       .then(() => {
         comment.body = "comment deleted";
-        /** @type {CommentData[]} */
-        var comments = [];
-        (this.state.comments ?? []).forEach(function(cmt) {
-          if (comment.id && comment.id !== cmt.id) {
-            comments.push(cmt);
-          }
-        });
-
-        this.updateState({comments: comments});
+        setEntryState(current => ({
+          ...current,
+          comments: (current.comments ?? []).filter(
+            (currentComment) => comment.id !== currentComment.id
+          ),
+        }));
       });
     return null;
-  }
+  };
 
-  handleLike = () => {
-    var entry = this.state.entry;
+  const handleLike = () => {
+    var entry = state.entry;
     postJSON("/a/like", {entry: entry.id})
       .then(likes => { // arrow function
         entry.commands.forEach(function(cmd, index) {
@@ -258,12 +235,12 @@ export class Entry extends React.Component {
             entry.commands[index] = "unlike";
           }
         });
-        this.updateState({likes: likes});
+        updateState({likes: likes});
       });
-  }
+  };
 
-  handleUnlike = () => {
-    var entry = this.state.entry;
+  const handleUnlike = () => {
+    var entry = state.entry;
     postJSON("/a/like/delete", {entry: entry.id})
       .then(likes => { // arrow function
         entry.commands.forEach(function(cmd, index) {
@@ -271,31 +248,29 @@ export class Entry extends React.Component {
             entry.commands[index] = "like";
           }
         });
-        this.updateState({likes: likes});
+        updateState({likes: likes});
       });
-  }
+  };
 
   /** @param {FormData} formData */
-  onPostEntry = (formData) => {
+  const onPostEntry = (formData) => {
     // on post
     return postForm("/a/share", formData)
       .then(entry => {
-        var new_state = Object.assign({}, this.state);
-        new_state.onpage_edit = false;
-        if (this.state.entry.id !== entry.id) {
-          console.log("update failed, new entry created?")
-        }
-        new_state.entry = entry;
-        this.updateState(new_state);
+        setEntryState(current => {
+          if (current.entry.id !== entry.id) {
+            console.log("update failed, new entry created?")
+          }
+          return {...current, entry, onpage_edit: false};
+        });
       });
-  }
+  };
 
-  render() {
-    var entry = this.state.entry;
-    var edit_mode = this.state.onpage_edit || false;
+    var entry = state.entry;
+    var edit_mode = state.onpage_edit || false;
     var bodyClass = edit_mode? 'editBody' : 'body';
 
-    if (this.state.is_deleted) {
+    if (state.is_deleted) {
         return (
         <div className="entry" data-eid={entry.id}>
           <div className="body">
@@ -313,22 +288,21 @@ export class Entry extends React.Component {
 
     /** @type {React.ReactNode} */
     var comments = null;
-    if (this.state.comments) {
-      var self = this;
-      comments = this.state.comments.map(function(comment, index) {
+    if (state.comments) {
+      comments = state.comments.map(function(comment, index) {
         if (comment.is_editing) {
           return (
             <EntryCommentForm commentId={comment.id}
                               commentBody={comment.rawBody}
-                              onSubmitComment={self.submitComment}
-                              onCancelComment={self.cancelComment}/>
+                              onSubmitComment={submitComment}
+                              onCancelComment={cancelComment}/>
           );
         } else {
           return (
             <EntryComment comment={comment}
-                          expandComments={self.expandComments}
-                          editComment={self.editComment}
-                          deleteComment={self.deleteComment}
+                          expandComments={expandComments}
+                          editComment={editComment}
+                          deleteComment={deleteComment}
                           key={index} />
           );
         }
@@ -336,10 +310,10 @@ export class Entry extends React.Component {
     }
 
     var form_cmt = null;
-    if (this.state.new_comment_form) {
-      form_cmt = <EntryCommentForm commentBody={this.state.comment_preserve}
-                                   onSubmitComment={this.submitComment}
-                                   onCancelComment={this.cancelComment}/>
+    if (state.new_comment_form) {
+      form_cmt = <EntryCommentForm commentBody={state.comment_preserve}
+                                   onSubmitComment={submitComment}
+                                   onCancelComment={cancelComment}/>
 
     }
 
@@ -359,22 +333,21 @@ export class Entry extends React.Component {
             rawBody={entry.rawBody}
             type={entry.type}
             onpageEdit={edit_mode}
-            onPostEntry={this.onPostEntry} />
+            onPostEntry={onPostEntry} />
           {medias}
           <EntryInfo entry={entry}
-                     onNewComment={this.handleNewComment}
-                     onLike={this.handleLike}
-                     onUnlike={this.handleUnlike}
-                     onEdit={this.handleEdit}
-                     onDelete={this.handleDelete}/>
-          <EntryLikes likes={this.state.likes}
-                      expandLikes={this.expandLikes} />
+                     onNewComment={handleNewComment}
+                     onLike={handleLike}
+                     onUnlike={handleUnlike}
+                     onEdit={handleEdit}
+                     onDelete={handleDelete}/>
+          <EntryLikes likes={state.likes}
+                      expandLikes={expandLikes} />
           {comments}
           {form_cmt}
         </div>
       </div>
     );
-  }
 }
 
 /** @param {{feed: FeedRef}} props */
