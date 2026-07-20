@@ -33,12 +33,12 @@
 
 ## 2. 当前主版本内的补丁升级
 
-- [ ] React、React DOM 保持 19.x，只更新当前 major 内版本。
-- [ ] Vite 保持 7.x，更新到最新 7.x。
-- [ ] Tailwind CSS 保持 3.x，更新到最新 3.4.x。
-- [ ] 更新 PostCSS、Autoprefixer、Testing Library、jest-dom 等兼容补丁版本。
-- [ ] 更新 `class-variance-authority`、`cmdk`、`react-tweet` 等独立小型依赖的兼容版本。
-- [ ] 再次运行 `pnpm audit`，记录仍只能通过 major migration 解决的项目。
+- [x] React、React DOM 保持 19.x，确认当前 19.2.7 已是最新 19.x。
+- [x] Vite 保持 7.x，确认当前 7.3.6 已是最新 7.x。
+- [x] Tailwind CSS 保持 3.x，更新到 3.4.19。
+- [x] 更新 PostCSS；确认 Autoprefixer、Testing Library、jest-dom 等已是当前 major 的最新兼容版本。
+- [x] 更新 `class-variance-authority`、`cmdk`、`react-tweet`、`tailwind-merge` 等独立小型依赖；`react-lite-youtube-embed` 2.6 因缺失 source map 回退到 2.4。
+- [x] 再次运行 `pnpm audit`：moderate 从 12 降至 11，16 个 high 仍集中于 Plate 31 及其旧依赖树，留待整体 migration。
 
 完成条件：不修改业务组件 API；所有验证通过；审计问题数量不增加。
 
