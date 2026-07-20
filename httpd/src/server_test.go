@@ -14,17 +14,30 @@ import (
 
 func TestSanitizeFeedEntries(t *testing.T) {
 	feed := &pb.Feed{Entries: []*pb.Entry{{
-		Body: `<p>safe<script>alert(1)</script><img src=x onerror=alert(2)></p>`,
+		Body: `<p>safe<script>alert(1)</script>` +
+			`<a href="https://example.com" onclick="alert(2)">link</a>` +
+			`<a href="javascript:alert(3)">unsafe link</a>` +
+			`<img src="https://example.com/image.png" onerror="alert(4)"></p>` +
+			`<ul><li>item</li></ul><blockquote>quote</blockquote>`,
 	}, nil}}
 
 	sanitizeFeedEntries(feed)
 
 	got := feed.Entries[0].Body
-	if strings.Contains(got, "<script") || strings.Contains(got, "onerror") {
+	if strings.Contains(got, "<script") || strings.Contains(got, "onerror") ||
+		strings.Contains(got, "onclick") || strings.Contains(got, "javascript:") {
 		t.Fatalf("unsafe entry body returned as JSON: %q", got)
 	}
-	if !strings.Contains(got, "safe") {
-		t.Fatalf("sanitized entry body lost safe text: %q", got)
+	for _, safe := range []string{
+		`<a href="https://example.com"`,
+		`<img src="https://example.com/image.png"`,
+		"<ul>",
+		"<li>item</li>",
+		"<blockquote>quote</blockquote>",
+	} {
+		if !strings.Contains(got, safe) {
+			t.Fatalf("sanitized entry body lost %q: %q", safe, got)
+		}
 	}
 }
 

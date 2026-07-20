@@ -128,7 +128,7 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 func sanitizeFeedEntries(feed *pb.Feed) {
 	for _, entry := range feed.Entries {
 		if entry != nil {
-			entry.Body = htmlSanitizer.Sanitize(entry.Body)
+			entry.Body = util.DefaultSanitize(entry.Body)
 		}
 	}
 }
