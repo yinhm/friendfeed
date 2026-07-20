@@ -1,3 +1,5 @@
+// @ts-check
+
 import React, { useState, lazy, Suspense } from 'react';
 import { Entry } from './entry';
 import { getJSON, postJSON, postForm } from './utils';
@@ -7,9 +9,44 @@ import { FeedContext } from './context'
 // on demand instead of making every reader download it.
 const OnPageEditor = lazy(() => import('./editor'));
 
+/**
+ * @typedef {object} FeedEntry
+ * @property {string} id
+ * @property {Record<string, unknown>} [data]
+ *
+ * @typedef {object} FeedData
+ * @property {string} id
+ * @property {string} uuid
+ * @property {string} [name]
+ * @property {string} [picture]
+ * @property {string} [description]
+ * @property {string[]} [commands]
+ * @property {FeedEntry[]} [entries]
+ *
+ * @typedef {object} FeedProps
+ * @property {string} url
+ * @property {FeedData} feed
+ * @property {boolean} show_header
+ * @property {boolean} show_paging
+ * @property {boolean} show_share
+ * @property {number} prev_start
+ * @property {number} next_start
+ * @property {string} query
+ * @property {boolean} onpage
+ * @property {boolean} onpage_edit
+ *
+ * @typedef {FeedProps & {feed: FeedData}} FeedState
+ *
+ * @typedef {Omit<FeedProps, 'url'>} AppData
+ */
+
+/** @param {{query: string, show: boolean, prev: number, next: number}} props */
 function FeedPagin(props) {
+  /** @type {React.ReactNode} */
   var prev = null;
+  /** @type {React.ReactNode} */
   var next = null;
+  /** @type {React.ReactNode} */
   var sep = null;
   var url = "?"
   if (props.query && props.query !== "") {
@@ -29,6 +66,10 @@ function FeedPagin(props) {
   );
 }
 
+/**
+ * @param {{feedId: string, feedUuid: string, name?: string, picture?: string,
+ * description?: string, commands?: string[]}} props
+ */
 function FeedHeader(props) {
   const [commands, setCommands] = useState(props.commands);
 
@@ -54,7 +95,8 @@ function FeedHeader(props) {
       }).catch(error => console.error(error));
   };
 
-  var followBtn = "";
+  /** @type {React.ReactNode} */
+  var followBtn = null;
   if (commands) {
     var command = commands[0];
     if (command === "follow") {
@@ -91,10 +133,14 @@ function FeedHeader(props) {
 
 }
 
+/** @extends {React.Component<FeedProps, FeedState>} */
 export class Feed extends React.Component{
   static contextType  = FeedContext;
 
   refreshInterval = 20 * 1000
+
+  /** @type {ReturnType<typeof setInterval> | undefined} */
+  refreshFeed;
 
   loadFeeds = () => {
     getJSON(this.props.url)
@@ -104,6 +150,7 @@ export class Feed extends React.Component{
       .catch(error => console.error(error))
   }
 
+  /** @param {FeedProps} props */
   constructor(props) {
     super(props);
     // supress warnning:
@@ -129,6 +176,7 @@ export class Feed extends React.Component{
     clearInterval(this.refreshFeed);
   }
 
+  /** @param {FormData} formData */
   onPostEntry = (formData) => {
     // on post
     return postForm("/a/share", formData)
@@ -147,7 +195,9 @@ export class Feed extends React.Component{
       return null;
     }
 
-    var config = this.context;
+    var config = /** @type {React.ContextType<typeof FeedContext> & {onpage: boolean}} */ (
+      this.context
+    );
     config.show_header = this.state.show_header;
     config.show_paging = this.state.show_paging;
     config.show_share = this.state.show_share;
@@ -161,7 +211,8 @@ export class Feed extends React.Component{
 
     var feed = this.state.feed;
 
-    var feedHeader = "";
+    /** @type {React.ReactNode} */
+    var feedHeader = null;
     if (this.state.show_header === true) {
       feedHeader = (
         <FeedHeader feedId={feed.id}
@@ -173,9 +224,10 @@ export class Feed extends React.Component{
       )
     }
 
-    var entryNodes = ""
+    /** @type {React.ReactNode} */
+    var entryNodes = null;
     if (feed.entries) {
-      entryNodes = feed.entries.map((entry, index) => {
+      entryNodes = feed.entries.map((entry) => {
         return (
           <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_edit}>
           </Entry>
@@ -183,7 +235,8 @@ export class Feed extends React.Component{
       });
     }
 
-    var editorNodes = "";
+    /** @type {React.ReactNode} */
+    var editorNodes = null;
     if (this.state.show_share === true) {
       editorNodes = (
         <Suspense fallback={<div className="editor-loading" role="status">Loading editor…</div>}>
@@ -192,7 +245,8 @@ export class Feed extends React.Component{
       )
     }
 
-    var feedPaginNodes = ""
+    /** @type {React.ReactNode} */
+    var feedPaginNodes = null;
     if (this.state.show_paging === true) {
       feedPaginNodes = (
         <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
@@ -213,8 +267,10 @@ export class Feed extends React.Component{
   }
 }
 
+/** @extends {React.Component<object, {url: string, feedData: object}>} */
 export class App extends React.Component {
 
+  /** @param {object} props */
   constructor(props) {
     super(props);
     this.state = {url: "/", feedData:{}};
@@ -233,8 +289,10 @@ export class App extends React.Component {
 
   render() {
     var url = window.location.pathname + window.location.search;
-    var appData = window.appData;
-    var feedData = window.appData.feed;
+    const appData = /** @type {Window & {appData: AppData}} */ (
+      /** @type {unknown} */ (window)
+    ).appData;
+    var feedData = appData.feed;
     return (
       <Feed url={url} feed={feedData}
         show_header={appData.show_header}
