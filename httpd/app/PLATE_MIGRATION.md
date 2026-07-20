@@ -12,15 +12,24 @@ Plate 49 is not package-compatible with Plate 31. The migration is split into re
 ## Checkpoint 2: plugin object API
 
 - [x] Replace the removed global combobox store with the inline input element model introduced in combobox/emoji 34, then align both packages to 36.x.
-- Migrate `createXPlugin()` registrations and `createPlugins()` to the plugin object/configuration API introduced after 36.
-- Update element/leaf props and floating/combobox components together with their plugins.
-- Keep node type strings compatible with stored content (`p`, headings, lists, code blocks, images and media embeds).
+- [ ] Upgrade the complete `@udecode/plate-*` family to 37.x in one change. Plate 37 requires `slate >=0.103` and `slate-react >=0.108`; update all four Slate packages in that same change.
+- [ ] Replace `createXPlugin()` registrations with the React plugin objects exported from each package's `/react` entrypoint. Keep non-React transforms and serializers imported from the package root.
+- [ ] Replace `createPlugins()` and its global component map with plugin composition using `.configure()`, `.extend()` and `.withComponent()`.
+- [ ] Replace removed `ELEMENT_*` and `MARK_*` constants with the corresponding plugin keys. Do not change the resulting strings: `p`, `h1`-`h6`, `blockquote`, `code_block`, `code_line`, `code_syntax`, `a`, `img`, `media_embed`, `ul`, `ol`, `li`, `action_item`, `emoji_input`, and the existing mark keys are persisted in `rawBody`.
+- [ ] Move React-only UI imports (`Plate`, `PlateContent`, element/leaf components, hooks, floating controls and combobox controls) to `/react`; retain headless helpers at root imports.
+- [ ] Migrate paragraph support from the removed `@udecode/plate-paragraph` package to `ParagraphPlugin` from `@udecode/plate-common/react`. Do not add `@udecode/plate-basic-elements` merely to replace this one plugin.
+- [ ] Update element/leaf props, placeholder composition, media/caption, link floating toolbar, code-block combobox and emoji input together with their owning plugins.
+- [ ] Preserve all current plugin options: reset/break rules, valid alignment/indent/line-height node types, caption targets, selection behavior, trailing paragraph, tab handling and link toolbar rendering.
+- [ ] Run the stored JSON/HTML round-trip tests after the registration migration, in addition to editor interaction and lazy-loading tests.
 
 ## Checkpoint 3: Plate 49 package layout
 
-- Rename `@udecode/plate-*` packages to `@platejs/*`.
-- Move basic marks/nodes to `@platejs/basic-nodes`, classic lists to `@platejs/list-classic`, and indent lists to `@platejs/list`.
-- Move editor setup to the v49 editor/plugin APIs and update HTML serialization to use editor-bound components.
-- Upgrade the Slate package family as one unit to the versions required by Plate 49.
+- [ ] Rename `@udecode/plate-*` packages to `@platejs/*`; replace `@udecode/plate-common` with the relevant `@platejs/core` and utility packages rather than keeping a compatibility barrel.
+- [ ] Move basic marks/nodes to `@platejs/basic-nodes`, classic lists to `@platejs/list-classic`, and indent lists to `@platejs/list`.
+- [ ] Replace deprecated `@udecode/plate-serializer-html` with `@platejs/serializer-html` and verify serialization uses the editor-bound plugin components.
+- [ ] Move editor creation/provider setup to the v49 APIs, including plugin overrides and editable rendering.
+- [ ] Upgrade the Slate package family as one unit to the exact versions required by Plate 49; remove any temporary v37 peer-version pins.
+- [ ] Recheck package exports rather than rewriting `/react` imports mechanically: v49 keeps headless and React entrypoints separate.
+- [ ] Compare the final plugin keys with the v36 compatibility fixture before accepting any serialized output.
 
 Each checkpoint must pass the editor compatibility tests, the Home/Public/Feed lazy-loading tests, type checking, production build, frozen installation and peer checks.
