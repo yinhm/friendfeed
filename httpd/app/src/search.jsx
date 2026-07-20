@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 
-export function Search(props) {
+export function Search() {
     const [value, setValue] = useState("");
 
     return (

@@ -119,7 +119,7 @@ export class Entry extends React.Component {
   handleDelete = () => {
     var entry = this.state.entry;
     postJSON("/a/delete", {entry: entry.id})
-      .then(data => {
+      .then(() => {
         var new_state = Object.assign({}, this.state);
         new_state.is_deleted = true;
         this.updateState(new_state);
@@ -234,7 +234,7 @@ export class Entry extends React.Component {
     }
     var data = {entry: this.state.entry.id, comment: comment.id}
     postJSON("/a/comment/delete", data)
-      .then(data => {
+      .then(() => {
         comment.body = "comment deleted";
         /** @type {CommentData[]} */
         var comments = [];

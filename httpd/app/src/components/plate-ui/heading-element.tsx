@@ -26,7 +26,7 @@ const HeadingElementVariants = withVariants(PlateElement, headingVariants, [
 ]);
 
 export const HeadingElement = withRef<typeof HeadingElementVariants>(
-  ({ variant, isFirstBlock, children, ...props }, ref) => {
+  ({ variant, isFirstBlock: _isFirstBlock, children, ...props }, ref) => {
     const { element, editor } = props;
 
     const Element = (variant ?? element.type) as keyof HTMLElementTagNameMap;

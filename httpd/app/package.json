@@ -56,6 +56,7 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build && node scripts/verify-tailwind-build.mjs && node scripts/publish-build.mjs",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -72,17 +73,22 @@
     ]
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "@tailwindcss/postcss": "^4.3.3",
+    "eslint": "10.7.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.7.0",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.20",
     "tailwindcss": "^4.3.3",
     "typescript": "5.9.3",
+    "typescript-eslint": "8.64.0",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   }

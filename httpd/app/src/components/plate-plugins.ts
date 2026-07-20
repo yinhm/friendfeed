@@ -32,7 +32,6 @@ import {
 } from 'platejs';
 import {
   ParagraphPlugin,
-  PlateElement,
   PlateLeaf,
 } from 'platejs/react';
 import { EmojiPlugin } from '@platejs/emoji/react';
@@ -69,7 +68,6 @@ import { HighlightLeaf } from 'components/plate-ui/highlight-leaf';
 import { ImageElement } from 'components/plate-ui/image-element';
 import { LinkElement } from 'components/plate-ui/link-element';
 import { LinkFloatingToolbar } from 'components/plate-ui/link-floating-toolbar';
-import { ListElement } from 'components/plate-ui/list-element';
 import { MediaEmbedElement } from 'components/plate-ui/media-embed-element';
 import { ParagraphElement } from 'components/plate-ui/paragraph-element';
 import { TodoListElement } from 'components/plate-ui/todo-list-element';

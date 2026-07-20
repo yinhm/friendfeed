@@ -84,7 +84,7 @@ const OnPageEditor = (params) => {
             try {
                 // how to test content is raw?
                 return /** @type {Value} */ (JSON.parse(params.content));
-            } catch (e) {
+            } catch (_error) {
                 // fail safe to html parse
                 const tmpEditor = createPlateEditor({ plugins });
                 return /** @type {Value} */ (deserializeHtml(tmpEditor, {

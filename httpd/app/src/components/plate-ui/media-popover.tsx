@@ -30,7 +30,6 @@ export function MediaPopover({ pluginKey, children }: MediaPopoverProps) {
     if (!isOpen && isEditing) {
       setIsEditing(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, isOpen, setIsEditing]);
 
   const element = useElement();

@@ -82,7 +82,7 @@ function FeedHeader(props) {
       action: "follow"
     }
     postJSON("/a/follow", data)
-      .then(data => { // arrow function
+      .then(() => { // arrow function
         setCommands(["unfollow"]);
       }).catch(error => console.error(error));
   };
@@ -93,7 +93,7 @@ function FeedHeader(props) {
       action: "unfollow"
     }
     postJSON("/a/follow", data)
-      .then(data => { // arrow function
+      .then(() => { // arrow function
         setCommands(["follow"]);
       }).catch(error => console.error(error));
   };
