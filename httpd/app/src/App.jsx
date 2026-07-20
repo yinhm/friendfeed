@@ -1,6 +1,6 @@
 // @ts-check
 
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Entry } from './entry';
 import { getJSON, postJSON, postForm } from './utils';
 import { FeedContext } from './context'
@@ -136,138 +136,119 @@ function FeedHeader(props) {
 
 }
 
-/** @extends {React.Component<FeedProps, FeedState>} */
-export class Feed extends React.Component{
-  static contextType  = FeedContext;
+/** @param {FeedProps} props */
+export function Feed(props) {
+  const [state, setState] = useState(/** @type {FeedState} */ ({...props}));
+  const urlRef = useRef(props.url);
+  urlRef.current = props.url;
 
-  refreshInterval = 20 * 1000
-
-  /** @type {ReturnType<typeof setInterval> | undefined} */
-  refreshFeed;
-
-  loadFeeds = () => {
-    getJSON(this.props.url)
-      .then(data => { // arrow function
-        this.setState(data);
-      })
-      .catch(error => console.error(error))
-  }
-
-  /** @param {FeedProps} props */
-  constructor(props) {
-    super(props);
-    // supress warnning:
-    // It is not recommended to assign props directly to
-    // state because updates to props won't be reflected
-    // in state. In most cases, it is better to use props directly.
-    this.state = {...props}
-  }
+  const context = useContext(FeedContext);
 
   // UNSAFE_componentWillReceiveProps(nextProps){
   //   dprint("componentWillReceiveProps");
   //   this.setState(this.getInitialState(nextProps));
   // }
 
-  componentDidMount() {
-    this.refreshFeed = setInterval(
-      () => this.loadFeeds(),
-      this.refreshInterval
-    );
-  }
+  useEffect(() => {
+    const refreshFeed = setInterval(() => {
+      getJSON(urlRef.current)
+        .then(data => {
+          setState(current => ({...current, ...data}));
+        })
+        .catch(error => console.error(error));
+    }, 20 * 1000);
 
-  componentWillUnmount() {
-    clearInterval(this.refreshFeed);
-  }
+    return () => clearInterval(refreshFeed);
+  }, []);
 
   /** @param {FormData} formData */
-  onPostEntry = (formData) => {
+  const onPostEntry = (formData) => {
     // on post
     return postForm("/a/share", formData)
       .then(data => {
-        var new_state = Object.assign({}, this.state);
-        if (!new_state.feed.entries) {
-          new_state.feed.entries = [];
-        }
-        new_state.feed.entries.unshift(data);
-        this.setState(new_state);
+        setState(current => ({
+          ...current,
+          feed: {
+            ...current.feed,
+            entries: [data, ...(current.feed.entries ?? [])],
+          },
+        }));
       });
+  };
+
+  if (!state.feed) {
+    return null;
   }
 
-  render() {
-    if (!this.state.feed) {
-      return null;
-    }
+  var config = /** @type {React.ContextType<typeof FeedContext> & {onpage: boolean}} */ (
+    context
+  );
+  config.show_header = state.show_header;
+  config.show_paging = state.show_paging;
+  config.show_share = state.show_share;
+  config.onpage = state.onpage || false;
+  config.onpage_edit = state.onpage_edit || false;
+  config.feed_uuid = state.feed.uuid;
+  config.toggleEditor = () => {
+    console.log("toggle editor");
+    config.onpage_edit = false;
+  };
 
-    var config = /** @type {React.ContextType<typeof FeedContext> & {onpage: boolean}} */ (
-      this.context
-    );
-    config.show_header = this.state.show_header;
-    config.show_paging = this.state.show_paging;
-    config.show_share = this.state.show_share;
-    config.onpage = this.state.onpage || false;
-    config.onpage_edit = this.state.onpage_edit || false;
-    config.feed_uuid = this.state.feed.uuid;
-    config.toggleEditor = () => {
-      console.log("toggle editor");
-      config.onpage_edit = false;
-    };
+  var feed = state.feed;
 
-    var feed = this.state.feed;
-
-    /** @type {React.ReactNode} */
-    var feedHeader = null;
-    if (this.state.show_header === true) {
-      feedHeader = (
-        <FeedHeader feedId={feed.id}
-                    feedUuid={feed.uuid}
-                    name={feed.name}
-                    picture={feed.picture}
-                    description={feed.description}
-                    commands={feed.commands} />
-      )
-    }
-
-    /** @type {React.ReactNode} */
-    var entryNodes = null;
-    if (feed.entries) {
-      entryNodes = feed.entries.map((entry) => {
-        return (
-          <Entry entry={entry} key={entry.id} onpage_edit={this.state.onpage_edit}>
-          </Entry>
-        );
-      });
-    }
-
-    /** @type {React.ReactNode} */
-    var editorNodes = null;
-    if (this.state.show_share === true) {
-      editorNodes = (
-        <Suspense fallback={<div className="editor-loading" role="status">Loading editor…</div>}>
-          <OnPageEditor feedUuid={feed.uuid} postEntry={this.onPostEntry} />
-        </Suspense>
-      )
-    }
-
-    /** @type {React.ReactNode} */
-    var feedPaginNodes = null;
-    if (this.state.show_paging === true) {
-      feedPaginNodes = (
-        <FeedPagin show={this.state.show_paging} prev={this.state.prev_start}
-                   next={this.state.next_start} query={this.state.query} />
-      )
-    }
-
-    return (
-      <FeedContext.Provider value={config}>
-        {feedHeader}
-        <div id="feed" className="feed">
-          {editorNodes}
-          {entryNodes}
-          {feedPaginNodes}
-        </div>
-      </FeedContext.Provider>
-    );
+  /** @type {React.ReactNode} */
+  var feedHeader = null;
+  if (state.show_header === true) {
+    feedHeader = (
+      <FeedHeader feedId={feed.id}
+                  feedUuid={feed.uuid}
+                  name={feed.name}
+                  picture={feed.picture}
+                  description={feed.description}
+                  commands={feed.commands} />
+    )
   }
+
+  /** @type {React.ReactNode} */
+  var entryNodes = null;
+  if (feed.entries) {
+    entryNodes = feed.entries.map((entry) => {
+      return (
+        <Entry entry={entry} key={entry.id} onpage_edit={state.onpage_edit}>
+        </Entry>
+      );
+    });
+  }
+
+  /** @type {React.ReactNode} */
+  var editorNodes = null;
+  if (state.show_share === true) {
+    editorNodes = (
+      <Suspense fallback={<div className="editor-loading" role="status">Loading editor…</div>}>
+        <OnPageEditor feedUuid={feed.uuid} postEntry={onPostEntry} />
+      </Suspense>
+    )
+  }
+
+  /** @type {React.ReactNode} */
+  var feedPaginNodes = null;
+  if (state.show_paging === true) {
+    feedPaginNodes = (
+      <FeedPagin show={state.show_paging} prev={state.prev_start}
+                 next={state.next_start} query={state.query} />
+    )
+  }
+
+  return (
+    <FeedContext.Provider value={config}>
+      {feedHeader}
+      <div id="feed" className="feed">
+        {editorNodes}
+        {entryNodes}
+        {feedPaginNodes}
+      </div>
+    </FeedContext.Provider>
+  );
 }
 
 export function App() {

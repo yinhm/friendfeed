@@ -131,6 +131,7 @@
 - [ ] 优先处理状态同步复杂的 `App` 和 `Entry`，迁移前先增加行为测试。
   - [x] 已增加迁移前行为测试，锁定 `Feed` 的 20 秒刷新/卸载清理/发帖置顶，以及 `Entry` 的父级刷新、展开 likes 和本地编辑状态同步语义。
   - [x] 无状态 `App` 外壳已迁移为 function component；它继续在渲染时读取当前 URL 与 `window.appData`，未引入多余 hook。
+  - [x] `Feed` 已迁移为 function component；轮询使用 effect 清理并通过 ref 读取最新 URL，异步刷新保持 class `setState` 的局部合并语义，发帖使用不可变置顶更新。
 - [ ] 不为追求写法统一而改动稳定组件；每次迁移应有明确收益。
 
 完成条件：属于可选维护工作，不阻塞前述安全与依赖升级。

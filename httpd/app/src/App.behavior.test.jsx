@@ -55,15 +55,19 @@ test('Feed refreshes after 20 seconds and stops polling after unmount', async ()
     feed: {id: 'home', uuid: 'home', entries: [makeEntry('new', 'Fresh entry')]},
   });
 
-  const {unmount} = render(<Feed {...makeFeedProps()} />);
+  const {rerender, unmount} = render(<Feed {...makeFeedProps()} />);
   expect(screen.getByText('Old entry')).toBeInTheDocument();
 
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  rerender(<Feed {...makeFeedProps({url: '/feed/latest?output=json'})} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000);
   });
 
   expect(getJSONMock).toHaveBeenCalledOnce();
-  expect(getJSONMock).toHaveBeenCalledWith('/feed/home?output=json');
+  expect(getJSONMock).toHaveBeenCalledWith('/feed/latest?output=json');
   expect(screen.getByText('Fresh entry')).toBeInTheDocument();
 
   unmount();
