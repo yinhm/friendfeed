@@ -65,12 +65,14 @@
 
 ## 5. 构建与测试工具 major 升级
 
-- [ ] Vite 7 → 8。
-- [ ] `@vitejs/plugin-react` 4 → 6。
-- [ ] Vitest 3 → 4，jsdom 26 → 29。
-- [ ] 检查 Vite library/build 输出命名，继续生成固定的 `bundle.min.js`、`bundle.min.css` 和带 hash 的 lazy chunks。
-- [ ] 检查 `scripts/publish-build.mjs`，确保不会覆盖手写的 `static/css/style.css`。
-- [ ] 确认 production 不包含 source map，development 仍可生成 source map。
+- [x] Vite 7 → 8.1.5。
+- [x] `@vitejs/plugin-react` 4 → 6.0.3；其声明文件使用 arbitrary module identifier export，最小兼容升级 TypeScript 5.4.3 → 5.6.3。
+- [x] Vitest 3 → 4.1.10，jsdom 26 → 29.1.1。
+- [x] 检查 Vite build 输出命名，继续生成固定的 `bundle.min.js`、`bundle.min.css` 和带 hash 的 lazy editor chunk。
+- [x] 检查 `scripts/publish-build.mjs`，确认保留手写的 `static/css/style.css`。
+- [x] 确认 production 不包含 source map，development 为主 bundle 和 editor chunk 生成 source map。
+
+结果：8 项测试、类型检查和 production build 通过。主 bundle 从 210.15 kB 降至 207.43 kB（gzip 64.64 kB），CSS 从 57.61 kB 降至 54.86 kB（gzip 11.76 kB），editor chunk 从 1,847.99 kB 降至 1,845.83 kB（gzip 525.04 kB）。
 
 完成条件：Go 模板无需改变资源 URL；production 嵌入资源完整；lazy editor 只执行一次。
 
@@ -106,7 +108,7 @@
 
 ## 9. TypeScript 升级与覆盖扩展
 
-- [ ] 先将 TypeScript 5.4 更新到最新兼容 5.x，再单独评估 TypeScript 7。
+- [ ] TypeScript 已因 plugin-react 6 的语法要求从 5.4 更新到最小兼容的 5.6.3；本阶段再评估最新 5.x，之后单独评估 TypeScript 7。
 - [ ] 修复新版本带来的类型错误，不使用扩大 `skipLibCheck` 或批量 `any` 规避。
 - [ ] 为核心 JS/JSX 文件逐步启用类型检查，优先覆盖 `App.jsx`、`entry.jsx`、`editor.jsx` 和网络请求工具。
 - [ ] 评估增加 ESLint；lint 规则落地应独立提交，避免与功能迁移混杂。
