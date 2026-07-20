@@ -1,60 +1,48 @@
 import { withProps } from '@udecode/cn';
 import React from 'react';
-import { AlignPlugin } from '@udecode/plate-alignment/react';
-import { AutoformatPlugin } from '@udecode/plate-autoformat/react';
+import { AutoformatPlugin } from '@platejs/autoformat';
 import {
+  BlockquotePlugin,
   BoldPlugin,
   CodePlugin,
+  HeadingPlugin,
+  HighlightPlugin,
   ItalicPlugin,
   StrikethroughPlugin,
   SubscriptPlugin,
   SuperscriptPlugin,
   UnderlinePlugin,
-} from '@udecode/plate-basic-marks/react';
-import { BlockquotePlugin } from '@udecode/plate-block-quote/react';
-import { ExitBreakPlugin, SoftBreakPlugin } from '@udecode/plate-break/react';
-import { CaptionPlugin } from '@udecode/plate-caption/react';
-import {
-  CodeBlockPlugin,
-  CodeLinePlugin,
-  CodeSyntaxPlugin,
-} from '@udecode/plate-code-block/react';
-import {
-  isCodeBlockEmpty,
-  isSelectionAtCodeBlockStart,
-  unwrapCodeBlock,
-} from '@udecode/plate-code-block';
-import {
-  isBlockAboveEmpty,
-  isSelectionAtBlockStart,
-  someNode,
-} from '@udecode/plate-common';
-import {
-  ParagraphPlugin,
-  PlateElement,
-  PlateLeaf,
-  toPlatePlugin,
-} from '@udecode/plate-common/react';
-import { EmojiPlugin } from '@udecode/plate-emoji/react';
+} from '@platejs/basic-nodes/react';
 import {
   FontBackgroundColorPlugin,
   FontColorPlugin,
   FontSizePlugin,
-} from '@udecode/plate-font/react';
-import { HeadingPlugin } from '@udecode/plate-heading/react';
-import { HighlightPlugin } from '@udecode/plate-highlight/react';
-import { IndentPlugin } from '@udecode/plate-indent/react';
-import { IndentListPlugin } from '@udecode/plate-indent-list/react';
-import { JuicePlugin } from '@udecode/plate-juice';
-import { LineHeightPlugin } from '@udecode/plate-line-height/react';
-import { LinkPlugin } from '@udecode/plate-link/react';
-import { TodoListPlugin } from '@udecode/plate-list/react';
-import { ImagePlugin, MediaEmbedPlugin } from '@udecode/plate-media/react';
-import { NodeIdPlugin } from '@udecode/plate-node-id';
-import { ResetNodePlugin } from '@udecode/plate-reset-node/react';
-import { SelectOnBackspacePlugin } from '@udecode/plate-select';
-import { TabbablePlugin } from '@udecode/plate-tabbable/react';
-import { TrailingBlockPlugin } from '@udecode/plate-trailing-block';
+  LineHeightPlugin,
+  TextAlignPlugin,
+} from '@platejs/basic-styles/react';
+import { CaptionPlugin } from '@platejs/caption/react';
+import {
+  CodeBlockPlugin,
+  CodeLinePlugin,
+  CodeSyntaxPlugin,
+} from '@platejs/code-block/react';
+import {
+  ExitBreakPlugin,
+  TrailingBlockPlugin,
+} from 'platejs';
+import {
+  ParagraphPlugin,
+  PlateElement,
+  PlateLeaf,
+} from 'platejs/react';
+import { EmojiPlugin } from '@platejs/emoji/react';
+import { IndentPlugin } from '@platejs/indent/react';
+import { ListPlugin as IndentListPlugin } from '@platejs/list/react';
+import { JuicePlugin } from '@platejs/juice';
+import { LinkPlugin } from '@platejs/link/react';
+import { TodoListPlugin } from '@platejs/list-classic/react';
+import { ImagePlugin, MediaEmbedPlugin } from '@platejs/media/react';
+import { TabbablePlugin } from '@platejs/tabbable/react';
 
 import { autoformatPlugin } from 'components/autoformat-plugin';
 import {
@@ -68,8 +56,6 @@ import {
   ELEMENT_LI,
   ELEMENT_MEDIA_EMBED,
   ELEMENT_PARAGRAPH,
-  ELEMENT_TODO_LI,
-  HEADING_KEYS,
   KEY_LIST_STYLE_TYPE,
 } from 'components/plate-plugin-keys';
 import { BlockquoteElement } from 'components/plate-ui/blockquote-element';
@@ -97,28 +83,42 @@ const textBlockTypes = [
   ELEMENT_CODE_BLOCK,
 ];
 
-// Plate 37's React link plugin is already Plate-shaped at runtime, but its
-// published type is not accepted by toPlatePlugin's Slate-only input type.
-const AppLinkPlugin = toPlatePlugin(
-  LinkPlugin as unknown as Parameters<typeof toPlatePlugin>[0]
-);
+const AlignPlugin = TextAlignPlugin.extend({ key: 'align' as 'textAlign' });
 
 export const plugins = [
   ParagraphPlugin.withComponent(ParagraphElement),
   HeadingPlugin.withComponent(HeadingElement),
-  BlockquotePlugin.withComponent(BlockquoteElement),
+  BlockquotePlugin.withComponent(BlockquoteElement).extend({
+    rules: {
+      break: { default: 'lineBreak', empty: 'reset' },
+      delete: { start: 'reset' },
+    },
+  }),
   CodeBlockPlugin.withComponent(CodeBlockElement)
     .configurePlugin(CodeLinePlugin, { node: { component: CodeLineElement } })
-    .configurePlugin(CodeSyntaxPlugin, { node: { component: CodeSyntaxLeaf } }),
-  AppLinkPlugin.withComponent(LinkElement).extend({
+    .configurePlugin(CodeSyntaxPlugin, { node: { component: CodeSyntaxLeaf } })
+    .extend({
+      rules: {
+        break: { default: 'lineBreak', empty: 'reset' },
+        delete: { start: 'reset' },
+      },
+    }),
+  LinkPlugin.withComponent(LinkElement).extend({
     render: { afterEditable: () => React.createElement(LinkFloatingToolbar) },
   }),
   ImagePlugin.withComponent(ImageElement),
   MediaEmbedPlugin.withComponent(MediaEmbedElement),
   CaptionPlugin.extend({
-    options: { plugins: [ImagePlugin, MediaEmbedPlugin] },
+    options: {
+      query: { allow: [ELEMENT_IMAGE, ELEMENT_MEDIA_EMBED] },
+    },
   }),
-  TodoListPlugin.withComponent(TodoListElement),
+  TodoListPlugin.withComponent(TodoListElement).extend({
+    rules: {
+      break: { empty: 'reset' },
+      delete: { start: 'reset' },
+    },
+  }),
 
   BoldPlugin.withComponent(withProps(PlateLeaf, { as: 'strong' })),
   ItalicPlugin.withComponent(withProps(PlateLeaf, { as: 'em' })),
@@ -149,71 +149,24 @@ export const plugins = [
     node: { component: EmojiInputElement },
   }),
   ExitBreakPlugin.extend({
-    options: {
-      rules: [
-        { hotkey: 'mod+enter' },
-        { hotkey: 'mod+shift+enter', before: true },
-        {
-          hotkey: 'enter',
-          query: { start: true, end: true, allow: HEADING_KEYS },
-          relative: true,
-          level: 1,
-        },
-      ],
-    },
-  }),
-  NodeIdPlugin,
-  ResetNodePlugin.extend({
-    options: {
-      rules: [
-        {
-          types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
-          defaultType: ELEMENT_PARAGRAPH,
-          hotkey: 'Enter',
-          predicate: isBlockAboveEmpty,
-        },
-        {
-          types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
-          defaultType: ELEMENT_PARAGRAPH,
-          hotkey: 'Backspace',
-          predicate: isSelectionAtBlockStart,
-        },
-        {
-          types: [ELEMENT_CODE_BLOCK],
-          defaultType: ELEMENT_PARAGRAPH,
-          hotkey: 'Enter',
-          predicate: isCodeBlockEmpty,
-          onReset: unwrapCodeBlock,
-        },
-        {
-          types: [ELEMENT_CODE_BLOCK],
-          defaultType: ELEMENT_PARAGRAPH,
-          hotkey: 'Backspace',
-          predicate: isSelectionAtCodeBlockStart,
-          onReset: unwrapCodeBlock,
-        },
-      ],
-    },
-  }),
-  SelectOnBackspacePlugin.extend({
-    options: { query: { allow: [ELEMENT_IMAGE] } },
-  }),
-  SoftBreakPlugin.extend({
-    options: {
-      rules: [
-        { hotkey: 'shift+enter' },
-        {
-          hotkey: 'enter',
-          query: { allow: [ELEMENT_CODE_BLOCK, ELEMENT_BLOCKQUOTE] },
-        },
-      ],
+    shortcuts: {
+      insert: { keys: 'mod+enter' },
+      insertBefore: { keys: 'mod+shift+enter' },
     },
   }),
   TabbablePlugin.extend(({ editor }) => ({
     options: {
       query: () => {
-        if (isSelectionAtBlockStart(editor)) return false;
-        return !someNode(editor, {
+        if (editor.selection) {
+          const block = editor.api.block();
+          if (
+            block &&
+            editor.api.isStart(editor.selection.anchor, block[1])
+          ) {
+            return false;
+          }
+        }
+        return !editor.api.some({
           match: (node) =>
             !!(
               node.type &&

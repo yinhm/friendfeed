@@ -2,8 +2,7 @@
 
 import React from 'react';
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
-import { insertEmptyElement } from '@udecode/plate-common';
-import { focusEditor, useEditorRef } from '@udecode/plate-common/react';
+import { useEditorRef } from 'platejs/react';
 
 import { Icons } from 'components/icons';
 import {
@@ -200,14 +199,14 @@ export function InsertDropdownMenu(props: DropdownMenuProps) {
                       //   break;
                       // }
                       default: {
-                        insertEmptyElement(editor, type, {
-                          select: true,
-                          nextBlock: true,
-                        });
+                        editor.tf.insertNodes(
+                          { type, children: [{ text: '' }] },
+                          { select: true }
+                        );
                       }
                     }
 
-                    focusEditor(editor);
+                    editor.tf.focus();
                   }}
                 >
                   <Icon className="mr-2 h-5 w-5" />

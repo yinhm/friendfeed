@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createPlateEditor } from '@udecode/plate-common/react';
+import { Hotkeys } from 'platejs';
+import { createPlateEditor } from 'platejs/react';
 
 import {
   ELEMENT_BLOCKQUOTE,
@@ -27,12 +28,14 @@ interface PluginSnapshot {
   options?: unknown;
   plugins?: PluginSnapshot[];
   render?: { afterEditable?: unknown };
+  rules?: unknown;
+  shortcuts?: unknown;
 }
 
 const allPlugins = (items: readonly PluginSnapshot[]): PluginSnapshot[] =>
   items.flatMap((item) => [item, ...allPlugins(item.plugins ?? [])]);
 
-const configuredPlugins = createPlateEditor({ plugins }).pluginList;
+const configuredPlugins = createPlateEditor({ plugins }).meta.pluginList;
 
 const plugin = (key: string) => {
   const result = allPlugins(
@@ -71,19 +74,18 @@ describe('Plate plugin configuration', () => {
   });
 
   it('keeps break, caption and trailing-block behavior', () => {
-    expect(options<{ rules: unknown[] }>('exitBreak').rules).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ hotkey: 'mod+enter' }),
-        expect.objectContaining({
-          hotkey: 'enter',
-          query: { allow: HEADING_KEYS, end: true, start: true },
-        }),
-      ])
-    );
-    expect(options<{ plugins: { key: string }[] }>('caption').plugins).toEqual([
-      expect.objectContaining({ key: ELEMENT_IMAGE }),
-      expect.objectContaining({ key: ELEMENT_MEDIA_EMBED }),
-    ]);
+    expect(plugin('exitBreak').shortcuts).toMatchObject({
+      insert: { keys: 'mod+enter' },
+      insertBefore: { keys: 'mod+shift+enter' },
+    });
+    for (const key of HEADING_KEYS) {
+      expect(plugin(key).rules).toMatchObject({
+        break: { splitReset: true },
+      });
+    }
+    expect(options<{ query: { allow: string[] } }>('caption').query).toEqual({
+      allow: [ELEMENT_IMAGE, ELEMENT_MEDIA_EMBED],
+    });
     expect(options<{ type: string }>('trailingBlock').type).toBe(
       ELEMENT_PARAGRAPH
     );
@@ -102,7 +104,7 @@ describe('Plate plugin configuration', () => {
       textBlockTypes.slice(0, 4)
     );
     expect(plugin('indent').inject?.targetPlugins).toEqual(textBlockTypes);
-    expect(plugin('listStyleType').inject?.targetPlugins).toEqual(textBlockTypes);
+    expect(plugin('list').inject?.targetPlugins).toEqual(textBlockTypes);
     expect(plugin('lineHeight').inject).toMatchObject({
       nodeProps: {
         defaultNodeValue: 1.5,
@@ -112,39 +114,51 @@ describe('Plate plugin configuration', () => {
     });
   });
 
-  it('keeps reset, soft-break and selection rules', () => {
-    expect(options<{ rules: unknown[] }>('resetNode').rules).toEqual([
-      expect.objectContaining({
-        defaultType: ELEMENT_PARAGRAPH,
-        hotkey: 'Enter',
-        types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
-      }),
-      expect.objectContaining({
-        defaultType: ELEMENT_PARAGRAPH,
-        hotkey: 'Backspace',
-        types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
-      }),
-      expect.objectContaining({
-        defaultType: ELEMENT_PARAGRAPH,
-        hotkey: 'Enter',
-        types: [ELEMENT_CODE_BLOCK],
-      }),
-      expect.objectContaining({
-        defaultType: ELEMENT_PARAGRAPH,
-        hotkey: 'Backspace',
-        types: [ELEMENT_CODE_BLOCK],
-      }),
-    ]);
-    expect(options<{ rules: unknown[] }>('softBreak').rules).toEqual([
-      { hotkey: 'shift+enter' },
-      {
-        hotkey: 'enter',
-        query: { allow: [ELEMENT_CODE_BLOCK, ELEMENT_BLOCKQUOTE] },
-      },
-    ]);
-    expect(options<{ query: unknown }>('selectOnBackspace').query).toEqual({
-      allow: [ELEMENT_IMAGE],
+  it('keeps per-node reset and line-break rules', () => {
+    expect(plugin(ELEMENT_BLOCKQUOTE).rules).toMatchObject({
+      break: { default: 'lineBreak', empty: 'reset' },
+      delete: { start: 'reset' },
     });
+    expect(plugin(ELEMENT_CODE_BLOCK).rules).toMatchObject({
+      break: { default: 'lineBreak', empty: 'reset' },
+      delete: { start: 'reset' },
+    });
+    expect(plugin(ELEMENT_TODO_LI).rules).toMatchObject({
+      break: { empty: 'reset' },
+      delete: { start: 'reset' },
+    });
+  });
+
+  it('keeps core soft-break, void selection and node-id behavior', () => {
+    expect(
+      Hotkeys.isSoftBreak({ key: 'Enter', shiftKey: true } as KeyboardEvent)
+    ).toBe(true);
+
+    const editor = createPlateEditor({
+      nodeId: {},
+      plugins,
+      value: [
+        { type: ELEMENT_PARAGRAPH, children: [{ text: 'before' }] },
+        {
+          type: ELEMENT_IMAGE,
+          url: 'https://example.com/image.png',
+          children: [{ text: '' }],
+        },
+        { type: ELEMENT_PARAGRAPH, children: [{ text: '' }] },
+      ],
+    });
+
+    expect(editor.children.every((node) => 'id' in node)).toBe(true);
+
+    editor.selection = {
+      anchor: { path: [2, 0], offset: 0 },
+      focus: { path: [2, 0], offset: 0 },
+    };
+    editor.tf.deleteBackward('character');
+
+    expect(editor.children).toHaveLength(3);
+    expect(editor.children[1]).toMatchObject({ type: ELEMENT_IMAGE });
+    expect(editor.selection?.anchor.path[0]).toBe(1);
   });
 
   it('keeps tabbable and link UI integration', () => {

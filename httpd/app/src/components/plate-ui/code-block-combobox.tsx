@@ -1,11 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { cn } from '@udecode/cn';
-import {
-  useCodeBlockCombobox,
-  useCodeBlockComboboxState,
-} from '@udecode/plate-code-block/react';
+import { useEditorReadOnly, useEditorRef, useElement } from 'platejs/react';
 
 import { Icons } from 'components/icons';
 
@@ -84,12 +81,15 @@ const languages: { value: string; label: string }[] = [
 ];
 
 export function CodeBlockCombobox() {
-  const state = useCodeBlockComboboxState();
-  const { commandItemProps } = useCodeBlockCombobox(state);
-
+  const editor = useEditorRef();
+  const element = useElement();
+  const readOnly = useEditorReadOnly();
+  const [value, setValue] = useState(element.lang ?? 'text');
   const [open, setOpen] = useState(false);
 
-  if (state.readOnly) return null;
+  useEffect(() => setValue(element.lang ?? 'text'), [element.lang]);
+
+  if (readOnly) return null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -101,8 +101,8 @@ export function CodeBlockCombobox() {
           className="h-5 justify-between px-1 text-xs"
           size="xs"
         >
-          {state.value
-            ? languages.find((language) => language.value === state.value)
+          {value
+            ? languages.find((language) => language.value === value)
                 ?.label
             : 'Plain Text'}
           <Icons.chevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -120,14 +120,16 @@ export function CodeBlockCombobox() {
                 value={language.value}
                 className="cursor-pointer"
                 onSelect={(_value) => {
-                  commandItemProps.onSelect(_value);
+                  const path = editor.api.findPath(element);
+                  if (path) editor.tf.setNodes({ lang: _value }, { at: path });
+                  setValue(_value);
                   setOpen(false);
                 }}
               >
                 <Icons.check
                   className={cn(
                     'mr-2 h-4 w-4',
-                    state.value === language.value ? 'opacity-100' : 'opacity-0'
+                    value === language.value ? 'opacity-100' : 'opacity-0'
                   )}
                 />
                 {language.label}

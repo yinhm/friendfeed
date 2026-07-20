@@ -1,7 +1,7 @@
 import React from 'react';
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
-import { collapseSelection, findNode, isBlock, isCollapsed, setNodes, TElement } from '@udecode/plate-common';
-import { focusEditor, useEditorRef, useEditorSelector } from '@udecode/plate-common/react';
+import { TElement } from 'platejs';
+import { useEditorRef, useEditorSelector } from 'platejs/react';
 
 import { Icons } from 'components/icons';
 import {
@@ -72,9 +72,9 @@ const defaultItem = items.find((item) => item.value === ELEMENT_PARAGRAPH)!;
 
 export function TurnIntoDropdownMenu(props: DropdownMenuProps) {
   const value: string = useEditorSelector((editor) => {
-    if (isCollapsed(editor.selection)) {
-      const entry = findNode<TElement>(editor, {
-        match: (n) => isBlock(editor, n),
+    if (editor.api.isCollapsed()) {
+      const entry = editor.api.node<TElement>({
+        match: (n) => editor.api.isBlock(n),
       });
 
       if (entry) {
@@ -126,11 +126,11 @@ export function TurnIntoDropdownMenu(props: DropdownMenuProps) {
             //   }
             // } else {
             //   unwrapList(editor);
-            setNodes(editor, { type });
+            editor.tf.setNodes({ type });
             // }
 
-            collapseSelection(editor);
-            focusEditor(editor);
+            editor.tf.collapse();
+            editor.tf.focus();
           }}
         >
           {items.map(({ value: itemValue, label, icon: Icon }) => (

@@ -1,16 +1,22 @@
 import React from 'react';
 import { cn } from '@udecode/cn';
-import { createNodeHOC, createNodesHOC, PlaceholderProps, usePlaceholderState } from '@udecode/plate-common/react';
 import { ELEMENT_H1, ELEMENT_PARAGRAPH } from 'components/plate-plugin-keys';
+
+type PlaceholderProps = {
+  children: React.ReactElement | React.ReactElement[];
+  placeholder: string;
+  nodeProps?: Record<string, unknown>;
+  enabled?: boolean;
+};
 
 export const Placeholder = (props: PlaceholderProps) => {
   const { children, placeholder, nodeProps } = props;
-
-  const { enabled } = usePlaceholderState(props);
+  const enabled = props.enabled ?? true;
 
   return React.Children.map(children, (child) => {
-    return React.cloneElement(child, {
-      className: child.props.className,
+    const element = child as React.ReactElement<any>;
+    return React.cloneElement(element, {
+      className: element.props.className,
       nodeProps: {
         ...nodeProps,
         className: cn(
@@ -23,8 +29,17 @@ export const Placeholder = (props: PlaceholderProps) => {
   });
 };
 
-export const withPlaceholder = createNodeHOC(Placeholder);
-export const withPlaceholdersPrimitive = createNodesHOC(Placeholder);
+export const withPlaceholder = (Component: React.ComponentType<any>) =>
+  function PlaceholderComponent(props: any) {
+    return (
+      <Placeholder {...props}>
+        <Component {...props} />
+      </Placeholder>
+    );
+  };
+
+export const withPlaceholdersPrimitive = (components: any, _options?: any) =>
+  components;
 
 export const withPlaceholders = (components: any) =>
   withPlaceholdersPrimitive(components, [

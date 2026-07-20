@@ -3,17 +3,16 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Node } from 'slate'
 import { TooltipProvider } from 'components/plate-ui/tooltip';
-import { deserializeHtml, resetEditor } from '@udecode/plate-common';
+import { deserializeHtml } from 'platejs';
 import {
     createPlateEditor,
     Plate,
     usePlateEditor,
-} from '@udecode/plate-common/react';
-import { serializeHtml } from '@udecode/plate-html/react';
+} from 'platejs/react';
 
-// import { Plate } from '@udecode/plate-common';
 import { ELEMENT_PARAGRAPH } from 'components/plate-plugin-keys';
 import { plugins } from 'components/plate-plugins';
+import { serializeEditorHtml } from 'components/plate-serialization';
 import { Editor } from 'components/plate-ui/editor';
 // import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';
 // import { FixedToolbarButtons } from '@/components/plate-ui/fixed-toolbar-buttons';
@@ -97,7 +96,7 @@ const OnPageEditor = (params) => {
         setEditorValue(slateValue);
     };
 
-    const onPostEntry = useCallback(() => {
+    const onPostEntry = useCallback(async () => {
         if (!editorRef || !editorRef.current) {
             console.log("no editor or content found");
             return
@@ -112,9 +111,7 @@ const OnPageEditor = (params) => {
         const rawBody = JSON.stringify(editor.children)
 
         // see @udecode/plate/issues/2804
-        const htmlBody = serializeHtml(editor, {
-            nodes: editor.children,
-        });
+        const htmlBody = await serializeEditorHtml(editor);
 
         var formData = new FormData();
         if (params.id) {
@@ -125,7 +122,7 @@ const OnPageEditor = (params) => {
         formData.set("rawBody", rawBody);
         params.postEntry(formData)
             .then(() => {
-                resetEditor(editor);
+                editor.tf.reset();
                 // setValue(initialValueEmpty);
             }).catch(error => {
                 console.error(error)

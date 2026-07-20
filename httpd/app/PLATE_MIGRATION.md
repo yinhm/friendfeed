@@ -29,12 +29,19 @@ The verified per-package and per-file import map is recorded in `PLATE_37_API_MA
 
 ## Checkpoint 3: Plate 49 package layout
 
-- [ ] Rename `@udecode/plate-*` packages to `@platejs/*`; replace `@udecode/plate-common` with the relevant `@platejs/core` and utility packages rather than keeping a compatibility barrel.
-- [ ] Move basic marks/nodes to `@platejs/basic-nodes`, classic lists to `@platejs/list-classic`, and indent lists to `@platejs/list`.
-- [ ] Replace deprecated `@udecode/plate-serializer-html` with `@platejs/serializer-html` and verify serialization uses the editor-bound plugin components.
-- [ ] Move editor creation/provider setup to the v49 APIs, including plugin overrides and editable rendering.
-- [ ] Upgrade the Slate package family as one unit to the exact versions required by Plate 49; remove any temporary v37 peer-version pins.
-- [ ] Recheck package exports rather than rewriting `/react` imports mechanically: v49 keeps headless and React entrypoints separate.
-- [ ] Compare the final plugin keys with the v36 compatibility fixture before accepting any serialized output.
+- [x] Rename `@udecode/plate-*` packages to `@platejs/*`; replace `@udecode/plate-common` with `platejs` and the relevant focused packages rather than keeping a compatibility barrel.
+- [x] Move basic marks/nodes to `@platejs/basic-nodes`, classic lists to `@platejs/list-classic`, and indent lists to `@platejs/list`.
+- [x] Replace the retired Plate 38 HTML package with the async `serializeHtml` exported by `platejs`. Plate 49 does not publish `@platejs/serializer-html`; serialization uses a static editor and app-owned static components so interactive React hooks are never invoked during server rendering.
+- [x] Move editor creation/provider setup to the v49 APIs, including plugin overrides and editable rendering.
+- [x] Upgrade the Slate package family as one unit to the versions required by Plate 49; remove the temporary v37 peer-version pins.
+- [x] Recheck package exports rather than rewriting `/react` imports mechanically: v49 keeps headless and React entrypoints separate.
+- [x] Compare the final plugin keys with the v36 compatibility fixture before accepting any serialized output.
+
+Plate 49 core now owns three behaviors that previously required separate plugins:
+Shift+Enter invokes `insertSoftBreak`, Backspace first selects an adjacent void
+image, and `NodeIdPlugin` is enabled by default outside tests. The contract test
+locks these behaviors so removal of the old `SoftBreakPlugin`,
+`SelectOnBackspacePlugin` and explicit `NodeIdPlugin` registrations is not
+mistaken for a UX regression.
 
 Each checkpoint must pass the editor compatibility tests, the Home/Public/Feed lazy-loading tests, type checking, production build, frozen installation and peer checks.

@@ -94,7 +94,7 @@
 - [x] 制定 Plate 31 → 当前稳定主线的 API migration 清单；Plate 37 插件对象迁移与 Plate 49 包重组的逐项清单见 `httpd/app/PLATE_MIGRATION.md`。
 - [x] 同步升级 Slate、slate-react、slate-history、slate-hyperscript：对齐到 Plate 37 迁移边界的 Slate 0.103、Slate React 0.110.3、History 0.109；Hyperscript 保持该时期最新的 0.100。
 - [x] 迁移 plugin 创建、editor/provider、serializer、media、floating UI 和自定义 Plate components；Plate 全家桶升级到 37，并改用 plugin object 与 editor-instance API。
-- [ ] 处理已 deprecated 的 `@udecode/plate-*` 包与新包结构。
+- [x] 处理已 deprecated 的 `@udecode/plate-*` 包与新包结构：迁移至 Plate 49 的 `platejs`/`@platejs/*`，移除全部旧 Plate 38 直接依赖，并为异步 HTML serializer 增加独立静态组件边界。
 - [x] 验证旧 `rawBody` JSON 可以加载、编辑并再次保存，不能破坏存量 entry。
 - [x] 针对 `dangerouslySetInnerHTML`、链接、media embed 和序列化结果做安全测试；修复 AJAX/JSON feed 未 sanitize 的 XSS 缺口，并锁定 `javascript:`、HTML data URL 与恶意 iframe 不得进入序列化结果。
 - [x] 重新运行审计并将 Plate 全家桶统一升级至 38，消除 Plate core 的 high 漏洞；剩余 `js-video-url-parser` moderate 所声称的修复版本 0.5.2 尚未发布，应用层已在调用第三方 parser 前拒绝超过 2048 字节的 URL，锁定测试并保留审计记录。

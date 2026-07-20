@@ -1,11 +1,9 @@
 import React, { useEffect } from 'react';
-import { isSelectionExpanded } from '@udecode/plate-common';
-import { useEditorSelector, useElement, useRemoveNodeButton } from '@udecode/plate-common/react';
+import { useElement, useRemoveNodeButton, useSelectionExpanded } from 'platejs/react';
 import {
-  floatingMediaActions,
   FloatingMedia as FloatingMediaPrimitive,
-  useFloatingMediaSelectors,
-} from '@udecode/plate-media/react';
+  useFloatingMediaState,
+} from '@platejs/media/react';
 import { useReadOnly, useSelected } from 'slate-react';
 
 import { Icons } from 'components/icons';
@@ -24,19 +22,16 @@ export function MediaPopover({ pluginKey, children }: MediaPopoverProps) {
   const readOnly = useReadOnly();
   const selected = useSelected();
 
-  const selectionCollapsed = useEditorSelector(
-    (editor) => !isSelectionExpanded(editor),
-    []
-  );
+  const selectionCollapsed = !useSelectionExpanded();
   const isOpen = !readOnly && selected && selectionCollapsed;
-  const isEditing = useFloatingMediaSelectors().isEditing();
+  const [isEditing, setIsEditing] = useFloatingMediaState('isEditing');
 
   useEffect(() => {
     if (!isOpen && isEditing) {
-      floatingMediaActions.isEditing(false);
+      setIsEditing(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isEditing, isOpen, setIsEditing]);
 
   const element = useElement();
   const { props: buttonProps } = useRemoveNodeButton({ element });

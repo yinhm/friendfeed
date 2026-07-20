@@ -2,18 +2,17 @@
 
 import React from 'react';
 import { withRef } from '@udecode/cn';
-import { useCodeSyntaxLeaf } from '@udecode/plate-code-block/react';
-import { PlateLeaf } from '@udecode/plate-common/react';
+import { PlateLeaf } from 'platejs/react';
 
 export const CodeSyntaxLeaf = withRef<typeof PlateLeaf>(
   ({ children, ...props }, ref) => {
     const { leaf } = props;
 
-    const { tokenProps } = useCodeSyntaxLeaf({ leaf });
-
     return (
       <PlateLeaf ref={ref} {...props}>
-        <span {...tokenProps}>{children}</span>
+        <span className={`prism-token token ${leaf.tokenType ?? ''}`}>
+          {children}
+        </span>
       </PlateLeaf>
     );
   }

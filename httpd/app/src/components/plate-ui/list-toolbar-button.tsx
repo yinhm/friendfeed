@@ -3,7 +3,7 @@ import { withRef } from '@udecode/cn';
 import {
   useListToolbarButton,
   useListToolbarButtonState,
-} from '@udecode/plate-list/react';
+} from '@platejs/list-classic/react';
 
 import { Icons } from 'components/icons';
 import { ELEMENT_UL } from 'components/plate-plugin-keys';

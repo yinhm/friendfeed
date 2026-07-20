@@ -1,6 +1,6 @@
 import React from 'react';
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
-import { focusEditor, useEditorReadOnly, useEditorRef, usePlateStore } from '@udecode/plate-common/react';
+import { useEditorReadOnly, useEditorRef, usePlateSet } from 'platejs/react';
 
 import { Icons } from 'components/icons';
 
@@ -16,7 +16,7 @@ import { ToolbarButton } from './toolbar';
 
 export function ModeDropdownMenu(props: DropdownMenuProps) {
   const editor = useEditorRef();
-  const setReadOnly = usePlateStore().set.readOnly();
+  const setReadOnly = usePlateSet('readOnly');
   const readOnly = useEditorReadOnly();
   const openState = useOpenState();
 
@@ -66,7 +66,7 @@ export function ModeDropdownMenu(props: DropdownMenuProps) {
             }
 
             if (newValue === 'editing') {
-              focusEditor(editor);
+              editor.tf.focus();
               return;
             }
           }}

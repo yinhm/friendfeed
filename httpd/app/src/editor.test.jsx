@@ -1,9 +1,9 @@
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
-import {createPlateEditor} from '@udecode/plate-common/react';
-import {serializeHtml} from '@udecode/plate-html/react';
+import {createPlateEditor} from 'platejs/react';
 
 import OnPageEditor from './editor';
 import {plugins} from './components/plate-plugins';
+import {serializeEditorHtml} from './components/plate-serialization';
 
 test('typing the emoji trigger creates an inline emoji input', () => {
   const editor = createPlateEditor({plugins});
@@ -52,7 +52,7 @@ test('legacy rawBody content loads and is submitted as JSON and HTML', async () 
     {type: 'p', children: [{text: 'Legacy rich text', bold: true}]},
   ]);
   expect(formData.get('body')).toMatch(
-    /<strong[^>]*>Legacy rich text<\/strong>/
+    /<strong[^>]*>.*Legacy rich text.*<\/strong>/
   );
 });
 
@@ -71,7 +71,7 @@ test('legacy HTML fallback still deserializes into editable content', () => {
   );
 });
 
-test('HTML serialization rejects unsafe link protocols', () => {
+test('HTML serialization rejects unsafe link protocols', async () => {
   const editor = createPlateEditor({plugins});
   editor.children = [
     {
@@ -85,11 +85,7 @@ test('HTML serialization rejects unsafe link protocols', () => {
       ],
     },
   ];
-
-  let html;
-  act(() => {
-    html = serializeHtml(editor, {nodes: editor.children});
-  });
+  const html = await serializeEditorHtml(editor);
 
   expect(html).not.toMatch(/javascript:/i);
   expect(html).toContain('unsafe link');
@@ -98,7 +94,7 @@ test('HTML serialization rejects unsafe link protocols', () => {
 test.each([
   'javascript:alert(1)',
   'data:text/html,<script>alert(1)</script>',
-])('media serialization rejects unsafe URL %s', (url) => {
+])('media serialization rejects unsafe URL %s', async (url) => {
   const editor = createPlateEditor({plugins});
   editor.children = [
     {
@@ -107,11 +103,7 @@ test.each([
       children: [{text: ''}],
     },
   ];
-
-  let html;
-  act(() => {
-    html = serializeHtml(editor, {nodes: editor.children});
-  });
+  const html = await serializeEditorHtml(editor);
 
   expect(html).not.toMatch(/javascript:|data:text\/html|<script/i);
   expect(html).not.toContain('<iframe');

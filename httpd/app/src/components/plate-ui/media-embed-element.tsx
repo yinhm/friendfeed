@@ -1,12 +1,12 @@
 import React from 'react';
 import { cn, withRef } from '@udecode/cn';
-import { PlateElement, withHOC } from '@udecode/plate-common/react';
+import { PlateElement, withHOC } from 'platejs/react';
 import {
   parseTwitterUrl,
   parseVideoUrl,
-} from '@udecode/plate-media';
-import { useMediaState } from '@udecode/plate-media/react';
-import { ResizableProvider, useResizableStore } from '@udecode/plate-resizable';
+} from '@platejs/media';
+import { useMediaState } from '@platejs/media/react';
+import { ResizableProvider, useResizableValue } from '@platejs/resizable';
 import LiteYouTubeEmbed from 'react-lite-youtube-embed';
 import { Tweet } from 'react-tweet';
 
@@ -44,7 +44,7 @@ export const MediaEmbedElement = withHOC(
     } = useMediaState({
       urlParsers: mediaUrlParsers,
     });
-    const width = useResizableStore().get.width();
+    const width = useResizableValue('width');
     const provider = embed?.provider;
 
     return (

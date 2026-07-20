@@ -1,7 +1,6 @@
 import React from 'react';
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
-import { toggleMark } from '@udecode/plate-common';
-import { focusEditor, useEditorRef } from '@udecode/plate-common/react';
+import { useEditorRef } from 'platejs/react';
 
 import { Icons } from 'components/icons';
 import { MARK_SUBSCRIPT, MARK_SUPERSCRIPT } from 'components/plate-plugin-keys';
@@ -33,11 +32,9 @@ export function MoreDropdownMenu(props: DropdownMenuProps) {
       >
         <DropdownMenuItem
           onSelect={() => {
-            toggleMark(editor, {
-              key: MARK_SUBSCRIPT,
-              clear: MARK_SUPERSCRIPT,
-            });
-            focusEditor(editor);
+            editor.tf.removeMark(MARK_SUPERSCRIPT);
+            editor.tf.toggleMark(MARK_SUBSCRIPT);
+            editor.tf.focus();
           }}
         >
           <Icons.superscript className="mr-2 h-5 w-5" />
@@ -46,11 +43,9 @@ export function MoreDropdownMenu(props: DropdownMenuProps) {
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
-            toggleMark(editor, {
-              key: MARK_SUPERSCRIPT,
-              clear: MARK_SUBSCRIPT,
-            });
-            focusEditor(editor);
+            editor.tf.removeMark(MARK_SUBSCRIPT);
+            editor.tf.toggleMark(MARK_SUPERSCRIPT);
+            editor.tf.focus();
           }}
         >
           <Icons.subscript className="mr-2 h-5 w-5" />

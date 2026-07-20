@@ -1,8 +1,8 @@
 import React from 'react';
 import { cn, withRef } from '@udecode/cn';
-import { PlateElement, useElement } from '@udecode/plate-common/react';
-import { TLinkElement } from '@udecode/plate-link';
-import { useLink } from '@udecode/plate-link/react';
+import { PlateElement, useElement } from 'platejs/react';
+import { TLinkElement } from 'platejs';
+import { useLink } from '@platejs/link/react';
 
 export const LinkElement = withRef<typeof PlateElement>(
   ({ className, children, ...props }, ref) => {

@@ -1,7 +1,6 @@
 import React from 'react';
 import { cn, withRef } from '@udecode/cn';
-import { getHandler } from '@udecode/plate-common';
-import { PlateElement } from '@udecode/plate-common/react';
+import { PlateElement } from 'platejs/react';
 import { useFocused, useSelected } from 'slate-react';
 
 export const MentionInputElement = withRef<
@@ -9,7 +8,7 @@ export const MentionInputElement = withRef<
   {
     onClick?: (mentionNode: any) => void;
   }
->(({ className, onClick, ...props }, ref) => {
+>(({ attributes, className, onClick, ...props }, ref) => {
   const { children, element } = props;
 
   const selected = useSelected();
@@ -18,17 +17,20 @@ export const MentionInputElement = withRef<
   return (
     <PlateElement
       ref={ref}
-      asChild
+      as="span"
       data-slate-value={element.value}
+      attributes={{
+        ...attributes,
+        onClick: () => onClick?.(element),
+      }}
       className={cn(
         'inline-block rounded-md bg-muted px-1.5 py-0.5 align-baseline text-sm',
         selected && focused && 'ring-2 ring-ring',
         className
       )}
-      onClick={getHandler(onClick, element)}
       {...props}
     >
-      <span>{children}</span>
+      {children}
     </PlateElement>
   );
 });

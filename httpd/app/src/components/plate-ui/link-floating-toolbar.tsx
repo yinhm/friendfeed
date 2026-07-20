@@ -6,7 +6,7 @@ import {
   flip,
   offset,
   UseVirtualFloatingOptions,
-} from '@udecode/plate-floating';
+} from '@platejs/floating';
 import {
   FloatingLinkUrlInput,
   LinkFloatingToolbarState,
@@ -15,7 +15,7 @@ import {
   useFloatingLinkEditState,
   useFloatingLinkInsert,
   useFloatingLinkInsertState,
-} from '@udecode/plate-link/react';
+} from '@platejs/link/react';
 
 import { Icons } from 'components/icons';
 

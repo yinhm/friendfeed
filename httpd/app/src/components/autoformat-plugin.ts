@@ -1,21 +1,13 @@
 /* copy from plate-playground-template/lib/plate */
 
-import { AutoformatPluginOptions, AutoformatRule } from '@udecode/plate-autoformat';
-import { insertEmptyCodeBlock } from '@udecode/plate-code-block';
-import { insertNodes, setNodes } from '@udecode/plate-common';
-import { ListStyleType, toggleIndentList } from '@udecode/plate-indent-list';
+import { AutoformatRule } from '@platejs/autoformat';
+import { insertEmptyCodeBlock } from '@platejs/code-block';
+import { ListStyleType, toggleList as toggleIndentList } from '@platejs/list';
+import { TTodoListItemElement } from '@platejs/list-classic';
 
-import { isBlock } from '@udecode/plate-common';
-import { TTodoListItemElement } from '@udecode/plate-list';
-
-import { AutoformatBlockRule } from '@udecode/plate-autoformat';
-import {
-  getParentNode,
-  isElement,
-  isType,
-  SlateEditor,
-} from '@udecode/plate-common';
-import { toggleList, unwrapList } from '@udecode/plate-list';
+import { AutoformatBlockRule } from '@platejs/autoformat';
+import { SlateEditor } from 'platejs';
+import { toggleList, unwrapList } from '@platejs/list-classic';
 
 import {
   autoformatArrow,
@@ -24,7 +16,7 @@ import {
   autoformatMath,
   autoformatPunctuation,
   autoformatSmartQuotes,
-} from '@udecode/plate-autoformat';
+} from '@platejs/autoformat';
 
 import {
   ELEMENT_BLOCKQUOTE,
@@ -49,13 +41,13 @@ export const preFormat: AutoformatBlockRule['preFormat'] = (editor) =>
 
 export const format = (editor: SlateEditor, customFormatting: any) => {
   if (editor.selection) {
-    const parentEntry = getParentNode(editor, editor.selection);
+    const parentEntry = editor.api.parent(editor.selection);
     if (!parentEntry) return;
     const [node] = parentEntry;
     if (
-      isElement(node) &&
-      !isType(editor, node, ELEMENT_CODE_BLOCK) &&
-      !isType(editor, node, ELEMENT_CODE_LINE)
+      editor.api.isBlock(node) &&
+      node.type !== ELEMENT_CODE_BLOCK &&
+      node.type !== ELEMENT_CODE_LINE
     ) {
       customFormatting();
     }
@@ -71,7 +63,7 @@ export const formatList = (editor: SlateEditor, elementType: string) => {
 };
 
 export const formatText = (editor: SlateEditor, text: string) => {
-  format(editor, () => editor.insertText(text));
+  format(editor, () => editor.tf.insertText(text));
 };
 
 export const autoformatBlocks: AutoformatRule[] = [
@@ -135,8 +127,8 @@ export const autoformatBlocks: AutoformatRule[] = [
     type: ELEMENT_HR,
     match: ['---', '—-', '___ '],
     format: (editor) => {
-      setNodes(editor, { type: ELEMENT_HR });
-      insertNodes(editor, {
+      editor.tf.setNodes({ type: ELEMENT_HR });
+      editor.tf.insertNodes({
         type: ELEMENT_DEFAULT,
         children: [{ text: '' }],
       });
@@ -191,11 +183,10 @@ export const autoformatLists: AutoformatRule[] = [
     type: ELEMENT_TODO_LI,
     match: '[x] ',
     format: (editor) =>
-      setNodes<TTodoListItemElement>(
-        editor,
+      editor.tf.setNodes<TTodoListItemElement>(
         { type: ELEMENT_TODO_LI, checked: true },
         {
-          match: (n) => isBlock(editor, n),
+          match: (n) => editor.api.isBlock(n),
         }
       ),
   },
@@ -213,7 +204,7 @@ export const autoformatRules = [
   ...autoformatMath,
 ];
 
-export const autoformatPlugin: AutoformatPluginOptions = {
+export const autoformatPlugin = {
   rules: autoformatRules,
   enableUndoOnDelete: true,
 };

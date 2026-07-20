@@ -1,8 +1,8 @@
 import React from 'react';
 import { cn, withRef } from '@udecode/cn';
-import { PlateElement, withHOC } from '@udecode/plate-common/react';
-import { Image, useMediaState } from '@udecode/plate-media/react';
-import { ResizableProvider, useResizableStore } from '@udecode/plate-resizable';
+import { PlateElement, withHOC } from 'platejs/react';
+import { Image, useMediaState } from '@platejs/media/react';
+import { ResizableProvider, useResizableValue } from '@platejs/resizable';
 
 import { Caption, CaptionTextarea } from './caption';
 import { ELEMENT_IMAGE } from 'components/plate-plugin-keys';
@@ -16,9 +16,9 @@ import {
 export const ImageElement = withHOC(
   ResizableProvider,
   withRef<typeof PlateElement>(
-    ({ className, children, nodeProps, ...props }, ref) => {
+    ({ className, children, ...props }, ref) => {
       const { readOnly, focused, selected, align = 'center' } = useMediaState();
-      const width = useResizableStore().get.width();
+      const width = useResizableValue('width');
 
       return (
         <MediaPopover pluginKey={ELEMENT_IMAGE}>
@@ -46,7 +46,6 @@ export const ImageElement = withHOC(
                     focused && selected && 'ring-2 ring-ring ring-offset-2'
                   )}
                   alt=""
-                  {...nodeProps}
                 />
                 <ResizeHandle
                   options={{ direction: 'right' }}

@@ -3,7 +3,7 @@ import { withRef } from '@udecode/cn';
 import {
   useLinkToolbarButton,
   useLinkToolbarButtonState,
-} from '@udecode/plate-link/react';
+} from '@platejs/link/react';
 
 import { Icons } from 'components/icons';
 

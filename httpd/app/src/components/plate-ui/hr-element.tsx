@@ -1,10 +1,10 @@
 import React from 'react';
 import { cn, withRef } from '@udecode/cn';
-import { PlateElement } from '@udecode/plate-common/react';
+import { PlateElement } from 'platejs/react';
 import { useFocused, useSelected } from 'slate-react';
 
 export const HrElement = withRef<typeof PlateElement>(
-  ({ className, nodeProps, ...props }, ref) => {
+  ({ className, ...props }, ref) => {
     const { children } = props;
 
     const selected = useSelected();
@@ -14,7 +14,6 @@ export const HrElement = withRef<typeof PlateElement>(
       <PlateElement ref={ref} {...props}>
         <div className="py-6" contentEditable={false}>
           <hr
-            {...nodeProps}
             className={cn(
               'h-0.5 cursor-pointer rounded-sm border-none bg-muted bg-clip-content',
               selected && focused && 'ring-2 ring-ring ring-offset-2',

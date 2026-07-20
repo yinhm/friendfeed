@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { withRef } from '@udecode/cn';
-import { PlateElement } from '@udecode/plate-common/react';
-import { EmojiInlineIndexSearch, insertEmoji } from '@udecode/plate-emoji';
+import { PlateElement } from 'platejs/react';
+import { EmojiInlineIndexSearch, insertEmoji } from '@platejs/emoji';
 
 import {
   InlineCombobox,
