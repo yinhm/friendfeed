@@ -44,9 +44,11 @@
 
 ## 3. Radix UI 组件组升级
 
-- [ ] 在同一阶段统一升级 Avatar、Checkbox、Dialog、Dropdown Menu、Popover、Separator、Slot、Toolbar、Tooltip。
-- [ ] 检查 Dialog/Popover/Menu 的 focus trap、Portal、Esc 关闭、键盘导航和 z-index。
-- [ ] 检查编辑器固定工具栏、浮动工具栏、链接弹层、媒体弹层和 tooltip。
+- [x] 在同一阶段统一升级 Avatar、Checkbox、Dialog、Dropdown Menu、Popover、Separator、Slot、Toolbar、Tooltip。
+- [x] 检查 Dialog/Popover/Menu 的 focus trap、Portal、Esc 关闭、键盘导航和 z-index；增加 Radix wrapper 交互测试。
+- [x] 检查编辑器固定工具栏、浮动工具栏、链接弹层、媒体弹层和 tooltip；Home 编辑器 smoke test 与 production build 均通过。
+
+结果：Radix 依赖树减少 22 个包；主 bundle 基本不变（210.15 kB，gzip 65.44 kB），editor chunk 从基线 1,887.35 kB 降至 1,866.89 kB（gzip 从 545.29 kB 降至 541.76 kB）。审计数量保持 16 high、11 moderate、2 low，问题仍来自 Plate 31 和旧工具依赖树。
 
 完成条件：交互测试通过，无 hydration、focus 或 Portal 回归。
 
