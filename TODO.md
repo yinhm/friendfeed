@@ -125,7 +125,9 @@
 
 ## 10. 可选的组件现代化
 
-- [ ] 在依赖升级稳定后，再评估将 class components 迁移为 function components/hooks。
+- [x] 已评估 class components 迁移：无状态的 `App` 外壳可直接函数化；`Feed` 的轮询/发帖状态与 `Entry` 的 props/本地编辑状态同步必须先由回归测试锁定，避免机械改写生命周期。
+  - `EntryCommand*`、`EntryCommentForm`、`EntryComment`、`EntryLike` 等叶子组件可独立迁移，但收益低于先解决 `App`/`Feed`/`Entry` 的状态边界。
+  - 推荐顺序为：补 `Feed`/`Entry` 行为测试 → 迁移无状态 `App` → 迁移 `Feed` → 最后迁移 `Entry`；每步单独提交并验证。
 - [ ] 优先处理状态同步复杂的 `App` 和 `Entry`，迁移前先增加行为测试。
 - [ ] 不为追求写法统一而改动稳定组件；每次迁移应有明确收益。
 
