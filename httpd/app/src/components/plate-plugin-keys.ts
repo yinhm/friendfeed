@@ -4,6 +4,7 @@ export const ELEMENT_CODE_BLOCK = 'code_block';
 export const ELEMENT_CODE_LINE = 'code_line';
 export const ELEMENT_CODE_SYNTAX = 'code_syntax';
 export const ELEMENT_EMOJI_INPUT = 'emoji_input';
+export const ELEMENT_HR = 'hr';
 export const ELEMENT_H1 = 'h1';
 export const ELEMENT_H2 = 'h2';
 export const ELEMENT_H3 = 'h3';
@@ -35,3 +36,4 @@ export const HEADING_KEYS = [
   ELEMENT_H6,
 ];
 export const KEY_LIST_STYLE_TYPE = 'listStyleType';
+export const ELEMENT_DEFAULT = ELEMENT_PARAGRAPH;

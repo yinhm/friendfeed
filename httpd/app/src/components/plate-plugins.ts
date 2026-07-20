@@ -8,9 +8,7 @@ import {
   createStrikethroughPlugin,
   createUnderlinePlugin,
 } from '@udecode/plate-basic-marks';
-import {
-  createBlockquotePlugin,
-} from '@udecode/plate-block-quote';
+import { createBlockquotePlugin } from '@udecode/plate-block-quote';
 import {
   createExitBreakPlugin,
   createSoftBreakPlugin,
@@ -31,31 +29,21 @@ import {
   RenderAfterEditable,
   someNode,
 } from '@udecode/plate-common';
-import {
-  createEmojiPlugin,
-} from '@udecode/plate-emoji';
+import { createEmojiPlugin } from '@udecode/plate-emoji';
 import {
   createFontBackgroundColorPlugin,
   createFontColorPlugin,
   createFontSizePlugin,
 } from '@udecode/plate-font';
-import {
-  createHeadingPlugin,
-} from '@udecode/plate-heading';
-import {
-  createHighlightPlugin,
-} from '@udecode/plate-highlight';
+import { createHeadingPlugin } from '@udecode/plate-heading';
+import { createHighlightPlugin } from '@udecode/plate-highlight';
 import { createIndentPlugin } from '@udecode/plate-indent';
-import {
-  createIndentListPlugin,
-} from '@udecode/plate-indent-list';
+import { createIndentListPlugin } from '@udecode/plate-indent-list';
 import { createJuicePlugin } from '@udecode/plate-juice';
 // import { createKbdPlugin, MARK_KBD } from '@udecode/plate-kbd';
 import { createLineHeightPlugin } from '@udecode/plate-line-height';
 import { createLinkPlugin } from '@udecode/plate-link';
-import {
-  createTodoListPlugin,
-} from '@udecode/plate-list';
+import { createTodoListPlugin } from '@udecode/plate-list';
 import {
   createImagePlugin,
   createMediaEmbedPlugin,

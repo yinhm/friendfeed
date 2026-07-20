@@ -3,36 +3,14 @@
 import { AutoformatPlugin } from '@udecode/plate-autoformat';
 import { PlatePlugin } from '@udecode/plate-common';
 import { AutoformatRule } from '@udecode/plate-autoformat';
-import { ELEMENT_BLOCKQUOTE } from '@udecode/plate-block-quote';
-import {
-  ELEMENT_CODE_BLOCK,
-  insertEmptyCodeBlock,
-} from '@udecode/plate-code-block';
-import { ELEMENT_DEFAULT, insertNodes, setNodes } from '@udecode/plate-common';
-import {
-  ELEMENT_H1,
-  ELEMENT_H2,
-  ELEMENT_H3,
-  ELEMENT_H4,
-  ELEMENT_H5,
-  ELEMENT_H6,
-} from '@udecode/plate-heading';
-import { ELEMENT_HR } from '@udecode/plate-horizontal-rule';
+import { insertEmptyCodeBlock } from '@udecode/plate-code-block';
+import { insertNodes, setNodes } from '@udecode/plate-common';
 import { ListStyleType, toggleIndentList } from '@udecode/plate-indent-list';
 
 import { isBlock } from '@udecode/plate-common';
-import {
-  ELEMENT_LI,
-  ELEMENT_OL,
-  ELEMENT_TODO_LI,
-  ELEMENT_UL,
-  TTodoListItemElement,
-} from '@udecode/plate-list';
+import { TTodoListItemElement } from '@udecode/plate-list';
 
 import { AutoformatBlockRule } from '@udecode/plate-autoformat';
-import {
-  ELEMENT_CODE_LINE,
-} from '@udecode/plate-code-block';
 import {
   getParentNode,
   isElement,
@@ -49,6 +27,24 @@ import {
   autoformatPunctuation,
   autoformatSmartQuotes,
 } from '@udecode/plate-autoformat';
+
+import {
+  ELEMENT_BLOCKQUOTE,
+  ELEMENT_CODE_BLOCK,
+  ELEMENT_CODE_LINE,
+  ELEMENT_DEFAULT,
+  ELEMENT_H1,
+  ELEMENT_H2,
+  ELEMENT_H3,
+  ELEMENT_H4,
+  ELEMENT_H5,
+  ELEMENT_H6,
+  ELEMENT_HR,
+  ELEMENT_LI,
+  ELEMENT_OL,
+  ELEMENT_TODO_LI,
+  ELEMENT_UL,
+} from 'components/plate-plugin-keys';
 
 export const preFormat: AutoformatBlockRule['preFormat'] = (editor) =>
   unwrapList(editor);
@@ -79,7 +75,6 @@ export const formatList = (editor: PlateEditor, elementType: string) => {
 export const formatText = (editor: PlateEditor, text: string) => {
   format(editor, () => editor.insertText(text));
 };
-
 
 export const autoformatBlocks: AutoformatRule[] = [
   {
@@ -226,4 +221,3 @@ export const autoformatPlugin: Partial<PlatePlugin<AutoformatPlugin>> = {
     enableUndoOnDelete: true,
   },
 };
-

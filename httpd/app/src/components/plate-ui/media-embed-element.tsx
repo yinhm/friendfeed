@@ -2,7 +2,6 @@ import React from 'react';
 import { cn, withRef } from '@udecode/cn';
 import { PlateElement, withHOC } from '@udecode/plate-common';
 import {
-  ELEMENT_MEDIA_EMBED,
   parseTwitterUrl,
   parseVideoUrl,
   useMediaState,
@@ -12,6 +11,7 @@ import LiteYouTubeEmbed from 'react-lite-youtube-embed';
 import { Tweet } from 'react-tweet';
 
 import { Caption, CaptionTextarea } from './caption';
+import { ELEMENT_MEDIA_EMBED } from 'components/plate-plugin-keys';
 import { MediaPopover } from './media-popover';
 import {
   mediaResizeHandleVariants,

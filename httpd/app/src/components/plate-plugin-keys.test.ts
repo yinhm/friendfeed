@@ -3,6 +3,8 @@ import {
   MARK_CODE,
   MARK_ITALIC,
   MARK_STRIKETHROUGH,
+  MARK_SUBSCRIPT,
+  MARK_SUPERSCRIPT,
   MARK_UNDERLINE,
 } from '@udecode/plate-basic-marks';
 import { ELEMENT_BLOCKQUOTE } from '@udecode/plate-block-quote';
@@ -12,6 +14,7 @@ import {
   ELEMENT_CODE_SYNTAX,
 } from '@udecode/plate-code-block';
 import { ELEMENT_EMOJI_INPUT } from '@udecode/plate-emoji';
+import { ELEMENT_DEFAULT } from '@udecode/plate-common';
 import {
   ELEMENT_H1,
   ELEMENT_H2,
@@ -21,6 +24,9 @@ import {
   ELEMENT_H6,
   KEYS_HEADING,
 } from '@udecode/plate-heading';
+import { MARK_HIGHLIGHT } from '@udecode/plate-highlight';
+import { KEY_LIST_STYLE_TYPE } from '@udecode/plate-indent-list';
+import { ELEMENT_HR } from '@udecode/plate-horizontal-rule';
 import { ELEMENT_LINK } from '@udecode/plate-link';
 import {
   ELEMENT_LI,
@@ -96,12 +102,14 @@ describe('persisted Plate plugin keys', () => {
       ELEMENT_CODE_LINE,
       ELEMENT_CODE_SYNTAX,
       ELEMENT_EMOJI_INPUT,
+      ELEMENT_DEFAULT,
       ELEMENT_H1,
       ELEMENT_H2,
       ELEMENT_H3,
       ELEMENT_H4,
       ELEMENT_H5,
       ELEMENT_H6,
+      ELEMENT_HR,
       ELEMENT_IMAGE,
       ELEMENT_LI,
       ELEMENT_LINK,
@@ -112,9 +120,13 @@ describe('persisted Plate plugin keys', () => {
       ELEMENT_UL,
       MARK_BOLD,
       MARK_CODE,
+      MARK_HIGHLIGHT,
       MARK_ITALIC,
       MARK_STRIKETHROUGH,
+      MARK_SUBSCRIPT,
+      MARK_SUPERSCRIPT,
       MARK_UNDERLINE,
+      KEY_LIST_STYLE_TYPE,
     });
     expect(persistedKeys.HEADING_KEYS).toEqual(KEYS_HEADING);
   });

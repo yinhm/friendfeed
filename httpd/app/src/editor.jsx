@@ -15,9 +15,9 @@ import {
 import { serializeHtml } from '@udecode/plate-serializer-html';
 
 // import { Plate } from '@udecode/plate-common';
-import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
 import { selectEditor } from "@udecode/plate-utils"
 
+import { ELEMENT_PARAGRAPH } from 'components/plate-plugin-keys';
 import { plugins } from 'components/plate-plugins';
 import { Editor } from 'components/plate-ui/editor';
 // import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';

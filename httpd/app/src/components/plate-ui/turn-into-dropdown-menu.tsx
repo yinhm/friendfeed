@@ -1,6 +1,5 @@
 import React from 'react';
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
-import { ELEMENT_BLOCKQUOTE } from '@udecode/plate-block-quote';
 import {
   collapseSelection,
   findNode,
@@ -12,10 +11,15 @@ import {
   useEditorRef,
   useEditorSelector,
 } from '@udecode/plate-common';
-import { ELEMENT_H1, ELEMENT_H2, ELEMENT_H3 } from '@udecode/plate-heading';
-import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
 
 import { Icons } from 'components/icons';
+import {
+  ELEMENT_BLOCKQUOTE,
+  ELEMENT_H1,
+  ELEMENT_H2,
+  ELEMENT_H3,
+  ELEMENT_PARAGRAPH,
+} from 'components/plate-plugin-keys';
 
 import {
   DropdownMenu,

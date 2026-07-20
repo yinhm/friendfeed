@@ -1,14 +1,14 @@
 import React from 'react';
+import { useEditorReadOnly } from '@udecode/plate-common';
+
+import { Icons } from 'components/icons';
 import {
   MARK_BOLD,
   MARK_CODE,
   MARK_ITALIC,
   MARK_STRIKETHROUGH,
   MARK_UNDERLINE,
-} from '@udecode/plate-basic-marks';
-import { useEditorReadOnly } from '@udecode/plate-common';
-
-import { Icons } from 'components/icons';
+} from 'components/plate-plugin-keys';
 
 import { InsertDropdownMenu } from './insert-dropdown-menu';
 import { MarkToolbarButton } from './mark-toolbar-button';
