@@ -35,10 +35,10 @@ import {
   ELEMENT_UL,
 } from '@udecode/plate-list';
 import { ELEMENT_IMAGE, ELEMENT_MEDIA_EMBED } from '@udecode/plate-media';
-import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
 import { describe, expect, it } from 'vitest';
 
 import * as persistedKeys from 'components/plate-plugin-keys';
+import { createParagraphPlugin } from 'components/paragraph-plugin';
 
 describe('persisted Plate plugin keys', () => {
   it('keeps element type strings compatible with stored rawBody JSON', () => {
@@ -59,7 +59,7 @@ describe('persisted Plate plugin keys', () => {
       listItem: ELEMENT_LI,
       mediaEmbed: ELEMENT_MEDIA_EMBED,
       orderedList: ELEMENT_OL,
-      paragraph: ELEMENT_PARAGRAPH,
+      paragraph: persistedKeys.ELEMENT_PARAGRAPH,
       todo: ELEMENT_TODO_LI,
       unorderedList: ELEMENT_UL,
     }).toEqual({
@@ -115,7 +115,7 @@ describe('persisted Plate plugin keys', () => {
       ELEMENT_LINK,
       ELEMENT_MEDIA_EMBED,
       ELEMENT_OL,
-      ELEMENT_PARAGRAPH,
+      ELEMENT_PARAGRAPH: 'p',
       ELEMENT_TODO_LI,
       ELEMENT_UL,
       MARK_BOLD,
@@ -129,5 +129,23 @@ describe('persisted Plate plugin keys', () => {
       KEY_LIST_STYLE_TYPE,
     });
     expect(persistedKeys.HEADING_KEYS).toEqual(KEYS_HEADING);
+  });
+
+  it('keeps the removed Plate 36 paragraph package behavior', () => {
+    const plugin = createParagraphPlugin();
+
+    expect(plugin).toMatchObject({
+      deserializeHtml: {
+        rules: [{ validNodeName: 'P' }],
+      },
+      isElement: true,
+      key: 'p',
+      options: {
+        hotkey: ['mod+opt+0', 'mod+shift+0'],
+      },
+    });
+    expect(plugin.deserializeHtml?.query?.(document.createElement('p'))).toBe(
+      true
+    );
   });
 });

@@ -49,13 +49,13 @@ import {
   createMediaEmbedPlugin,
 } from '@udecode/plate-media';
 import { createNodeIdPlugin } from '@udecode/plate-node-id';
-import { createParagraphPlugin } from '@udecode/plate-paragraph';
 import { createResetNodePlugin } from '@udecode/plate-reset-node';
 import { createSelectOnBackspacePlugin } from '@udecode/plate-select';
 import { createTabbablePlugin } from '@udecode/plate-tabbable';
 import { createTrailingBlockPlugin } from '@udecode/plate-trailing-block';
 
 import { autoformatPlugin } from 'components/autoformat-plugin';
+import { createParagraphPlugin } from 'components/paragraph-plugin';
 import {
   ELEMENT_BLOCKQUOTE,
   ELEMENT_CODE_BLOCK,
