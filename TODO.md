@@ -87,6 +87,8 @@
 
 ## 7. Plate 与 Slate 整体迁移
 
+- [x] 建立 31 → 49 分段迁移清单，见 `httpd/app/PLATE_MIGRATION.md`；先完成安全兼容台阶，将 core/media 等升级至 36.x，保留四个必须与旧 UI 同步迁移的 31.x 包。
+- [x] 为旧 `rawBody` JSON、旧 HTML fallback 以及再次提交 JSON/HTML 增加兼容测试；安全台阶后 production audit 从 2 high、1 moderate 降至 1 moderate。
 - [ ] 制定 Plate 31 → 当前稳定主线的 API migration 清单；当前 registry 主线为 Plate 49。
 - [ ] 同步升级 Slate、slate-react、slate-history、slate-hyperscript，禁止单包错位。
 - [ ] 迁移 plugin 创建、editor/provider、serializer、media、floating UI 和自定义 Plate components。
