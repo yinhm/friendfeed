@@ -11,6 +11,8 @@ Plate 49 is not package-compatible with Plate 31. The migration is split into re
 
 ## Checkpoint 2: plugin object API
 
+The verified per-package and per-file import map is recorded in `PLATE_37_API_MAP.md`.
+
 - [x] Replace the removed global combobox store with the inline input element model introduced in combobox/emoji 34, then align both packages to 36.x.
 - [ ] Upgrade the complete `@udecode/plate-*` family to 37.x in one change. The Slate family is already staged at the compatible migration boundary: `slate` 0.103.0, `slate-react` 0.110.3, `slate-history` 0.109.0 and `slate-hyperscript` 0.100.0.
 - [ ] Replace `createXPlugin()` registrations with the React plugin objects exported from each package's `/react` entrypoint. Keep non-React transforms and serializers imported from the package root.
