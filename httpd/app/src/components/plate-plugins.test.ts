@@ -12,6 +12,8 @@ import {
   HEADING_KEYS,
 } from 'components/plate-plugin-keys';
 import { plugins } from 'components/plate-plugins';
+import { LinkElement } from 'components/plate-ui/link-element';
+import { LinkFloatingToolbar } from 'components/plate-ui/link-floating-toolbar';
 
 type Plugin = (typeof plugins)[number] & { plugins?: Plugin[] };
 
@@ -62,15 +64,72 @@ describe('Plate plugin configuration', () => {
   });
 
   it('keeps block-style targets and values', () => {
+    const textBlockTypes = [
+      ELEMENT_PARAGRAPH,
+      ELEMENT_H1,
+      ELEMENT_H2,
+      ELEMENT_H3,
+      ELEMENT_BLOCKQUOTE,
+      ELEMENT_CODE_BLOCK,
+    ];
+
     expect(plugin('align').inject?.props?.validTypes).toEqual([
       ELEMENT_PARAGRAPH,
       ELEMENT_H1,
       ELEMENT_H2,
       ELEMENT_H3,
     ]);
+    expect(plugin('indent').inject?.props?.validTypes).toEqual(textBlockTypes);
+    expect(plugin('listStyleType').inject?.props?.validTypes).toEqual(
+      textBlockTypes
+    );
     expect(plugin('lineHeight').inject?.props).toMatchObject({
       defaultNodeValue: 1.5,
       validNodeValues: [1, 1.2, 1.5, 2, 3],
+      validTypes: [ELEMENT_PARAGRAPH, ELEMENT_H1, ELEMENT_H2, ELEMENT_H3],
+    });
+  });
+
+  it('keeps reset, soft-break and selection rules', () => {
+    expect(plugin('resetNode').options?.rules).toEqual([
+      expect.objectContaining({
+        defaultType: ELEMENT_PARAGRAPH,
+        hotkey: 'Enter',
+        types: [ELEMENT_BLOCKQUOTE, 'action_item'],
+      }),
+      expect.objectContaining({
+        defaultType: ELEMENT_PARAGRAPH,
+        hotkey: 'Backspace',
+        types: [ELEMENT_BLOCKQUOTE, 'action_item'],
+      }),
+      expect.objectContaining({
+        defaultType: ELEMENT_PARAGRAPH,
+        hotkey: 'Enter',
+        types: [ELEMENT_CODE_BLOCK],
+      }),
+      expect.objectContaining({
+        defaultType: ELEMENT_PARAGRAPH,
+        hotkey: 'Backspace',
+        types: [ELEMENT_CODE_BLOCK],
+      }),
+    ]);
+    expect(plugin('softBreak').options?.rules).toEqual([
+      { hotkey: 'shift+enter' },
+      {
+        hotkey: 'enter',
+        query: { allow: [ELEMENT_CODE_BLOCK, ELEMENT_BLOCKQUOTE] },
+      },
+    ]);
+    expect(plugin('selectOnBackspace').options?.query).toEqual({
+      allow: [ELEMENT_IMAGE],
+    });
+  });
+
+  it('keeps tabbable and link UI integration', () => {
+    expect(plugin('tabbable').options?.query).toEqual(expect.any(Function));
+    expect(plugin('a')).toMatchObject({
+      component: LinkElement,
+      renderAfterEditable: LinkFloatingToolbar,
     });
   });
 });

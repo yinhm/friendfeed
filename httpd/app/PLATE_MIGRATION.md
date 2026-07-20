@@ -19,7 +19,7 @@ Plate 49 is not package-compatible with Plate 31. The migration is split into re
 - [ ] Move React-only UI imports (`Plate`, `PlateContent`, element/leaf components, hooks, floating controls and combobox controls) to `/react`; retain headless helpers at root imports.
 - [x] Remove the discontinued `@udecode/plate-paragraph` package. Its v36 configuration is temporarily preserved by the app-owned `paragraph-plugin.ts`; replace that factory with `ParagraphPlugin` from `@udecode/plate-common/react` during the v37 object migration. Do not add `@udecode/plate-basic-elements` merely to replace this one plugin.
 - [ ] Update element/leaf props, placeholder composition, media/caption, link floating toolbar, code-block combobox and emoji input together with their owning plugins.
-- [ ] Preserve all current plugin options: reset/break rules, valid alignment/indent/line-height node types, caption targets, selection behavior, trailing paragraph, tab handling and link toolbar rendering. The highest-risk registration and option values are now captured by `plate-plugins.test.ts` before object migration.
+- [x] Preserve all current plugin options during migration: reset/break rules, valid alignment/indent/line-height node types, caption targets, selection behavior, trailing paragraph, tab handling and link toolbar rendering are captured by `plate-plugins.test.ts` before object migration.
 - [ ] Run the stored JSON/HTML round-trip tests after the registration migration, in addition to editor interaction and lazy-loading tests.
 
 ## Checkpoint 3: Plate 49 package layout
