@@ -1,6 +1,25 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {createPlateEditor} from '@udecode/plate-common';
 
 import OnPageEditor from './editor';
+import {plugins} from './components/plate-plugins';
+
+test('typing the emoji trigger creates an inline emoji input', () => {
+  const editor = createPlateEditor({plugins});
+  editor.children = [{type: 'p', children: [{text: ''}]}];
+  editor.selection = {
+    anchor: {path: [0, 0], offset: 0},
+    focus: {path: [0, 0], offset: 0},
+  };
+
+  editor.insertText(':');
+
+  expect(editor.children[0].children).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({type: 'emoji_input'}),
+    ])
+  );
+});
 
 test('legacy rawBody content loads and is submitted as JSON and HTML', async () => {
   const postEntry = vi.fn().mockResolvedValue(undefined);

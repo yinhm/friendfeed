@@ -5,13 +5,13 @@ Plate 49 is not package-compatible with Plate 31. The migration is split into re
 ## Checkpoint 1: security-compatible 36.x core
 
 - Upgrade the 31.x plugin family to the last compatible 36.x release where its current UI API remains available.
-- Keep combobox and emoji on 31.0.0 temporarily while their inline-input UI is rebuilt. Code-block and floating have moved to 36.x: the language list is now UI-owned and the floating toolbar supplies explicit editor/focus state.
+- Combobox, emoji, code-block and floating have moved to 36.x. The global combobox store was replaced with an Ariakit-backed inline input element, the language list is UI-owned, and the floating toolbar supplies explicit editor/focus state.
 - Upgrade `plate-common`, `plate-media`, `plate-link` and the remaining headless plugins. This removes both high-severity advisories affecting Plate 31.
 - Protect JSON `rawBody` and legacy HTML loading plus JSON/HTML submission with tests before changing plugin construction.
 
 ## Checkpoint 2: plugin object API
 
-- Replace the removed global combobox store with the inline input element model introduced in combobox/emoji 34, then align both packages to 36.x.
+- [x] Replace the removed global combobox store with the inline input element model introduced in combobox/emoji 34, then align both packages to 36.x.
 - Migrate `createXPlugin()` registrations and `createPlugins()` to the plugin object/configuration API introduced after 36.
 - Update element/leaf props and floating/combobox components together with their plugins.
 - Keep node type strings compatible with stored content (`p`, headings, lists, code blocks, images and media embeds).

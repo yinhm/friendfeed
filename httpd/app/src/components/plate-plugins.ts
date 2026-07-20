@@ -33,7 +33,6 @@ import {
   isSelectionAtCodeBlockStart,
   unwrapCodeBlock,
 } from '@udecode/plate-code-block';
-import { createComboboxPlugin } from '@udecode/plate-combobox';
 import {
   createPlugins,
   isBlockAboveEmpty,
@@ -43,7 +42,10 @@ import {
   RenderAfterEditable,
   someNode,
 } from '@udecode/plate-common';
-import { createEmojiPlugin } from '@udecode/plate-emoji';
+import {
+  createEmojiPlugin,
+  ELEMENT_EMOJI_INPUT,
+} from '@udecode/plate-emoji';
 import {
   createFontBackgroundColorPlugin,
   createFontColorPlugin,
@@ -98,7 +100,7 @@ import { CodeBlockElement } from 'components/plate-ui/code-block-element';
 import { CodeLeaf } from 'components/plate-ui/code-leaf';
 import { CodeLineElement } from 'components/plate-ui/code-line-element';
 import { CodeSyntaxLeaf } from 'components/plate-ui/code-syntax-leaf';
-import { EmojiCombobox } from 'components/plate-ui/emoji-combobox';
+import { EmojiInputElement } from 'components/plate-ui/emoji-input-element';
 import { HeadingElement } from 'components/plate-ui/heading-element';
 import { HighlightLeaf } from 'components/plate-ui/highlight-leaf';
 import { ImageElement } from 'components/plate-ui/image-element';
@@ -202,10 +204,7 @@ export const plugins = createPlugins(
 
     // Functionality
     createAutoformatPlugin(autoformatPlugin),
-    createComboboxPlugin(),
-    createEmojiPlugin({
-      renderAfterEditable: EmojiCombobox as RenderAfterEditable,
-    }),
+    createEmojiPlugin(),
     createExitBreakPlugin({
       options: {
         rules: [
@@ -309,6 +308,7 @@ export const plugins = createPlugins(
         [ELEMENT_CODE_BLOCK]: CodeBlockElement,
         [ELEMENT_CODE_LINE]: CodeLineElement,
         [ELEMENT_CODE_SYNTAX]: CodeSyntaxLeaf,
+        [ELEMENT_EMOJI_INPUT]: EmojiInputElement,
         [ELEMENT_H1]: withProps(HeadingElement, { variant: 'h1' }),
         [ELEMENT_H2]: withProps(HeadingElement, { variant: 'h2' }),
         [ELEMENT_H3]: withProps(HeadingElement, { variant: 'h3' }),
