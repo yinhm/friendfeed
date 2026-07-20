@@ -5,15 +5,14 @@ import { Node } from 'slate'
 import { TooltipProvider } from 'components/plate-ui/tooltip';
 import {
     Plate,
-    //   createDeserializeHTMLPlugin,
-    serializeHtml,
     deserializeHtml,
     createPlateEditor,
     //   usePlateStates,
     //   useEditorRef,
     //   useReplaceEditor,
     //   useRef,
-} from '@udecode/plate';
+} from '@udecode/plate-common';
+import { serializeHtml } from '@udecode/plate-serializer-html';
 
 // import { Plate } from '@udecode/plate-common';
 import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
@@ -187,4 +186,3 @@ const OnPageEditor = (params) => {
 }
 
 export default OnPageEditor;
-

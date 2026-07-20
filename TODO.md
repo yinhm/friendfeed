@@ -78,10 +78,10 @@
 
 ## 6. 编辑器瘦身
 
-- [ ] 根据实际产品能力盘点 Plate plugins，删除未启用或无入口的 comments、DOCX、复杂 media、emoji、code block 等插件。
-- [ ] 删除随废弃插件失去引用的 UI 组件和直接依赖。
-- [ ] 对比 editor chunk 体积，并记录每项功能与体积变化。
-- [ ] 不因“仓库内无引用”删除仍由动态配置、插件注册或外部内容格式使用的能力。
+- [x] 根据实际产品能力盘点 Plate plugins，结果记录在 `httpd/app/EDITOR_FEATURES.md`；删除从未注册的 comments 和无调用的 DOCX serializer。
+- [x] 删除 comments 的断开 UI 组件，并移除未导入的 selection、toggle、plate-ui 直接依赖。
+- [x] 用 `plate-common` 和直接依赖的 HTML serializer 替换 `@udecode/plate` 总包；安装依赖减少 129 个，editor chunk 基本不变（1,845.83 kB，gzip 525.22 kB），证明原总包代码已被 Vite tree-shake；删除 comments UI 后 CSS 从 54.86 kB 降至 54.00 kB。
+- [x] 保留 code block、emoji、image/media、caption、font/layout 等已注册能力；它们分别具有输入触发路径或承担旧 `rawBody` 节点兼容，不能仅因缺少固定工具栏按钮而删除。
 
 完成条件：现有编辑、序列化和历史内容回显保持兼容，editor chunk 明确下降或给出保留理由。
 
