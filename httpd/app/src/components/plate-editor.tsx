@@ -3,11 +3,11 @@
 import React, { useRef } from 'react';
 import { cn } from '@udecode/cn';
 import { Plate } from '@udecode/plate-common';
-import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
 import { plugins } from 'components/plate-plugins';
+import { ELEMENT_PARAGRAPH } from 'components/plate-plugin-keys';
 import { Editor } from 'components/plate-ui/editor';
 import { FixedToolbar } from 'components/plate-ui/fixed-toolbar';
 import { FixedToolbarButtons } from 'components/plate-ui/fixed-toolbar-buttons';

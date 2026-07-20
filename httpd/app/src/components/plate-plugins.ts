@@ -7,17 +7,9 @@ import {
   createItalicPlugin,
   createStrikethroughPlugin,
   createUnderlinePlugin,
-  MARK_BOLD,
-  MARK_CODE,
-  MARK_ITALIC,
-  MARK_STRIKETHROUGH,
-  MARK_SUBSCRIPT,
-  MARK_SUPERSCRIPT,
-  MARK_UNDERLINE,
 } from '@udecode/plate-basic-marks';
 import {
   createBlockquotePlugin,
-  ELEMENT_BLOCKQUOTE,
 } from '@udecode/plate-block-quote';
 import {
   createExitBreakPlugin,
@@ -26,9 +18,6 @@ import {
 import { createCaptionPlugin } from '@udecode/plate-caption';
 import {
   createCodeBlockPlugin,
-  ELEMENT_CODE_BLOCK,
-  ELEMENT_CODE_LINE,
-  ELEMENT_CODE_SYNTAX,
   isCodeBlockEmpty,
   isSelectionAtCodeBlockStart,
   unwrapCodeBlock,
@@ -44,7 +33,6 @@ import {
 } from '@udecode/plate-common';
 import {
   createEmojiPlugin,
-  ELEMENT_EMOJI_INPUT,
 } from '@udecode/plate-emoji';
 import {
   createFontBackgroundColorPlugin,
@@ -53,48 +41,61 @@ import {
 } from '@udecode/plate-font';
 import {
   createHeadingPlugin,
-  ELEMENT_H1,
-  ELEMENT_H2,
-  ELEMENT_H3,
-  KEYS_HEADING,
 } from '@udecode/plate-heading';
 import {
   createHighlightPlugin,
-  MARK_HIGHLIGHT,
 } from '@udecode/plate-highlight';
 import { createIndentPlugin } from '@udecode/plate-indent';
 import {
   createIndentListPlugin,
-  KEY_LIST_STYLE_TYPE,
 } from '@udecode/plate-indent-list';
 import { createJuicePlugin } from '@udecode/plate-juice';
 // import { createKbdPlugin, MARK_KBD } from '@udecode/plate-kbd';
 import { createLineHeightPlugin } from '@udecode/plate-line-height';
-import { createLinkPlugin, ELEMENT_LINK } from '@udecode/plate-link';
+import { createLinkPlugin } from '@udecode/plate-link';
 import {
   createTodoListPlugin,
-  ELEMENT_LI,
-  ELEMENT_OL,
-  ELEMENT_TODO_LI,
-  ELEMENT_UL,
 } from '@udecode/plate-list';
 import {
   createImagePlugin,
   createMediaEmbedPlugin,
-  ELEMENT_IMAGE,
-  ELEMENT_MEDIA_EMBED,
 } from '@udecode/plate-media';
 import { createNodeIdPlugin } from '@udecode/plate-node-id';
-import {
-  createParagraphPlugin,
-  ELEMENT_PARAGRAPH,
-} from '@udecode/plate-paragraph';
+import { createParagraphPlugin } from '@udecode/plate-paragraph';
 import { createResetNodePlugin } from '@udecode/plate-reset-node';
 import { createSelectOnBackspacePlugin } from '@udecode/plate-select';
 import { createTabbablePlugin } from '@udecode/plate-tabbable';
 import { createTrailingBlockPlugin } from '@udecode/plate-trailing-block';
 
 import { autoformatPlugin } from 'components/autoformat-plugin';
+import {
+  ELEMENT_BLOCKQUOTE,
+  ELEMENT_CODE_BLOCK,
+  ELEMENT_CODE_LINE,
+  ELEMENT_CODE_SYNTAX,
+  ELEMENT_EMOJI_INPUT,
+  ELEMENT_H1,
+  ELEMENT_H2,
+  ELEMENT_H3,
+  ELEMENT_IMAGE,
+  ELEMENT_LI,
+  ELEMENT_LINK,
+  ELEMENT_MEDIA_EMBED,
+  ELEMENT_OL,
+  ELEMENT_PARAGRAPH,
+  ELEMENT_TODO_LI,
+  ELEMENT_UL,
+  HEADING_KEYS,
+  KEY_LIST_STYLE_TYPE,
+  MARK_BOLD,
+  MARK_CODE,
+  MARK_HIGHLIGHT,
+  MARK_ITALIC,
+  MARK_STRIKETHROUGH,
+  MARK_SUBSCRIPT,
+  MARK_SUPERSCRIPT,
+  MARK_UNDERLINE,
+} from 'components/plate-plugin-keys';
 import { BlockquoteElement } from 'components/plate-ui/blockquote-element';
 import { CodeBlockElement } from 'components/plate-ui/code-block-element';
 import { CodeLeaf } from 'components/plate-ui/code-leaf';
@@ -220,7 +221,7 @@ export const plugins = createPlugins(
             query: {
               start: true,
               end: true,
-              allow: KEYS_HEADING,
+              allow: HEADING_KEYS,
             },
             relative: true,
             level: 1,

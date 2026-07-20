@@ -12,7 +12,15 @@ import {
   ELEMENT_CODE_SYNTAX,
 } from '@udecode/plate-code-block';
 import { ELEMENT_EMOJI_INPUT } from '@udecode/plate-emoji';
-import { ELEMENT_H1, ELEMENT_H2, ELEMENT_H3 } from '@udecode/plate-heading';
+import {
+  ELEMENT_H1,
+  ELEMENT_H2,
+  ELEMENT_H3,
+  ELEMENT_H4,
+  ELEMENT_H5,
+  ELEMENT_H6,
+  KEYS_HEADING,
+} from '@udecode/plate-heading';
 import { ELEMENT_LINK } from '@udecode/plate-link';
 import {
   ELEMENT_LI,
@@ -23,6 +31,8 @@ import {
 import { ELEMENT_IMAGE, ELEMENT_MEDIA_EMBED } from '@udecode/plate-media';
 import { ELEMENT_PARAGRAPH } from '@udecode/plate-paragraph';
 import { describe, expect, it } from 'vitest';
+
+import * as persistedKeys from 'components/plate-plugin-keys';
 
 describe('persisted Plate plugin keys', () => {
   it('keeps element type strings compatible with stored rawBody JSON', () => {
@@ -35,6 +45,9 @@ describe('persisted Plate plugin keys', () => {
       h1: ELEMENT_H1,
       h2: ELEMENT_H2,
       h3: ELEMENT_H3,
+      h4: ELEMENT_H4,
+      h5: ELEMENT_H5,
+      h6: ELEMENT_H6,
       image: ELEMENT_IMAGE,
       link: ELEMENT_LINK,
       listItem: ELEMENT_LI,
@@ -52,6 +65,9 @@ describe('persisted Plate plugin keys', () => {
       h1: 'h1',
       h2: 'h2',
       h3: 'h3',
+      h4: 'h4',
+      h5: 'h5',
+      h6: 'h6',
       image: 'img',
       link: 'a',
       listItem: 'li',
@@ -71,5 +87,35 @@ describe('persisted Plate plugin keys', () => {
       MARK_STRIKETHROUGH,
       MARK_UNDERLINE,
     ]).toEqual(['bold', 'code', 'italic', 'strikethrough', 'underline']);
+  });
+
+  it('keeps the app-owned migration keys aligned with Plate 36', () => {
+    expect(persistedKeys).toMatchObject({
+      ELEMENT_BLOCKQUOTE,
+      ELEMENT_CODE_BLOCK,
+      ELEMENT_CODE_LINE,
+      ELEMENT_CODE_SYNTAX,
+      ELEMENT_EMOJI_INPUT,
+      ELEMENT_H1,
+      ELEMENT_H2,
+      ELEMENT_H3,
+      ELEMENT_H4,
+      ELEMENT_H5,
+      ELEMENT_H6,
+      ELEMENT_IMAGE,
+      ELEMENT_LI,
+      ELEMENT_LINK,
+      ELEMENT_MEDIA_EMBED,
+      ELEMENT_OL,
+      ELEMENT_PARAGRAPH,
+      ELEMENT_TODO_LI,
+      ELEMENT_UL,
+      MARK_BOLD,
+      MARK_CODE,
+      MARK_ITALIC,
+      MARK_STRIKETHROUGH,
+      MARK_UNDERLINE,
+    });
+    expect(persistedKeys.HEADING_KEYS).toEqual(KEYS_HEADING);
   });
 });
