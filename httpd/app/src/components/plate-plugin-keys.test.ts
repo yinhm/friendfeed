@@ -26,7 +26,6 @@ import {
 } from '@udecode/plate-heading';
 import { MARK_HIGHLIGHT } from '@udecode/plate-highlight';
 import { KEY_LIST_STYLE_TYPE } from '@udecode/plate-indent-list';
-import { ELEMENT_HR } from '@udecode/plate-horizontal-rule';
 import { ELEMENT_LINK } from '@udecode/plate-link';
 import {
   ELEMENT_LI,
@@ -54,6 +53,7 @@ describe('persisted Plate plugin keys', () => {
       h4: ELEMENT_H4,
       h5: ELEMENT_H5,
       h6: ELEMENT_H6,
+      horizontalRule: persistedKeys.ELEMENT_HR,
       image: ELEMENT_IMAGE,
       link: ELEMENT_LINK,
       listItem: ELEMENT_LI,
@@ -74,6 +74,7 @@ describe('persisted Plate plugin keys', () => {
       h4: 'h4',
       h5: 'h5',
       h6: 'h6',
+      horizontalRule: 'hr',
       image: 'img',
       link: 'a',
       listItem: 'li',
@@ -109,7 +110,7 @@ describe('persisted Plate plugin keys', () => {
       ELEMENT_H4,
       ELEMENT_H5,
       ELEMENT_H6,
-      ELEMENT_HR,
+      ELEMENT_HR: 'hr',
       ELEMENT_IMAGE,
       ELEMENT_LI,
       ELEMENT_LINK,
