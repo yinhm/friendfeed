@@ -105,8 +105,8 @@
 
 - [x] Tailwind 3 → 4 单独迁移：升级至 Tailwind 4.3.3，动画插件替换为 v4 CSS 版本，并增加 production selector 验证门。
 - [x] 按 Tailwind 4 方式调整 PostCSS、主题变量、content discovery 和插件配置：使用 `@tailwindcss/postcss`、CSS-first `@theme`/`@source`/dark variant，移除旧 JavaScript config 与独立 autoprefixer。
-- [ ] 验证 Plate UI、Radix UI、编辑器 toolbar、dialog、popover 的全部样式。
-- [ ] 检查与手写 `static/css/style.css` 的 reset、优先级和选择器冲突。
+- [x] 验证 Plate UI、Radix UI、编辑器 toolbar、dialog、popover 的关键生成样式；production build 现在锁定主题色、focus/checked 状态、dialog/popover 动画、dark/print variant、响应式与复杂 arbitrary selector。
+- [x] 检查与手写 `static/css/style.css` 的 reset、优先级和选择器冲突；收窄后加载的全局 form/button/link 规则，避免覆盖 Plate/Radix utilities，并由构建脚本阻止这些全局选择器回归。
 
 完成条件：页面视觉对比通过，production CSS 没有异常膨胀或丢失动态 class。
 

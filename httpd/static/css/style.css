@@ -1,6 +1,6 @@
 body {
-    background: white;
-    color: black;
+    background: hsl(var(--background, 0 0% 100%));
+    color: hsl(var(--foreground, 0 0% 0%));
     margin: 0;
     font-family: Arial, sans-serif;
     font-size: 16px;
@@ -9,16 +9,17 @@ body {
 /* Base: restore the browser defaults Tailwind preflight resets,
    limited to what the server-rendered pages actually use. */
 
-input,
-textarea,
-select {
+.menu input[type="search"],
+.sharebox form textarea,
+.entry .comment.form textarea {
     border: 1px solid #bdbdbb;
     background: #fff;
     padding: 2px;
 }
 
-button,
-input[type="submit"] {
+.legacy-button,
+.sharebox input[type="submit"],
+.entry .comment.form input[type="submit"] {
     border: 1px solid #bdbdbb;
     background: #eee;
     padding: 2px 8px;
@@ -136,12 +137,12 @@ img {
     border: 0;
 }
 
-a {
+a:not([class]) {
     color: #00c;
     text-decoration: none;
 }
 
-a:hover {
+a:not([class]):hover {
     text-decoration: underline;
 }
 
@@ -516,4 +517,3 @@ div.content pre {
     margin-block-start: 0.5em;
     margin-block-end: 0.3em;
 }
-
