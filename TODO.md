@@ -103,8 +103,8 @@
 
 ## 8. Tailwind CSS 4 迁移
 
-- [ ] Tailwind 3 → 4 单独迁移。
-- [ ] 按 Tailwind 4 方式调整 PostCSS、主题变量、content discovery 和插件配置。
+- [x] Tailwind 3 → 4 单独迁移：升级至 Tailwind 4.3.3，动画插件替换为 v4 CSS 版本，并增加 production selector 验证门。
+- [x] 按 Tailwind 4 方式调整 PostCSS、主题变量、content discovery 和插件配置：使用 `@tailwindcss/postcss`、CSS-first `@theme`/`@source`/dark variant，移除旧 JavaScript config 与独立 autoprefixer。
 - [ ] 验证 Plate UI、Radix UI、编辑器 toolbar、dialog、popover 的全部样式。
 - [ ] 检查与手写 `static/css/style.css` 的 reset、优先级和选择器冲突。
 
