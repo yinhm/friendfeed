@@ -112,8 +112,8 @@
 
 ## 9. TypeScript 升级与覆盖扩展
 
-- [ ] TypeScript 已因 plugin-react 6 的语法要求从 5.4 更新到最小兼容的 5.6.3；本阶段再评估最新 5.x，之后单独评估 TypeScript 7。
-- [ ] 修复新版本带来的类型错误，不使用扩大 `skipLibCheck` 或批量 `any` 规避。
+- [x] TypeScript 已因 plugin-react 6 的语法要求从 5.4 更新到最小兼容的 5.6.3；现已精确升级至最后的 5.x（5.9.3），TypeScript 7 保留为独立评估项。
+- [x] TypeScript 5.9.3 未引入新的类型错误；未扩大既有 `skipLibCheck`，也未增加批量 `any` 规避。
 - [ ] 为核心 JS/JSX 文件逐步启用类型检查，优先覆盖 `App.jsx`、`entry.jsx`、`editor.jsx` 和网络请求工具。
 - [ ] 评估增加 ESLint；lint 规则落地应独立提交，避免与功能迁移混杂。
 
