@@ -96,7 +96,7 @@
 - [x] 迁移 plugin 创建、editor/provider、serializer、media、floating UI 和自定义 Plate components；Plate 全家桶升级到 37，并改用 plugin object 与 editor-instance API。
 - [ ] 处理已 deprecated 的 `@udecode/plate-*` 包与新包结构。
 - [x] 验证旧 `rawBody` JSON 可以加载、编辑并再次保存，不能破坏存量 entry。
-- [ ] 针对 `dangerouslySetInnerHTML`、链接、media embed 和序列化结果做安全测试。
+- [x] 针对 `dangerouslySetInnerHTML`、链接、media embed 和序列化结果做安全测试；修复 AJAX/JSON feed 未 sanitize 的 XSS 缺口，并锁定 `javascript:`、HTML data URL 与恶意 iframe 不得进入序列化结果。
 - [ ] 重新运行审计，优先消除 Plate 31 带来的 runtime vulnerabilities。
 
 完成条件：旧内容兼容、核心编辑行为通过、审计风险显著下降、bundle 变化有记录。

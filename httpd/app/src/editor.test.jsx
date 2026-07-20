@@ -94,3 +94,25 @@ test('HTML serialization rejects unsafe link protocols', () => {
   expect(html).not.toMatch(/javascript:/i);
   expect(html).toContain('unsafe link');
 });
+
+test.each([
+  'javascript:alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+])('media serialization rejects unsafe URL %s', (url) => {
+  const editor = createPlateEditor({plugins});
+  editor.children = [
+    {
+      type: 'media_embed',
+      url,
+      children: [{text: ''}],
+    },
+  ];
+
+  let html;
+  act(() => {
+    html = serializeHtml(editor, {nodes: editor.children});
+  });
+
+  expect(html).not.toMatch(/javascript:|data:text\/html|<script/i);
+  expect(html).not.toContain('<iframe');
+});
