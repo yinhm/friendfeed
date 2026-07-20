@@ -334,6 +334,23 @@ th {
     background: none;
 }
 
+/* own-comment Edit/Delete: hidden until hover, space reserved to avoid reflow */
+.entry .comment .commands {
+    visibility: hidden;
+}
+
+.entry .comment:hover .commands,
+.entry .comment:focus-within .commands {
+    visibility: visible;
+}
+
+/* touch devices have no hover: keep the commands always visible */
+@media (hover: none) {
+    .entry .comment .commands {
+        visibility: visible;
+    }
+}
+
 .entry a.expandcomments {
     font-style: italic;
 }
