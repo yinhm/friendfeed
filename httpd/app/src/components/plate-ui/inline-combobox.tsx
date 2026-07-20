@@ -26,21 +26,15 @@ import {
 } from '@ariakit/react';
 import { cn } from '@udecode/cn';
 import {
-  type UseComboboxInputResult,
   filterWords,
-  useComboboxInput,
-  useHTMLInputCursorState,
 } from '@udecode/plate-combobox';
 import {
-  type TElement,
-  createPointRef,
-  findNodePath,
-  getPointBefore,
-  insertText,
-  moveSelection,
-  useComposedRef,
-  useEditorRef,
-} from '@udecode/plate-common';
+  type UseComboboxInputResult,
+  useComboboxInput,
+  useHTMLInputCursorState,
+} from '@udecode/plate-combobox/react';
+import { type TElement, createPointRef, getPointBefore, insertText, moveSelection } from '@udecode/plate-common';
+import { findNodePath, useComposedRef, useEditorRef } from '@udecode/plate-common/react';
 import { cva } from 'class-variance-authority';
 
 type FilterFn = (

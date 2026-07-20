@@ -2,7 +2,7 @@
 
 import React, { useRef } from 'react';
 import { cn } from '@udecode/cn';
-import { Plate } from '@udecode/plate-common';
+import { Plate, usePlateEditor } from '@udecode/plate-common/react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
@@ -24,10 +24,11 @@ export default function PlateEditor() {
       children: [{ text: 'Hello, World!' }],
     },
   ];
+  const editor = usePlateEditor({ plugins, value: initialValue });
 
   return (
     <DndProvider backend={HTML5Backend}>
-        <Plate plugins={plugins} initialValue={initialValue}>
+        <Plate editor={editor}>
           <div
             ref={containerRef}
             className={cn(

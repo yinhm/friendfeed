@@ -1,8 +1,6 @@
 /* copy from plate-playground-template/lib/plate */
 
-import { AutoformatPlugin } from '@udecode/plate-autoformat';
-import { PlatePlugin } from '@udecode/plate-common';
-import { AutoformatRule } from '@udecode/plate-autoformat';
+import { AutoformatPluginOptions, AutoformatRule } from '@udecode/plate-autoformat';
 import { insertEmptyCodeBlock } from '@udecode/plate-code-block';
 import { insertNodes, setNodes } from '@udecode/plate-common';
 import { ListStyleType, toggleIndentList } from '@udecode/plate-indent-list';
@@ -15,7 +13,7 @@ import {
   getParentNode,
   isElement,
   isType,
-  PlateEditor,
+  SlateEditor,
 } from '@udecode/plate-common';
 import { toggleList, unwrapList } from '@udecode/plate-list';
 
@@ -49,7 +47,7 @@ import {
 export const preFormat: AutoformatBlockRule['preFormat'] = (editor) =>
   unwrapList(editor);
 
-export const format = (editor: PlateEditor, customFormatting: any) => {
+export const format = (editor: SlateEditor, customFormatting: any) => {
   if (editor.selection) {
     const parentEntry = getParentNode(editor, editor.selection);
     if (!parentEntry) return;
@@ -64,7 +62,7 @@ export const format = (editor: PlateEditor, customFormatting: any) => {
   }
 };
 
-export const formatList = (editor: PlateEditor, elementType: string) => {
+export const formatList = (editor: SlateEditor, elementType: string) => {
   format(editor, () =>
     toggleList(editor, {
       type: elementType,
@@ -72,7 +70,7 @@ export const formatList = (editor: PlateEditor, elementType: string) => {
   );
 };
 
-export const formatText = (editor: PlateEditor, text: string) => {
+export const formatText = (editor: SlateEditor, text: string) => {
   format(editor, () => editor.insertText(text));
 };
 
@@ -215,9 +213,7 @@ export const autoformatRules = [
   ...autoformatMath,
 ];
 
-export const autoformatPlugin: Partial<PlatePlugin<AutoformatPlugin>> = {
-  options: {
-    rules: autoformatRules as any,
-    enableUndoOnDelete: true,
-  },
+export const autoformatPlugin: AutoformatPluginOptions = {
+  rules: autoformatRules,
+  enableUndoOnDelete: true,
 };

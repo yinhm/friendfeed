@@ -1,15 +1,11 @@
 import React, { useEffect } from 'react';
-import {
-  isSelectionExpanded,
-  useEditorSelector,
-  useElement,
-  useRemoveNodeButton,
-} from '@udecode/plate-common';
+import { isSelectionExpanded } from '@udecode/plate-common';
+import { useEditorSelector, useElement, useRemoveNodeButton } from '@udecode/plate-common/react';
 import {
   floatingMediaActions,
   FloatingMedia as FloatingMediaPrimitive,
   useFloatingMediaSelectors,
-} from '@udecode/plate-media';
+} from '@udecode/plate-media/react';
 import { useReadOnly, useSelected } from 'slate-react';
 
 import { Icons } from 'components/icons';
@@ -20,7 +16,7 @@ import { Popover, PopoverAnchor, PopoverContent } from './popover';
 import { Separator } from './separator';
 
 export interface MediaPopoverProps {
-  pluginKey?: string;
+  pluginKey: string;
   children: React.ReactNode;
 }
 
@@ -66,7 +62,7 @@ export function MediaPopover({ pluginKey, children }: MediaPopoverProps) {
                 className={inputVariants({ variant: 'ghost', h: 'sm' })}
                 placeholder="Paste the embed link..."
                 options={{
-                  pluginKey,
+                  plugin: { key: pluginKey },
                 }}
               />
             </div>

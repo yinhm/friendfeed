@@ -2,10 +2,7 @@
 
 import React from 'react';
 import { withRef } from '@udecode/cn';
-import {
-  useMarkToolbarButton,
-  useMarkToolbarButtonState,
-} from '@udecode/plate-common';
+import { useMarkToolbarButton, useMarkToolbarButtonState } from '@udecode/plate-common/react';
 
 import { ToolbarButton } from './toolbar';
 

@@ -1,11 +1,11 @@
 import React from 'react';
 import { cn, withRef } from '@udecode/cn';
-import { PlateElement, withHOC } from '@udecode/plate-common';
+import { PlateElement, withHOC } from '@udecode/plate-common/react';
 import {
   parseTwitterUrl,
   parseVideoUrl,
-  useMediaState,
 } from '@udecode/plate-media';
+import { useMediaState } from '@udecode/plate-media/react';
 import { ResizableProvider, useResizableStore } from '@udecode/plate-resizable';
 import LiteYouTubeEmbed from 'react-lite-youtube-embed';
 import { Tweet } from 'react-tweet';

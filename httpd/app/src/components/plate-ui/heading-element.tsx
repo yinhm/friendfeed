@@ -1,6 +1,6 @@
 import React from 'react';
 import { withRef, withVariants } from '@udecode/cn';
-import { PlateElement } from '@udecode/plate-common';
+import { PlateElement } from '@udecode/plate-common/react';
 import { cva } from 'class-variance-authority';
 
 const headingVariants = cva('', {
@@ -26,10 +26,10 @@ const HeadingElementVariants = withVariants(PlateElement, headingVariants, [
 ]);
 
 export const HeadingElement = withRef<typeof HeadingElementVariants>(
-  ({ variant = 'h1', isFirstBlock, children, ...props }, ref) => {
+  ({ variant, isFirstBlock, children, ...props }, ref) => {
     const { element, editor } = props;
 
-    const Element = variant!;
+    const Element = (variant ?? element.type) as React.ElementType;
 
     return (
       <HeadingElementVariants

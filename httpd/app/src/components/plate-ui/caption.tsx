@@ -2,7 +2,7 @@ import { cn, withCn, withVariants } from '@udecode/cn';
 import {
   Caption as CaptionPrimitive,
   CaptionTextarea as CaptionTextareaPrimitive,
-} from '@udecode/plate-caption';
+} from '@udecode/plate-caption/react';
 import { cva } from 'class-variance-authority';
 
 const captionVariants = cva('max-w-full', {

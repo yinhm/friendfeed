@@ -1,22 +1,17 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Node } from 'slate'
 import { TooltipProvider } from 'components/plate-ui/tooltip';
+import { deserializeHtml, resetEditor } from '@udecode/plate-common';
 import {
-    Plate,
-    deserializeHtml,
     createPlateEditor,
-    //   usePlateStates,
-    //   useEditorRef,
-    //   useReplaceEditor,
-    //   useRef,
-} from '@udecode/plate-common';
-import { serializeHtml } from '@udecode/plate-serializer-html';
+    Plate,
+    usePlateEditor,
+} from '@udecode/plate-common/react';
+import { serializeHtml } from '@udecode/plate-html/react';
 
 // import { Plate } from '@udecode/plate-common';
-import { selectEditor } from "@udecode/plate-utils"
-
 import { ELEMENT_PARAGRAPH } from 'components/plate-plugin-keys';
 import { plugins } from 'components/plate-plugins';
 import { Editor } from 'components/plate-ui/editor';
@@ -86,13 +81,16 @@ const OnPageEditor = (params) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    useEffect(() => {
-        // console.log("useEffect: ", editorRef)
-        if (editorRef && params.id && params.id !== "") {
-            var editor = editorRef.current
-            selectEditor(editor, {edge: "end", focus: true})
-        }
-    }, [editorRef, params]);
+    const editor = usePlateEditor(
+        {
+            autoSelect: params.id ? 'end' : false,
+            id: eid,
+            plugins,
+            value: initialValue,
+        },
+        [eid, initialValue]
+    );
+    editorRef.current = editor;
 
     const onChange = (slateValue) => {
         // console.log(JSON.stringify(slateValue));
@@ -127,7 +125,7 @@ const OnPageEditor = (params) => {
         formData.set("rawBody", rawBody);
         params.postEntry(formData)
             .then(() => {
-                editor.reset();
+                resetEditor(editor);
                 // setValue(initialValueEmpty);
             }).catch(error => {
                 console.error(error)
@@ -141,12 +139,7 @@ const OnPageEditor = (params) => {
             skipDelayDuration={0}
         >
             <Plate
-                id={eid}
-                plugins={plugins}
-                // components={components}
-                // options={options}
-                initialValue={initialValue}
-                editorRef={editorRef}
+                editor={editor}
                 onChange={(newValue) => {
                     onChange(newValue);
                 }}
@@ -155,7 +148,7 @@ const OnPageEditor = (params) => {
 
                     <Editor
                         className="px-[96px] py-16"
-                        autoFocus={false}
+                        autoFocus={Boolean(params.id)}
                         focusRing={false}
                         variant="ghost"
                         size="md"

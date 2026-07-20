@@ -14,17 +14,17 @@ Plate 49 is not package-compatible with Plate 31. The migration is split into re
 The verified per-package and per-file import map is recorded in `PLATE_37_API_MAP.md`.
 
 - [x] Replace the removed global combobox store with the inline input element model introduced in combobox/emoji 34, then align both packages to 36.x.
-- [ ] Upgrade the complete `@udecode/plate-*` family to 37.x in one change. The Slate family is already staged at the compatible migration boundary: `slate` 0.103.0, `slate-react` 0.110.3, `slate-history` 0.109.0 and `slate-hyperscript` 0.100.0.
-- [ ] Replace `createXPlugin()` registrations with the React plugin objects exported from each package's `/react` entrypoint. Keep non-React transforms and serializers imported from the package root.
-- [ ] Replace `createPlugins()` and its global component map with plugin composition using `.configure()`, `.extend()` and `.withComponent()`.
+- [x] Upgrade the complete `@udecode/plate-*` family to 37.x in one change. The Slate family remains at the compatible migration boundary: `slate` 0.103.0, `slate-react` 0.110.3, `slate-history` 0.109.0 and `slate-hyperscript` 0.100.0.
+- [x] Replace `createXPlugin()` registrations with the React plugin objects exported from each package's `/react` entrypoint. Keep non-React transforms and serializers imported from the package root.
+- [x] Replace `createPlugins()` and its global component map with plugin composition using `.configure()`, `.extend()` and `.withComponent()`.
 - [x] Replace the plugin registration's `ELEMENT_*` and `MARK_*` dependencies with app-owned persisted keys. The v36 values are locked by `plate-plugin-keys.test.ts` before the v37 code migration begins; do not change `p`, `h1`-`h6`, `blockquote`, `code_block`, `code_line`, `code_syntax`, `a`, `img`, `media_embed`, `ul`, `ol`, `li`, `action_item`, `emoji_input`, or the existing mark keys.
-- [ ] Move React-only UI imports (`Plate`, `PlateContent`, element/leaf components, hooks, floating controls and combobox controls) to `/react`; retain headless helpers at root imports.
+- [x] Move React-only UI imports (`Plate`, `PlateContent`, element/leaf components, hooks, floating controls and combobox controls) to `/react`; retain headless helpers at root imports.
 - [x] Remove the discontinued `@udecode/plate-paragraph` package. Its v36 configuration is temporarily preserved by the app-owned `paragraph-plugin.ts`; replace that factory with `ParagraphPlugin` from `@udecode/plate-common/react` during the v37 object migration. Do not add `@udecode/plate-basic-elements` merely to replace this one plugin.
 - [x] Remove the unused `@udecode/plate-horizontal-rule` package after confirming that horizontal-rule nodes are not registered or rendered. Keep the `hr` key only for the existing autoformat compatibility path.
-- [x] Verify the HTML serializer transition boundary. `@udecode/plate-html` starts at 37 and cannot be installed against the 36.x staging core; keep `@udecode/plate-serializer-html` through the 37 object migration, then replace it before the Plate 49 package rename.
-- [ ] Update element/leaf props, placeholder composition, media/caption, link floating toolbar, code-block combobox and emoji input together with their owning plugins.
+- [x] Cross the HTML serializer transition boundary with the Plate 37 migration. The published `@udecode/plate-serializer-html` 37 package has no usable distribution, so serialization now uses `@udecode/plate-html/react`; the stored JSON/HTML round-trip test protects its output.
+- [x] Update element/leaf props, placeholder composition, media/caption, link floating toolbar, code-block combobox and emoji input together with their owning plugins.
 - [x] Preserve all current plugin options during migration: reset/break rules, valid alignment/indent/line-height node types, caption targets, selection behavior, trailing paragraph, tab handling and link toolbar rendering are captured by `plate-plugins.test.ts` before object migration.
-- [ ] Run the stored JSON/HTML round-trip tests after the registration migration, in addition to editor interaction and lazy-loading tests.
+- [x] Run the stored JSON/HTML round-trip tests after the registration migration, in addition to editor interaction and lazy-loading tests.
 
 ## Checkpoint 3: Plate 49 package layout
 

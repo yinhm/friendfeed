@@ -1,16 +1,7 @@
 import React from 'react';
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
-import {
-  collapseSelection,
-  findNode,
-  focusEditor,
-  isBlock,
-  isCollapsed,
-  TElement,
-  toggleNodeType,
-  useEditorRef,
-  useEditorSelector,
-} from '@udecode/plate-common';
+import { collapseSelection, findNode, isBlock, isCollapsed, setNodes, TElement } from '@udecode/plate-common';
+import { focusEditor, useEditorRef, useEditorSelector } from '@udecode/plate-common/react';
 
 import { Icons } from 'components/icons';
 import {
@@ -135,7 +126,7 @@ export function TurnIntoDropdownMenu(props: DropdownMenuProps) {
             //   }
             // } else {
             //   unwrapList(editor);
-            toggleNodeType(editor, { activeType: type });
+            setNodes(editor, { type });
             // }
 
             collapseSelection(editor);

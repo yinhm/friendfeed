@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createPlateEditor } from '@udecode/plate-common/react';
 
 import {
   ELEMENT_BLOCKQUOTE,
@@ -9,26 +10,49 @@ import {
   ELEMENT_IMAGE,
   ELEMENT_MEDIA_EMBED,
   ELEMENT_PARAGRAPH,
+  ELEMENT_TODO_LI,
   HEADING_KEYS,
 } from 'components/plate-plugin-keys';
 import { plugins } from 'components/plate-plugins';
 import { LinkElement } from 'components/plate-ui/link-element';
 import { LinkFloatingToolbar } from 'components/plate-ui/link-floating-toolbar';
 
-type Plugin = (typeof plugins)[number] & { plugins?: Plugin[] };
+interface PluginSnapshot {
+  inject?: {
+    nodeProps?: Record<string, unknown>;
+    targetPlugins?: string[];
+  };
+  key: string;
+  node?: { component?: unknown };
+  options?: unknown;
+  plugins?: PluginSnapshot[];
+  render?: { afterEditable?: unknown };
+}
 
-const allPlugins = (items: Plugin[]): Plugin[] =>
-  items.flatMap((plugin) => [plugin, ...allPlugins(plugin.plugins ?? [])]);
+const allPlugins = (items: readonly PluginSnapshot[]): PluginSnapshot[] =>
+  items.flatMap((item) => [item, ...allPlugins(item.plugins ?? [])]);
+
+const configuredPlugins = createPlateEditor({ plugins }).pluginList;
 
 const plugin = (key: string) => {
-  const result = allPlugins(plugins as Plugin[]).find((item) => item.key === key);
+  const result = allPlugins(
+    configuredPlugins as unknown as PluginSnapshot[]
+  ).find(
+    (item) => item.key === key
+  );
   expect(result, `missing plugin ${key}`).toBeDefined();
   return result!;
 };
 
+const options = <T,>(key: string) => plugin(key).options as T;
+
 describe('Plate plugin configuration', () => {
-  it('keeps the content and mark plugins registered', () => {
-    expect(allPlugins(plugins as Plugin[]).map(({ key }) => key)).toEqual(
+  it('keeps content and mark plugins registered', () => {
+    expect(
+      allPlugins(configuredPlugins as unknown as PluginSnapshot[]).map(
+        ({ key }) => key
+      )
+    ).toEqual(
       expect.arrayContaining([
         ELEMENT_PARAGRAPH,
         'heading',
@@ -47,7 +71,7 @@ describe('Plate plugin configuration', () => {
   });
 
   it('keeps break, caption and trailing-block behavior', () => {
-    expect(plugin('exitBreak').options?.rules).toEqual(
+    expect(options<{ rules: unknown[] }>('exitBreak').rules).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ hotkey: 'mod+enter' }),
         expect.objectContaining({
@@ -56,11 +80,13 @@ describe('Plate plugin configuration', () => {
         }),
       ])
     );
-    expect(plugin('caption').options?.pluginKeys).toEqual([
-      ELEMENT_IMAGE,
-      ELEMENT_MEDIA_EMBED,
+    expect(options<{ plugins: { key: string }[] }>('caption').plugins).toEqual([
+      expect.objectContaining({ key: ELEMENT_IMAGE }),
+      expect.objectContaining({ key: ELEMENT_MEDIA_EMBED }),
     ]);
-    expect(plugin('trailingBlock').options?.type).toBe(ELEMENT_PARAGRAPH);
+    expect(options<{ type: string }>('trailingBlock').type).toBe(
+      ELEMENT_PARAGRAPH
+    );
   });
 
   it('keeps block-style targets and values', () => {
@@ -72,35 +98,31 @@ describe('Plate plugin configuration', () => {
       ELEMENT_BLOCKQUOTE,
       ELEMENT_CODE_BLOCK,
     ];
-
-    expect(plugin('align').inject?.props?.validTypes).toEqual([
-      ELEMENT_PARAGRAPH,
-      ELEMENT_H1,
-      ELEMENT_H2,
-      ELEMENT_H3,
-    ]);
-    expect(plugin('indent').inject?.props?.validTypes).toEqual(textBlockTypes);
-    expect(plugin('listStyleType').inject?.props?.validTypes).toEqual(
-      textBlockTypes
+    expect(plugin('align').inject?.targetPlugins).toEqual(
+      textBlockTypes.slice(0, 4)
     );
-    expect(plugin('lineHeight').inject?.props).toMatchObject({
-      defaultNodeValue: 1.5,
-      validNodeValues: [1, 1.2, 1.5, 2, 3],
-      validTypes: [ELEMENT_PARAGRAPH, ELEMENT_H1, ELEMENT_H2, ELEMENT_H3],
+    expect(plugin('indent').inject?.targetPlugins).toEqual(textBlockTypes);
+    expect(plugin('listStyleType').inject?.targetPlugins).toEqual(textBlockTypes);
+    expect(plugin('lineHeight').inject).toMatchObject({
+      nodeProps: {
+        defaultNodeValue: 1.5,
+        validNodeValues: [1, 1.2, 1.5, 2, 3],
+      },
+      targetPlugins: textBlockTypes.slice(0, 4),
     });
   });
 
   it('keeps reset, soft-break and selection rules', () => {
-    expect(plugin('resetNode').options?.rules).toEqual([
+    expect(options<{ rules: unknown[] }>('resetNode').rules).toEqual([
       expect.objectContaining({
         defaultType: ELEMENT_PARAGRAPH,
         hotkey: 'Enter',
-        types: [ELEMENT_BLOCKQUOTE, 'action_item'],
+        types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
       }),
       expect.objectContaining({
         defaultType: ELEMENT_PARAGRAPH,
         hotkey: 'Backspace',
-        types: [ELEMENT_BLOCKQUOTE, 'action_item'],
+        types: [ELEMENT_BLOCKQUOTE, ELEMENT_TODO_LI],
       }),
       expect.objectContaining({
         defaultType: ELEMENT_PARAGRAPH,
@@ -113,23 +135,26 @@ describe('Plate plugin configuration', () => {
         types: [ELEMENT_CODE_BLOCK],
       }),
     ]);
-    expect(plugin('softBreak').options?.rules).toEqual([
+    expect(options<{ rules: unknown[] }>('softBreak').rules).toEqual([
       { hotkey: 'shift+enter' },
       {
         hotkey: 'enter',
         query: { allow: [ELEMENT_CODE_BLOCK, ELEMENT_BLOCKQUOTE] },
       },
     ]);
-    expect(plugin('selectOnBackspace').options?.query).toEqual({
+    expect(options<{ query: unknown }>('selectOnBackspace').query).toEqual({
       allow: [ELEMENT_IMAGE],
     });
   });
 
   it('keeps tabbable and link UI integration', () => {
-    expect(plugin('tabbable').options?.query).toEqual(expect.any(Function));
-    expect(plugin('a')).toMatchObject({
-      component: LinkElement,
-      renderAfterEditable: LinkFloatingToolbar,
-    });
+    expect(options<{ query: unknown }>('tabbable').query).toEqual(
+      expect.any(Function)
+    );
+    expect(plugin('a').node?.component).toStrictEqual(LinkElement);
+    const afterEditable = plugin('a').render?.afterEditable as () => {
+      type: unknown;
+    };
+    expect(afterEditable()).toMatchObject({ type: LinkFloatingToolbar });
   });
 });

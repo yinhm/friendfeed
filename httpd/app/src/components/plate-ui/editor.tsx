@@ -1,9 +1,9 @@
 import React from 'react';
 import { cn } from '@udecode/cn';
-import { PlateContent } from '@udecode/plate-common';
+import { PlateContent } from '@udecode/plate-common/react';
 import { cva } from 'class-variance-authority';
 
-import type { PlateContentProps } from '@udecode/plate-common';
+import type { PlateContentProps } from '@udecode/plate-common/react';
 import type { VariantProps } from 'class-variance-authority';
 
 const editorVariants = cva(

@@ -2,12 +2,7 @@
 
 import React from 'react';
 import { cn, withRef } from '@udecode/cn';
-import {
-  PortalBody,
-  useComposedRef,
-  useEventEditorSelectors,
-  usePlateId,
-} from '@udecode/plate-common';
+import { PortalBody, useComposedRef, useEventEditorSelectors, useEditorId } from '@udecode/plate-common/react';
 import {
   flip,
   FloatingToolbarState,
@@ -24,7 +19,7 @@ export const FloatingToolbar = withRef<
     state?: FloatingToolbarState;
   }
 >(({ state, children, ...props }, componentRef) => {
-  const editorId = usePlateId();
+  const editorId = useEditorId();
   const focusedEditorId = useEventEditorSelectors.focus();
   const floatingToolbarState = useFloatingToolbarState({
     editorId,

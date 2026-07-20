@@ -5,7 +5,7 @@ import { cn } from '@udecode/cn';
 import {
   useCodeBlockCombobox,
   useCodeBlockComboboxState,
-} from '@udecode/plate-code-block';
+} from '@udecode/plate-code-block/react';
 
 import { Icons } from 'components/icons';
 

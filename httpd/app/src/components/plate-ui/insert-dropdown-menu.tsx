@@ -2,11 +2,8 @@
 
 import React from 'react';
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
-import {
-  focusEditor,
-  insertEmptyElement,
-  useEditorRef,
-} from '@udecode/plate-common';
+import { insertEmptyElement } from '@udecode/plate-common';
+import { focusEditor, useEditorRef } from '@udecode/plate-common/react';
 
 import { Icons } from 'components/icons';
 import {

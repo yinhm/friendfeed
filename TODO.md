@@ -1,6 +1,6 @@
 # Frontend Upgrade Plan
 
-更新基线：2026-07-20。前端位于 `httpd/app`，当前运行环境为 Node 24、Corepack 0.35、pnpm 8.15.9、React 19、Vite 7、Plate 31 和 Tailwind CSS 3。
+更新基线：2026-07-20。前端位于 `httpd/app`，当前运行环境为 Node 24、Corepack 0.35、pnpm 11.15.1、React 19、Vite 8、Plate 37 和 Tailwind CSS 3。
 
 ## 执行原则
 
@@ -93,9 +93,9 @@
 - [x] 将 combobox 与 emoji 升至 36.x：用 Ariakit inline input 替换已删除的全局 combobox store，并增加 `:` 触发生成 `emoji_input` 节点的回归测试；editor chunk 为 1,797.33 kB（gzip 504.65 kB）。
 - [x] 制定 Plate 31 → 当前稳定主线的 API migration 清单；Plate 37 插件对象迁移与 Plate 49 包重组的逐项清单见 `httpd/app/PLATE_MIGRATION.md`。
 - [x] 同步升级 Slate、slate-react、slate-history、slate-hyperscript：对齐到 Plate 37 迁移边界的 Slate 0.103、Slate React 0.110.3、History 0.109；Hyperscript 保持该时期最新的 0.100。
-- [ ] 迁移 plugin 创建、editor/provider、serializer、media、floating UI 和自定义 Plate components。
+- [x] 迁移 plugin 创建、editor/provider、serializer、media、floating UI 和自定义 Plate components；Plate 全家桶升级到 37，并改用 plugin object 与 editor-instance API。
 - [ ] 处理已 deprecated 的 `@udecode/plate-*` 包与新包结构。
-- [ ] 验证旧 `rawBody` JSON 可以加载、编辑并再次保存，不能破坏存量 entry。
+- [x] 验证旧 `rawBody` JSON 可以加载、编辑并再次保存，不能破坏存量 entry。
 - [ ] 针对 `dangerouslySetInnerHTML`、链接、media embed 和序列化结果做安全测试。
 - [ ] 重新运行审计，优先消除 Plate 31 带来的 runtime vulnerabilities。
 

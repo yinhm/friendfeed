@@ -1,5 +1,5 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
-import {createPlateEditor} from '@udecode/plate-common';
+import {createPlateEditor} from '@udecode/plate-common/react';
 
 import OnPageEditor from './editor';
 import {plugins} from './components/plate-plugins';

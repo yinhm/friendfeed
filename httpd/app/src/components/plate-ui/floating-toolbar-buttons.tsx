@@ -1,5 +1,5 @@
 import React from 'react';
-import { useEditorReadOnly } from '@udecode/plate-common';
+import { useEditorReadOnly } from '@udecode/plate-common/react';
 
 import { Icons } from 'components/icons';
 import {
