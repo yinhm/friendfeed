@@ -92,7 +92,7 @@
 - [x] 将 code-block 与 floating 升至 36.x：保留原语言值并迁到 UI 层，floating toolbar 改用显式 editor/focus 状态；editor chunk 降至 1,760.23 kB（gzip 491.99 kB）。
 - [x] 将 combobox 与 emoji 升至 36.x：用 Ariakit inline input 替换已删除的全局 combobox store，并增加 `:` 触发生成 `emoji_input` 节点的回归测试；editor chunk 为 1,797.33 kB（gzip 504.65 kB）。
 - [x] 制定 Plate 31 → 当前稳定主线的 API migration 清单；Plate 37 插件对象迁移与 Plate 49 包重组的逐项清单见 `httpd/app/PLATE_MIGRATION.md`。
-- [ ] 同步升级 Slate、slate-react、slate-history、slate-hyperscript，禁止单包错位。
+- [x] 同步升级 Slate、slate-react、slate-history、slate-hyperscript：对齐到 Plate 37 迁移边界的 Slate 0.103、Slate React 0.110.3、History 0.109；Hyperscript 保持该时期最新的 0.100。
 - [ ] 迁移 plugin 创建、editor/provider、serializer、media、floating UI 和自定义 Plate components。
 - [ ] 处理已 deprecated 的 `@udecode/plate-*` 包与新包结构。
 - [ ] 验证旧 `rawBody` JSON 可以加载、编辑并再次保存，不能破坏存量 entry。

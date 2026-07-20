@@ -12,7 +12,7 @@ Plate 49 is not package-compatible with Plate 31. The migration is split into re
 ## Checkpoint 2: plugin object API
 
 - [x] Replace the removed global combobox store with the inline input element model introduced in combobox/emoji 34, then align both packages to 36.x.
-- [ ] Upgrade the complete `@udecode/plate-*` family to 37.x in one change. Plate 37 requires `slate >=0.103` and `slate-react >=0.108`; update all four Slate packages in that same change.
+- [ ] Upgrade the complete `@udecode/plate-*` family to 37.x in one change. The Slate family is already staged at the compatible migration boundary: `slate` 0.103.0, `slate-react` 0.110.3, `slate-history` 0.109.0 and `slate-hyperscript` 0.100.0.
 - [ ] Replace `createXPlugin()` registrations with the React plugin objects exported from each package's `/react` entrypoint. Keep non-React transforms and serializers imported from the package root.
 - [ ] Replace `createPlugins()` and its global component map with plugin composition using `.configure()`, `.extend()` and `.withComponent()`.
 - [ ] Replace removed `ELEMENT_*` and `MARK_*` constants with the corresponding plugin keys. Do not change the resulting strings: `p`, `h1`-`h6`, `blockquote`, `code_block`, `code_line`, `code_syntax`, `a`, `img`, `media_embed`, `ul`, `ol`, `li`, `action_item`, `emoji_input`, and the existing mark keys are persisted in `rawBody`.
