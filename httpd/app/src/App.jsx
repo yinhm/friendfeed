@@ -270,15 +270,7 @@ export class Feed extends React.Component{
   }
 }
 
-/** @extends {React.Component<object, {url: string, feedData: object}>} */
-export class App extends React.Component {
-
-  /** @param {object} props */
-  constructor(props) {
-    super(props);
-    this.state = {url: "/", feedData:{}};
-  }
-
+export function App() {
   // NOT WORK??
   // componentDidMount() {
   //   console.log("app, componentDidMount")
@@ -290,22 +282,20 @@ export class App extends React.Component {
   //   console.log(this.state.feedData);
   // }
 
-  render() {
-    var url = window.location.pathname + window.location.search;
-    const appData = /** @type {Window & {appData: AppData}} */ (
-      /** @type {unknown} */ (window)
-    ).appData;
-    var feedData = appData.feed;
-    return (
-      <Feed url={url} feed={feedData}
-        show_header={appData.show_header}
-        show_paging={appData.show_paging}
-        show_share={appData.show_share}
-        prev_start={appData.prev_start}
-        next_start={appData.next_start}
-        query={appData.query}
-        onpage={appData.onpage}
-        onpage_edit={appData.onpage_edit} />
-    );
-  }
+  var url = window.location.pathname + window.location.search;
+  const appData = /** @type {Window & {appData: AppData}} */ (
+    /** @type {unknown} */ (window)
+  ).appData;
+  var feedData = appData.feed;
+  return (
+    <Feed url={url} feed={feedData}
+      show_header={appData.show_header}
+      show_paging={appData.show_paging}
+      show_share={appData.show_share}
+      prev_start={appData.prev_start}
+      next_start={appData.next_start}
+      query={appData.query}
+      onpage={appData.onpage}
+      onpage_edit={appData.onpage_edit} />
+  );
 }
