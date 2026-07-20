@@ -1,9 +1,12 @@
 import { render, waitFor } from '@testing-library/react';
 import { App } from './App';
 
-test('renders the feed container from window.appData', () => {
+test.each([
+  ['Public', {id: 'public', uuid: 'public'}],
+  ['Feed', {id: 'friend-feed', uuid: 'feed-uuid'}],
+])('%s page does not render the post editor', (_page, feed) => {
   window.appData = {
-    feed: {entries: []},
+    feed: {...feed, entries: []},
     show_header: false,
     show_paging: false,
     show_share: false,
@@ -20,9 +23,9 @@ test('renders the feed container from window.appData', () => {
   expect(container.querySelector('[contenteditable="true"]')).not.toBeInTheDocument();
 });
 
-test('renders the sharing editor with React 19', async () => {
+test('Home page renders the post editor input and submit control', async () => {
   window.appData = {
-    feed: {uuid: 'public', entries: []},
+    feed: {id: 'home', uuid: 'home', entries: []},
     show_header: false,
     show_paging: false,
     show_share: true,
@@ -39,4 +42,5 @@ test('renders the sharing editor with React 19', async () => {
   await waitFor(() => {
     expect(container.querySelector('[contenteditable="true"]')).toBeInTheDocument();
   }, {timeout: 5000});
+  expect(container.querySelector('input.submit[type="submit"]')).toHaveValue('发布');
 });
