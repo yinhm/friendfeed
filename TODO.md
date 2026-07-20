@@ -54,10 +54,12 @@
 
 ## 4. pnpm 与 lockfile 升级
 
-- [ ] 将 `packageManager` 从 pnpm 8 升级到当前受支持版本；pnpm 11 需作为独立提交评估。
-- [ ] 使用 Corepack 激活目标版本并重新生成 lockfile。
-- [ ] 验证 `pnpm install --frozen-lockfile` 可在干净环境复现。
-- [ ] 检查 peer dependency 与 override 结果，不能通过忽略警告掩盖冲突。
+- [x] 将 `packageManager` 从 pnpm 8.15.9 升级到 pnpm 11.15.1；该版本要求 Node >=22.13，符合项目的 Node 24 约束。
+- [x] 使用 Corepack 0.35.0 激活目标版本，将 lockfile 从 v6 转换为 v9。
+- [x] 验证 `CI=true pnpm install --frozen-lockfile` 可复现依赖树，并显式允许 esbuild 安装脚本。
+- [x] 将 pnpm 11 不再从 package.json 读取的 peer/override 设置迁至 `pnpm-workspace.yaml`；保留 React 19 单版本约束，无 peer dependency 警告。
+
+结果：lockfile 转换期间固定原有直接依赖版本，未夹带 Plate、TypeScript 或其他后续阶段的升级。pnpm 11 的 supply-chain 检查所需 Radix 版本例外已显式记录。主 bundle 保持 210.15 kB（gzip 65.43 kB），editor chunk 为 1,847.99 kB（gzip 535.40 kB）；production audit 降至 2 high、1 moderate，均来自 Plate 31。
 
 完成条件：本地和部署构建都能使用锁定版本复现依赖树。
 
