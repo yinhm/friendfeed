@@ -19,6 +19,16 @@ import {
   ResizeHandle,
 } from './resizable';
 
+const MAX_MEDIA_URL_LENGTH = 2048;
+
+const limitMediaUrl = <T,>(parser: (url: string) => T) => (url: string) =>
+  url.length <= MAX_MEDIA_URL_LENGTH ? parser(url) : undefined;
+
+export const mediaUrlParsers = [
+  limitMediaUrl(parseTwitterUrl),
+  limitMediaUrl(parseVideoUrl),
+];
+
 export const MediaEmbedElement = withHOC(
   ResizableProvider,
   withRef<typeof PlateElement>(({ className, children, ...props }, ref) => {
@@ -32,7 +42,7 @@ export const MediaEmbedElement = withHOC(
       isVideo,
       isYoutube,
     } = useMediaState({
-      urlParsers: [parseTwitterUrl, parseVideoUrl],
+      urlParsers: mediaUrlParsers,
     });
     const width = useResizableStore().get.width();
     const provider = embed?.provider;

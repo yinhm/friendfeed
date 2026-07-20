@@ -25,6 +25,7 @@ The verified per-package and per-file import map is recorded in `PLATE_37_API_MA
 - [x] Update element/leaf props, placeholder composition, media/caption, link floating toolbar, code-block combobox and emoji input together with their owning plugins.
 - [x] Preserve all current plugin options during migration: reset/break rules, valid alignment/indent/line-height node types, caption targets, selection behavior, trailing paragraph, tab handling and link toolbar rendering are captured by `plate-plugins.test.ts` before object migration.
 - [x] Run the stored JSON/HTML round-trip tests after the registration migration, in addition to editor interaction and lazy-loading tests.
+- [x] Apply the Plate 38 security patch line as one family after the object migration. Plate core 38.0.6 removes GHSA-73rg-f94j-xvhx; retain the resolved plugin contracts and persisted keys from checkpoint 2.
 
 ## Checkpoint 3: Plate 49 package layout
 

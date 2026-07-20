@@ -1,6 +1,6 @@
 # Frontend Upgrade Plan
 
-更新基线：2026-07-20。前端位于 `httpd/app`，当前运行环境为 Node 24、Corepack 0.35、pnpm 11.15.1、React 19、Vite 8、Plate 37 和 Tailwind CSS 3。
+更新基线：2026-07-20。前端位于 `httpd/app`，当前运行环境为 Node 24、Corepack 0.35、pnpm 11.15.1、React 19、Vite 8、Plate 38 和 Tailwind CSS 3。
 
 ## 执行原则
 
@@ -97,7 +97,7 @@
 - [ ] 处理已 deprecated 的 `@udecode/plate-*` 包与新包结构。
 - [x] 验证旧 `rawBody` JSON 可以加载、编辑并再次保存，不能破坏存量 entry。
 - [x] 针对 `dangerouslySetInnerHTML`、链接、media embed 和序列化结果做安全测试；修复 AJAX/JSON feed 未 sanitize 的 XSS 缺口，并锁定 `javascript:`、HTML data URL 与恶意 iframe 不得进入序列化结果。
-- [ ] 重新运行审计，优先消除 Plate 31 带来的 runtime vulnerabilities。
+- [x] 重新运行审计并将 Plate 全家桶统一升级至 38，消除 Plate core 的 high 漏洞；剩余 `js-video-url-parser` moderate 所声称的修复版本 0.5.2 尚未发布，应用层已在调用第三方 parser 前拒绝超过 2048 字节的 URL，锁定测试并保留审计记录。
 
 完成条件：旧内容兼容、核心编辑行为通过、审计风险显著下降、bundle 变化有记录。
 

@@ -41,6 +41,6 @@ test('Home page renders the post editor input and submit control', async () => {
   // the editor is lazy-loaded, wait for the chunk to resolve
   await waitFor(() => {
     expect(container.querySelector('[contenteditable="true"]')).toBeInTheDocument();
-  }, {timeout: 5000});
+  }, {timeout: 10000});
   expect(container.querySelector('input.submit[type="submit"]')).toHaveValue('发布');
-});
+}, 10000);

@@ -1,6 +1,6 @@
 import { withProps } from '@udecode/cn';
 import React from 'react';
-import { AlignPlugin } from '@udecode/plate-alignment';
+import { AlignPlugin } from '@udecode/plate-alignment/react';
 import { AutoformatPlugin } from '@udecode/plate-autoformat/react';
 import {
   BoldPlugin,
@@ -40,13 +40,13 @@ import {
   FontBackgroundColorPlugin,
   FontColorPlugin,
   FontSizePlugin,
-} from '@udecode/plate-font';
+} from '@udecode/plate-font/react';
 import { HeadingPlugin } from '@udecode/plate-heading/react';
 import { HighlightPlugin } from '@udecode/plate-highlight/react';
 import { IndentPlugin } from '@udecode/plate-indent/react';
 import { IndentListPlugin } from '@udecode/plate-indent-list/react';
 import { JuicePlugin } from '@udecode/plate-juice';
-import { LineHeightPlugin } from '@udecode/plate-line-height';
+import { LineHeightPlugin } from '@udecode/plate-line-height/react';
 import { LinkPlugin } from '@udecode/plate-link/react';
 import { TodoListPlugin } from '@udecode/plate-list/react';
 import { ImagePlugin, MediaEmbedPlugin } from '@udecode/plate-media/react';
@@ -115,7 +115,7 @@ export const plugins = [
   }),
   ImagePlugin.withComponent(ImageElement),
   MediaEmbedPlugin.withComponent(MediaEmbedElement),
-  CaptionPlugin.configure({
+  CaptionPlugin.extend({
     options: { plugins: [ImagePlugin, MediaEmbedPlugin] },
   }),
   TodoListPlugin.withComponent(TodoListElement),
@@ -144,11 +144,11 @@ export const plugins = [
     },
   }),
 
-  AutoformatPlugin.configure({ options: autoformatPlugin }),
+  AutoformatPlugin.extend({ options: autoformatPlugin }),
   EmojiPlugin.configurePlugin({ key: ELEMENT_EMOJI_INPUT }, {
     node: { component: EmojiInputElement },
   }),
-  ExitBreakPlugin.configure({
+  ExitBreakPlugin.extend({
     options: {
       rules: [
         { hotkey: 'mod+enter' },
@@ -163,7 +163,7 @@ export const plugins = [
     },
   }),
   NodeIdPlugin,
-  ResetNodePlugin.configure({
+  ResetNodePlugin.extend({
     options: {
       rules: [
         {
@@ -195,10 +195,10 @@ export const plugins = [
       ],
     },
   }),
-  SelectOnBackspacePlugin.configure({
+  SelectOnBackspacePlugin.extend({
     options: { query: { allow: [ELEMENT_IMAGE] } },
   }),
-  SoftBreakPlugin.configure({
+  SoftBreakPlugin.extend({
     options: {
       rules: [
         { hotkey: 'shift+enter' },
@@ -224,7 +224,7 @@ export const plugins = [
       },
     },
   })),
-  TrailingBlockPlugin.configure({ options: { type: ELEMENT_PARAGRAPH } }),
+  TrailingBlockPlugin.extend({ options: { type: ELEMENT_PARAGRAPH } }),
   JuicePlugin,
 
   // Leaf renderers retained for old rawBody nodes even when their toolbar
