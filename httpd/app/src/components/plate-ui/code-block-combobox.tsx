@@ -3,8 +3,6 @@
 import React, { useState } from 'react';
 import { cn } from '@udecode/cn';
 import {
-  CODE_BLOCK_LANGUAGES,
-  CODE_BLOCK_LANGUAGES_POPULAR,
   useCodeBlockCombobox,
   useCodeBlockComboboxState,
 } from '@udecode/plate-code-block';
@@ -21,12 +19,65 @@ import {
 } from './command';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
+// Plate 36 moved this UI-owned list out of the headless code-block package.
+// Keep the values from the previous component so stored `lang` properties and
+// the language picker remain compatible.
+const codeBlockLanguages = {
+  antlr4: 'ANTLR4',
+  bash: 'Bash',
+  c: 'C',
+  csharp: 'C#',
+  css: 'CSS',
+  coffeescript: 'CoffeeScript',
+  cmake: 'CMake',
+  dart: 'Dart',
+  django: 'Django',
+  docker: 'Docker',
+  ejs: 'EJS',
+  erlang: 'Erlang',
+  git: 'Git',
+  go: 'Go',
+  graphql: 'GraphQL',
+  groovy: 'Groovy',
+  html: 'HTML',
+  java: 'Java',
+  javascript: 'JavaScript',
+  json: 'JSON',
+  jsx: 'JSX',
+  kotlin: 'Kotlin',
+  latex: 'LaTeX',
+  less: 'Less',
+  lua: 'Lua',
+  makefile: 'Makefile',
+  markdown: 'Markdown',
+  matlab: 'MATLAB',
+  markup: 'Markup',
+  objectivec: 'Objective-C',
+  perl: 'Perl',
+  php: 'PHP',
+  powershell: 'PowerShell',
+  properties: '.properties',
+  protobuf: 'Protocol Buffers',
+  python: 'Python',
+  r: 'R',
+  ruby: 'Ruby',
+  sass: 'Sass (Sass)',
+  scss: 'Sass (Scss)',
+  scheme: 'Scheme',
+  sql: 'SQL',
+  shell: 'Shell',
+  swift: 'Swift',
+  svg: 'SVG',
+  tsx: 'TSX',
+  typescript: 'TypeScript',
+  wasm: 'WebAssembly',
+  yaml: 'YAML',
+  xml: 'XML',
+} as const;
+
 const languages: { value: string; label: string }[] = [
   { value: 'text', label: 'Plain Text' },
-  ...Object.entries({
-    ...CODE_BLOCK_LANGUAGES_POPULAR,
-    ...CODE_BLOCK_LANGUAGES,
-  }).map(([key, val]) => ({
+  ...Object.entries(codeBlockLanguages).map(([key, val]) => ({
     value: key,
     label: val as string,
   })),
