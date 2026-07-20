@@ -133,6 +133,7 @@
   - [x] 无状态 `App` 外壳已迁移为 function component；它继续在渲染时读取当前 URL 与 `window.appData`，未引入多余 hook。
   - [x] `Feed` 已迁移为 function component；轮询使用 effect 清理并通过 ref 读取最新 URL，异步刷新保持 class `setState` 的局部合并语义，发帖使用不可变置顶更新。
   - [x] 主 `Entry` 容器已迁移为 function component；新 `props.entry` 到达时同步未展开的服务端数据，本地展开/编辑状态保持优先，异步操作使用函数式 state 更新。
-- [ ] 不为追求写法统一而改动稳定组件；每次迁移应有明确收益。
+- [x] 不为追求写法统一而改动稳定组件；本轮只迁移有明确状态收益的 `App`/`Feed`/主 `Entry`，有稳定局部状态的叶子 class 保持现状。
+  - 明确保留 `EntryCommand*`、`EntryCommentForm`、`EntryComment` 与 `EntryLike`：转换前三个无状态命令只会统一写法，其余组件需先有独立交互收益与回归覆盖。
 
 完成条件：属于可选维护工作，不阻塞前述安全与依赖升级。
