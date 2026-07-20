@@ -12,6 +12,9 @@ const OnPageEditor = lazy(() => import('./editor'));
 /**
  * @typedef {object} FeedEntry
  * @property {string} id
+ * @property {{id: string, name: string, picture?: string, title?: string}} from
+ * @property {string} body
+ * @property {string[]} commands
  * @property {Record<string, unknown>} [data]
  *
  * @typedef {object} FeedData

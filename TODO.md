@@ -116,6 +116,7 @@
 - [x] TypeScript 5.9.3 未引入新的类型错误；未扩大既有 `skipLibCheck`，也未增加批量 `any` 规避。
 - [ ] 为核心 JS/JSX 文件逐步启用类型检查，优先覆盖 `App.jsx`、`entry.jsx`、`editor.jsx` 和网络请求工具。
   - [x] `App.jsx` 已启用 `@ts-check`，补齐 feed、分页、context、FormData 与 `window.appData` 的 JSDoc 契约，并消除全部严格模式错误。
+  - [x] `entry.jsx` 已启用 `@ts-check`，以共享 JSDoc 模型覆盖 entry、feed、thumbnail、comment、like、命令回调及表单事件，保持现有服务端 JSON 字段和交互流程。
 - [ ] 评估增加 ESLint；lint 规则落地应独立提交，避免与功能迁移混杂。
 
 完成条件：类型覆盖提高，测试与构建通过，不改变服务端 JSON 契约。

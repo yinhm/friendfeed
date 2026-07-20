@@ -1,11 +1,50 @@
+// @ts-check
+
 import React from 'react';
 import { EntryContent } from './content'
 import {EntryLike} from './entry-like';
 import {getJSON, postJSON, postForm, intersperse} from './utils';
 
+/**
+ * @typedef {{id: string, name: string, picture?: string, title?: string}} FeedRef
+ * @typedef {{width?: number, height?: number, link: string, url: string}} Thumbnail
+ * @typedef {{id?: string, body: string, rawBody?: string, is_editing?: boolean,
+ * commands?: string[], placeholder?: boolean, from: FeedRef, date?: string}} CommentData
+ * @typedef {FeedRef} LikeData
+ * @typedef {{name: string, url: string}} ViaData
+ * @typedef {object} EntryData
+ * @property {string} id
+ * @property {FeedRef} from
+ * @property {FeedRef[]} [to]
+ * @property {string} [title]
+ * @property {string} body
+ * @property {string} [rawBody]
+ * @property {string} [type]
+ * @property {string} [date]
+ * @property {ViaData} [via]
+ * @property {string[]} commands
+ * @property {Thumbnail[]} [thumbnails]
+ * @property {CommentData[]} [comments]
+ * @property {LikeData[]} [likes]
+ *
+ * @typedef {{entry: EntryData, onpage_edit: boolean}} EntryProps
+ * @typedef {object} EntryState
+ * @property {EntryData} entry
+ * @property {boolean} onpage_edit
+ * @property {CommentData[] | undefined} comments
+ * @property {LikeData[] | undefined} likes
+ * @property {boolean} self_updating
+ * @property {boolean} new_comment_form
+ * @property {boolean} expanded_likes
+ * @property {boolean} expanded_comments
+ * @property {boolean} is_deleted
+ * @property {string | null} comment_preserve
+ */
 
+/** @extends {React.Component<EntryProps, EntryState>} */
 export class Entry extends React.Component {
 
+  /** @param {EntryProps} props */
   constructor(props) {
     super(props);
     this.state = {
@@ -22,14 +61,16 @@ export class Entry extends React.Component {
     };
   }
 
+  /** @param {Partial<EntryState>} newState */
   updateState(newState) {
     newState.self_updating = true;
-    this.setState(newState);
+    this.setState({...this.state, ...newState});
   }
 
   // The new static getDerivedStateFromProps lifecycle is invoked after a component
   // is instantiated as well as before it is re-rendered. It can return an object to
   // update state, or null to indicate that the new props do not require any state updates.
+  /** @param {EntryProps} nextProps @param {EntryState} state */
   static getDerivedStateFromProps(nextProps, state) {
     // allways return self state, safe?
     if (state.self_updating) {
@@ -68,7 +109,8 @@ export class Entry extends React.Component {
     return new_state;
   }
 
-  handleEdit = (event) => {
+  /** @param {React.SyntheticEvent} _event */
+  handleEdit = (_event) => {
     console.log("edit entry")
     // var onpageEdit = !this.state.onpage_edit;
     this.setState({onpage_edit: true});
@@ -91,9 +133,15 @@ export class Entry extends React.Component {
     }
   }
 
+  /**
+   * @param {string | undefined} id
+   * @param {string} comment
+   * @param {React.SyntheticEvent} event
+   */
   submitComment = (id, comment, event) => {
     event.preventDefault();
     var comments = this.state.comments || [];
+    /** @type {{entry: string, body: string, id?: string}} */
     var args = {
       entry: this.props.entry.id,
       body: comment
@@ -104,7 +152,7 @@ export class Entry extends React.Component {
     return postJSON("/a/comment", args)
       .then(comment => { // arrow function
         if (id) {
-          var cmts = comments.map(function(cmt, index) {
+          var cmts = comments.map(function(cmt) {
             if (id === cmt.id) {
               comment.is_editing = false;
               return comment;
@@ -122,10 +170,16 @@ export class Entry extends React.Component {
       });
   }
 
-  cancelComment = (id, body, event) => {
+  /**
+   * @param {string | undefined} id
+   * @param {string} body
+   * @param {React.SyntheticEvent} _event
+   */
+  cancelComment = (id, body, _event) => {
     if (id) {
+      /** @type {CommentData[]} */
       var comments = [];
-      this.state.comments.forEach(function(cmt, index) {
+      (this.state.comments ?? []).forEach(function(cmt) {
         if (id === cmt.id) {
           cmt.is_editing = false;
         }
@@ -160,9 +214,11 @@ export class Entry extends React.Component {
       });
   }
 
+  /** @param {CommentData} comment */
   editComment = (comment) => {
+    /** @type {CommentData[]} */
     var comments = [];
-    this.state.comments.forEach(function(cmt, index) {
+    (this.state.comments ?? []).forEach(function(cmt) {
       if (comment.id && comment.id === cmt.id) {
         cmt.is_editing = true;
       }
@@ -171,6 +227,7 @@ export class Entry extends React.Component {
     this.updateState({comments: comments});
   }
 
+  /** @param {CommentData} comment */
   deleteComment = (comment) => {
     if (!comment.id) {
       return comment;
@@ -179,8 +236,9 @@ export class Entry extends React.Component {
     postJSON("/a/comment/delete", data)
       .then(data => {
         comment.body = "comment deleted";
+        /** @type {CommentData[]} */
         var comments = [];
-        this.state.comments.forEach(function(cmt, index) {
+        (this.state.comments ?? []).forEach(function(cmt) {
           if (comment.id && comment.id !== cmt.id) {
             comments.push(cmt);
           }
@@ -217,6 +275,7 @@ export class Entry extends React.Component {
       });
   }
 
+  /** @param {FormData} formData */
   onPostEntry = (formData) => {
     // on post
     return postForm("/a/share", formData)
@@ -246,14 +305,17 @@ export class Entry extends React.Component {
         )
     }
 
-    var medias = "";
+    /** @type {React.ReactNode} */
+    var medias = null;
     if (entry.thumbnails) {
       medias = <EntryMediaBox thumbs={entry.thumbnails} />;
     }
 
+    /** @type {React.ReactNode} */
+    var comments = null;
     if (this.state.comments) {
       var self = this;
-      var comments = this.state.comments.map(function(comment, index) {
+      comments = this.state.comments.map(function(comment, index) {
         if (comment.is_editing) {
           return (
             <EntryCommentForm commentId={comment.id}
@@ -315,6 +377,7 @@ export class Entry extends React.Component {
   }
 }
 
+/** @param {{feed: FeedRef}} props */
 function EntryPicture(props) {
   var feed = props.feed;
   return (
@@ -325,6 +388,7 @@ function EntryPicture(props) {
   );
 }
 
+/** @param {{feeds: FeedRef[]}} props */
 function EntryToFeeds(props) {
   var feeds = props.feeds.map(function(feed, index) {
     return (
@@ -340,10 +404,12 @@ function EntryToFeeds(props) {
   )
 }
 
+/** @param {{feed: FeedRef}} props */
 function EntryToFeed(props) {
   return <a href={'/feed/' + props.feed.id}>{props.feed.name}</a>;
 }
 
+/** @param {{from: FeedRef, to?: FeedRef[]}} props */
 function EntryAuthor(props) {
   var from = props.from;
 
@@ -364,6 +430,7 @@ function EntryAuthor(props) {
   );
 }
 
+/** @param {{thumb: Thumbnail}} props */
 function EntryMedia(props) {
   var thumb = props.thumb;
   if (thumb.width && thumb.height) {
@@ -385,6 +452,7 @@ function EntryMedia(props) {
   }
 }
 
+/** @param {{thumbs: Thumbnail[]}} props */
 function EntryMediaBox(props) {
   var medias = props.thumbs.map(function(thumb, index) {
     return (
@@ -399,8 +467,14 @@ function EntryMediaBox(props) {
   );
 }
 
+/**
+ * @param {{entry: EntryData, onNewComment: () => void, onLike: () => void,
+ * onUnlike: () => void, onEdit: (event: React.SyntheticEvent) => void,
+ * onDelete: () => void}} props
+ */
 function EntryInfo(props) {
   var entry = props.entry;
+  /** @type {React.ReactNode[]} */
   var infos = [];
   var via = null;
   if (entry.via) {
@@ -450,16 +524,22 @@ function EntryInfo(props) {
   );
 }
 
+/**
+ * @typedef {{liked: boolean, onLike?: () => void, onUnlike?: () => void}} LikeCommandProps
+ * @extends {React.Component<LikeCommandProps>}
+ */
 class EntryCommandLike extends React.Component{
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   handleLike = (event) => {
     event.preventDefault();
-    this.props.onLike();
+    this.props.onLike?.();
   }
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   handleUnlike = (event) => {
     event.preventDefault();
-    this.props.onUnlike();
+    this.props.onUnlike?.();
   }
 
   render() {
@@ -479,8 +559,10 @@ class EntryCommandLike extends React.Component{
   }
 }
 
+/** @extends {React.Component<{onNewComment: (source?: unknown) => void}>} */
 class EntryCommandComment extends React.Component{
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   handleClick = (event) => {
     event.preventDefault();
     this.props.onNewComment(this);
@@ -493,8 +575,10 @@ class EntryCommandComment extends React.Component{
   }
 }
 
+/** @extends {React.Component<{onEdit: (event: React.SyntheticEvent) => void}>} */
 class EntryCommandEdit extends React.Component{
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   handleClick = (event) => {
     event.preventDefault();
     this.props.onEdit(event);
@@ -507,24 +591,29 @@ class EntryCommandEdit extends React.Component{
   }
 }
 
+/** @extends {React.Component<{onDelete: (source?: unknown) => void}, {isClicked: boolean}>} */
 class EntryCommandDelete extends React.Component{
 
+  /** @param {{onDelete: (source?: unknown) => void}} props */
   constructor(props) {
     super(props);
     this.state = { isClicked: false }
   }
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   handleClick = (event) => {
     event.preventDefault();
     this.setState({isClicked:true}); 
   }
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   handleDelete = (event) => {
     event.preventDefault();
     this.props.onDelete(this);
     this.setState({isClicked:false}); 
   }
 
+  /** @param {React.MouseEvent<HTMLSpanElement>} event */
   handleCancel = (event) => {
     event.preventDefault();
     this.setState({isClicked:false}); 
@@ -547,18 +636,27 @@ class EntryCommandDelete extends React.Component{
   }
 }
 
+/**
+ * @typedef {{commentId?: string, commentBody?: string | null,
+ * onSubmitComment: (id: string | undefined, body: string, event: React.SyntheticEvent) => void,
+ * onCancelComment: (id: string | undefined, body: string, event: React.SyntheticEvent) => void}} CommentFormProps
+ * @typedef {CommentFormProps & {value: string}} CommentFormState
+ * @extends {React.Component<CommentFormProps, CommentFormState>}
+ */
 class EntryCommentForm extends React.Component{
 
+  /** @param {CommentFormProps} props */
   constructor(props) {
     super(props);
-    this.state = props;
-    this.state.value = props.commentBody;
+    this.state = {...props, value: props.commentBody ?? ''};
   }
 
+  /** @param {React.ChangeEvent<HTMLTextAreaElement>} event */
   handleChange = (event) => {
     this.setState({value: event.target.value});
   }
 
+  /** @param {React.MouseEvent<HTMLInputElement>} event */
   onSubmitComment = (event) =>  {
     event.preventDefault();
     if (!this.state.value) {
@@ -568,6 +666,7 @@ class EntryCommentForm extends React.Component{
     this.setState({value: ''});
   }
 
+  /** @param {React.MouseEvent<HTMLSpanElement>} event */
   onCancelComment = (event) => {
     event.preventDefault();
     var comment = this.state.value;
@@ -590,6 +689,7 @@ class EntryCommentForm extends React.Component{
   }
 }
 
+/** @param {{likes?: LikeData[], expandLikes: () => void}} props */
 function EntryLikes(props) {
   if (!props.likes || props.likes.length === 0) {
     return null;
@@ -621,13 +721,21 @@ function EntryLikes(props) {
   );
 }
 
+/**
+ * @typedef {{comment: CommentData, expandComments: () => void,
+ * editComment: (comment: CommentData) => void,
+ * deleteComment: (comment: CommentData) => CommentData | null}} EntryCommentProps
+ * @extends {React.Component<EntryCommentProps, {comment: CommentData | null}>}
+ */
 class EntryComment extends React.Component{
 
+  /** @param {EntryCommentProps} props */
   constructor(props) {
     super(props);
     this.state = props;
   }
 
+  /** @param {EntryCommentProps} nextProps @param {{comment: CommentData | null}} state */
   static getDerivedStateFromProps(nextProps, state) {
     if (state.comment !== nextProps.comment) {
       return {comment: nextProps.comment}
@@ -635,17 +743,20 @@ class EntryComment extends React.Component{
     return null;
   }
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   expandComments = (event) => {
     event.preventDefault();
     this.props.expandComments();
   }
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   editComment = (event) => {
     event.preventDefault();
     this.props.editComment(this.state.comment);
     // this.setState({comment: this.state.comment});
   }
 
+  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
   deleteComment = (event) => {
     event.preventDefault();
     var comment = this.props.deleteComment(this.state.comment);
