@@ -9,6 +9,7 @@ conf/*
 httpd/node_modules
 httpd/static/js/*
 httpd/static/css/*
+httpd/static/manifest.json
 cli/tools/*
 !cli/tools/migrate_db_test.go
 twitter/cookies.json
