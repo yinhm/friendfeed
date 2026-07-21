@@ -4,6 +4,47 @@ import {EntryBody} from './entry-body';
 
 const rawBodyOf = (children) => JSON.stringify(children);
 
+const longEntry = rawBodyOf([
+  {
+    type: 'p',
+    children: [
+      {text: 'a'.repeat(200)},
+      {text: 'b'.repeat(200), bold: true},
+    ],
+  },
+]);
+
+test('truncates long rawBody in feed lists and links to the entry page', () => {
+  render(
+    <EntryBody rawBody={longEntry} body="" truncate entryId="entry-42" />
+  );
+
+  expect(screen.queryByText('b'.repeat(200))).not.toBeInTheDocument();
+  const link = screen.getByRole('link', {name: 'Read more...'});
+  expect(link).toHaveAttribute('href', '/e/entry-42');
+});
+
+test('renders the full value on the entry page (no truncate)', () => {
+  render(<EntryBody rawBody={longEntry} body="" entryId="entry-42" />);
+
+  expect(screen.getByText('b'.repeat(200))).toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Read more...'})).not.toBeInTheDocument();
+});
+
+test('short rawBody is never truncated', () => {
+  render(
+    <EntryBody
+      rawBody={rawBodyOf([{type: 'p', children: [{text: 'short'}]}])}
+      body=""
+      truncate
+      entryId="entry-42"
+    />
+  );
+
+  expect(screen.getByText('short')).toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Read more...'})).not.toBeInTheDocument();
+});
+
 test('renders rawBody with the static component map', () => {
   render(
     <EntryBody
