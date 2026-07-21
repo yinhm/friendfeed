@@ -1,6 +1,11 @@
 allowBuilds:
   esbuild: true
 
+# Supply-chain window: hold back packages published in the last 24h so a
+# compromised release does not land the same day it ships. The pinned Radix
+# versions below are exempt (see minimumReleaseAgeExclude).
+minimumReleaseAge: 1440
+
 minimumReleaseAgeExclude:
   - '@radix-ui/primitive@1.1.6'
   - '@radix-ui/react-arrow@1.1.12'

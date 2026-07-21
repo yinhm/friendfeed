@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # Frontend: httpd/app (pnpm)
+  - package-ecosystem: "npm"
+    directory: "/httpd/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for safe in-major updates instead of many small ones.
+      patch-minor:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Major upgrades are handled as dedicated migrations, not bot PRs.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Go modules: repository root
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
