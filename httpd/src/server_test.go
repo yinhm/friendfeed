@@ -73,6 +73,38 @@ func TestFingerprint(t *testing.T) {
 	}
 }
 
+func TestEntryTitle(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry *pb.Entry
+		want  string
+	}{
+		{
+			name:  "body fallback strips all tags",
+			entry: &pb.Entry{Body: `<p>plain <strong>bold</strong> <code>x()</code> <em>em</em> text</p>`},
+			want:  "plain bold x() em text",
+		},
+		{
+			name:  "explicit title is stripped too",
+			entry: &pb.Entry{Title: `<b>titled</b> post`, Body: "ignored"},
+			want:  "titled post",
+		},
+		{
+			name:  "truncates at 42 runes",
+			entry: &pb.Entry{Title: "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopq"},
+			want:  "abcdefghijklmnopqrstuvwxyzabcdefghijklmnop",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := entryTitle(test.entry); got != test.want {
+				t.Fatalf("entryTitle() = %q; want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestFirstEntry(t *testing.T) {
 	tests := []struct {
 		name string

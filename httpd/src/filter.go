@@ -6,6 +6,10 @@ import (
 
 var htmlSanitizer *bluemonday.Policy
 
+// titleSanitizer strips ALL HTML elements; entry page titles must be plain
+// text, so unlike htmlSanitizer it keeps no allowlist.
+var titleSanitizer = bluemonday.StripTagsPolicy()
+
 func init() {
 	htmlSanitizer = bluemonday.StripTagsPolicy()
 	htmlSanitizer.AllowElements("h1", "h2", "h3", "h4")

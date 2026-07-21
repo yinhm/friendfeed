@@ -39,6 +39,22 @@ func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
 	return feed, nil
 }
 
+// entryTitle derives the plain-text page title for the entry show page:
+// any HTML markup is stripped from both the entry title and the body
+// fallback, and the result is capped at 42 runes.
+func entryTitle(entry *pb.Entry) string {
+	title := entry.Title
+	if title == "" {
+		title = entry.Body
+	}
+	title = titleSanitizer.Sanitize(title)
+	titleUtf8 := utf8string.NewString(title)
+	if titleUtf8.RuneCount() > 42 {
+		title = titleUtf8.Slice(0, 42)
+	}
+	return title
+}
+
 func (s *Server) EntryHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
 	req := &pb.EntryRequest{Uuid: uuid}
@@ -48,14 +64,7 @@ func (s *Server) EntryHandler(c *gin.Context) {
 	}
 
 	entry := feed.Entries[0]
-	title := entry.Title
-	if title == "" {
-		title = htmlSanitizer.Sanitize(entry.Body)
-		titleUtf8 := utf8string.NewString(title)
-		if titleUtf8.RuneCount() > 42 {
-			title = titleUtf8.Slice(0, 42)
-		}
-	}
+	title := entryTitle(entry)
 	data := pongo2.Context{
 		"title":       title,
 		"name":        entry.From.Name,
