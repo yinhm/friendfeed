@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/blevesearch/bleve/v2 v2.4.0
 	github.com/blevesearch/bleve_index_api v1.1.6 // indirect
-	github.com/cockroachdb/pebble v1.1.0
+	github.com/cockroachdb/pebble v1.1.5
 	github.com/cupcake/text-entities-go v0.0.0-20140512000843-06c234d4d8ed
 	github.com/dghubble/go-twitter v0.0.0-20210609183100-2fdbf421508e // direct
 	github.com/dghubble/oauth1 v0.7.0 // direct
@@ -23,7 +23,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.8.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240318143956-a85f2c67cd81
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0
@@ -58,7 +58,8 @@ require (
 	github.com/boj/redistore v0.0.0-20180917114910-cd5dcc76aeff // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cockroachdb/errors v1.11.1 // indirect
+	github.com/cockroachdb/errors v1.11.3 // indirect
+	github.com/cockroachdb/fifo v0.0.0-20240606204812-0bbfbd93a7ce // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
