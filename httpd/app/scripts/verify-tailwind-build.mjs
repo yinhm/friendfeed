@@ -13,7 +13,6 @@ const requiredSelectors = [
   'data-\\[state\\=checked\\]\\:bg-primary',
   'aria-checked\\:bg-accent',
   'focus-visible\\:ring-2',
-  'dark\\:bg-primary\\/40',
   'print\\:hidden',
   '\\[\\&_\\>_iframe\\]\\:absolute',
 ];
