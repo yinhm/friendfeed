@@ -56,7 +56,8 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "typecheck:tsgo": "tsgo --noEmit"
+    "typecheck:tsgo": "tsgo --noEmit",
+    "test:e2e": "bash ../scripts/e2e/run.sh"
   },
   "browserslist": {
     "production": [
@@ -72,6 +73,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

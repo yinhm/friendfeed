@@ -162,6 +162,6 @@
 - [ ] 配置 Renovate/Dependabot，全局启用 pnpm `minimumReleaseAge`（Radix 例外清单已在 `pnpm-workspace.yaml`），将大迁移转为持续小步升级。
 - [x] 评估 TypeScript 7（tsgo）：tsconfig 迁移为无 `baseUrl` 的相对 `paths`（TS 5.9 与 TS7 双兼容）+ `*.css` 声明；`typecheck:tsgo` 可用且零错误，本项目实测 tsc 13.7s → tsgo 6.9s（约 2x）；正式门禁仍用 tsc，TS7 待稳定后切换。
 - [x] 点名升级老次要依赖：`lucide-react` 0.359→1.25.0（上游移除 Twitter 品牌图标，本地无使用点随删）、`tailwind-merge` 2→3.6.0（Tailwind 4 官配）、`@ariakit/react` 0.4.6→0.4.34；`date-fns` 零引用删除；`react-dnd` 已于 12.4 移除。editor chunk 1,397,100→1,415,682 B（新依赖略大，已记录）。
-- [ ] 增加一条 Playwright E2E 冒烟用例：编辑 → 提交 → 回显，覆盖 jsdom 无法触达的发布全链路。
+- [x] 增加一条 Playwright E2E 冒烟用例（编辑 → 提交 → 回显）：`scripts/e2e/` 起临时后端与 web（随机端口防僵尸冲突）、`ForceArchiveFeed` 播种，断言 `/public` 经 React + rawBody 路径渲染且无页面错误；`pnpm test:e2e` 驱动，两连跑验证可重复。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。
