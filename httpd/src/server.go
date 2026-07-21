@@ -74,8 +74,14 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 // build (see httpd/app/static/manifest.json) so templates can reference them
 // by their cache-proof URLs, and fingerprints the hand-written style.css.
 func (s *Server) loadAssets() {
+	// style.css is fingerprinted in every mode: a constant ?v=dev would be
+	// cached forever by the CDN and hide edits during development.
+	css, err := s.assets.ReadFile("static/css/style.css")
+	if err == nil {
+		s.styleCssVer = fingerprint(css)
+	}
+
 	if s.debug {
-		s.styleCssVer = "dev"
 		return
 	}
 
@@ -87,11 +93,6 @@ func (s *Server) loadAssets() {
 		if err != nil {
 			log.Printf("can not parse manifest.json: %s", err)
 		}
-	}
-
-	css, err := s.assets.ReadFile("static/css/style.css")
-	if err == nil {
-		s.styleCssVer = fingerprint(css)
 	}
 }
 
