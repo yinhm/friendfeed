@@ -150,7 +150,7 @@
 
 ## 12. 结构演进（需逐项决策）
 
-- [ ] entry 读路径从 `dangerouslySetInnerHTML` 迁移到 rawBody 组件渲染：复用 `plate-serialization.tsx` 的静态组件边界，统一写/读/序列化模型，从机制上消除 XSS 面；存量仅含 HTML body 的 entry 走 HTML fallback 反序列化（editor 已有同款路径）。
+- [x] entry 读路径从 `dangerouslySetInnerHTML` 迁移到 rawBody 组件渲染：`EntryBody` 以共享静态组件表（`static-components.tsx`，URL 白名单 + vendor parser）渲染 rawBody，仅 HTML body 的存量 entry 回退到服务端消毒 HTML；主 bundle 206→230 kB，editor chunk 保持懒加载。
 - [ ] SSR/CSR 双渲染收敛：评估移除 `feed.html` 的服务端 entry 渲染、走纯 CSR；确认首屏与 SEO 影响后简化模板。
 - [ ] `EntryCommentForm` 迁移评估：按边界文档标准（独立交互收益 + 先建行为回归测试）执行；其余叶子 class 组件继续保留。
 - [ ] editor chunk 第二轮瘦身（当前 1.42 MB）：对照 `EDITOR_FEATURES.md` 盘点 font color/backgroundColor/size、react-dnd、react-tweet 与 lite-youtube 双头依赖；每项以存量内容 fixture 验证后决定去留并记录体积变化。

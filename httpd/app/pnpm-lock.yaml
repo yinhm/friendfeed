@@ -106,6 +106,9 @@ importers:
       date-fns:
         specifier: ^3.6.0
         version: 3.6.0
+      js-video-url-parser:
+        specifier: ^0.5.1
+        version: 0.5.1
       lucide-react:
         specifier: ^0.359.0
         version: 0.359.0(react@19.2.7)

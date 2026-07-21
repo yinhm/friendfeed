@@ -2,6 +2,7 @@
 
 import React, { useContext, lazy, Suspense } from 'react';
 import { FeedContext } from './context'
+import { EntryBody } from './entry-body';
 
 // Lazy-loaded: the Plate editor is a heavy chunk only needed when editing.
 const OnPageEditor = lazy(() => import('./editor'));
@@ -56,7 +57,6 @@ export function EntryContent(props) {
     //     );
     // }
     return (
-        <div className="content" dangerouslySetInnerHTML={{ __html: props.body }}>
-        </div>
+        <EntryBody rawBody={props.rawBody} body={props.body} />
     );
 }
