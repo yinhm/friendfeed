@@ -24,7 +24,7 @@ import {
   useComboboxContext,
   useComboboxStore,
 } from '@ariakit/react';
-import { cn } from '@udecode/cn';
+import { cn } from 'components/cn';
 import {
   filterWords,
 } from '@platejs/combobox';

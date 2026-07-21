@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { cn, withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { cn } from 'components/cn';
 import { PortalBody, useComposedRef, useEventEditorValue, useEditorId } from 'platejs/react';
 import {
   flip,

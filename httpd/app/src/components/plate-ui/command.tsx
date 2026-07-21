@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { type DialogProps } from '@radix-ui/react-dialog';
-import { cn, createPrimitiveElement, withCn, withRef } from '@udecode/cn';
+import { createPrimitiveElement, withRef } from 'platejs/react';
+import { cn, withCn } from 'components/cn';
 import { Command as CommandPrimitive } from 'cmdk';
 
 import { Icons } from 'components/icons';

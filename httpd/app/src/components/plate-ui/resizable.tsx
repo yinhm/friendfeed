@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { cn, withRef, withVariants } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { cn, withVariants } from 'components/cn';
 import {
   Resizable as ResizablePrimitive,
   ResizeHandle as ResizeHandlePrimitive,

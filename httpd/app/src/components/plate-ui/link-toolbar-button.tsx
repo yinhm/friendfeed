@@ -1,5 +1,5 @@
 import React from 'react';
-import { withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
 import {
   useLinkToolbarButton,
   useLinkToolbarButtonState,

@@ -1,5 +1,6 @@
 import React from 'react';
-import { cn, withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { cn } from 'components/cn';
 import { PlateElement } from 'platejs/react';
 import { useFocused, useSelected } from 'slate-react';
 

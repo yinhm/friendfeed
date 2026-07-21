@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@udecode/cn';
+import { cn } from 'components/cn';
 import { PlateContent } from 'platejs/react';
 import { cva } from 'class-variance-authority';
 

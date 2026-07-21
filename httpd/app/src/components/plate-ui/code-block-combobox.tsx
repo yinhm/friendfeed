@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { cn } from '@udecode/cn';
+import { cn } from 'components/cn';
 import { useEditorReadOnly, useEditorRef, useElement } from 'platejs/react';
 
 import { Icons } from 'components/icons';

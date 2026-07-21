@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { cn } from '@udecode/cn';
+import { cn } from 'components/cn';
 import { Plate, usePlateEditor } from 'platejs/react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';

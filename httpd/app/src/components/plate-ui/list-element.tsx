@@ -1,5 +1,6 @@
 import React from 'react';
-import { withRef, withVariants } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { withVariants } from 'components/cn';
 import { PlateElement } from 'platejs/react';
 import { cva } from 'class-variance-authority';
 

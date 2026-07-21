@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { cn, withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { cn } from 'components/cn';
 import { PlateElement } from 'platejs/react';
 
 export const BlockquoteElement = withRef<typeof PlateElement>(

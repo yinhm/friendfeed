@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@udecode/cn';
+import { cn } from 'components/cn';
 import { ELEMENT_H1, ELEMENT_PARAGRAPH } from 'components/plate-plugin-keys';
 
 type PlaceholderProps = {

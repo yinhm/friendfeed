@@ -1,4 +1,4 @@
-import { withVariants } from '@udecode/cn';
+import { withVariants } from 'components/cn';
 import { cva } from 'class-variance-authority';
 
 export const inputVariants = cva(

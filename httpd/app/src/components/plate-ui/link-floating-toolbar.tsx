@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@udecode/cn';
+import { cn } from 'components/cn';
 import {
   flip,
   offset,

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-import { withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
 import { PlateElement } from 'platejs/react';
 import { EmojiInlineIndexSearch, insertEmoji } from '@platejs/emoji';
 

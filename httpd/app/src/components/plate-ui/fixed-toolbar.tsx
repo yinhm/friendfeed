@@ -1,4 +1,4 @@
-import { withCn } from '@udecode/cn';
+import { withCn } from 'components/cn';
 
 import { Toolbar } from './toolbar';
 

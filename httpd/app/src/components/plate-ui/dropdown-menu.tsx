@@ -3,14 +3,8 @@
 import * as React from 'react';
 import { useCallback, useState } from 'react';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import {
-  cn,
-  createPrimitiveElement,
-  withCn,
-  withProps,
-  withRef,
-  withVariants,
-} from '@udecode/cn';
+import { createPrimitiveElement, withRef } from 'platejs/react';
+import { cn, withCn, withProps, withVariants } from 'components/cn';
 import { cva } from 'class-variance-authority';
 
 import { Icons } from 'components/icons';

@@ -1,5 +1,6 @@
 import React from 'react';
-import { cn, withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { cn } from 'components/cn';
 import { PlateElement, useElement } from 'platejs/react';
 import { TLinkElement } from 'platejs';
 import { useLink } from '@platejs/link/react';

@@ -1,5 +1,6 @@
 import React from 'react';
-import { cn, withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { cn } from 'components/cn';
 import { PlateLeaf } from 'platejs/react';
 
 export const KbdLeaf = withRef<typeof PlateLeaf>(

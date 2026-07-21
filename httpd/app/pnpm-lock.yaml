@@ -97,9 +97,6 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.13
         version: 1.2.13(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@udecode/cn':
-        specifier: ^31.0.0
-        version: 31.0.0(@types/react@19.2.17)(class-variance-authority@0.7.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwind-merge@2.6.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1562,22 +1559,8 @@ packages:
     resolution: {integrity: sha512-mrtuL8Nsn6gi2H4mo5KMTp823M+3Q19Ew/i+Zlikq20tIMm99C3Ez0dCmkWWnxut20esQvTg8aUSEhMcAOXhEw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@udecode/cn@31.0.0':
-    resolution: {integrity: sha512-ZjYL0uSbJIAx63+VAEmIJOMomL7oSi0AB52tUDcTCUxzCu7c7NVcAdJQBlFA9piF7IyLPo5qU0MJ98yTtvWZ4w==}
-    peerDependencies:
-      class-variance-authority: '>=0.7.0'
-      react: 19.2.7
-      react-dom: 19.2.7
-      tailwind-merge: '>=2.2.0'
-
   '@udecode/react-hotkeys@37.0.0':
     resolution: {integrity: sha512-3ZV5LiaTnKyhXwN6U0NE2cofNsNN2IPMkNCDntbSIIRLYmI+o6LRkDwAucSNh/BIdNXfvxscsR04RYyIwjGbJw==}
-    peerDependencies:
-      react: 19.2.7
-      react-dom: 19.2.7
-
-  '@udecode/react-utils@31.0.0':
-    resolution: {integrity: sha512-zvXVIOELvKeizFK9a7nCBGizH/tO7EFOl4N7YSL8fUrd6SZPIoHTNEZg5YKC3bcdB7LUoBno1BJOcWOZDHE5SA==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
@@ -1587,9 +1570,6 @@ packages:
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
-
-  '@udecode/utils@31.0.0':
-    resolution: {integrity: sha512-06JTl1UAm3mzLLAx8hdMUFw4XRQG727z9JoJ9PeBnmFb9q4Cg3DdmbFnhVJMrBPWlyOwoHtPrBjnanTFeiP36Q==}
 
   '@udecode/utils@47.2.7':
     resolution: {integrity: sha512-tQ8tIcdW+ZqWWrDgyf/moTLWtcErcHxaOfuCD/6qIL5hCq+jZm67nGHQToOT4Czti5Jr7CDPMgr8lYpdTEZcew==}
@@ -1716,10 +1696,6 @@ packages:
 
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
-
-  clsx@1.2.1:
-    resolution: {integrity: sha512-EcR6r5a8bj6pu3ycsa/E/cKVGuTgZJZdsyUYHOksG/UHIiKfjxzRxYJpyVBwYaQeOvghal9fcc4PidlgzugAQg==}
-    engines: {node: '>=6'}
 
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
@@ -4186,30 +4162,10 @@ snapshots:
       '@typescript-eslint/types': 8.64.0
       eslint-visitor-keys: 5.0.1
 
-  '@udecode/cn@31.0.0(@types/react@19.2.17)(class-variance-authority@0.7.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwind-merge@2.6.1)':
-    dependencies:
-      '@udecode/react-utils': 31.0.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      class-variance-authority: 0.7.1
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      tailwind-merge: 2.6.1
-    transitivePeerDependencies:
-      - '@types/react'
-
   '@udecode/react-hotkeys@37.0.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
-
-  '@udecode/react-utils@31.0.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      '@radix-ui/react-slot': 1.3.0(@types/react@19.2.17)(react@19.2.7)
-      '@udecode/utils': 31.0.0
-      clsx: 1.2.1
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-    transitivePeerDependencies:
-      - '@types/react'
 
   '@udecode/react-utils@49.0.15(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
@@ -4220,8 +4176,6 @@ snapshots:
       react-dom: 19.2.7(react@19.2.7)
     transitivePeerDependencies:
       - '@types/react'
-
-  '@udecode/utils@31.0.0': {}
 
   '@udecode/utils@47.2.7': {}
 
@@ -4354,8 +4308,6 @@ snapshots:
   class-variance-authority@0.7.1:
     dependencies:
       clsx: 2.1.1
-
-  clsx@1.2.1: {}
 
   clsx@2.1.1: {}
 

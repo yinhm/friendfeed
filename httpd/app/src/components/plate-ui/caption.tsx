@@ -1,4 +1,4 @@
-import { cn, withCn, withVariants } from '@udecode/cn';
+import { cn, withCn, withVariants } from 'components/cn';
 import {
   Caption as CaptionPrimitive,
   CaptionTextarea as CaptionTextareaPrimitive,

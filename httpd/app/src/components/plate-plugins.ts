@@ -1,4 +1,4 @@
-import { withProps } from '@udecode/cn';
+import { withProps } from 'components/cn';
 import React from 'react';
 import { AutoformatPlugin } from '@platejs/autoformat';
 import {
