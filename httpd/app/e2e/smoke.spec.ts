@@ -2,7 +2,7 @@
 import { expect, test } from '@playwright/test';
 
 test('public feed renders seeded entries end to end', async ({ page }) => {
-  const pageErrors = [];
+  const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await page.goto('/public');

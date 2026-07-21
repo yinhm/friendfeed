@@ -65,3 +65,17 @@ test('falls back to the sanitized HTML body when rawBody is missing or invalid',
   rerender(<EntryBody rawBody="not json" body="<p>legacy</p>" />);
   expect(screen.getByText('legacy')).toBeInTheDocument();
 });
+
+test.each([
+  ['null node', '[null]'],
+  ['scalar node', '["text"]'],
+  ['children not an array', '[{"type":"p","children":{}}]'],
+  ['nested invalid child', '[{"type":"p","children":[{"type":"p","children":[null]}]}]'],
+  ['node without type or text', '[{"foo":"bar"}]'],
+])('falls back to the HTML body for malformed rawBody: %s', (_label, rawBody) => {
+  const {container} = render(
+    <EntryBody rawBody={rawBody} body="<p>safe fallback</p>" />
+  );
+  expect(screen.getByText('safe fallback')).toBeInTheDocument();
+  expect(container.querySelector('.content')).not.toBeNull();
+});

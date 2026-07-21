@@ -1,7 +1,7 @@
-/// <reference types="vitest/config" />
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'src');
@@ -43,6 +43,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/setupTests.js',

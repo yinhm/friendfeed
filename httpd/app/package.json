@@ -57,7 +57,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "typecheck:tsgo": "tsgo --noEmit",
-    "test:e2e": "bash ../scripts/e2e/run.sh"
+    "test:e2e": "bash ../../scripts/e2e/run.sh"
   },
   "browserslist": {
     "production": [
