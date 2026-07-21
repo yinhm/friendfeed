@@ -60,6 +60,27 @@ const initialValueEmpty = [
     },
 ];
 
+/**
+ * Slate requires every root child to be an element. Legacy rawBody can be a
+ * bare text string (pre-JSON imports) or JSON without element wrappers, both
+ * of which crash editor normalization; wrap non-element children in a
+ * paragraph.
+ * @param {unknown} value
+ * @returns {Value}
+ */
+const toEditorValue = (value) => {
+    if (!Array.isArray(value) || value.length === 0) {
+        return initialValueEmpty;
+    }
+    return /** @type {Value} */ (value.map((node) => {
+        if (node && typeof node === 'object' && typeof node.type === 'string') {
+            return node;
+        }
+        const textNode = node && typeof node === 'object' ? node : { text: String(node ?? '') };
+        return { type: ELEMENT_PARAGRAPH, children: [textNode] };
+    }));
+};
+
 /** @param {OnPageEditorProps} params */
 const OnPageEditor = (params) => {
     const editorRef = useRef(/** @type {PlateEditor | null} */ (null));
@@ -82,12 +103,11 @@ const OnPageEditor = (params) => {
         // console.log("init value...")
         if (params.content) {
             try {
-                // how to test content is raw?
-                return /** @type {Value} */ (JSON.parse(params.content));
+                return toEditorValue(JSON.parse(params.content));
             } catch (_error) {
                 // fail safe to html parse
                 const tmpEditor = createPlateEditor({ plugins });
-                return /** @type {Value} */ (deserializeHtml(tmpEditor, {
+                return toEditorValue(deserializeHtml(tmpEditor, {
                     element: params.content,
                 }));
             }

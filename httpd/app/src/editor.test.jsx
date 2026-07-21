@@ -140,3 +140,23 @@ test.each([
   expect(html).not.toMatch(/javascript:|data:text\/html|<script/i);
   expect(html).not.toContain('<iframe');
 });
+
+test('legacy plain-text rawBody (pre-JSON imports) renders without crashing', async () => {
+  // Entry e3c3aada-dc05-58f5-a0c8-9b6f1302d8c2: rawBody stored as plain text,
+  // which deserialized to a root-level text node and crashed the editor.
+  const rawBody = '差评。真正洁癖的拿方便面不会带出一滴碎渣。 https://t.co/FunM4aMYa5';
+
+  const {container} = render(
+    <OnPageEditor
+      id="legacy-plain"
+      feedUuid="legacy-feed"
+      content={rawBody}
+      postEntry={vi.fn()}
+    />
+  );
+
+  await waitFor(() => {
+    expect(container.querySelector('[contenteditable="true"]')).toBeInTheDocument();
+  });
+  expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent('差评');
+});
