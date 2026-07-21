@@ -17,6 +17,12 @@ body {
     padding: 2px;
 }
 
+/* Keep the plain gray border in every state instead of the browser's
+   black focus outline. */
+.entry .comment.form textarea:focus {
+    outline: none;
+}
+
 .legacy-button,
 .sharebox input[type="submit"],
 .entry .comment.form input[type="submit"] {
