@@ -1,6 +1,14 @@
 import { readFile } from 'node:fs/promises';
 
-const css = await readFile('build/static/css/bundle.min.css', 'utf8');
+// Entry asset names are content-hashed; resolve them from the Vite manifest.
+const manifest = JSON.parse(await readFile('build/static/manifest.json', 'utf8'));
+const cssAsset = manifest['style.css']?.file;
+const jsAsset = manifest['src/index.jsx']?.file;
+if (!cssAsset || !jsAsset) {
+  throw new Error('build/static/manifest.json is missing entry js/css assets');
+}
+
+const css = await readFile(`build/${cssAsset}`, 'utf8');
 const pageCss = await readFile('../static/css/style.css', 'utf8');
 const requiredSelectors = [
   'bg-background',

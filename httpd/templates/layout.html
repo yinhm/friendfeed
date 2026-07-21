@@ -12,11 +12,11 @@
       <link href="/app/build/static/css/{{filename}}" rel="stylesheet" />
       {% endfor %}
     {% else %}
-      <link href="/static/css/bundle.min.css" rel="stylesheet" />
+      <link href="/{{ cssFile }}" rel="stylesheet" />
     {% endif %}
 
     <!-- Page styles -->
-    <link rel="stylesheet" href="/static/css/style.css?v=29">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ styleCssVer }}">
 </head>
 
 <body>

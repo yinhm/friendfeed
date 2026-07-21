@@ -1,0 +1,36 @@
+{
+  "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/server.browser.js": {
+    "file": "static/js/server.browser-betlDDPF.js",
+    "name": "server.browser",
+    "src": "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/server.browser.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/index.jsx"
+    ]
+  },
+  "src/editor.jsx": {
+    "file": "static/js/editor-QsQsWzo3.js",
+    "name": "editor",
+    "src": "src/editor.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/index.jsx"
+    ],
+    "dynamicImports": [
+      "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/server.browser.js"
+    ]
+  },
+  "src/index.jsx": {
+    "file": "static/js/bundle-l_7aHgu9.min.js",
+    "name": "index",
+    "src": "src/index.jsx",
+    "isEntry": true,
+    "dynamicImports": [
+      "src/editor.jsx"
+    ]
+  },
+  "style.css": {
+    "file": "static/css/bundle-DAHXS3TY.min.css",
+    "src": "style.css"
+  }
+}

@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    manifest: 'static/manifest.json',
     outDir: 'build',
     emptyOutDir: true,
     sourcemap: mode === 'development',
@@ -30,14 +31,14 @@ export default defineConfig(({ mode }) => ({
         // Go server and scripts/publish-build.mjs rely on.
         // Emit the exact URL loaded by the templates. Lazy chunks import this
         // same module, avoiding a second evaluation of the React runtime.
-        entryFileNames: 'static/js/bundle.min.js',
+        entryFileNames: 'static/js/bundle-[hash].min.js',
         chunkFileNames: 'static/js/[name]-[hash].js',
         assetFileNames: (assetInfo) =>
           // The merged CSS must keep the deterministic name templates expect —
           // and must NOT be Vite's default "style.css", which would clobber
           // our hand-written static/css/style.css during publish.
           assetInfo.name?.endsWith('.css')
-            ? 'static/css/bundle.min.css'
+            ? 'static/css/bundle-[hash].min.css'
             : 'static/[ext]/[name][extname]',
       },
     },

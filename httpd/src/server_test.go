@@ -41,6 +41,38 @@ func TestSanitizeFeedEntries(t *testing.T) {
 	}
 }
 
+func TestParseAssetManifest(t *testing.T) {
+	raw := []byte(`{
+		"src/index.jsx": {"file": "static/js/bundle-a1b2c3.min.js", "isEntry": true},
+		"style.css": {"file": "static/css/bundle-d4e5f6.min.css", "src": "style.css"}
+	}`)
+
+	jsFile, cssFile, err := parseAssetManifest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jsFile != "static/js/bundle-a1b2c3.min.js" {
+		t.Fatalf("jsFile = %q", jsFile)
+	}
+	if cssFile != "static/css/bundle-d4e5f6.min.css" {
+		t.Fatalf("cssFile = %q", cssFile)
+	}
+
+	if _, _, err := parseAssetManifest([]byte(`{"other": {"file": "x.js"}}`)); err == nil {
+		t.Fatal("expected an error for a manifest without entry assets")
+	}
+}
+
+func TestFingerprint(t *testing.T) {
+	got := fingerprint([]byte("body{}"))
+	if len(got) != 8 {
+		t.Fatalf("fingerprint length = %d; want 8", len(got))
+	}
+	if fingerprint([]byte("changed")) == got {
+		t.Fatal("fingerprint did not change with content")
+	}
+}
+
 func TestFirstEntry(t *testing.T) {
 	tests := []struct {
 		name string

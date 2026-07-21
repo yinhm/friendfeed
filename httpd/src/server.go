@@ -1,11 +1,13 @@
 package server
 
 import (
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha1"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -35,6 +37,9 @@ type Server struct {
 	cache      *cache.Cache
 	media      *media.LocalStorage
 	assets     embed.FS
+	jsFile     string
+	cssFile    string
+	styleCssVer string
 }
 
 func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretKey string, debug bool) *Server {
@@ -50,7 +55,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 	cacheStore := cache.New(5*time.Minute, 10*time.Minute)
 	mfs := media.NewLocalStorage(cfg, 1024)
 
-	return &Server{
+	s := &Server{
 		debug:      debug,
 		client:     c,
 		worker:     worker,
@@ -60,6 +65,57 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 		media:      mfs,
 		assets:     assets,
 	}
+	s.loadAssets()
+	return s
+}
+
+// loadAssets resolves the content-hashed entry assets emitted by the Vite
+// build (see httpd/app/static/manifest.json) so templates can reference them
+// by their cache-proof URLs, and fingerprints the hand-written style.css.
+func (s *Server) loadAssets() {
+	if s.debug {
+		s.styleCssVer = "dev"
+		return
+	}
+
+	raw, err := s.assets.ReadFile("static/manifest.json")
+	if err != nil {
+		log.Printf("manifest.json not found, asset URLs will be empty: %s", err)
+	} else {
+		s.jsFile, s.cssFile, err = parseAssetManifest(raw)
+		if err != nil {
+			log.Printf("can not parse manifest.json: %s", err)
+		}
+	}
+
+	css, err := s.assets.ReadFile("static/css/style.css")
+	if err == nil {
+		s.styleCssVer = fingerprint(css)
+	}
+}
+
+func parseAssetManifest(raw []byte) (jsFile, cssFile string, err error) {
+	var manifest map[string]struct {
+		File string `json:"file"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return "", "", err
+	}
+	if entry, ok := manifest["src/index.jsx"]; ok {
+		jsFile = entry.File
+	}
+	if entry, ok := manifest["style.css"]; ok {
+		cssFile = entry.File
+	}
+	if jsFile == "" || cssFile == "" {
+		return "", "", fmt.Errorf("manifest missing entry assets")
+	}
+	return jsFile, cssFile, nil
+}
+
+func fingerprint(data []byte) string {
+	sum := md5.Sum(data)
+	return hex.EncodeToString(sum[:])[:8]
 }
 
 func DefaultTimeoutContext() (context.Context, context.CancelFunc) {
@@ -86,8 +142,9 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		// Only the entry module gets a script tag; code-split chunks are
 		// imported by the entry itself as ES modules.
 		for _, fileName := range files {
-			if !fileName.IsDir() && fileName.Name() == "bundle.min.js" {
-				jsFiles = append(jsFiles, fileName.Name())
+			name := fileName.Name()
+			if !fileName.IsDir() && strings.HasPrefix(name, "bundle-") && strings.HasSuffix(name, ".min.js") {
+				jsFiles = append(jsFiles, name)
 			}
 		}
 		data["jsFiles"] = jsFiles
@@ -98,14 +155,17 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 			log.Println(err)
 		}
 		for _, fileName := range files {
-			if !fileName.IsDir() {
-				if strings.HasSuffix(fileName.Name(), "css") {
-					cssFiles = append(cssFiles, fileName.Name())
-				}
+			name := fileName.Name()
+			if !fileName.IsDir() && strings.HasPrefix(name, "bundle-") && strings.HasSuffix(name, ".min.css") {
+				cssFiles = append(cssFiles, name)
 			}
 		}
 		data["cssFiles"] = cssFiles
+	} else {
+		data["jsFile"] = s.jsFile
+		data["cssFile"] = s.cssFile
 	}
+	data["styleCssVer"] = s.styleCssVer
 	c.HTML(code, name, data)
 }
 
