@@ -105,13 +105,13 @@ func (s *DBTestSuite) TestSetSyncConcurrentWrites() {
 
 	go func() {
 		defer wg.Done()
-		for i := 0; i < writes; i++ {
+		for i := range writes {
 			s.rdb.SetSync(i%2 == 0)
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < writes; i++ {
+		for i := range writes {
 			key := []byte(fmt.Sprintf("concurrent-key-%d", i))
 			if err := s.rdb.Put(key, []byte("value")); err != nil {
 				errs <- err
@@ -180,12 +180,12 @@ func (s *DBTestSuite) TestIteration() {
 func (s *DBTestSuite) TestIterationReopen() {
 	// Giving meta store, when iterator data, it should find all keys
 	// first iter
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
 		s.mdb.Put(key.Bytes(), []byte("value1"))
 	}
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
 		s.mdb.Put(key.Bytes(), []byte("value2"))
 	}
@@ -273,17 +273,17 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	// Giving meta store
 	// First iteration: populate data
 	batch := s.mdb.rdb.NewBatch()
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
 		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
 		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		key := NewFlakeKey(TableMax, s.mdb.NextId())
 		batch.Set(key.Bytes(), []byte("value3"), pebble.NoSync)
 	}
@@ -374,17 +374,17 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	// }
 	// s.mdb.Put(maxKey, []byte(""))
 	batch := s.mdb.rdb.NewBatch()
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
 		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
 		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		key := NewFlakeKey(TableMax, s.mdb.NextId())
 		batch.Set(key.Bytes(), []byte("value3"), pebble.NoSync)
 	}
@@ -474,13 +474,13 @@ func (s *DBTestSuite) TestTimeTravelId() {
 	t, _ := time.Parse(time.RFC3339, dt)
 
 	fid1 := s.mdb.TimeTravelId(t)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		fid2 := s.mdb.TimeTravelId(t)
 		assert.Equal(s.T(), string(fid1[:]), string(fid2[:]))
 	}
 
 	fid1 = s.mdb.TimeTravelReverseId(t)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		fid2 := s.mdb.TimeTravelReverseId(t)
 		assert.Equal(s.T(), string(fid1[:]), string(fid2[:]))
 	}

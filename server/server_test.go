@@ -475,7 +475,7 @@ func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	err := index.load(s.srv.mdb)
 	assert.Nil(s.T(), err)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		// index.itemCh <- uuid
 		index.Push(entryID)
 	}

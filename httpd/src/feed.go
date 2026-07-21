@@ -71,10 +71,7 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 }
 
 func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {
-	prevStart := start - pageSize
-	if prevStart < 0 {
-		prevStart = 0
-	}
+	prevStart := max(start-pageSize, 0)
 	return pongo2.Context{
 		"title":       feed.Id,
 		"name":        feed.Id,

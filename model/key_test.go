@@ -71,7 +71,7 @@ func TestUniqueKey(t *testing.T) {
 	assert.Equal(t, symbolUUID, uuid2)
 	assert.Contains(t, key1.String(), key2.String())
 	assert.Equal(t, 20, len(key2))
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		assert.Equal(t, key1.Bytes()[i], key2[i])
 	}
 }

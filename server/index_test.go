@@ -15,7 +15,7 @@ func TestFeedIndex(t *testing.T) {
 	entryID := "c6f8dca854f011ddb489003048343a40"
 	index := NewFeedIndex(nil, "public", uuid.Must(uuid.NewV4()))
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		// index.itemCh <- uuid
 		index.Push(entryID)
 	}
@@ -27,7 +27,7 @@ func TestFeedIndex(t *testing.T) {
 		assert.Equal(t, index.bufq[i], "")
 	}
 
-	for i := 0; i < MinQueue; i++ {
+	for i := range MinQueue {
 		entryID := fmt.Sprintf("uuid-%d", i)
 		index.Push(entryID)
 	}

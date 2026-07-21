@@ -231,7 +231,7 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 
 		if req.Match != "" {
 			matched := false
-			for _, item := range strings.Split(req.Match, ",") {
+			for item := range strings.SplitSeq(req.Match, ",") {
 				if strings.HasPrefix(stock.Symbol, item) {
 					matched = true
 				}

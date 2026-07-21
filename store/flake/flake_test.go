@@ -136,7 +136,7 @@ func TestClockRunningBackwardsIsAnError(t *testing.T) {
 
 func TestNewWorkerId(t *testing.T) {
 	// New worker id
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		id1 := NewWorkerId()
 		id2 := NewWorkerId()
 		assert.Equal(t, hex.EncodeToString(id1[:]), hex.EncodeToString(id2[:]))
@@ -145,7 +145,7 @@ func TestNewWorkerId(t *testing.T) {
 
 func TestNewRandWorkerId(t *testing.T) {
 	// New random worker id
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		id1 := NewRandWorkerId()
 		id2 := NewRandWorkerId()
 		assert.NotEqual(t, hex.EncodeToString(id1[:]), hex.EncodeToString(id2[:]))

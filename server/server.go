@@ -296,7 +296,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 
 	var entries []*pb.Entry
 	found := 0
-	for i := 0; i < len(bufq); i++ {
+	for i := range bufq {
 		if start > 0 {
 			start--
 			continue

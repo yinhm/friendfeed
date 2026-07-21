@@ -15,6 +15,8 @@ package util
 
 import (
 	"regexp"
+	"slices"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -80,12 +82,12 @@ func Truncate(text string, length int, ellipsis string) string {
 			} else {
 				endTextPos = lastWordIndex
 			}
-			out := text[0:endTextPos]
-			out += ellipsis
+			var out strings.Builder
+			out.WriteString(text[0:endTextPos])
+			out.WriteString(ellipsis)
 			// Close out any open HTML tags
 			var currentTag *htmlTag
-			for i := len(tags) - 1; i >= 0; i-- {
-				tag := tags[i]
+			for _, tag := range slices.Backward(tags) {
 				if tag.pos >= endTextPos || currentTag != nil {
 					if currentTag != nil && currentTag.name == tag.name {
 						currentTag = nil
@@ -94,13 +96,13 @@ func Truncate(text string, length int, ellipsis string) string {
 				}
 
 				if tag.openTag {
-					out += ("</" + tag.name + ">")
+					out.WriteString(("</" + tag.name + ">"))
 				} else {
 					currentTag = &tag
 				}
 			}
 
-			return out
+			return out.String()
 		}
 	}
 

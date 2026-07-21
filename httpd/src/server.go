@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,16 +30,16 @@ import (
 )
 
 type Server struct {
-	debug      bool
-	client     pb.ApiClient
-	worker     *pb.Worker
-	secretKey  string
-	httpclient *http.Client
-	cache      *cache.Cache
-	media      *media.LocalStorage
-	assets     embed.FS
-	jsFile     string
-	cssFile    string
+	debug       bool
+	client      pb.ApiClient
+	worker      *pb.Worker
+	secretKey   string
+	httpclient  *http.Client
+	cache       *cache.Cache
+	media       *media.LocalStorage
+	assets      embed.FS
+	jsFile      string
+	cssFile     string
 	styleCssVer string
 }
 
@@ -267,12 +268,7 @@ func (s *Server) feedReadable(c *gin.Context, feedUuid string) bool {
 }
 
 func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }
 
 func (s *Server) ExpandCommentHandler(c *gin.Context) {

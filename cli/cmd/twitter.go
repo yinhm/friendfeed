@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -101,9 +102,7 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 	}
 
 	n := 0
-	for i := len(tweets) - 1; i >= 0; i-- {
-		tweet := tweets[i]
-
+	for _, tweet := range slices.Backward(tweets) {
 		// skip reply status
 		if tweet.InReplyToStatusID != 0 {
 			// fmt.Printf("skip reply: %s\n", tweet.IDStr)
