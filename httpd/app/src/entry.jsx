@@ -618,53 +618,45 @@ class EntryCommandDelete extends React.Component{
  * @typedef {{commentId?: string, commentBody?: string | null,
  * onSubmitComment: (id: string | undefined, body: string, event: React.SyntheticEvent) => void,
  * onCancelComment: (id: string | undefined, body: string, event: React.SyntheticEvent) => void}} CommentFormProps
- * @typedef {CommentFormProps & {value: string}} CommentFormState
- * @extends {React.Component<CommentFormProps, CommentFormState>}
  */
-class EntryCommentForm extends React.Component{
 
-  /** @param {CommentFormProps} props */
-  constructor(props) {
-    super(props);
-    this.state = {...props, value: props.commentBody ?? ''};
-  }
+/** @param {CommentFormProps} props */
+export function EntryCommentForm(props) {
+  const [value, setValue] = React.useState(props.commentBody ?? '');
 
   /** @param {React.ChangeEvent<HTMLTextAreaElement>} event */
-  handleChange = (event) => {
-    this.setState({value: event.target.value});
-  }
+  const handleChange = (event) => {
+    setValue(event.target.value);
+  };
 
   /** @param {React.MouseEvent<HTMLInputElement>} event */
-  onSubmitComment = (event) =>  {
+  const onSubmitComment = (event) =>  {
     event.preventDefault();
-    if (!this.state.value) {
+    if (!value) {
       return;
     }
-    this.props.onSubmitComment(this.props.commentId, this.state.value, event);
-    this.setState({value: ''});
-  }
+    props.onSubmitComment(props.commentId, value, event);
+    setValue('');
+  };
 
   /** @param {React.MouseEvent<HTMLSpanElement>} event */
-  onCancelComment = (event) => {
+  const onCancelComment = (event) => {
     event.preventDefault();
-    var comment = this.state.value;
-    this.props.onCancelComment(this.props.commentId, comment, event);
-  }
+    props.onCancelComment(props.commentId, value, event);
+  };
 
-  render() {
-    return (
-          <div className="comment form">
-          <form method="post">
-            <textarea autoFocus name="body"
-                      onChange={this.handleChange}
-                      value={this.state.value} />
-            <input type="submit" value="Post"
-                   onClick={this.onSubmitComment} />
-            <span onClick={this.onCancelComment}>Cancel</span>
-          </form>
-          </div>
-    );
-  }
+  return (
+        <div className="comment form">
+        <form method="post">
+          <textarea autoFocus name="body"
+                    onChange={handleChange}
+                    value={value} />
+          <input type="submit" value="Post"
+                 onClick={onSubmitComment} />
+          <span onClick={onCancelComment}>Cancel</span>
+        </form>
+        </div>
+  );
 }
 
 /** @param {{likes?: LikeData[], expandLikes: () => void}} props */

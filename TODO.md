@@ -152,7 +152,7 @@
 
 - [x] entry 读路径从 `dangerouslySetInnerHTML` 迁移到 rawBody 组件渲染：`EntryBody` 以共享静态组件表（`static-components.tsx`，URL 白名单 + vendor parser）渲染 rawBody，仅 HTML body 的存量 entry 回退到服务端消毒 HTML；主 bundle 206→230 kB，editor chunk 保持懒加载。
 - [x] SSR/CSR 评估与死代码清理：确认双渲染现状（SSR 内容挂载即被 React 丢弃）；删除 `feed.html` 中带死 jQuery 的 SSR sharebox、修正 `entry.Via.name` 大小写；经用户决定保留 entry 的 SSR 首屏渲染，纯 CSR 迁移暂缓。
-- [ ] `EntryCommentForm` 迁移评估：按边界文档标准（独立交互收益 + 先建行为回归测试）执行；其余叶子 class 组件继续保留。
+- [x] `EntryCommentForm` 迁移：先为 class 版建 4 例行为测试（初值、提交、空提交拦截、取消传值），再转换为 `useState` 函数组件，同一套测试零改动通过；其余叶子 class 组件继续保留。
 - [ ] editor chunk 第二轮瘦身（当前 1.42 MB）：对照 `EDITOR_FEATURES.md` 盘点 font color/backgroundColor/size、react-dnd、react-tweet 与 lite-youtube 双头依赖；每项以存量内容 fixture 验证后决定去留并记录体积变化。
 
 完成条件：每项独立提交、独立验证；渲染安全模型与体积变化有记录。
