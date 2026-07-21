@@ -6,7 +6,7 @@ toolchain go1.22.1
 
 require (
 	github.com/blevesearch/bleve/v2 v2.4.0
-	github.com/blevesearch/bleve_index_api v1.1.6
+	github.com/blevesearch/bleve_index_api v1.1.6 // indirect
 	github.com/cockroachdb/pebble v1.1.0
 	github.com/cupcake/text-entities-go v0.0.0-20140512000843-06c234d4d8ed
 	github.com/dghubble/go-twitter v0.0.0-20210609183100-2fdbf421508e // direct
@@ -23,11 +23,11 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.26
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20240318143956-a85f2c67cd81
-	golang.org/x/net v0.22.0
+	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/oauth2 v0.18.0
 	golang.org/x/sys v0.18.0 // direct
 	google.golang.org/grpc v1.62.1
@@ -111,7 +111,7 @@ require (
 	github.com/spf13/afero v1.10.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/vcaesar/cedar v0.20.1 // indirect
