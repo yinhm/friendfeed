@@ -18,26 +18,6 @@
 
   <div id="feed" class="feed">
 
-    {% if show_share %}
-    <div class="sharebox" id="shareform">
-      <form action="/a/share" method="post" enctype="multipart/form-data" onsubmit="return shareSubmit($(this))">
-
-        <textarea name="body"></textarea>
-
-        <div class="post">
-          <span class="max_info"></span>
-          <input class="submit" type="submit" value="发布" />
-          {% if feed.Id == "Home" || feed.Id == "Public" %}
-          <input type="hidden" name="feedid" value="{{ current_user.Id }}"/>
-          {% else %}
-          <input type="hidden" name="feedid" value="{{feed.Id}}" />
-          {% endif %}
-          <input type="hidden" name="next" value="{{ request.path|urlencode }}"/>
-        </div>
-      </form>
-    </div>
-    {% endif %}
-    
     {% for entry in feed.Entries %}
     <div class="entry" eid="{{ entry.Id }}">
       <div class="picture"><a href="/feed/{{ entry.From.Id }}"><img src="{{ entry.From.Picture }}"/></a></div>
@@ -63,7 +43,7 @@
         <div class="info">
           <a href="/e/{{ entry.Id }}" class="permalink">{{ entry.Date }}</a>
           {% if entry.Via %}
-            from <a href="{{ entry.Via.Url|escape }}" class="via">{{ entry.Via.name|escape }}</a>
+            from <a href="{{ entry.Via.Url|escape }}" class="via">{{ entry.Via.Name|escape }}</a>
           {% endif %}
           {% for command in entry.Commands %}
             {% if command != "delete" %}
