@@ -1,14 +1,27 @@
+// @ts-check
+
 import React, { useContext, lazy, Suspense } from 'react';
 import { FeedContext } from './context'
 
 // Lazy-loaded: the Plate editor is a heavy chunk only needed when editing.
 const OnPageEditor = lazy(() => import('./editor'));
 
+/**
+ * @typedef {object} EntryContentProps
+ * @property {string} id
+ * @property {string} [title]
+ * @property {string} [rawBody]
+ * @property {string} body
+ * @property {string} [type]
+ * @property {boolean} [onpageEdit]
+ * @property {(formData: FormData) => Promise<any>} onPostEntry
+ */
 
+/** @param {EntryContentProps} props */
 export function EntryContent(props) {
     const feedCfg = useContext(FeedContext);
 
-    const onPostEntry = (formData) => {
+    const onPostEntry = (/** @type {FormData} */ formData) => {
         var f = props.onPostEntry(formData);
         feedCfg.toggleEditor();
         return f;

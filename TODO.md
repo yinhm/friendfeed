@@ -137,3 +137,31 @@
   - 明确保留 `EntryCommand*`、`EntryCommentForm`、`EntryComment` 与 `EntryLike`：转换前三个无状态命令只会统一写法，其余组件需先有独立交互收益与回归覆盖。
 
 完成条件：属于可选维护工作，不阻塞前述安全与依赖升级。
+
+## 11. 现代化收尾
+
+- [x] 移除 `@udecode/cn`：`withRef`/`createPrimitiveElement` 改从 `platejs/react`（一等公民转出口）导入；`cn`/`withProps`/`withCn`/`withVariants` 无官方继任，内联为 `src/components/cn.tsx`；`@udecode/*` 依赖清零。
+- [x] 类型覆盖补全：`content.jsx`、`search.jsx`、`entry-like.jsx`、`index.jsx` 启用 `@ts-check`，并修正 `LikeData` 为服务端真实形状（`from` 必需，`placeholder`/`body` 可选），stage 9 闭环。
+- [x] 将 soft break 验证从 `Hotkeys.isSoftBreak` 映射级升级为真实 `insertSoftBreak` 执行断言（同块插入 `\n` 而非新块），与图片 `deleteBackward` 测试同级。
+- [x] 清理 `entry-state.test.jsx` 的 `act()` 输出噪音（rerender 包裹 `act()`，警告从 3 降为 0）。
+- [x] 跟踪 `js-video-url-parser@0.5.2`：2026-07-21 复查仍未发布（上游自 2021-11 休眠），2048 字节限制改为常驻缓解并在源码注释中记录验证日期，不再标记为临时方案；后续升级前复查 registry。
+
+完成条件：旧组织名依赖清零，核心 JS 文件类型检查全覆盖，测试输出干净。
+
+## 12. 结构演进（需逐项决策）
+
+- [ ] entry 读路径从 `dangerouslySetInnerHTML` 迁移到 rawBody 组件渲染：复用 `plate-serialization.tsx` 的静态组件边界，统一写/读/序列化模型，从机制上消除 XSS 面；存量仅含 HTML body 的 entry 走 HTML fallback 反序列化（editor 已有同款路径）。
+- [ ] SSR/CSR 双渲染收敛：评估移除 `feed.html` 的服务端 entry 渲染、走纯 CSR；确认首屏与 SEO 影响后简化模板。
+- [ ] `EntryCommentForm` 迁移评估：按边界文档标准（独立交互收益 + 先建行为回归测试）执行；其余叶子 class 组件继续保留。
+- [ ] editor chunk 第二轮瘦身（当前 1.42 MB）：对照 `EDITOR_FEATURES.md` 盘点 font color/backgroundColor/size、react-dnd、react-tweet 与 lite-youtube 双头依赖；每项以存量内容 fixture 验证后决定去留并记录体积变化。
+
+完成条件：每项独立提交、独立验证；渲染安全模型与体积变化有记录。
+
+## 13. 常态卫生
+
+- [ ] 配置 Renovate/Dependabot，全局启用 pnpm `minimumReleaseAge`（Radix 例外清单已在 `pnpm-workspace.yaml`），将大迁移转为持续小步升级。
+- [ ] 评估 TypeScript 7（tsgo）原生实现：独立提交试点 typecheck 提速，不与功能迁移混杂。
+- [ ] 点名升级 `lucide-react@0.359`、`react-dnd@16` 等老次要依赖。
+- [ ] 增加一条 Playwright E2E 冒烟用例：编辑 → 提交 → 回显，覆盖 jsdom 无法触达的发布全链路。
+
+完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。

@@ -1,5 +1,5 @@
 import React from 'react';
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 
 const {getJSONMock} = vi.hoisted(() => ({
   getJSONMock: vi.fn(),
@@ -34,12 +34,14 @@ test('Entry accepts refreshed props while it has no local edit in progress', () 
     <Entry entry={makeEntry()} onpage_edit={false} />
   );
 
-  rerender(
+  act(() => {
+    rerender(
     <Entry
       entry={makeEntry({body: 'Refreshed body', rawBody: 'refreshed raw body'})}
       onpage_edit={false}
     />
   );
+  });
 
   expect(screen.getByText('Refreshed body')).toBeInTheDocument();
   expect(screen.queryByText('Original body')).not.toBeInTheDocument();
@@ -61,7 +63,8 @@ test('Entry keeps expanded likes when refreshed props contain a collapsed list',
   fireEvent.click(screen.getByRole('link', {name: '1 other person'}));
   await waitFor(() => expect(screen.getByRole('link', {name: 'Alice'})).toBeInTheDocument());
 
-  rerender(
+  act(() => {
+    rerender(
     <Entry
       entry={makeEntry({
         body: 'Refreshed body',
@@ -70,6 +73,7 @@ test('Entry keeps expanded likes when refreshed props contain a collapsed list',
       onpage_edit={false}
     />
   );
+  });
 
   expect(screen.getByRole('link', {name: 'Alice'})).toBeInTheDocument();
   expect(screen.queryByRole('link', {name: 'Bob'})).not.toBeInTheDocument();
@@ -85,7 +89,8 @@ test('Entry keeps its original content while local editing is active', async () 
     expect(screen.getByTestId('test-editor')).toHaveTextContent('original raw body');
   });
 
-  rerender(
+  act(() => {
+    rerender(
     <Entry
       entry={makeEntry({
         body: 'Refreshed body',
@@ -95,6 +100,7 @@ test('Entry keeps its original content while local editing is active', async () 
       onpage_edit={false}
     />
   );
+  });
 
   expect(screen.getByTestId('test-editor')).toHaveTextContent('original raw body');
   expect(screen.getByTestId('test-editor')).not.toHaveTextContent('refreshed raw body');

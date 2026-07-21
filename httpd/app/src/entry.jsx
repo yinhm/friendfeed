@@ -10,7 +10,11 @@ import {getJSON, postJSON, postForm, intersperse} from './utils';
  * @typedef {{width?: number, height?: number, link: string, url: string}} Thumbnail
  * @typedef {{id?: string, body: string, rawBody?: string, is_editing?: boolean,
  * commands?: string[], placeholder?: boolean, from: FeedRef, date?: string}} CommentData
- * @typedef {FeedRef} LikeData
+ * @typedef {object} LikeData
+ * @property {boolean} [placeholder]
+ * @property {string} [body]
+ * @property {FeedRef} from
+
  * @typedef {{name: string, url: string}} ViaData
  * @typedef {object} EntryData
  * @property {string} id

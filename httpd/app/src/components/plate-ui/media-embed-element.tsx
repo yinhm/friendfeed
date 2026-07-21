@@ -1,5 +1,6 @@
 import React from 'react';
-import { cn, withRef } from '@udecode/cn';
+import { withRef } from 'platejs/react';
+import { cn } from 'components/cn';
 import { PlateElement, withHOC } from 'platejs/react';
 import {
   parseTwitterUrl,
@@ -19,6 +20,11 @@ import {
   ResizeHandle,
 } from './resizable';
 
+// ReDoS mitigation for js-video-url-parser: bound the input length before
+// the third-party parser runs. The advisory's patched release (0.5.2) has
+// never been published — upstream is dormant since 0.5.1 (2021-11) — so
+// this limit is the standing fix, not a temporary workaround. Recheck the
+// registry before removing. Last verified: 2026-07-21.
 const MAX_MEDIA_URL_LENGTH = 2048;
 
 const limitMediaUrl = <T,>(parser: (url: string) => T) => (url: string) =>

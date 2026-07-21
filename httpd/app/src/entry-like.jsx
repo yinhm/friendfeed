@@ -1,11 +1,24 @@
+// @ts-check
+
 import React from 'react';
 
+/**
+ * @typedef {object} EntryLikeProps
+ * @property {{placeholder?: boolean, body?: string, from: {id: string, name: string}}} like
+ * @property {() => void} expandLikes
+ *
+ * @typedef {{expanded: boolean}} EntryLikeState
+ */
+
+/** @extends {React.Component<EntryLikeProps, EntryLikeState>} */
 export class EntryLike extends React.Component {
+  /** @param {EntryLikeProps} props */
   constructor(props) {
     super(props);
     this.state = {expanded: false};
   }
 
+  /** @param {React.SyntheticEvent} event */
   expandLikes = (event) => {
     event.preventDefault();
     if (this.state.expanded) {

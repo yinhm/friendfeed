@@ -134,6 +134,24 @@ describe('Plate plugin configuration', () => {
       Hotkeys.isSoftBreak({ key: 'Enter', shiftKey: true } as KeyboardEvent)
     ).toBe(true);
 
+    // The mapped hotkey performs a real soft break: a newline inside the
+    // current block instead of a new block.
+    const softBreakEditor = createPlateEditor({
+      plugins,
+      value: [
+        { type: ELEMENT_PARAGRAPH, children: [{ text: 'ab' }] },
+      ],
+    });
+    softBreakEditor.selection = {
+      anchor: { path: [0, 0], offset: 1 },
+      focus: { path: [0, 0], offset: 1 },
+    };
+    softBreakEditor.tf.insertSoftBreak();
+    expect(softBreakEditor.children).toHaveLength(1);
+    expect(softBreakEditor.children[0].children[0]).toMatchObject({
+      text: 'a\nb',
+    });
+
     const editor = createPlateEditor({
       nodeId: {},
       plugins,
