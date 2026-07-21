@@ -14,9 +14,6 @@ import {
   UnderlinePlugin,
 } from '@platejs/basic-nodes/react';
 import {
-  FontBackgroundColorPlugin,
-  FontColorPlugin,
-  FontSizePlugin,
   LineHeightPlugin,
   TextAlignPlugin,
 } from '@platejs/basic-styles/react';
@@ -123,9 +120,6 @@ export const plugins = [
   UnderlinePlugin.withComponent(withProps(PlateLeaf, { as: 'u' })),
   StrikethroughPlugin.withComponent(withProps(PlateLeaf, { as: 's' })),
   CodePlugin.withComponent(CodeLeaf),
-  FontColorPlugin,
-  FontBackgroundColorPlugin,
-  FontSizePlugin,
   HighlightPlugin.withComponent(HighlightLeaf),
 
   AlignPlugin.extend({ inject: { targetPlugins: textBlockTypes.slice(0, 4) } }),

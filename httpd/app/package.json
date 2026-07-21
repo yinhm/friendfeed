@@ -41,8 +41,6 @@
     "lucide-react": "^0.359.0",
     "platejs": "49.2.21",
     "react": "^19.0.0",
-    "react-dnd": "^16.0.1",
-    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.0.0",
     "react-lite-youtube-embed": "^2.4.0",
     "react-tweet": "^3.3.1",

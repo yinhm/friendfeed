@@ -22,6 +22,38 @@ test('typing the emoji trigger creates an inline emoji input', () => {
   );
 });
 
+test('stored font marks round-trip through load and serialize', async () => {
+  // Font color/backgroundColor/size plugins are intentionally unregistered:
+  // the marks must survive as plain data in rawBody even though nothing
+  // renders them.
+  const editor = createPlateEditor({
+    plugins,
+    value: [
+      {
+        type: 'p',
+        children: [
+          {
+            text: 'styled text',
+            color: '#ff0000',
+            backgroundColor: '#ffff00',
+            fontSize: '18px',
+          },
+        ],
+      },
+    ],
+  });
+
+  expect(editor.children[0].children[0]).toMatchObject({
+    text: 'styled text',
+    color: '#ff0000',
+    backgroundColor: '#ffff00',
+    fontSize: '18px',
+  });
+
+  const html = await serializeEditorHtml(editor);
+  expect(html).toContain('styled text');
+});
+
 test('legacy rawBody content loads and is submitted as JSON and HTML', async () => {
   const postEntry = vi.fn().mockResolvedValue(undefined);
   const rawBody = JSON.stringify([
