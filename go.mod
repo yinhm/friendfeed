@@ -1,8 +1,6 @@
 module github.com/yinhm/friendfeed
 
-go 1.21
-
-toolchain go1.22.1
+go 1.25.0
 
 require (
 	github.com/blevesearch/bleve/v2 v2.4.0
@@ -28,15 +26,14 @@ require (
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20240318143956-a85f2c67cd81
 	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/oauth2 v0.18.0
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sys v0.21.0 // direct
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 )
 
 require (
-	cloud.google.com/go/compute v1.23.3 // indirect
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/RoaringBitmap/roaring v1.9.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
@@ -119,7 +116,6 @@ require (
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/image v0.15.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
