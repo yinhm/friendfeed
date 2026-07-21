@@ -119,23 +119,23 @@ importers:
         specifier: 19.2.7
         version: 19.2.7(react@19.2.7)
       react-lite-youtube-embed:
-        specifier: ^2.4.0
-        version: 2.4.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^2.6.0
+        version: 2.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react-tweet:
         specifier: ^3.3.1
         version: 3.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       slate:
-        specifier: ^0.118.1
-        version: 0.118.1
+        specifier: ^0.126.0
+        version: 0.126.0
       slate-history:
-        specifier: ^0.109.0
-        version: 0.109.0(slate@0.118.1)
+        specifier: ^0.113.1
+        version: 0.113.1(slate@0.126.0)
       slate-hyperscript:
-        specifier: ^0.115.0
-        version: 0.115.0(slate@0.118.1)
+        specifier: ^0.125.0
+        version: 0.125.0(slate@0.126.0)
       slate-react:
-        specifier: ^0.117.4
-        version: 0.117.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(slate-dom@0.118.1(slate@0.118.1))(slate@0.118.1)
+        specifier: ^0.126.0
+        version: 0.126.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(slate-dom@0.126.0(slate@0.126.0))(slate@0.126.0)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -2394,8 +2394,8 @@ packages:
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
-  react-lite-youtube-embed@2.4.0:
-    resolution: {integrity: sha512-Xo6cM1zPlROvvM97JkqQIoXstlQDaC4+DawmM7BB7Hh1cXrkBHEGq1iJlQxBTUWAUklmpcC7ph7qg7CztXtABQ==}
+  react-lite-youtube-embed@2.6.0:
+    resolution: {integrity: sha512-IOz67PY67a/2hlEkiUIBJ9D6TYX7RQnJgCa5J2xgDWd9yhGxEacuamo4c3b5nV6+CwssyL6OCLtgFh2guaKsmw==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
@@ -2510,13 +2510,23 @@ packages:
     peerDependencies:
       slate: '>=0.99.0'
 
-  slate-history@0.109.0:
-    resolution: {integrity: sha512-DHavPwrTTAEAV66eAocB3iQHEj65N6IVtbRK98ZuqGT0S44T3zXlhzY+5SZ7EPxRcoOYVt1dioRxXYM/+PmCiQ==}
+  slate-dom@0.126.0:
+    resolution: {integrity: sha512-FdRlaKh0xksnymiRiv8/8c6dYhybwTg1QJIjmvEyeOUKHfdJI55YA4gGKv4vQj4ZKklau2aHY6uX/npJu5jYMA==}
+    peerDependencies:
+      slate: '>=0.121.0'
+
+  slate-history@0.113.1:
+    resolution: {integrity: sha512-J9NSJ+UG2GxoW0lw5mloaKcN0JI0x2IA5M5FxyGiInpn+QEutxT1WK7S/JneZCMFJBoHs1uu7S7e6pxQjubHmQ==}
     peerDependencies:
       slate: '>=0.65.3'
 
   slate-hyperscript@0.115.0:
     resolution: {integrity: sha512-aaQ1XSfUhw0Lf4cwVLeNFYnnPsC9iX9aEmKvT5PAaGTNVe1LaBCAXB+CFuqp7YPExPj9hYuS5CsIu8dAh9JX2w==}
+    peerDependencies:
+      slate: '>=0.114.3'
+
+  slate-hyperscript@0.125.0:
+    resolution: {integrity: sha512-tH6AYvTrTnSdUo+L5cUvqcHRzQ3muEkcSEN7APM9NtEdWk9L7lqEbmpyeKfv7oyzCUW2WbR/lPhlnOSu8/jUcA==}
     peerDependencies:
       slate: '>=0.114.3'
 
@@ -2528,8 +2538,19 @@ packages:
       slate: '>=0.114.0'
       slate-dom: '>=0.116.0'
 
+  slate-react@0.126.0:
+    resolution: {integrity: sha512-pQEu2X25mj539jWK/GpwNEdfE/gwqRccDwQaf4UeoABX3+cLaDls8CIyT8lASGRHyphqkgGW7pUxWOCBGC2hqA==}
+    peerDependencies:
+      react: 19.2.7
+      react-dom: 19.2.7
+      slate: '>=0.121.0'
+      slate-dom: '>=0.119.1'
+
   slate@0.118.1:
     resolution: {integrity: sha512-6H1DNgnSwAFhq/pIgf+tLvjNzH912M5XrKKhP9Frmbds2zFXdSJ6L/uFNyVKxQIkPzGWPD0m+wdDfmEuGFH5Tg==}
+
+  slate@0.126.0:
+    resolution: {integrity: sha512-vajsZXY28Uxrg0odEChRIicg3QE9VbYLVLln+8Je4yIg/T7UJqj+WHK1236RL7i7CM/6/lnqPmA19n4Na1shgA==}
 
   slick@1.12.2:
     resolution: {integrity: sha512-4qdtOGcBjral6YIBCWJ0ljFSKNLz9KkhbWtuGvUyRowl1kxfuE1x/Z/aJcaiilpb3do9bl5K7/1h9XC5wWpY/A==}
@@ -5005,7 +5026,7 @@ snapshots:
 
   react-is@17.0.2: {}
 
-  react-lite-youtube-embed@2.4.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-lite-youtube-embed@2.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
@@ -5128,14 +5149,29 @@ snapshots:
       slate: 0.118.1
       tiny-invariant: 1.3.1
 
-  slate-history@0.109.0(slate@0.118.1):
+  slate-dom@0.126.0(slate@0.126.0):
+    dependencies:
+      '@juggle/resize-observer': 3.4.0
+      direction: 1.0.4
+      is-hotkey: 0.2.0
+      is-plain-object: 5.0.0
+      lodash: 4.18.1
+      scroll-into-view-if-needed: 3.1.0
+      slate: 0.126.0
+      tiny-invariant: 1.3.1
+
+  slate-history@0.113.1(slate@0.126.0):
     dependencies:
       is-plain-object: 5.0.0
-      slate: 0.118.1
+      slate: 0.126.0
 
   slate-hyperscript@0.115.0(slate@0.118.1):
     dependencies:
       slate: 0.118.1
+
+  slate-hyperscript@0.125.0(slate@0.126.0):
+    dependencies:
+      slate: 0.126.0
 
   slate-react@0.117.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(slate-dom@0.118.1(slate@0.118.1))(slate@0.118.1):
     dependencies:
@@ -5150,10 +5186,25 @@ snapshots:
       slate-dom: 0.118.1(slate@0.118.1)
       tiny-invariant: 1.3.1
 
+  slate-react@0.126.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(slate-dom@0.126.0(slate@0.126.0))(slate@0.126.0):
+    dependencies:
+      '@juggle/resize-observer': 3.4.0
+      direction: 1.0.4
+      is-hotkey: 0.2.0
+      lodash: 4.18.1
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+      scroll-into-view-if-needed: 3.1.0
+      slate: 0.126.0
+      slate-dom: 0.126.0(slate@0.126.0)
+      tiny-invariant: 1.3.1
+
   slate@0.118.1:
     dependencies:
       immer: 10.2.0
       tiny-warning: 1.0.3
+
+  slate@0.126.0: {}
 
   slick@1.12.2: {}
 
