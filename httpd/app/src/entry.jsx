@@ -591,7 +591,7 @@ class EntryCommandDelete extends React.Component{
     this.setState({isClicked:false}); 
   }
 
-  /** @param {React.MouseEvent<HTMLSpanElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   handleCancel = (event) => {
     event.preventDefault();
     this.setState({isClicked:false}); 
@@ -602,7 +602,7 @@ class EntryCommandDelete extends React.Component{
       return (
         <>
         Confirm Delete 
-        <span className="item deletecommand" onClick={this.handleCancel}> 取消 </span>
+        <button type="button" className="inline-action item deletecommand" onClick={this.handleCancel}> 取消 </button>
          / 
         <a href="#nolink" className="deletecommand" onClick={this.handleDelete}> 确定 </a>
         </>
@@ -639,7 +639,7 @@ export function EntryCommentForm(props) {
     setValue('');
   };
 
-  /** @param {React.MouseEvent<HTMLSpanElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   const onCancelComment = (event) => {
     event.preventDefault();
     props.onCancelComment(props.commentId, value, event);
@@ -654,7 +654,8 @@ export function EntryCommentForm(props) {
                     value={value} />
           <input type="submit" value="Post"
                  onClick={onSubmitComment} />
-          <span onClick={onCancelComment}>Cancel</span>
+          <button type="button" className="inline-action cancelcommand"
+                  onClick={onCancelComment}>Cancel</button>
         </form>
         </div>
   );

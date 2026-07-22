@@ -68,7 +68,7 @@ test('cancel passes the current text to onCancelComment', () => {
   );
 
   fireEvent.change(screen.getByRole('textbox'), {target: {value: 'changed'}});
-  fireEvent.click(screen.getByText('Cancel'));
+  fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
 
   expect(onCancelComment).toHaveBeenCalledOnce();
   const [, body] = onCancelComment.mock.calls[0];

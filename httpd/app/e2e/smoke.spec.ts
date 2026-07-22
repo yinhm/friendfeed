@@ -165,6 +165,10 @@ test('authenticated owner can confirm and delete an entry', async ({
   const entry = page.locator(`[data-eid="${entryId}"]`);
   await entry.getByRole('link', { name: 'Delete', exact: true }).click();
   await expect(entry).toContainText('Confirm Delete');
+  await entry.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(entry).not.toContainText('Confirm Delete');
+
+  await entry.getByRole('link', { name: 'Delete', exact: true }).click();
   await entry.getByRole('link', { name: '确定', exact: true }).click();
 
   await expect(entry).toContainText('entry deleted.');

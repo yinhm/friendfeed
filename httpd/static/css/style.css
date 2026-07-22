@@ -32,6 +32,18 @@ body {
     cursor: pointer;
 }
 
+/* Clickable text must remain keyboard-focusable without changing the
+   established link-like appearance. */
+button.inline-action {
+    display: inline;
+    border: 0;
+    background: none;
+    color: inherit;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+}
+
 div.content ul {
     list-style: disc;
     padding-left: 2em;
@@ -378,7 +390,7 @@ th {
     font-size: 14px;
 }
 
-.entry .comment form span {
+.entry .comment form .cancelcommand {
     display: inline-block;
     text-align: center;
     cursor: pointer;
