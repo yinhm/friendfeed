@@ -52,7 +52,7 @@
   },
   "scripts": {
     "dev": "vite build --watch --mode development",
-    "build": "vite build && node scripts/verify-tailwind-build.mjs && node scripts/publish-build.mjs",
+    "build": "vite build && node scripts/verify-tailwind-build.mjs && node scripts/verify-bundle-size.mjs && node scripts/publish-build.mjs",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
