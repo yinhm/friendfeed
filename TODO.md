@@ -159,11 +159,12 @@
 
 ## 13. 常态卫生
 
-- [ ] 配置 Renovate/Dependabot，全局启用 pnpm `minimumReleaseAge`（Radix 例外清单已在 `pnpm-workspace.yaml`），将大迁移转为持续小步升级。
+- [x] 已配置 Dependabot：前端 pnpm 与根目录 Go modules 每周分组更新 minor/patch，major 保持人工迁移；pnpm 全局启用 `minimumReleaseAge`，Radix 安装链例外显式记录在 `pnpm-workspace.yaml`。
 - [x] 评估 TypeScript 7（tsgo）：tsconfig 迁移为无 `baseUrl` 的相对 `paths`（TS 5.9 与 TS7 双兼容）+ `*.css` 声明；`typecheck:tsgo` 可用且零错误，本项目实测 tsc 13.7s → tsgo 6.9s（约 2x）；正式门禁仍用 tsc，TS7 待稳定后切换。
 - [x] 点名升级老次要依赖：`lucide-react` 0.359→1.25.0（上游移除 Twitter 品牌图标，本地无使用点随删）、`tailwind-merge` 2→3.6.0（Tailwind 4 官配）、`@ariakit/react` 0.4.6→0.4.34；`date-fns` 零引用删除；`react-dnd` 已于 12.4 移除。editor chunk 1,397,100→1,415,682 B（新依赖略大，已记录）。
 - [x] Playwright E2E 覆盖读写主链路：`scripts/e2e/` 起临时后端与 web（随机端口防僵尸冲突），通过 `ForceArchiveFeed` 播种 public 内容；再经 `PutOAuth` 创建临时用户、注入正常签名 session，验证 Home 懒加载 editor、编辑、提交与回显，并断言 public 不请求 editor chunk。
 - [x] production build 增加 bundle 体积门禁：分别限制主入口、静态 rawBody renderer、懒加载 editor 和 CSS 的原始及 gzip 字节数，显著增长必须显式审核并调整预算。
 - [x] Vitest 增加 V8 coverage 基线：覆盖全部自有 `src` 生产源码，生成终端、JSON summary 和 HTML 报告；CI 执行 coverage 测试，先观察真实数据，不设置缺乏依据的全局阈值。
+- [x] 完成 2026-07-22 同主版本卫生更新：PostCSS 8.5.20→8.5.21、typescript-eslint 8.64.0→8.65.0；其余候选均为需要独立验证的 major。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。
