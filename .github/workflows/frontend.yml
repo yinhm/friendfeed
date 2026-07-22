@@ -7,6 +7,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'httpd/**'
+      - 'scripts/e2e/**'
+      - '**/*.go'
   push:
     branches:
       - master
@@ -15,6 +17,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'httpd/**'
+      - 'scripts/e2e/**'
+      - '**/*.go'
 
 permissions:
   contents: read
@@ -73,3 +77,11 @@ jobs:
 
       - name: Test embedded web server
         run: go test ./httpd/...
+
+      - name: Install Playwright Chromium
+        working-directory: httpd/app
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Test browser read and publish flows
+        working-directory: httpd/app
+        run: pnpm run test:e2e
