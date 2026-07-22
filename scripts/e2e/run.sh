@@ -50,6 +50,7 @@ cat > "$TMP/gauth.json" <<EOF
 EOF
 
 cd "$ROOT"
+pnpm --dir httpd/app run build
 go build -o "$TMP/ffdb" .
 go build -o "$TMP/ffweb" ./httpd
 "$TMP/ffdb" -c "$TMP/config.json" >"$TMP/backend.log" 2>&1 &

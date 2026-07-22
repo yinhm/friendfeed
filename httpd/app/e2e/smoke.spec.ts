@@ -113,3 +113,34 @@ test('authenticated owner can edit an existing entry', async ({
   await expect(entry.locator('.content')).toContainText(editedText);
   await expect(entry.locator('[contenteditable="true"]')).toHaveCount(0);
 });
+
+test('authenticated user can comment on an entry', async ({ context, page }) => {
+  const baseURL = process.env.E2E_BASE_URL;
+  const sessionCookie = process.env.E2E_SESSION_COOKIE;
+  if (!baseURL || !sessionCookie) {
+    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
+  }
+
+  await context.addCookies([
+    {
+      name: 'ffdbsess',
+      value: sessionCookie,
+      url: baseURL,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+
+  await page.goto('/public');
+
+  const entry = page.locator('[data-eid]', { hasText: 'E2E smoke' });
+  await entry.getByRole('link', { name: 'Comment' }).click();
+
+  const commentText = `E2E comment ${Date.now()}`;
+  const comment = entry.getByRole('textbox', { name: 'Comment' });
+  await comment.fill(commentText);
+  await entry.getByRole('button', { name: 'Post' }).click();
+
+  await expect(entry.locator('.comment').filter({ hasText: commentText })).toBeVisible();
+  await expect(comment).toHaveCount(0);
+});

@@ -13,6 +13,19 @@ test('initializes the textarea from commentBody', () => {
     />
   );
   expect(screen.getByRole('textbox')).toHaveValue('preserved draft');
+  expect(screen.getByRole('textbox')).toHaveAccessibleName('Comment');
+});
+
+test('labels an existing comment editor distinctly', () => {
+  render(
+    <EntryCommentForm
+      commentId="comment-1"
+      onSubmitComment={noop}
+      onCancelComment={noop}
+    />
+  );
+
+  expect(screen.getByRole('textbox')).toHaveAccessibleName('Edit comment');
 });
 
 test('submit calls onSubmitComment with id and current text, then clears', () => {

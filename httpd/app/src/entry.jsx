@@ -649,6 +649,7 @@ export function EntryCommentForm(props) {
         <div className="comment form">
         <form method="post">
           <textarea autoFocus name="body"
+                    aria-label={props.commentId ? 'Edit comment' : 'Comment'}
                     onChange={handleChange}
                     value={value} />
           <input type="submit" value="Post"

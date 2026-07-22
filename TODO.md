@@ -175,5 +175,6 @@
 - [x] 将现有 Playwright 主链路接入 CI：安装 Chromium，执行 public 只读与登录 Home 发帖测试，并让 E2E/Go 源码变更准确触发 workflow。
 - [x] 强化 E2E 编排：按实际 PID 清理临时服务，明确判定 30 秒 readiness 超时，并在失败清理前输出 backend/web 日志。
 - [x] 补齐 owner 编辑 E2E：以登录 profile 播种自有 entry，在 public 页进入内联编辑器、提交并验证更新后的内容回显与编辑器关闭。
+- [x] 补齐评论发布 E2E：验证登录用户展开评论表单、提交到后端并回显；同时为新建/编辑评论 textarea 增加稳定的可访问名称。E2E 编排固定先构建当前前端，杜绝误测旧 embed bundle。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。
