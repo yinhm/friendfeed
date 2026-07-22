@@ -1,5 +1,23 @@
 // @ts-check
-import { expect, test } from '@playwright/test';
+import { expect, test, type BrowserContext } from '@playwright/test';
+
+async function authenticate(context: BrowserContext) {
+  const baseURL = process.env.E2E_BASE_URL;
+  const sessionCookie = process.env.E2E_SESSION_COOKIE;
+  if (!baseURL || !sessionCookie) {
+    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
+  }
+
+  await context.addCookies([
+    {
+      name: 'ffdbsess',
+      value: sessionCookie,
+      url: baseURL,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+}
 
 test('public feed renders seeded entries end to end', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -34,21 +52,7 @@ test('authenticated user can publish from the Home editor', async ({
   context,
   page,
 }) => {
-  const baseURL = process.env.E2E_BASE_URL;
-  const sessionCookie = process.env.E2E_SESSION_COOKIE;
-  if (!baseURL || !sessionCookie) {
-    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
-  }
-
-  await context.addCookies([
-    {
-      name: 'ffdbsess',
-      value: sessionCookie,
-      url: baseURL,
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ]);
+  await authenticate(context);
 
   const editorRequests: string[] = [];
   page.on('request', (request) => {
@@ -74,21 +78,7 @@ test('authenticated owner can edit an existing entry', async ({
   context,
   page,
 }) => {
-  const baseURL = process.env.E2E_BASE_URL;
-  const sessionCookie = process.env.E2E_SESSION_COOKIE;
-  if (!baseURL || !sessionCookie) {
-    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
-  }
-
-  await context.addCookies([
-    {
-      name: 'ffdbsess',
-      value: sessionCookie,
-      url: baseURL,
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ]);
+  await authenticate(context);
 
   await page.goto('/public');
 
@@ -115,21 +105,7 @@ test('authenticated owner can edit an existing entry', async ({
 });
 
 test('authenticated user can comment on an entry', async ({ context, page }) => {
-  const baseURL = process.env.E2E_BASE_URL;
-  const sessionCookie = process.env.E2E_SESSION_COOKIE;
-  if (!baseURL || !sessionCookie) {
-    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
-  }
-
-  await context.addCookies([
-    {
-      name: 'ffdbsess',
-      value: sessionCookie,
-      url: baseURL,
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ]);
+  await authenticate(context);
 
   await page.goto('/public');
 
@@ -149,21 +125,7 @@ test('authenticated user can like and unlike an entry', async ({
   context,
   page,
 }) => {
-  const baseURL = process.env.E2E_BASE_URL;
-  const sessionCookie = process.env.E2E_SESSION_COOKIE;
-  if (!baseURL || !sessionCookie) {
-    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
-  }
-
-  await context.addCookies([
-    {
-      name: 'ffdbsess',
-      value: sessionCookie,
-      url: baseURL,
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ]);
+  await authenticate(context);
 
   await page.goto('/public');
 
@@ -189,21 +151,7 @@ test('authenticated owner can confirm and delete an entry', async ({
   context,
   page,
 }) => {
-  const baseURL = process.env.E2E_BASE_URL;
-  const sessionCookie = process.env.E2E_SESSION_COOKIE;
-  if (!baseURL || !sessionCookie) {
-    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
-  }
-
-  await context.addCookies([
-    {
-      name: 'ffdbsess',
-      value: sessionCookie,
-      url: baseURL,
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ]);
+  await authenticate(context);
 
   await page.goto('/public');
 
