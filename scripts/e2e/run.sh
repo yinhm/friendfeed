@@ -9,6 +9,7 @@ GRPC_PORT=$((20000 + RANDOM % 20000))
 WEB_PORT=$((46000 + RANDOM % 10000))
 GRPC_ADDR="localhost:$GRPC_PORT"
 export E2E_BASE_URL="http://localhost:$WEB_PORT"
+SESSION_KEY="e2e-session-key"
 
 cleanup() {
   # kill by exact temp-binary path so stale servers from aborted runs
@@ -39,14 +40,18 @@ EOF
 
 cd "$ROOT"
 go build -o "$TMP/ffdb" . && "$TMP/ffdb" -c "$TMP/config.json" >"$TMP/backend.log" 2>&1 &
-go build -o "$TMP/ffweb" ./httpd && "$TMP/ffweb" -rpc "$GRPC_ADDR" -p "$WEB_PORT" -c "$TMP/config.json" >"$TMP/web.log" 2>&1 &
+go build -o "$TMP/ffweb" ./httpd && "$TMP/ffweb" -rpc "$GRPC_ADDR" -p "$WEB_PORT" -s "$SESSION_KEY" -c "$TMP/config.json" >"$TMP/web.log" 2>&1 &
 
 for _ in $(seq 1 30); do
   if curl -fs "$E2E_BASE_URL/public" -o /dev/null 2>&1; then break; fi
   sleep 1
 done
 
-go run ./scripts/e2e/seed -addr "$GRPC_ADDR"
+go run ./scripts/e2e/seed \
+  -addr "$GRPC_ADDR" \
+  -session-key "$SESSION_KEY" \
+  -session-cookie-file "$TMP/session-cookie"
+export E2E_SESSION_COOKIE="$(<"$TMP/session-cookie")"
 
 cd "$ROOT/httpd/app"
 pnpm exec playwright test "$@"

@@ -7,9 +7,12 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net/http/httptest"
+	"os"
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/gorilla/sessions"
 	"github.com/yinhm/friendfeed/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -17,6 +20,8 @@ import (
 
 func main() {
 	addr := flag.String("addr", "localhost:12119", "ffdb gRPC address")
+	sessionKey := flag.String("session-key", "", "ffweb cookie signing key")
+	sessionCookieFile := flag.String("session-cookie-file", "", "file to receive the signed ffweb session cookie")
 	flag.Parse()
 
 	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -26,6 +31,23 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewApiClient(conn)
+	ctx := context.Background()
+	authUser := &pb.OAuthUser{
+		UserId:   "e2e-user-id",
+		Name:     "e2e-user",
+		NickName: "E2E User",
+		Provider: "google",
+	}
+	profile, err := client.PutOAuth(ctx, authUser)
+	if err != nil {
+		log.Fatalf("PutOAuth: %v", err)
+	}
+	if *sessionKey != "" && *sessionCookieFile != "" {
+		if err := writeSessionCookie(*sessionCookieFile, *sessionKey, authUser.UserId, profile.Uuid); err != nil {
+			log.Fatalf("write session cookie: %v", err)
+		}
+	}
+
 	stream, err := client.ForceArchiveFeed(context.Background())
 	if err != nil {
 		log.Fatalf("ForceArchiveFeed: %v", err)
@@ -63,4 +85,24 @@ func main() {
 		log.Fatalf("close: %v", err)
 	}
 	log.Printf("seeded %d entries", summary.EntryCount)
+}
+
+func writeSessionCookie(path, key, userID, profileUUID string) error {
+	store := sessions.NewCookieStore([]byte(key))
+	request := httptest.NewRequest("GET", "/", nil)
+	recorder := httptest.NewRecorder()
+	session, err := store.New(request, "ffdbsess")
+	if err != nil {
+		return err
+	}
+	session.Values["user_id"] = userID
+	session.Values["uuid"] = profileUUID
+	if err := session.Save(request, recorder); err != nil {
+		return err
+	}
+	cookies := recorder.Result().Cookies()
+	if len(cookies) != 1 {
+		return os.ErrInvalid
+	}
+	return os.WriteFile(path, []byte(cookies[0].Value), 0o600)
 }
