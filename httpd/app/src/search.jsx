@@ -8,9 +8,9 @@ export function Search() {
 
     return (
         <div className="section">
-            <h3>Search</h3>
+            <h3><label htmlFor="search-query">Search</label></h3>
             <form action="/search">
-                <input name="q" type="search"
+                <input id="search-query" name="q" type="search"
                     value={value}
                     onChange={(e) => setValue(e.target.value)} />
             </form>

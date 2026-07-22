@@ -171,5 +171,6 @@
 - [x] 补齐 `utils.js` 请求边界测试：锁定同源凭据、URL-encoded command、FormData 不覆盖 multipart boundary、JSON 解码、诊断输出和 `intersperse`，不为覆盖率改生产接口。
 - [x] 补齐 Search 表单契约测试：锁定浏览器默认 GET、`/search` action、`q` 参数名和受控输入，保护服务端既有 `/search?q=` 接口。
 - [x] 补齐响应式侧栏测试：锁定无侧栏页面安全返回、桌面展开、移动端折叠及 media query change 后同步状态。
+- [x] 建立核心只读界面的 axe 可访问性冒烟测试；为搜索框补齐与现有标题一致的可访问名称，不改变 `/search?q=` 契约。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。

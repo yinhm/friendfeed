@@ -84,6 +84,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "4.1.10",
+    "axe-core": "^4.12.1",
     "eslint": "10.7.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.7.0",
