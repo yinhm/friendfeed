@@ -166,5 +166,6 @@
 - [x] production build 增加 bundle 体积门禁：分别限制主入口、静态 rawBody renderer、懒加载 editor 和 CSS 的原始及 gzip 字节数，显著增长必须显式审核并调整预算。
 - [x] Vitest 增加 V8 coverage 基线：覆盖全部自有 `src` 生产源码，生成终端、JSON summary 和 HTML 报告；CI 执行 coverage 测试，先观察真实数据，不设置缺乏依据的全局阈值。
 - [x] 完成 2026-07-22 同主版本卫生更新：PostCSS 8.5.20→8.5.21、typescript-eslint 8.64.0→8.65.0；其余候选均为需要独立验证的 major。
+- [x] `@testing-library/jest-dom` 6.9.1→7.0.0：继续使用 Vitest 专用入口，现有 `@testing-library/dom` 10.4.1 满足新 peer 契约，测试断言行为保持不变。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。
