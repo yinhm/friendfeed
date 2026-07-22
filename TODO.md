@@ -169,5 +169,6 @@
 - [x] `@testing-library/jest-dom` 6.9.1→7.0.0：继续使用 Vitest 专用入口，现有 `@testing-library/dom` 10.4.1 满足新 peer 契约，测试断言行为保持不变。
 - [x] `react-lite-youtube-embed` 2.6.0→3.6.0：锁定 wrapper、播放按钮和 privacy-enhanced iframe 契约；3.6.0 仍引用未随 npm 包发布的 source map，测试噪音是已确认的上游发布问题，不在本地静默屏蔽。
 - [x] 补齐 `utils.js` 请求边界测试：锁定同源凭据、URL-encoded command、FormData 不覆盖 multipart boundary、JSON 解码、诊断输出和 `intersperse`，不为覆盖率改生产接口。
+- [x] 补齐 Search 表单契约测试：锁定浏览器默认 GET、`/search` action、`q` 参数名和受控输入，保护服务端既有 `/search?q=` 接口。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。
