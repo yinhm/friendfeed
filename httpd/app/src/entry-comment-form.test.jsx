@@ -40,7 +40,9 @@ test('submit calls onSubmitComment with id and current text, then clears', () =>
 
   const textarea = screen.getByRole('textbox');
   fireEvent.change(textarea, {target: {value: 'edited body'}});
-  fireEvent.click(screen.getByRole('button', {name: 'Post'}));
+  fireEvent.submit(
+    /** @type {HTMLFormElement} */ (textarea.closest('form'))
+  );
 
   expect(onSubmitComment).toHaveBeenCalledOnce();
   const [id, body] = onSubmitComment.mock.calls[0];

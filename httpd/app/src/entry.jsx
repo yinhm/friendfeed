@@ -629,7 +629,7 @@ export function EntryCommentForm(props) {
     setValue(event.target.value);
   };
 
-  /** @param {React.MouseEvent<HTMLInputElement>} event */
+  /** @param {React.FormEvent<HTMLFormElement>} event */
   const onSubmitComment = (event) =>  {
     event.preventDefault();
     if (!value) {
@@ -647,13 +647,12 @@ export function EntryCommentForm(props) {
 
   return (
         <div className="comment form">
-        <form method="post">
+        <form method="post" onSubmit={onSubmitComment}>
           <textarea autoFocus name="body"
                     aria-label={props.commentId ? 'Edit comment' : 'Comment'}
                     onChange={handleChange}
                     value={value} />
-          <input type="submit" value="Post"
-                 onClick={onSubmitComment} />
+          <input type="submit" value="Post" />
           <button type="button" className="inline-action cancelcommand"
                   onClick={onCancelComment}>Cancel</button>
         </form>
