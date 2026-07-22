@@ -17,7 +17,7 @@
 - [x] Twitter 客户端：`github.com/dghubble/go-twitter` 2021-06-09 → 2022-11-04；确认客户端仍使用调用方注入的 OAuth HTTP client，项目使用的 timeline API 契约未变。
 - [x] OAuth provider：`github.com/markbates/goth` 1.67.1 → 1.82.0；锁定 Google/Twitter callback 的 provider 解析，保持 `provider:user-id` 身份键入口不变。
 - [x] 配置：`github.com/spf13/viper` 1.8.1 → 1.21.0；锁定显式 `config.json` 路径、JSON 值和环境变量读取语义。
-- [ ] 搜索：`github.com/blevesearch/bleve/v2` 2.4.0 → 2.6.0；让 `bleve_index_api` 随主模块解析，验证既有磁盘索引可打开以及 rebuild 流程。
+- [x] 搜索：`github.com/blevesearch/bleve/v2` 2.4.0 → 2.6.0；`bleve_index_api` 随主模块升级到 1.3.11，实测新版可打开并查询 2.4 创建的索引，并锁定索引关闭后重开查询。
 - [ ] 分词：`github.com/go-ego/gse` 0.80.2 → 1.0.2；比较中英文切词和搜索结果，不仅检查编译。
 - [ ] 实验库：`golang.org/x/exp` 2024-08-23 → 2026-07-18；先盘点使用 API，再独立升级。
 - [ ] Go 版本：单独评估将 `go` 指令从 1.25 提升到 1.26；不能夹带在依赖升级中。

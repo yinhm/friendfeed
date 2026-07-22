@@ -11,8 +11,9 @@ import (
 
 func TestSearch(t *testing.T) {
 	dbpath := t.TempDir()
+	indexPath := filepath.Join(dbpath, "index")
 
-	InitIndexService(filepath.Join(dbpath, "index"))
+	InitIndexService(indexPath)
 
 	id := "2b43a9066074d120ed2e45494eea1797"
 	body := "张无忌对张三丰说：“太师父，武当山的生活太寂寞了，只有清风和明月两个朋友能陪我玩。”"
@@ -34,5 +35,11 @@ func TestSearch(t *testing.T) {
 		log.Printf("%s, (%f)\n", hit.ID, hit.Score)
 	}
 
-	Indexer.Close()
+	assert.NoError(t, Indexer.Close())
+
+	Indexer = NewIndex(indexPath)
+	t.Cleanup(func() { assert.NoError(t, Indexer.Close()) })
+	res, err = Indexer.Search(bReq)
+	assert.NoError(t, err)
+	assert.Len(t, res.Hits, 2)
 }
