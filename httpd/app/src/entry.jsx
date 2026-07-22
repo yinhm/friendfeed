@@ -360,7 +360,7 @@ function EntryPicture(props) {
   return (
     <div className="picture">
       <a href={'/feed/'+feed.id}>
-        <img src={feed.picture} alt={feed.title} /></a>
+        <img src={feed.picture} alt={feed.name} /></a>
     </div>
   );
 }
@@ -417,13 +417,13 @@ function EntryMedia(props) {
       height: thumb.height+"px"
     }
     return (
-      <a href={thumb.link}>
+      <a href={thumb.link} aria-label="Open media">
         <img src={thumb.url} style={attrs} alt="" />
       </a>
     );
   } else {
     return (
-      <a href={thumb.link}>
+      <a href={thumb.link} aria-label="Open media">
         <img src={thumb.url} alt="" />
       </a>
     );
@@ -495,7 +495,7 @@ function EntryInfo(props) {
 
   return (
     <div className="info">
-      <a href={'/e/'+entry.id} className="permalink">{entry.date}</a>
+      <a href={'/e/'+entry.id} className="permalink" aria-label="Permalink">{entry.date}</a>
       {via}
       {infos}
     </div>

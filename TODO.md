@@ -182,5 +182,6 @@
 - [x] 修复取消操作的键盘可访问性：评论取消和删除取消由 click-only span 改为语义按钮，以最小 CSS 保持原外观，并覆盖取消删除的 E2E 分支。
 - [x] 纠正 entry 动作语义：Like、Comment、Edit、Delete 及折叠展开由 `#nolink` 假链接改为可聚焦按钮；真实导航链接保持不变，沿用原链接色外观。
 - [x] 纠正 FeedHeader 动作语义：Follow/Unfollow 改为保持原蓝色外观的按钮，并以行为测试锁定 `/a/follow` 参数和双向状态切换。
+- [x] 补齐图片链接的可访问名称：FeedHeader/entry 头像使用 feed 名称，entry 缩略图链接声明 Open media；axe 冒烟改用含 header、entry 和 media 的真实结构 fixture，并保证缺日期时 permalink 仍有名称。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。

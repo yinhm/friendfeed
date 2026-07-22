@@ -20,8 +20,31 @@ async function expectNoAccessibilityViolations(container) {
 
 test('public feed has no detectable accessibility violations', async () => {
   window.appData = {
-    feed: { id: 'public', uuid: 'public', entries: [] },
-    show_header: false,
+    feed: {
+      id: 'public',
+      uuid: 'public',
+      name: 'Public Feed',
+      picture: '/public-avatar.png',
+      entries: [
+        {
+          id: 'entry-1',
+          body: 'Accessible entry',
+          commands: [],
+          from: {
+            id: 'author',
+            name: 'Entry Author',
+            picture: '/author-avatar.png',
+          },
+          thumbnails: [
+            {
+              link: '/media/original',
+              url: '/media/thumbnail.png',
+            },
+          ],
+        },
+      ],
+    },
+    show_header: true,
     show_paging: false,
     show_share: false,
     prev_start: 0,

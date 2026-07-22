@@ -121,7 +121,7 @@ function FeedHeader(props) {
   return (
     <div className="header">
       <div className="picture"><a href={"/feed/" + props.feedId}>
-        <img src={props.picture} alt="" /></a>
+        <img src={props.picture} alt={props.name ?? ''} /></a>
       </div>
       <div className="body">
         <h1><a href={"/feed/" + props.feedId}>{props.name}</a></h1>
