@@ -184,3 +184,43 @@ test('authenticated user can like and unlike an entry', async ({
   ).toBeVisible();
   await expect(entry.locator('.likes')).toHaveCount(0);
 });
+
+test('authenticated owner can confirm and delete an entry', async ({
+  context,
+  page,
+}) => {
+  const baseURL = process.env.E2E_BASE_URL;
+  const sessionCookie = process.env.E2E_SESSION_COOKIE;
+  if (!baseURL || !sessionCookie) {
+    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
+  }
+
+  await context.addCookies([
+    {
+      name: 'ffdbsess',
+      value: sessionCookie,
+      url: baseURL,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+
+  await page.goto('/public');
+
+  const originalEntry = page.locator('[data-eid]', {
+    hasText: 'E2E deletable original',
+  });
+  const entryId = await originalEntry.getAttribute('data-eid');
+  if (!entryId) {
+    throw new Error('deletable fixture is missing data-eid');
+  }
+  const entry = page.locator(`[data-eid="${entryId}"]`);
+  await entry.getByRole('link', { name: 'Delete', exact: true }).click();
+  await expect(entry).toContainText('Confirm Delete');
+  await entry.getByRole('link', { name: '确定', exact: true }).click();
+
+  await expect(entry).toContainText('entry deleted.');
+
+  await page.reload();
+  await expect(page.getByText('E2E deletable original')).toHaveCount(0);
+});

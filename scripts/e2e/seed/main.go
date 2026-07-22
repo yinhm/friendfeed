@@ -85,6 +85,16 @@ func main() {
 			Date:        time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
 			Commands:    []string{"comment", "edit", "delete"},
 		},
+		{
+			Id:          uuid.Must(uuid.NewV4()).String(),
+			ProfileUuid: profile.Uuid,
+			FeedUuid:    profile.Uuid,
+			From:        owner,
+			Body:        `<p>E2E deletable original</p>`,
+			RawBody:     `[{"type":"p","children":[{"text":"E2E deletable original"}]}]`,
+			Date:        time.Now().Add(2 * time.Minute).UTC().Format(time.RFC3339),
+			Commands:    []string{"comment", "edit", "delete"},
+		},
 	} {
 		if err := stream.Send(entry); err != nil {
 			log.Fatalf("send: %v", err)
