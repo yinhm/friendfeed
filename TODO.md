@@ -181,5 +181,6 @@
 - [x] 收敛 E2E 登录夹具：session cookie 的名称、属性和必需环境变量集中在单一 helper，避免多个读写用例的认证契约漂移。
 - [x] 修复取消操作的键盘可访问性：评论取消和删除取消由 click-only span 改为语义按钮，以最小 CSS 保持原外观，并覆盖取消删除的 E2E 分支。
 - [x] 纠正 entry 动作语义：Like、Comment、Edit、Delete 及折叠展开由 `#nolink` 假链接改为可聚焦按钮；真实导航链接保持不变，沿用原链接色外观。
+- [x] 纠正 FeedHeader 动作语义：Follow/Unfollow 改为保持原蓝色外观的按钮，并以行为测试锁定 `/a/follow` 参数和双向状态切换。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。

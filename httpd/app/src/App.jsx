@@ -104,16 +104,16 @@ function FeedHeader(props) {
     var command = commands[0];
     if (command === "follow") {
       followBtn = (
-        <a href="#nolink" onClick={handleFollow}>
+        <button type="button" className="inline-action header-action" onClick={handleFollow}>
           Follow
-        </a>
+        </button>
       )
     }
     if (command === "unfollow") {
       followBtn = (
-        <a href="#nolink" onClick={handleUnfollow}>
+        <button type="button" className="inline-action header-action" onClick={handleUnfollow}>
           Unfollow
-        </a>
+        </button>
       )
     }
   }

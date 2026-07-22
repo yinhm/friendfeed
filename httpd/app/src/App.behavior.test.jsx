@@ -1,15 +1,17 @@
 import React from 'react';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 
-const {getJSONMock, postFormMock} = vi.hoisted(() => ({
+const {getJSONMock, postFormMock, postJSONMock} = vi.hoisted(() => ({
   getJSONMock: vi.fn(),
   postFormMock: vi.fn(),
+  postJSONMock: vi.fn(),
 }));
 
 vi.mock('./utils', async (importOriginal) => ({
   ...(await importOriginal()),
   getJSON: getJSONMock,
   postForm: postFormMock,
+  postJSON: postJSONMock,
 }));
 
 vi.mock('./editor', () => ({
@@ -89,4 +91,35 @@ test('Feed prepends a successfully posted entry', async () => {
   expect(
     [...container.querySelectorAll('.entry .content')].map((node) => node.textContent)
   ).toEqual(['Newest entry', 'Old entry']);
+});
+
+test('Feed header follows and unfollows with semantic actions', async () => {
+  postJSONMock.mockResolvedValue({});
+  const feed = {
+    id: 'friend-feed',
+    uuid: 'feed-uuid',
+    name: 'Friend Feed',
+    commands: ['follow'],
+    entries: [],
+  };
+
+  render(<Feed {...makeFeedProps({feed, show_header: true})} />);
+
+  fireEvent.click(screen.getByRole('button', {name: 'Follow'}));
+  await waitFor(() => {
+    expect(postJSONMock).toHaveBeenCalledWith('/a/follow', {
+      feed_uuid: 'feed-uuid',
+      action: 'follow',
+    });
+  });
+  expect(screen.getByRole('button', {name: 'Unfollow'})).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', {name: 'Unfollow'}));
+  await waitFor(() => {
+    expect(postJSONMock).toHaveBeenLastCalledWith('/a/follow', {
+      feed_uuid: 'feed-uuid',
+      action: 'unfollow',
+    });
+  });
+  expect(screen.getByRole('button', {name: 'Follow'})).toBeInTheDocument();
 });
