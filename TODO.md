@@ -173,5 +173,6 @@
 - [x] 补齐响应式侧栏测试：锁定无侧栏页面安全返回、桌面展开、移动端折叠及 media query change 后同步状态。
 - [x] 建立核心只读界面的 axe 可访问性冒烟测试；为搜索框补齐与现有标题一致的可访问名称，不改变 `/search?q=` 契约。
 - [x] 将现有 Playwright 主链路接入 CI：安装 Chromium，执行 public 只读与登录 Home 发帖测试，并让 E2E/Go 源码变更准确触发 workflow。
+- [x] 强化 E2E 编排：按实际 PID 清理临时服务，明确判定 30 秒 readiness 超时，并在失败清理前输出 backend/web 日志。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。

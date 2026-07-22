@@ -10,13 +10,24 @@ WEB_PORT=$((46000 + RANDOM % 10000))
 GRPC_ADDR="localhost:$GRPC_PORT"
 export E2E_BASE_URL="http://localhost:$WEB_PORT"
 SESSION_KEY="e2e-session-key"
+BACKEND_PID=""
+WEB_PID=""
 
 cleanup() {
-  # kill by exact temp-binary path so stale servers from aborted runs
-  # cannot accumulate (and never touch system/production ffdb).
-  pkill -f "^$TMP/ffdb" 2>/dev/null || true
-  pkill -f "^$TMP/ffweb" 2>/dev/null || true
+  status=$?
+  trap - EXIT
+  if ((status != 0)); then
+    echo "E2E backend log:" >&2
+    sed 's/^/  /' "$TMP/backend.log" >&2 2>/dev/null || true
+    echo "E2E web log:" >&2
+    sed 's/^/  /' "$TMP/web.log" >&2 2>/dev/null || true
+  fi
+  [[ -z "$WEB_PID" ]] || kill "$WEB_PID" 2>/dev/null || true
+  [[ -z "$BACKEND_PID" ]] || kill "$BACKEND_PID" 2>/dev/null || true
+  [[ -z "$WEB_PID" ]] || wait "$WEB_PID" 2>/dev/null || true
+  [[ -z "$BACKEND_PID" ]] || wait "$BACKEND_PID" 2>/dev/null || true
   rm -rf "$TMP"
+  exit "$status"
 }
 trap cleanup EXIT
 
@@ -39,13 +50,25 @@ cat > "$TMP/gauth.json" <<EOF
 EOF
 
 cd "$ROOT"
-go build -o "$TMP/ffdb" . && "$TMP/ffdb" -c "$TMP/config.json" >"$TMP/backend.log" 2>&1 &
-go build -o "$TMP/ffweb" ./httpd && "$TMP/ffweb" -rpc "$GRPC_ADDR" -p "$WEB_PORT" -s "$SESSION_KEY" -c "$TMP/config.json" >"$TMP/web.log" 2>&1 &
+go build -o "$TMP/ffdb" .
+go build -o "$TMP/ffweb" ./httpd
+"$TMP/ffdb" -c "$TMP/config.json" >"$TMP/backend.log" 2>&1 &
+BACKEND_PID=$!
+"$TMP/ffweb" -rpc "$GRPC_ADDR" -p "$WEB_PORT" -s "$SESSION_KEY" -c "$TMP/config.json" >"$TMP/web.log" 2>&1 &
+WEB_PID=$!
 
+ready=0
 for _ in $(seq 1 30); do
-  if curl -fs "$E2E_BASE_URL/public" -o /dev/null 2>&1; then break; fi
+  if curl -fs "$E2E_BASE_URL/public" -o /dev/null 2>&1; then
+    ready=1
+    break
+  fi
   sleep 1
 done
+if ((ready == 0)); then
+  echo "E2E web server did not become ready within 30 seconds" >&2
+  exit 1
+fi
 
 go run ./scripts/e2e/seed \
   -addr "$GRPC_ADDR" \
