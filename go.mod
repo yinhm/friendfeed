@@ -8,7 +8,7 @@ require (
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/cupcake/text-entities-go v0.0.0-20140512000843-06c234d4d8ed
 	github.com/dghubble/go-twitter v0.0.0-20210609183100-2fdbf421508e // direct
-	github.com/dghubble/oauth1 v0.7.0 // direct
+	github.com/dghubble/oauth1 v0.7.3 // direct
 	github.com/disintegration/imaging v1.6.2
 	github.com/eapache/queue v1.1.0
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3
@@ -20,7 +20,7 @@ require (
 	github.com/markbates/goth v1.67.1
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.11.1
