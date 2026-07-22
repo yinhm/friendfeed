@@ -11,9 +11,9 @@ test('expands placeholder likes once when clicked', () => {
     />
   );
 
-  const link = screen.getByRole('link', {name: '12 other people'});
-  fireEvent.click(link);
-  fireEvent.click(link);
+  const button = screen.getByRole('button', {name: '12 other people'});
+  fireEvent.click(button);
+  fireEvent.click(button);
 
   expect(expandLikes).toHaveBeenCalledTimes(1);
 });

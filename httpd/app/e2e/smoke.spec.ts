@@ -90,7 +90,7 @@ test('authenticated owner can edit an existing entry', async ({
     throw new Error('editable fixture is missing data-eid');
   }
   const entry = page.locator(`[data-eid="${entryId}"]`);
-  await entry.getByRole('link', { name: 'Edit' }).click();
+  await entry.getByRole('button', { name: 'Edit' }).click();
 
   const editor = entry.locator('[contenteditable="true"]');
   await expect(editor).toBeVisible();
@@ -110,7 +110,7 @@ test('authenticated user can comment on an entry', async ({ context, page }) => 
   await page.goto('/public');
 
   const entry = page.locator('[data-eid]', { hasText: 'E2E smoke' });
-  await entry.getByRole('link', { name: 'Comment' }).click();
+  await entry.getByRole('button', { name: 'Comment' }).click();
 
   const commentText = `E2E comment ${Date.now()}`;
   const comment = entry.getByRole('textbox', { name: 'Comment' });
@@ -132,17 +132,17 @@ test('authenticated user can like and unlike an entry', async ({
   const entry = page.locator('[data-eid]', {
     hasText: 'E2E second entry plain text',
   });
-  await entry.getByRole('link', { name: 'Like', exact: true }).click();
+  await entry.getByRole('button', { name: 'Like', exact: true }).click();
 
   await expect(
-    entry.getByRole('link', { name: 'Unlike', exact: true })
+    entry.getByRole('button', { name: 'Unlike', exact: true })
   ).toBeVisible();
   await expect(entry.locator('.likes')).toContainText('E2E User liked this');
 
-  await entry.getByRole('link', { name: 'Unlike', exact: true }).click();
+  await entry.getByRole('button', { name: 'Unlike', exact: true }).click();
 
   await expect(
-    entry.getByRole('link', { name: 'Like', exact: true })
+    entry.getByRole('button', { name: 'Like', exact: true })
   ).toBeVisible();
   await expect(entry.locator('.likes')).toHaveCount(0);
 });
@@ -163,13 +163,13 @@ test('authenticated owner can confirm and delete an entry', async ({
     throw new Error('deletable fixture is missing data-eid');
   }
   const entry = page.locator(`[data-eid="${entryId}"]`);
-  await entry.getByRole('link', { name: 'Delete', exact: true }).click();
+  await entry.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(entry).toContainText('Confirm Delete');
   await entry.getByRole('button', { name: '取消', exact: true }).click();
   await expect(entry).not.toContainText('Confirm Delete');
 
-  await entry.getByRole('link', { name: 'Delete', exact: true }).click();
-  await entry.getByRole('link', { name: '确定', exact: true }).click();
+  await entry.getByRole('button', { name: 'Delete', exact: true }).click();
+  await entry.getByRole('button', { name: '确定', exact: true }).click();
 
   await expect(entry).toContainText('entry deleted.');
 

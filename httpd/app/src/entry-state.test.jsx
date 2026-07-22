@@ -60,7 +60,7 @@ test('Entry keeps expanded likes when refreshed props contain a collapsed list',
     />
   );
 
-  fireEvent.click(screen.getByRole('link', {name: '1 other person'}));
+  fireEvent.click(screen.getByRole('button', {name: '1 other person'}));
   await waitFor(() => expect(screen.getByRole('link', {name: 'Alice'})).toBeInTheDocument());
 
   act(() => {
@@ -83,7 +83,7 @@ test('Entry keeps its original content while local editing is active', async () 
   const {rerender} = render(
     <Entry entry={makeEntry({commands: ['edit']})} onpage_edit={false} />
   );
-  fireEvent.click(screen.getByRole('link', {name: 'Edit'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Edit'}));
 
   await waitFor(() => {
     expect(screen.getByTestId('test-editor')).toHaveTextContent('original raw body');

@@ -33,7 +33,8 @@ export class EntryLike extends React.Component {
     const like = this.props.like;
     if (like.placeholder) {
       return (
-        <a href="#nolink" onClick={this.expandLikes}>{like.body}</a>
+        <button type="button" className="inline-action action-link"
+                onClick={this.expandLikes}>{like.body}</button>
       );
     }
 

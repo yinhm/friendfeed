@@ -508,13 +508,13 @@ function EntryInfo(props) {
  */
 class EntryCommandLike extends React.Component{
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   handleLike = (event) => {
     event.preventDefault();
     this.props.onLike?.();
   }
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   handleUnlike = (event) => {
     event.preventDefault();
     this.props.onUnlike?.();
@@ -523,15 +523,15 @@ class EntryCommandLike extends React.Component{
   render() {
     if (this.props.liked) {
       return (
-        <a href="#nolink" onClick={this.handleUnlike}>
+        <button type="button" className="inline-action action-link" onClick={this.handleUnlike}>
           Unlike
-        </a>
+        </button>
       );
     } else {
       return (
-        <a href="#nolink" onClick={this.handleLike}>
+        <button type="button" className="inline-action action-link" onClick={this.handleLike}>
           Like
-        </a>
+        </button>
       );
     }
   }
@@ -540,7 +540,7 @@ class EntryCommandLike extends React.Component{
 /** @extends {React.Component<{onNewComment: (source?: unknown) => void}>} */
 class EntryCommandComment extends React.Component{
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   handleClick = (event) => {
     event.preventDefault();
     this.props.onNewComment(this);
@@ -548,7 +548,7 @@ class EntryCommandComment extends React.Component{
 
   render() {
     return (
-      <a href="#nolink" onClick={this.handleClick}>Comment</a>
+      <button type="button" className="inline-action action-link" onClick={this.handleClick}>Comment</button>
     );
   }
 }
@@ -556,7 +556,7 @@ class EntryCommandComment extends React.Component{
 /** @extends {React.Component<{onEdit: (event: React.SyntheticEvent) => void}>} */
 class EntryCommandEdit extends React.Component{
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   handleClick = (event) => {
     event.preventDefault();
     this.props.onEdit(event);
@@ -564,7 +564,7 @@ class EntryCommandEdit extends React.Component{
 
   render() {
     return (
-      <a href="#nolink" className="editcommand" onClick={this.handleClick}>Edit</a>
+      <button type="button" className="inline-action action-link editcommand" onClick={this.handleClick}>Edit</button>
     );
   }
 }
@@ -578,13 +578,13 @@ class EntryCommandDelete extends React.Component{
     this.state = { isClicked: false }
   }
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   handleClick = (event) => {
     event.preventDefault();
     this.setState({isClicked:true}); 
   }
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   handleDelete = (event) => {
     event.preventDefault();
     this.props.onDelete(this);
@@ -604,12 +604,12 @@ class EntryCommandDelete extends React.Component{
         Confirm Delete 
         <button type="button" className="inline-action item deletecommand" onClick={this.handleCancel}> 取消 </button>
          / 
-        <a href="#nolink" className="deletecommand" onClick={this.handleDelete}> 确定 </a>
+        <button type="button" className="inline-action action-link deletecommand" onClick={this.handleDelete}> 确定 </button>
         </>
       );
     }
     return (
-      <a href="#nolink" className="deletecommand" onClick={this.handleClick}>Delete</a>
+      <button type="button" className="inline-action action-link deletecommand" onClick={this.handleClick}>Delete</button>
     );
   }
 }
@@ -716,20 +716,20 @@ class EntryComment extends React.Component{
     return null;
   }
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   expandComments = (event) => {
     event.preventDefault();
     this.props.expandComments();
   }
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   editComment = (event) => {
     event.preventDefault();
     this.props.editComment(this.state.comment);
     // this.setState({comment: this.state.comment});
   }
 
-  /** @param {React.MouseEvent<HTMLAnchorElement>} event */
+  /** @param {React.MouseEvent<HTMLButtonElement>} event */
   deleteComment = (event) => {
     event.preventDefault();
     var comment = this.props.deleteComment(this.state.comment);
@@ -752,9 +752,9 @@ class EntryComment extends React.Component{
       cmds = (
         <span className="commands">
           {" ( "}
-          <a href="#nolink" onClick={this.editComment}>Edit</a>
+          <button type="button" className="inline-action action-link" onClick={this.editComment}>Edit</button>
           {" | "}
-          <a href="#nolink" onClick={this.deleteComment}>Delete</a>
+          <button type="button" className="inline-action action-link" onClick={this.deleteComment}>Delete</button>
           {" )"}
         </span>
       );
@@ -763,7 +763,7 @@ class EntryComment extends React.Component{
     if (comment.placeholder) {
       return (
         <div className="comment placeholder">
-          <a href="#nolink" onClick={this.expandComments}>{comment.body}</a>
+          <button type="button" className="inline-action action-link" onClick={this.expandComments}>{comment.body}</button>
         </div>
       );
     } else {

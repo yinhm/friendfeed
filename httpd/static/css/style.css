@@ -44,6 +44,10 @@ button.inline-action {
     cursor: pointer;
 }
 
+button.action-link {
+    color: #77c;
+}
+
 div.content ul {
     list-style: disc;
     padding-left: 2em;
