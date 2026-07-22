@@ -1,6 +1,6 @@
 module github.com/yinhm/friendfeed
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/blevesearch/bleve/v2 v2.6.0
