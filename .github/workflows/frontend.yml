@@ -1,0 +1,75 @@
+name: Frontend
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/frontend.yml'
+      - 'go.mod'
+      - 'go.sum'
+      - 'httpd/**'
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/frontend.yml'
+      - 'go.mod'
+      - 'go.sum'
+      - 'httpd/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.18.0
+
+      - name: Enable locked pnpm version
+        working-directory: httpd/app
+        run: corepack enable && corepack install
+
+      - name: Install frontend dependencies
+        working-directory: httpd/app
+        env:
+          CI: true
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        working-directory: httpd/app
+        run: pnpm lint
+
+      - name: Type-check frontend
+        working-directory: httpd/app
+        run: pnpm run typecheck
+
+      - name: Test frontend
+        working-directory: httpd/app
+        env:
+          CI: true
+        run: pnpm test
+
+      - name: Build frontend
+        working-directory: httpd/app
+        run: pnpm run build
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test embedded web server
+        run: go test ./httpd/...
