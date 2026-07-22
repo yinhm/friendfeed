@@ -19,7 +19,8 @@ import (
 	"time"
 
 	"github.com/flosch/pongo2"
-	"github.com/gin-gonic/contrib/sessions"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	server "github.com/yinhm/friendfeed/httpd/src"
 	"github.com/yinhm/friendfeed/util"
@@ -127,7 +128,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	}
 	r.HTMLRender = friendRender
 	// session
-	store := sessions.NewCookieStore([]byte(options.SecretKey))
+	store := cookie.NewStore([]byte(options.SecretKey))
 	r.Use(sessions.Sessions("ffdbsess", store))
 	gothic.Store = store
 

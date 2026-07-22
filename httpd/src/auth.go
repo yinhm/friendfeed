@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gin-gonic/contrib/sessions"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth/gothic"
 	"github.com/patrickmn/go-cache"
