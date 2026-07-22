@@ -44,6 +44,17 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
+    coverage: {
+      provider: 'v8',
+      reportsDirectory: 'coverage',
+      reporter: ['text', 'json-summary', 'html'],
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{js,jsx,ts,tsx}',
+        'src/setupTests.js',
+        'src/vite-env.d.ts',
+      ],
+    },
     exclude: [...configDefaults.exclude, 'e2e/**'],
     environment: 'jsdom',
     globals: true,

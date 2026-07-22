@@ -164,5 +164,6 @@
 - [x] 点名升级老次要依赖：`lucide-react` 0.359→1.25.0（上游移除 Twitter 品牌图标，本地无使用点随删）、`tailwind-merge` 2→3.6.0（Tailwind 4 官配）、`@ariakit/react` 0.4.6→0.4.34；`date-fns` 零引用删除；`react-dnd` 已于 12.4 移除。editor chunk 1,397,100→1,415,682 B（新依赖略大，已记录）。
 - [x] Playwright E2E 覆盖读写主链路：`scripts/e2e/` 起临时后端与 web（随机端口防僵尸冲突），通过 `ForceArchiveFeed` 播种 public 内容；再经 `PutOAuth` 创建临时用户、注入正常签名 session，验证 Home 懒加载 editor、编辑、提交与回显，并断言 public 不请求 editor chunk。
 - [x] production build 增加 bundle 体积门禁：分别限制主入口、静态 rawBody renderer、懒加载 editor 和 CSS 的原始及 gzip 字节数，显著增长必须显式审核并调整预算。
+- [x] Vitest 增加 V8 coverage 基线：覆盖全部自有 `src` 生产源码，生成终端、JSON summary 和 HTML 报告；CI 执行 coverage 测试，先观察真实数据，不设置缺乏依据的全局阈值。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。

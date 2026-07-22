@@ -59,7 +59,7 @@ jobs:
         working-directory: httpd/app
         env:
           CI: true
-        run: pnpm test
+        run: pnpm run test:coverage
 
       - name: Build frontend
         working-directory: httpd/app
