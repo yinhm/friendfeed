@@ -7,7 +7,7 @@ require (
 	github.com/blevesearch/bleve_index_api v1.1.6 // indirect
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/cupcake/text-entities-go v0.0.0-20140512000843-06c234d4d8ed
-	github.com/dghubble/go-twitter v0.0.0-20210609183100-2fdbf421508e // direct
+	github.com/dghubble/go-twitter v0.0.0-20221104224141-912508c3888b // direct
 	github.com/dghubble/oauth1 v0.7.3 // direct
 	github.com/disintegration/imaging v1.6.2
 	github.com/eapache/queue v1.1.0
@@ -59,7 +59,7 @@ require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
@@ -68,7 +68,7 @@ require (
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dghubble/sling v1.3.0 // indirect
+	github.com/dghubble/sling v1.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
