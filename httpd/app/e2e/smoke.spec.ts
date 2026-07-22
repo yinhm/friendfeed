@@ -144,3 +144,43 @@ test('authenticated user can comment on an entry', async ({ context, page }) => 
   await expect(entry.locator('.comment').filter({ hasText: commentText })).toBeVisible();
   await expect(comment).toHaveCount(0);
 });
+
+test('authenticated user can like and unlike an entry', async ({
+  context,
+  page,
+}) => {
+  const baseURL = process.env.E2E_BASE_URL;
+  const sessionCookie = process.env.E2E_SESSION_COOKIE;
+  if (!baseURL || !sessionCookie) {
+    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
+  }
+
+  await context.addCookies([
+    {
+      name: 'ffdbsess',
+      value: sessionCookie,
+      url: baseURL,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+
+  await page.goto('/public');
+
+  const entry = page.locator('[data-eid]', {
+    hasText: 'E2E second entry plain text',
+  });
+  await entry.getByRole('link', { name: 'Like', exact: true }).click();
+
+  await expect(
+    entry.getByRole('link', { name: 'Unlike', exact: true })
+  ).toBeVisible();
+  await expect(entry.locator('.likes')).toContainText('E2E User liked this');
+
+  await entry.getByRole('link', { name: 'Unlike', exact: true }).click();
+
+  await expect(
+    entry.getByRole('link', { name: 'Like', exact: true })
+  ).toBeVisible();
+  await expect(entry.locator('.likes')).toHaveCount(0);
+});
