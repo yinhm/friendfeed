@@ -68,4 +68,4 @@
 
 - 先构建前端，再构建 Go；Go 二进制嵌入 `httpd/static/`。
 - 不提交生成的 `httpd/static/js/*`、`httpd/static/css/*`、`httpd/static/manifest.json`；保留手写 `style.css`。
-- 不使用破坏性 Git 命令覆盖用户改动。提交应小而可回退，并带：`Co-authored-by: Codex <codex@openai.com>`。
+- 不使用破坏性 Git 命令覆盖用户改动。提交应小而可回退，并带 `Co-authored-by` 署名；署名必须反映实际执行改动的 AI 助手（例如 Kimi 用 `Co-authored-by: Kimi <kimi@moonshot.cn>`，Codex 用 `Co-authored-by: Codex <codex@openai.com>`），不要照抄其他助手的身份。
