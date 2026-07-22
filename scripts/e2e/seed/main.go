@@ -54,6 +54,7 @@ func main() {
 	}
 
 	from := &pb.Feed{Id: "e2e-bot", Name: "E2E Bot", Type: "user"}
+	owner := &pb.Feed{Id: profile.Id, Name: profile.Name, Type: profile.Type}
 	rawBody := `[{"type":"p","children":[{"text":"E2E smoke "},{"text":"bold marker","bold":true}]}]`
 
 	for _, entry := range []*pb.Entry{
@@ -73,6 +74,16 @@ func main() {
 			Body:        `<p>E2E second entry plain text</p>`,
 			Date:        time.Now().UTC().Format(time.RFC3339),
 			Commands:    []string{"comment"},
+		},
+		{
+			Id:          uuid.Must(uuid.NewV4()).String(),
+			ProfileUuid: profile.Uuid,
+			FeedUuid:    profile.Uuid,
+			From:        owner,
+			Body:        `<p>E2E editable original</p>`,
+			RawBody:     `[{"type":"p","children":[{"text":"E2E editable original"}]}]`,
+			Date:        time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
+			Commands:    []string{"comment", "edit", "delete"},
 		},
 	} {
 		if err := stream.Send(entry); err != nil {

@@ -69,3 +69,47 @@ test('authenticated user can publish from the Home editor', async ({
 
   await expect(page.locator('[data-eid] .content', { hasText: text })).toBeVisible();
 });
+
+test('authenticated owner can edit an existing entry', async ({
+  context,
+  page,
+}) => {
+  const baseURL = process.env.E2E_BASE_URL;
+  const sessionCookie = process.env.E2E_SESSION_COOKIE;
+  if (!baseURL || !sessionCookie) {
+    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
+  }
+
+  await context.addCookies([
+    {
+      name: 'ffdbsess',
+      value: sessionCookie,
+      url: baseURL,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+
+  await page.goto('/public');
+
+  const originalEntry = page.locator('[data-eid]', {
+    hasText: 'E2E editable original',
+  });
+  const entryId = await originalEntry.getAttribute('data-eid');
+  if (!entryId) {
+    throw new Error('editable fixture is missing data-eid');
+  }
+  const entry = page.locator(`[data-eid="${entryId}"]`);
+  await entry.getByRole('link', { name: 'Edit' }).click();
+
+  const editor = entry.locator('[contenteditable="true"]');
+  await expect(editor).toBeVisible();
+  await expect(editor).toContainText('E2E editable original');
+
+  const editedText = `E2E edited entry ${Date.now()}`;
+  await editor.fill(editedText);
+  await entry.locator('input.submit').click();
+
+  await expect(entry.locator('.content')).toContainText(editedText);
+  await expect(entry.locator('[contenteditable="true"]')).toHaveCount(0);
+});
