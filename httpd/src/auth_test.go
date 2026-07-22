@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/markbates/goth/gothic"
 )
 
 func TestExtractNextPath(t *testing.T) {
@@ -21,6 +22,21 @@ func TestExtractNextPath(t *testing.T) {
 	for input, want := range tests {
 		if got := extractNextPath(input); got != want {
 			t.Errorf("extractNextPath(%q) = %q; want %q", input, got, want)
+		}
+	}
+}
+
+func TestSetGothProvider(t *testing.T) {
+	for _, want := range []string{"google", "twitter"} {
+		req := httptest.NewRequest(http.MethodGet, "/auth/"+want+"/callback", nil)
+		setGothProvider(req, want)
+
+		got, err := gothic.GetProviderName(req)
+		if err != nil {
+			t.Fatalf("GetProviderName(%q): %v", want, err)
+		}
+		if got != want {
+			t.Fatalf("GetProviderName(%q) = %q; want %q", want, got, want)
 		}
 	}
 }
