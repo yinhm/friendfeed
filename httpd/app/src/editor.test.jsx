@@ -76,7 +76,7 @@ test('legacy rawBody content loads and is submitted as JSON and HTML', async () 
   expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent(
     'Legacy rich text'
   );
-  fireEvent.click(screen.getByDisplayValue('发布'));
+  fireEvent.click(screen.getByRole('button', {name: '发布'}));
 
   await waitFor(() => expect(postEntry).toHaveBeenCalledOnce());
   const formData = postEntry.mock.calls[0][0];

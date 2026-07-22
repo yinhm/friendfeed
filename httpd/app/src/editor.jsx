@@ -204,7 +204,7 @@ const OnPageEditor = (params) => {
 
                     <div className="post">
                         <span className="max_info"></span>
-                        <input className="submit" type="submit" value="发布" onClick={onPostEntry} />
+                        <button className="submit" type="button" onClick={onPostEntry}>发布</button>
                     </div>
                 </div>
             </Plate>

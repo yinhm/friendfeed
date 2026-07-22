@@ -69,7 +69,7 @@ test('authenticated user can publish from the Home editor', async ({
 
   const text = `E2E authenticated post ${Date.now()}`;
   await editor.fill(text);
-  await page.locator('.sharebox input.submit').click();
+  await page.locator('.sharebox button.submit').click();
 
   await expect(page.locator('[data-eid] .content', { hasText: text })).toBeVisible();
 });
@@ -98,7 +98,7 @@ test('authenticated owner can edit an existing entry', async ({
 
   const editedText = `E2E edited entry ${Date.now()}`;
   await editor.fill(editedText);
-  await entry.locator('input.submit').click();
+  await entry.locator('button.submit').click();
 
   await expect(entry.locator('.content')).toContainText(editedText);
   await expect(entry.locator('[contenteditable="true"]')).toHaveCount(0);

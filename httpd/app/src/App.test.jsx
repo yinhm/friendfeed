@@ -42,5 +42,5 @@ test('Home page renders the post editor input and submit control', async () => {
   await waitFor(() => {
     expect(container.querySelector('[contenteditable="true"]')).toBeInTheDocument();
   }, {timeout: 10000});
-  expect(container.querySelector('input.submit[type="submit"]')).toHaveValue('发布');
+  expect(container.querySelector('button.submit[type="button"]')).toHaveTextContent('发布');
 }, 10000);

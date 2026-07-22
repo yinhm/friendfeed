@@ -184,5 +184,6 @@
 - [x] 纠正 FeedHeader 动作语义：Follow/Unfollow 改为保持原蓝色外观的按钮，并以行为测试锁定 `/a/follow` 参数和双向状态切换。
 - [x] 补齐图片链接的可访问名称：FeedHeader/entry 头像使用 feed 名称，entry 缩略图链接声明 Open media；axe 冒烟改用含 header、entry 和 media 的真实结构 fixture，并保证缺日期时 permalink 仍有名称。
 - [x] 修正评论提交语义：提交逻辑由 input click 移到 form `onSubmit`，覆盖键盘/程序化提交并继续阻止空评论，不改变 `/a/comment` 契约。
+- [x] 修正编辑器发布控件语义：非 form 环境中的 `input type=submit` 改为普通 button，保留 `.submit` 外观、发布逻辑与读写 E2E。
 
 完成条件：依赖更新有机制保障，E2E 冒烟纳入验证门。

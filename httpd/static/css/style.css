@@ -25,6 +25,7 @@ body {
 
 .legacy-button,
 .sharebox input[type="submit"],
+.sharebox button.submit,
 .entry .comment.form input[type="submit"] {
     border: 1px solid #bdbdbb;
     background: #eee;
