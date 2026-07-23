@@ -1,65 +1,108 @@
-# Pebble v2 迁移评估与 TODO
+# Pebble v2 升级 TODO
 
-> 评估日期：2026-07-22。所有关键结论均已实测验证（探针模块编译 `store` 包 + v1/v2 双版本 FMV 实验），非凭文档推断。
+## 决策
 
-## 结论
+本仓库仅供内部部署，采用一次性、向前迁移方案：
 
-可行，代码工作量小，但有一个不可跳过的数据格式（Format Major Version, FMV）前置步骤。建议拆成两个独立发布。
+- `v1.0` 是旧数据库迁移工具的最终基线。
+- 升级 Pebble 前，必须先用 `v1.0` 把所有 `old_db` 迁移为当前 `new_db`。
+- Pebble v2 只需打开迁移完成的 `new_db`，不再支持直接读取 `old_db`。
+- 升级后不支持降级到 Pebble v1，也不保证旧二进制能够打开升级后的数据库。
+- 不为第三方调用、旧数据库或跨版本回滚保留兼容代码。
 
-基线：git tag `v1.0.0` 标记最后一个 pebble v1 / FMV 1 兼容版本，是 FMV ratchet 前唯一的代码回退锚点（数据回退仍须依赖备份）。
+目标版本：
 
-## 背景
+- 当前：`github.com/cockroachdb/pebble v1.1.5`
+- 目标：`github.com/cockroachdb/pebble/v2 v2.1.6`
 
-- 当前依赖 `github.com/cockroachdb/pebble v1.1.5`，已是 v1 线最终版；v2 线为独立 module path `github.com/cockroachdb/pebble/v2`（评估时最新 v2.1.6，CockroachDB 25.3 生产使用）。
-- v2 最低只支持 FMV 13（FormatFlushableIngest）；本项目 `NewStoreOptions`/`NewMetaStoreOptions` 未设置 `FormatMajorVersion`，**线上所有 DB 均为 FMV 1**（v1 默认 FormatMostCompatible）。
-- 实测：v2 打开 v1 默认创建的 DB 直接拒绝：`database was written in format major version 1, which is no longer supported`。
-- 实测验证的升级路径：先用 v1.1.5 ratchet 到 FMV 13，v2 即可正常打开并读写（实验数据完整读回）。
-- 参考：[pebble README 格式版本表](https://github.com/cockroachdb/pebble#format-major-versions)。
+Pebble v2 最低支持 FMV 13。当前 Pebble v1.1.5 的官方工具会把数据库直接升级到该版本支持的最新格式（FMV 16）；Pebble v2 可以打开 FMV 16。本项目允许直接使用这一激进路径，不要求停留在 FMV 13。
 
-## 代码改动面（实测编译 + 测试通过）
+## 升级顺序
 
-把 `store/` 包源码复制到探针模块、仅替换 import 为 `pebble/v2` 后，编译错误仅 4 处，全部集中在 `store/store.go` 的 Options 构造：
+顺序不可颠倒：
 
-| v1 | v2 | 位置 |
-|---|---|---|
-| `Options.MaxConcurrentCompactions func() int` | `Options.CompactionConcurrencyRange func() (lower, upper int)`（语义从"上限"变为"区间"） | `store/store.go:80` |
-| `Levels` 为切片 `[]LevelOptions` | 固定数组 `[7]LevelOptions` | `store/store.go:105` |
-| `LevelOptions.TargetFileSize` | 移到 `Options.TargetFileSizes [7]int64` | `store/store.go:113` |
-| `LevelOptions.EnsureDefaults()` | 拆分为 `EnsureL0Defaults()` / `EnsureL1PlusDefaults(prev)` | `store/store.go:115` |
+1. 停止写入。
+2. 用仓库 `v1.0` 工具完成全部 `old_db -> new_db` 迁移。
+3. 验证 `new_db` 的用户、feed、entry、OAuth、社交图和媒体数据。
+4. 备份最终的 `new_db`。
+5. 用 Pebble v1.1.5 官方工具升级所有实际使用的 Pebble 数据目录。
+6. 切换代码和依赖到 Pebble v2。
+7. 完成全量测试及真实数据副本冷启动。
+8. 部署并恢复写入。
 
-其余全部 API 零改动兼容（已实测）：`NewIter` 仍返回 `(*Iterator, error)`、`Get/Set/Delete/NewBatch/DeleteRange/Flush/Metrics/Close`、`WriteOptions/Sync/NoSync`、`NewCache`、`IterOptions` 边界、`bloom.FilterPolicy`、`FilterType`（v2 中已标记 legacy 但保留）。
+第 5 步完成后，不再运行依赖 Pebble v1 的迁移工具。以后若还发现未迁移的 `old_db`，应使用独立的 `v1.0` 环境先迁移，再把产物按当前版本要求重新升级。
 
-修完上述 4 处后，**store 包全部测试在 v2 下原样通过**。受影响文件仅 `store/store.go`、`store/store_test.go`；`store/iterator.go`、`server/command.go` 无需改动。
+## TODO
 
-## TODO（两步走，不能合并）
+### 1. 完成旧数据库迁移
 
-### 第一步：FMV ratchet（v1 时代，独立发布）
+- [ ] 冻结并记录所有待迁移的 `old_db`。
+- [ ] 使用 `v1.0` 迁移工具生成最终 `new_db`。
+- [ ] 确认生产配置、systemd 服务和维护命令都只引用 `new_db`。
+- [ ] 验证迁移结果，不再保留运行时读取 `old_db` 的要求。
 
-- [ ] `NewStoreOptions`/`NewMetaStoreOptions` 增加 `FormatMajorVersion: pebble.FormatFlushableIngest`（一行改动）。
-- [ ] 升级前备份数据目录（FMV 升级**不可逆**，回滚只能靠备份）。
-- [ ] 安排维护窗口：ratchet 会经过 FMV 7（blocking 迁移），大库在 Open 期间阻塞做标记 compaction。
-- [ ] 测试/dev 环境先跑，确认 ratchet 完成后再上生产。
+### 2. 直接升级数据库格式
 
-可选加速项：仓库未使用自定义 Comparer/Merger（已 grep 确认），可用官方工具离线升级，跳过在线 ratchet：
+- [ ] 停止 `ffdb`、`ffweb` 以及所有可能写入数据库的维护任务。
+- [ ] 备份最终 `new_db`；备份用于灾难恢复，不作为支持降级的承诺。
+- [ ] 盘点 `new_db` 下所有实际 Pebble 数据目录，包括仍在使用的独立 `meta` 目录。
+- [ ] 对每个目录执行：
 
-```
+```bash
 go run github.com/cockroachdb/pebble/cmd/pebble@v1.1.5 db upgrade <db-dir>
 ```
 
-### 第二步：切换到 pebble/v2
+- [ ] 等待工具成功退出，不得中断格式升级。
+- [ ] 用 Pebble v1.1.5 做一次只读校验后，立即进入 v2 升级，不重新开放生产写入。
 
-- [ ] `go get github.com/cockroachdb/pebble/v2`，替换 `store/` 内 import path。
-- [ ] 按上表修改 `store/store.go` 4 处 Options 代码及 `store/store_test.go` 对应断言。
-- [ ] 跑全量门禁：`go build ./... && go vet ./... && go test ./...`。
-- [ ] 用真实数据目录做一次冷启动演练（含 `server`、`model` 测试）。
+该命令会升级到 Pebble v1.1.5 的 `FormatNewest`（FMV 16），不是 FMV 13。这是本方案的预期行为。
 
-## 风险与注意事项
+### 3. 切换 Pebble v2
 
-- **不可逆**：FMV 单行道，第一步发布即锁死回退旧二进制的可能。
-- **保守运行可行**：v2 打开 FMV 13 的库后默认停留在 FMV 13，不会自动启用 columnar blocks / value separation 等新格式；不设置 `FormatMajorVersion` 即可稳住，收益主要是 bugfix 和性能改进。
-- **compaction 并发语义变化**：当前 `MaxConcurrentCompactions: 3` 是硬上限；v2 的 `CompactionConcurrencyRange` 返回区间，且在高读放大/compaction debt 时会自动调高。直接映射 `return 3, 3` 可保留现状，但建议借机确认预期行为。
-- 按 AGENTS.md 契约：`Storage`、key 编码、迭代顺序、同步写入开关不受影响（store 测试全过即为证据）。
+- [ ] 将依赖切换为 `github.com/cockroachdb/pebble/v2 v2.1.6`。
+- [ ] 替换以下文件中的 Pebble import：
+  - `store/store.go`
+  - `store/iterator.go`
+  - `store/store_test.go`
+  - `server/command.go`
+- [ ] 更新 `go.mod` 和 `go.sum`。
+- [ ] 调整 `store/store.go` 的 v2 Options：
+  - `MaxConcurrentCompactions` 改为 `CompactionConcurrencyRange`。
+  - `Levels` 改为固定长度数组。
+  - `TargetFileSize` 改为 `Options.TargetFileSizes`。
+  - `EnsureDefaults` 改为 `EnsureL0Defaults` / `EnsureL1PlusDefaults`。
+- [ ] 保持 `Storage` 接口、key 编码、迭代顺序和同步写入语义不变。
+- [ ] 删除仅为 Pebble v1 或 FMV 13 过渡而增加的临时代码。
 
-## 工作量评估
+### 4. 验证与部署
 
-代码侧约半天；真正成本在 FMV ratchet 的运维编排（备份、维护窗口、不可回退）。
+- [ ] 执行完整 Go 门禁：
+
+```bash
+go build ./...
+go vet ./...
+go test ./...
+```
+
+- [ ] 使用生产数据副本启动实际 `ffdb`，验证读写、重启、备份和索引重建。
+- [ ] 检查 feed、profile、OAuth metadata、社交图、timeline 和 PublicFeed。
+- [ ] 记录升级耗时、额外磁盘占用和最终 FMV。
+- [ ] 部署 Pebble v2 版本并恢复写入。
+- [ ] 删除升级期间的临时副本；按既定保留策略保存升级前备份。
+
+## 风险
+
+- FMV 只能向前升级，不能降级。
+- 本项目明确不支持升级后回退到 Pebble v1。
+- 数据格式升级可能触发阻塞迁移和 compaction，必须停写并预留维护窗口及额外磁盘空间。
+- `CompactionConcurrencyRange` 应固定为与现有上限等价的范围，避免升级时顺带改变资源使用策略。
+- 唯一受支持的恢复方式是恢复完整备份并重新执行既定迁移流程，不允许混用新旧二进制和数据目录。
+
+## 完成条件
+
+以下条件全部满足后删除本文件：
+
+- 所有生产数据均已由 `old_db` 迁移到 `new_db`。
+- 所有实际数据库目录均已升级并由 Pebble v2 成功读写。
+- 完整测试、真实数据副本演练和生产部署均通过。
+- 运行环境中不再依赖 Pebble v1 或直接读取 `old_db`。
