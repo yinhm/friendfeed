@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -39,16 +39,29 @@ func TestStoreOptionsShareLevelConfiguration(t *testing.T) {
 			assert.Equal(t, 256<<10, options.Levels[0].IndexBlockSize)
 			assert.NotNil(t, options.Levels[0].FilterPolicy)
 			assert.Nil(t, options.Levels[6].FilterPolicy)
+
+			// Open applies EnsureDefaults; pin the expected default target
+			// file sizes (2 MB at L0, doubling per level) to match the
+			// pebble v1 configuration. Clone first so the defaults filled in
+			// here do not leak into the assertions below.
+			effective := options.Clone()
+			effective.EnsureDefaults()
+			wantSizes := []int64{2 << 20, 4 << 20, 8 << 20, 16 << 20, 32 << 20, 64 << 20, 128 << 20}
+			for i, want := range wantSizes {
+				assert.Equal(t, want, effective.TargetFileSizes[i], "TargetFileSizes[%d]", i)
+			}
 		})
 	}
 
 	assert.Equal(t, 2, storeOptions.L0CompactionThreshold)
 	assert.Equal(t, 1000, storeOptions.L0StopWritesThreshold)
-	assert.NotNil(t, storeOptions.MaxConcurrentCompactions)
-	assert.Equal(t, 3, storeOptions.MaxConcurrentCompactions())
+	assert.NotNil(t, storeOptions.CompactionConcurrencyRange)
+	lower, upper := storeOptions.CompactionConcurrencyRange()
+	assert.Equal(t, 1, lower)
+	assert.Equal(t, 3, upper)
 	assert.Zero(t, metaOptions.L0CompactionThreshold)
 	assert.Zero(t, metaOptions.L0StopWritesThreshold)
-	assert.Nil(t, metaOptions.MaxConcurrentCompactions)
+	assert.Nil(t, metaOptions.CompactionConcurrencyRange)
 }
 
 func TestNewMetaStore(t *testing.T) {

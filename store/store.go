@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cockroachdb/pebble"
-	"github.com/cockroachdb/pebble/bloom"
+	"github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/bloom"
 	"github.com/yinhm/friendfeed/store/flake"
 )
 
@@ -77,8 +77,10 @@ func NewStoreOptions() *pebble.Options {
 		// suggest in: https://github.com/cockroachdb/pebble/issues/1068#issuecomment-784208214
 		L0CompactionThreshold: 2,
 		L0StopWritesThreshold: 1000,
-		MaxConcurrentCompactions: func() int {
-			return 3
+		CompactionConcurrencyRange: func() (int, int) {
+			// v1 MaxConcurrentCompactions was a hard cap of 3 with dynamic
+			// scaling from 1; (1, 3) preserves that behavior.
+			return 1, 3
 		},
 		LBaseMaxBytes:               64 << 20, // 64 MB
 		MemTableSize:                64 << 20, // 64 MB
@@ -102,7 +104,9 @@ func NewMetaStoreOptions() *pebble.Options {
 }
 
 func configureLevels(opts *pebble.Options) {
-	opts.Levels = make([]pebble.LevelOptions, 7)
+	// TargetFileSizes is deliberately left unset: Options.EnsureDefaults
+	// (invoked by Open) defaults it to 2 MB at L0, doubling per level,
+	// which matches the pebble v1 configuration.
 	for i := 0; i < len(opts.Levels); i++ {
 		l := &opts.Levels[i]
 		l.BlockSize = 32 << 10       // 32 KB
@@ -110,9 +114,10 @@ func configureLevels(opts *pebble.Options) {
 		l.FilterPolicy = bloom.FilterPolicy(10)
 		l.FilterType = pebble.TableFilter
 		if i > 0 {
-			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * 2
+			l.EnsureL1PlusDefaults(&opts.Levels[i-1])
+		} else {
+			l.EnsureL0Defaults()
 		}
-		l.EnsureDefaults()
 	}
 
 	// Do not create bloom filters for the last level (i.e. the largest level
