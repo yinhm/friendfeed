@@ -59,24 +59,24 @@ go run github.com/cockroachdb/pebble/cmd/pebble@v1.1.5 db upgrade <db-dir>
 
 ### 3. 切换 Pebble v2
 
-- [ ] 将依赖切换为 `github.com/cockroachdb/pebble/v2 v2.1.6`。
-- [ ] 替换以下文件中的 Pebble import：
+- [x] 将依赖切换为 `github.com/cockroachdb/pebble/v2 v2.1.6`。
+- [x] 替换以下文件中的 Pebble import：
   - `store/store.go`
   - `store/iterator.go`
   - `store/store_test.go`
   - `server/command.go`
-- [ ] 更新 `go.mod` 和 `go.sum`。
-- [ ] 调整 `store/store.go` 的 v2 Options：
-  - `MaxConcurrentCompactions` 改为 `CompactionConcurrencyRange`。
+- [x] 更新 `go.mod` 和 `go.sum`。
+- [x] 调整 `store/store.go` 的 v2 Options：
+  - `MaxConcurrentCompactions` 改为 `CompactionConcurrencyRange`（取 `(1, 3)`，等价 v1 的动态扩缩 + 上限 3）。
   - `Levels` 改为固定长度数组。
   - `TargetFileSize` 改为 `Options.TargetFileSizes`。
   - `EnsureDefaults` 改为 `EnsureL0Defaults` / `EnsureL1PlusDefaults`。
-- [ ] 保持 `Storage` 接口、key 编码、迭代顺序和同步写入语义不变。
-- [ ] 删除仅为 Pebble v1 或 FMV 13 过渡而增加的临时代码。
+- [x] 保持 `Storage` 接口、key 编码、迭代顺序和同步写入语义不变。
+- [x] 删除仅为 Pebble v1 或 FMV 13 过渡而增加的临时代码（无此类代码，无需删除）。
 
 ### 4. 验证与部署
 
-- [ ] 执行完整 Go 门禁：
+- [x] 执行完整 Go 门禁：
 
 ```bash
 go build ./...
