@@ -49,8 +49,11 @@ cat > "$TMP/gauth.json" <<EOF
 {"web":{"client_id":"e2e-dummy","client_secret":"e2e-dummy","redirect_uris":["$E2E_BASE_URL/auth/google/callback"]}}
 EOF
 
+# pnpm must run with cwd inside httpd/app: the repo root has no package.json,
+# so corepack would fall back to the latest pnpm there, which hard-fails the
+# version check against the packageManager pin in httpd/app/package.json.
+(cd "$ROOT/httpd/app" && pnpm run build)
 cd "$ROOT"
-pnpm --dir httpd/app run build
 go build -o "$TMP/ffdb" .
 go build -o "$TMP/ffweb" ./httpd
 "$TMP/ffdb" -c "$TMP/config.json" >"$TMP/backend.log" 2>&1 &
