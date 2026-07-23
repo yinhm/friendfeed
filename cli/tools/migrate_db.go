@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/gob"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -40,87 +38,6 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 	})
 }
 
-const publicFeedIndexSize = 1000
-
-// Before OAuth providers were merged into TableOAuth, Google OAuth records
-// used table prefix 105. That prefix is TableFile in the current schema.
-const legacyGoogleOAuthPrefix store.KeyPrefix = 105
-
-func publicFeedIndexKey(prefix store.KeyPrefix, id uuid.UUID) store.Key {
-	return model.NewUUIDKey(prefix, id)
-}
-
-func normalizePublicFeedIndex(raw []byte) ([]byte, int, error) {
-	var entries []string
-	if err := gob.NewDecoder(bytes.NewReader(raw)).Decode(&entries); err != nil {
-		return nil, 0, err
-	}
-
-	normalized := make([]string, publicFeedIndexSize)
-	copy(normalized, entries)
-
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(normalized); err != nil {
-		return nil, 0, err
-	}
-
-	count := 0
-	for _, entry := range normalized {
-		if entry != "" {
-			count++
-		}
-	}
-	return buf.Bytes(), count, nil
-}
-
-func migratePublicFeedIndex(db, mdb, ndb *store.Store, overwrite bool) error {
-	currentID := uuid.NewV5(uuid.NamespaceURL, "index:public:cache")
-	currentKey := publicFeedIndexKey(model.TableMeta, currentID)
-	if !overwrite && ndb.Exist(currentKey) {
-		log.Println("public feed index already exists; skipping legacy metadata")
-		return nil
-	}
-
-	zeroID := uuid.Nil
-	legacyMetaKey := publicFeedIndexKey(model.TableMeta, zeroID)
-	// Before TableIndexCache was removed, its numeric prefix was 6.
-	legacyIndexCacheKey := publicFeedIndexKey(store.KeyPrefix(6), zeroID)
-	candidates := []struct {
-		name string
-		db   *store.Store
-		key  store.Key
-	}{
-		{"meta/current", mdb, currentKey},
-		{"data/current", db, currentKey},
-		{"meta/zero-uuid", mdb, legacyMetaKey},
-		{"data/zero-uuid", db, legacyMetaKey},
-		{"meta/index-cache", mdb, legacyIndexCacheKey},
-		{"data/index-cache", db, legacyIndexCacheKey},
-	}
-
-	for _, candidate := range candidates {
-		raw, err := candidate.db.Get(candidate.key)
-		if err != nil {
-			return fmt.Errorf("read public feed index from %s: %w", candidate.name, err)
-		}
-		if len(raw) == 0 {
-			continue
-		}
-
-		normalized, count, err := normalizePublicFeedIndex(raw)
-		if err != nil {
-			return fmt.Errorf("decode public feed index from %s: %w", candidate.name, err)
-		}
-		if err := ndb.Set(currentKey, normalized); err != nil {
-			return fmt.Errorf("write migrated public feed index: %w", err)
-		}
-		log.Printf("migrated public feed index from %s: %d entries", candidate.name, count)
-		return nil
-	}
-
-	return errors.New("public feed index metadata not found in source databases")
-}
-
 type timelineRebuildStats struct {
 	profiles int
 	follows  int
@@ -149,38 +66,6 @@ type mediaURLMigrationStats struct {
 	profiles   int
 	entries    int
 	thumbnails int
-}
-
-func migrateOAuthRecords(source, target *store.Store, prefix store.KeyPrefix, provider string) (int, error) {
-	return source.ForwardScan(model.KeyPrefixToBytes(prefix), func(i int, key, raw []byte) error {
-		msg := new(pb.OAuthUser)
-		if err := proto.Unmarshal(raw, msg); err != nil {
-			return fmt.Errorf("decode OAuth record at %x: %w", key, err)
-		}
-		if provider != "" {
-			msg.Provider = provider
-		}
-		if msg.UserId == "" || msg.Provider == "" {
-			return nil
-		}
-		if msg.Uuid == "" && msg.Name != "" {
-			if profile, err := model.GetProfileFromUserId(target, msg.Name); err == nil {
-				msg.Uuid = profile.Uuid
-			}
-		}
-		log.Printf("migrate OAuth: provider=%s user_id=%s uuid=%s", msg.Provider, msg.UserId, msg.Uuid)
-		if provider != "" {
-			// The legacy provider table is authoritative. This also repairs an
-			// incorrect row created by a login attempted before migration.
-			if err := model.OAuth.Delete(target, model.KeyFromString(msg.Provider, msg.UserId)); err != nil {
-				return fmt.Errorf("replace OAuth record %s:%s: %w", msg.Provider, msg.UserId, err)
-			}
-		}
-		if _, err := model.PutOAuthUser(target, msg); err != nil {
-			return fmt.Errorf("write OAuth record %s:%s: %w", msg.Provider, msg.UserId, err)
-		}
-		return nil
-	})
 }
 
 func migrateMediaURL(rawURL string) (string, bool) {
@@ -529,90 +414,6 @@ func runDBCommand(db, ndb *store.Store) {
 	log.Println("iter done...")
 }
 
-func runMetaCommand(mdb, ndb *store.Store) {
-	prefix := []byte("")
-	log.Println("iter meta db now...")
-
-	// iter here
-	iter := mdb.NewIterator(prefix)
-	for iter.First(); iter.Valid(); iter.Next() {
-		ndb.Set(iter.Key(), iter.Value())
-	}
-
-	iter.Close()
-	ndb.Flush()
-	log.Println("iter done...")
-
-	prefix = model.TableProfile.Bytes()
-	n, err := mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-		return ndb.Set(k, v)
-	})
-	if err != nil {
-		log.Println("Error on scanning user profiles:", err)
-	}
-	log.Printf("Profiles: %d", n)
-	ndb.Flush()
-
-	// now test it
-	n, err = mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-		v2, err := ndb.Get(k)
-		if err != nil {
-			fmt.Println("value not fount")
-			return err
-		}
-
-		if !bytes.Equal(v, v2) {
-			fmt.Println(v)
-			fmt.Println(v2)
-			return errors.New("value not equal")
-		}
-		return nil
-	})
-	if err != nil {
-		log.Println("Error on compare profiles:", err)
-	}
-	log.Printf("Profiles: %d", n)
-}
-
-func runSyncMetaCommand(db, mdb, ndb *store.Store) {
-	log.Println("scan meta db now...")
-
-	n, err := mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
-		msg := &pb.Profile{}
-		if err := proto.Unmarshal(v, msg); err != nil {
-			return err
-		} else {
-			// ndb.Set(k, v)
-			return model.UpdateProfile(ndb, msg) // use UpdateProfile also update id->uuid map
-		}
-	})
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("profile count: ", n)
-
-	twitterCount, err := migrateOAuthRecords(mdb, ndb, model.TableOAuth, "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	googleCount, err := migrateOAuthRecords(mdb, ndb, legacyGoogleOAuthPrefix, "google")
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("oauth user count: twitter/current=%d legacy-google=%d", twitterCount, googleCount)
-	if err := migratePublicFeedIndex(db, mdb, ndb, false); err != nil {
-		log.Println("public feed index:", err)
-	}
-	ndb.Flush()
-}
-
-func runPublicFeedCommand(db, mdb, ndb *store.Store) {
-	if err := migratePublicFeedIndex(db, mdb, ndb, true); err != nil {
-		log.Fatal(err)
-	}
-	ndb.Flush()
-}
-
 func runRebuildTimelineCommand(ndb *store.Store) {
 	options := timelineRebuildOptions{user: timelineUser, maxFeeds: timelineMaxFeeds, dryRun: dryRun}
 	stats, err := rebuildTimelines(ndb, options)
@@ -669,43 +470,6 @@ func runSyncCommand(db, ndb *store.Store) {
 	log.Println("entry iter done...")
 }
 
-func runProfileCommand(mdb, ndb *store.Store) {
-	prefix := model.TableProfile
-	j := 0
-	n, err := mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-		profile := &pb.Profile{}
-		if err := proto.Unmarshal(v, profile); err != nil {
-			return err
-		}
-		if profile.Id == "yinhm" {
-			fmt.Printf("profile: %s\n", profile)
-
-			new_value, _ := ndb.Get(k)
-			// pb messge differ
-			// if !bytes.Equal(v, new_value) {
-			// 	fmt.Println(v)
-			// 	fmt.Println(new_value)
-			// 	return errors.New("value not equal")
-			// }
-			if err := proto.Unmarshal(new_value, profile); err != nil {
-				return err
-			}
-			fmt.Printf("new profile: %s\n", profile)
-
-			return nil
-		}
-		// fmt.Printf("profile: <%s, %s>\n", profile.Uuid, profile.Id)
-		// fmt.Println(profile)
-
-		j++
-		return nil
-	})
-	if err != nil {
-		fmt.Println("Error on scanning user profiles:", err)
-	}
-	fmt.Printf("Profiles: %d, %d have services.\n", n, j)
-}
-
 func runPurgeProfileCommand(ndb *store.Store) {
 	n, err := purge_table(ndb, model.TableProfile.Bytes())
 	if err != nil {
@@ -724,71 +488,7 @@ func runPurgeOAuthCommand(ndb *store.Store) {
 	ndb.Flush()
 }
 
-func runCountMetaCommand(mdb, ndb *store.Store) {
-	prefix := []byte("")
-	log.Println("iter meta db now...")
-
-	// prefix = model.TableProfile.Bytes()
-	n, _ := mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-		return nil
-	})
-	log.Printf("key counts: %d", n)
-
-	// now test it
-	// n, _ = mdb.ForwardScan(model.TableProfile.Bytes(), func(i int, k, v []byte) error {
-	// 	return nil
-	// })
-	// count += n
-	// n, _ = mdb.ForwardScan(model.TableOAuth.Bytes(), func(i int, k, v []byte) error {
-	// 	return nil
-	// })
-	// count += n
-	// log.Printf("key counts: %d", count)
-
-	count := 0
-	count_parsed := 0
-	mdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-		msg := &pb.OAuthUser{}
-		if err := proto.Unmarshal(v, msg); err == nil {
-			count_parsed++
-			// model.PutOAuthUser(ndb, msg) // oauth format updated
-		} else {
-			msg := &pb.Profile{}
-			if err := proto.Unmarshal(v, msg); err == nil {
-				count_parsed++
-				// ndb.Set(k, v) // profile
-			} else {
-				count++
-				mappedUUID, err := uuid.FromBytes(v)
-				if err != nil {
-					fmt.Println(k, v) // cache
-				} else {
-					v2, _ := model.UserMap.GetRaw(ndb, k)
-					fmt.Println(string(k), mappedUUID.String(), bytes.Equal(v, v2))
-					// update id->uuid map here
-				}
-			}
-		}
-		return nil
-	})
-	fmt.Printf("known keys: %d id->uuid map keys: %d\n", count_parsed, count)
-}
-
-func runDebugCommand(db, mdb, ndb *store.Store) {
-	// map changed, this will fail
-	profile, err := model.GetProfileFromUserId(mdb, "yinhm")
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println(profile)
-
-	// profile, err = model.GetProfileFromUserId(mdb, "veronicabelmont")
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// log.Println(profile)
-
-	// entryId := "c8e5fe86df10e285f1ff12acac102d44"
+func runDebugCommand(db, ndb *store.Store) {
 	entryId := "744b310d5dca442d82f1ec2366554b1e"
 	// entryId := "0000012820141462fa7290a658763ae1"
 	entry, err := model.GetEntry(db, entryId)
@@ -838,10 +538,6 @@ func runDebugCommand(db, mdb, ndb *store.Store) {
 
 // We should open original db ad readonly mode.
 //
-// migrate meta db should and only need sync_meta
-// ./tools -from old_db -to new_db -c sync_meta
-// migrate only the legacy public feed cache metadata
-// ./tools -from old_db -to new_db -c public_feed
 // rebuild Home timelines from each profile's own feed and Follow edges
 // ./tools -to new_db -c rebuild_timeline -user yinhm -max-feeds 20 -dry-run
 // rebuild Follow and Follower tables from legacy Feedinfo metadata
@@ -851,11 +547,7 @@ func runDebugCommand(db, mdb, ndb *store.Store) {
 //
 // sync all data from db
 // ./tools -from old_db -to new_db -c db
-// sync all data from meta db
-// ./tools -from old_db -to new_db -c meta
 //
-// Test Profile
-// ./tools -from old_db -to new_db -c profile
 // debug
 // ./tools -from old_db -to new_db -c debug
 func main() {
@@ -871,21 +563,14 @@ func main() {
 
 	ndb := store.NewStore(toPath)
 	ndb.SetSync(false)
-	var db, mdb *store.Store
+	var db *store.Store
 	if needsSource {
 		db = store.NewStore(fromPath)
-		mdb = store.NewMetaStore(fromPath + "/meta")
 	}
 
 	switch command {
 	case "db":
 		runDBCommand(db, ndb)
-	case "meta":
-		runMetaCommand(mdb, ndb)
-	case "sync_meta":
-		runSyncMetaCommand(db, mdb, ndb)
-	case "public_feed":
-		runPublicFeedCommand(db, mdb, ndb)
 	case "rebuild_timeline":
 		runRebuildTimelineCommand(ndb)
 	case "rebuild_social_graph":
@@ -894,22 +579,19 @@ func main() {
 		runMigrateMediaURLsCommand(ndb)
 	case "sync":
 		runSyncCommand(db, ndb)
-	case "profile":
-		runProfileCommand(mdb, ndb)
 	case "purge_profile":
 		runPurgeProfileCommand(ndb)
 	case "purge_oauth":
 		runPurgeOAuthCommand(ndb)
-	case "count_meta":
-		runCountMetaCommand(mdb, ndb)
 	case "debug":
-		runDebugCommand(db, mdb, ndb)
+		runDebugCommand(db, ndb)
+	default:
+		// Retired old_db migration commands (meta, sync_meta, public_feed,
+		// profile, count_meta) must fail loudly rather than exit 0 silently.
+		log.Fatalf("unknown command %q", command)
 	}
 
 	ndb.Close()
-	if mdb != nil {
-		mdb.Close()
-	}
 	if db != nil {
 		db.Close()
 	}

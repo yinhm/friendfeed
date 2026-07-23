@@ -74,7 +74,7 @@ func SetLogLevel(level logrus.Level) {
 
 func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 	rdb := store.NewStore(dbpath)
-	// mdb := store.NewMetaStore(dbpath + "/meta")
+	// The legacy meta store was unified into rdb; mdb is kept as an alias.
 	mdb := rdb
 
 	cached := make(map[string]*FeedIndex)

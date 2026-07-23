@@ -1,7 +1,8 @@
 # DB Migration (old_db → new_db)
 
 > 本文档从 README 拆出，记录 `old_db` 到 `new_db` 的迁移命令。
-> 这些工具属于 `v1.0` 基线；按 `PEBBLE_TODO.md`，必须在升级 Pebble v2 之前用它们完成全部迁移。
+> 这些工具属于 `v1.0.0` 基线（tag）；old_db 迁移与 Pebble v2 升级均已完成。
+> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`。
 
 rebuild public feed
 

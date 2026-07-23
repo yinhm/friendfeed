@@ -17,7 +17,6 @@ type DBTestSuite struct {
 	suite.Suite
 
 	rdb    *Store
-	mdb    *Store
 	dbpath string
 }
 
@@ -27,30 +26,22 @@ func TestDBTestSuite(t *testing.T) {
 
 func TestStoreOptionsShareLevelConfiguration(t *testing.T) {
 	storeOptions := NewStoreOptions()
-	metaOptions := NewMetaStoreOptions()
 
-	for name, options := range map[string]*pebble.Options{
-		"store": storeOptions,
-		"meta":  metaOptions,
-	} {
-		t.Run(name, func(t *testing.T) {
-			assert.Len(t, options.Levels, 7)
-			assert.Equal(t, 32<<10, options.Levels[0].BlockSize)
-			assert.Equal(t, 256<<10, options.Levels[0].IndexBlockSize)
-			assert.NotNil(t, options.Levels[0].FilterPolicy)
-			assert.Nil(t, options.Levels[6].FilterPolicy)
+	assert.Len(t, storeOptions.Levels, 7)
+	assert.Equal(t, 32<<10, storeOptions.Levels[0].BlockSize)
+	assert.Equal(t, 256<<10, storeOptions.Levels[0].IndexBlockSize)
+	assert.NotNil(t, storeOptions.Levels[0].FilterPolicy)
+	assert.Nil(t, storeOptions.Levels[6].FilterPolicy)
 
-			// Open applies EnsureDefaults; pin the expected default target
-			// file sizes (2 MB at L0, doubling per level) to match the
-			// pebble v1 configuration. Clone first so the defaults filled in
-			// here do not leak into the assertions below.
-			effective := options.Clone()
-			effective.EnsureDefaults()
-			wantSizes := []int64{2 << 20, 4 << 20, 8 << 20, 16 << 20, 32 << 20, 64 << 20, 128 << 20}
-			for i, want := range wantSizes {
-				assert.Equal(t, want, effective.TargetFileSizes[i], "TargetFileSizes[%d]", i)
-			}
-		})
+	// Open applies EnsureDefaults; pin the expected default target
+	// file sizes (2 MB at L0, doubling per level) to match the
+	// pebble v1 configuration. Clone first so the defaults filled in
+	// here do not leak into the assertions below.
+	effective := storeOptions.Clone()
+	effective.EnsureDefaults()
+	wantSizes := []int64{2 << 20, 4 << 20, 8 << 20, 16 << 20, 32 << 20, 64 << 20, 128 << 20}
+	for i, want := range wantSizes {
+		assert.Equal(t, want, effective.TargetFileSizes[i], "TargetFileSizes[%d]", i)
 	}
 
 	assert.Equal(t, 2, storeOptions.L0CompactionThreshold)
@@ -59,38 +50,16 @@ func TestStoreOptionsShareLevelConfiguration(t *testing.T) {
 	lower, upper := storeOptions.CompactionConcurrencyRange()
 	assert.Equal(t, 1, lower)
 	assert.Equal(t, 3, upper)
-	assert.Zero(t, metaOptions.L0CompactionThreshold)
-	assert.Zero(t, metaOptions.L0StopWritesThreshold)
-	assert.Nil(t, metaOptions.CompactionConcurrencyRange)
-}
-
-func TestNewMetaStore(t *testing.T) {
-	db := NewMetaStore(t.TempDir() + "/meta")
-	defer db.Close()
-
-	assert.True(t, db.syncWrites.Load())
-	assert.NoError(t, db.Put([]byte("key"), []byte("value")))
-	value, err := db.Get([]byte("key"))
-	assert.NoError(t, err)
-	assert.Equal(t, []byte("value"), value)
 }
 
 func (s *DBTestSuite) SetupTest() {
 	log.Println("setup tests...")
 	dbpath := os.TempDir() + "/testffdb2"
 	s.rdb = NewStore(dbpath)
-	// s.mdb = NewMetaStore(path.Join(dbpath, "meta"))
-	s.mdb = s.rdb
 }
 
 func (s *DBTestSuite) TearDownTest() {
 	log.Println("teardown tests...")
-	// s.mdb.Close()
-	// err := os.RemoveAll(s.mdb.dbpath)
-	// if err != nil {
-	// 	log.Println("can not remove test db.")
-	// }
-
 	s.rdb.Close()
 	err := os.RemoveAll(s.rdb.dbpath)
 	if err != nil {
@@ -141,19 +110,19 @@ func (s *DBTestSuite) TestSetSyncConcurrentWrites() {
 
 func (s *DBTestSuite) TestMetaStore() {
 	// Giving meta store
-	err := s.mdb.Put([]byte("key1"), []byte("value1"))
+	err := s.rdb.Put([]byte("key1"), []byte("value1"))
 	assert.Nil(s.T(), err)
 
-	value, err := s.mdb.Get([]byte("key1"))
+	value, err := s.rdb.Get([]byte("key1"))
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "value1", string(value))
 
 	// With large key
 	key := []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdegfhijklmnopqrstuvwxyz")
-	err = s.mdb.Put(key, []byte("value2"))
+	err = s.rdb.Put(key, []byte("value2"))
 	assert.Nil(s.T(), err)
 
-	value, err = s.mdb.Get(key)
+	value, err = s.rdb.Get(key)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "value2", string(value))
 }
@@ -164,14 +133,14 @@ func (s *DBTestSuite) TestIteration() {
 	key1 := fmt.Sprintf("job:feed:%s", "key1")
 	key2 := fmt.Sprintf("job:feed:%s", "key2")
 
-	err := s.mdb.Put([]byte(key1), []byte("value1"))
+	err := s.rdb.Put([]byte(key1), []byte("value1"))
 	assert.Nil(s.T(), err)
 
-	err = s.mdb.Put([]byte(key2), []byte("value2"))
+	err = s.rdb.Put([]byte(key2), []byte("value2"))
 	assert.Nil(s.T(), err)
 
 	opts := PrefixIteratorOptions(prefix)
-	iter := newIterator(s.mdb.rdb, opts)
+	iter := newIterator(s.rdb.rdb, opts)
 	defer iter.Close()
 
 	iter.First()
@@ -194,20 +163,20 @@ func (s *DBTestSuite) TestIterationReopen() {
 	// Giving meta store, when iterator data, it should find all keys
 	// first iter
 	for range 3 {
-		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value1"))
+		key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+		s.rdb.Put(key.Bytes(), []byte("value1"))
 	}
 
 	for range 2 {
-		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
-		s.mdb.Put(key.Bytes(), []byte("value2"))
+		key := NewFlakeKey(TableJobRunning, s.rdb.NextId())
+		s.rdb.Put(key.Bytes(), []byte("value2"))
 	}
 
-	key := NewFlakeKey(TableMax, s.mdb.NextId())
-	s.mdb.Put(key.Bytes(), []byte("value3"))
+	key := NewFlakeKey(TableMax, s.rdb.NextId())
+	s.rdb.Put(key.Bytes(), []byte("value3"))
 
-	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it := s.mdb.Iterator()
+	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it := s.rdb.Iterator()
 	it.SeekGE(key.Prefix().Bytes())
 	numFound := 0
 	for ; it.Valid(); it.Next() {
@@ -221,12 +190,12 @@ func (s *DBTestSuite) TestIterationReopen() {
 
 	// demonstrate data inconsistent when reopen db
 	s.rdb.Close()
-	// s.mdb.Close()
+	// s.rdb.Close()
 	s.SetupTest()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 	for ; it.Valid(); it.Next() {
@@ -238,8 +207,8 @@ func (s *DBTestSuite) TestIterationReopen() {
 	it.Close()
 
 	// inconsistent occur
-	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 	for ; it.Valid(); it.Next() {
@@ -253,8 +222,8 @@ func (s *DBTestSuite) TestIterationReopen() {
 	it.Close()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -267,8 +236,8 @@ func (s *DBTestSuite) TestIterationReopen() {
 	it.Close()
 
 	// inconsistent occur
-	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 	for ; it.Valid(); it.Next() {
@@ -285,26 +254,26 @@ func (s *DBTestSuite) TestIterationReopen() {
 func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	// Giving meta store
 	// First iteration: populate data
-	batch := s.mdb.rdb.NewBatch()
+	batch := s.rdb.rdb.NewBatch()
 	for range 1000 {
-		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
+		key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
 	for range 1000 {
-		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
+		key := NewFlakeKey(TableJobRunning, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
 	for range 1000 {
-		key := NewFlakeKey(TableMax, s.mdb.NextId())
+		key := NewFlakeKey(TableMax, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value3"), pebble.NoSync)
 	}
 	batch.Commit(pebble.Sync)
 	batch.Close()
 
-	key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it := s.mdb.Iterator()
+	key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it := s.rdb.Iterator()
 	it.SeekGE(key.Prefix().Bytes())
 	numFound := 0
 	for ; it.Valid(); it.Next() {
@@ -317,12 +286,12 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 
 	// Second iteration: reopen db
 	s.rdb.Close()
-	// s.mdb.Close()
+	// s.rdb.Close()
 	s.SetupTest()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -334,8 +303,8 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	assert.Equal(s.T(), 3000, numFound)
 	it.Close()
 
-	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -348,8 +317,8 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	it.Close()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -361,8 +330,8 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	assert.Equal(s.T(), 2000, numFound)
 	it.Close()
 
-	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	defer it.Close()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -385,27 +354,27 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	// 	0xFF, 0xFF, 0xFF, 0xFF,
 	// 	0xFF, 0xFF, 0xFF, 0xFF,
 	// }
-	// s.mdb.Put(maxKey, []byte(""))
-	batch := s.mdb.rdb.NewBatch()
+	// s.rdb.Put(maxKey, []byte(""))
+	batch := s.rdb.rdb.NewBatch()
 	for range 1000 {
-		key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
+		key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
 	for range 1000 {
-		key := NewFlakeKey(TableJobRunning, s.mdb.NextId())
+		key := NewFlakeKey(TableJobRunning, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
 	for range 1000 {
-		key := NewFlakeKey(TableMax, s.mdb.NextId())
+		key := NewFlakeKey(TableMax, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value3"), pebble.NoSync)
 	}
 	batch.Commit(pebble.Sync)
 	batch.Close()
 
-	key := NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it := s.mdb.Iterator()
+	key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it := s.rdb.Iterator()
 	it.SeekGE(key.Prefix().Bytes())
 
 	numFound := 0
@@ -420,12 +389,12 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	// Second iteration: reopen db
 	// reopen
 	s.rdb.Close()
-	// s.mdb.Close()
+	// s.rdb.Close()
 	s.SetupTest()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -438,8 +407,8 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	it.Close()
 
 	// again
-	key = NewFlakeKey(TableJobFeed, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -452,8 +421,8 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	it.Close()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -466,8 +435,8 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	it.Close()
 
 	// again
-	key = NewFlakeKey(TableJobRunning, s.mdb.NextId())
-	it = s.mdb.Iterator()
+	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	it = s.rdb.Iterator()
 	defer it.Close()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -486,15 +455,15 @@ func (s *DBTestSuite) TestTimeTravelId() {
 	dt := "2009-06-25T18:23:38Z"
 	t, _ := time.Parse(time.RFC3339, dt)
 
-	fid1 := s.mdb.TimeTravelId(t)
+	fid1 := s.rdb.TimeTravelId(t)
 	for range 100 {
-		fid2 := s.mdb.TimeTravelId(t)
+		fid2 := s.rdb.TimeTravelId(t)
 		assert.Equal(s.T(), string(fid1[:]), string(fid2[:]))
 	}
 
-	fid1 = s.mdb.TimeTravelReverseId(t)
+	fid1 = s.rdb.TimeTravelReverseId(t)
 	for range 100 {
-		fid2 := s.mdb.TimeTravelReverseId(t)
+		fid2 := s.rdb.TimeTravelReverseId(t)
 		assert.Equal(s.T(), string(fid1[:]), string(fid2[:]))
 	}
 }

@@ -41,10 +41,6 @@ func NewStore(dbpath string) *Store {
 	return openStore(dbpath, NewStoreOptions(), 512<<20)
 }
 
-func NewMetaStore(dbpath string) *Store {
-	return openStore(dbpath, NewMetaStoreOptions(), 128<<20)
-}
-
 func openStore(dbpath string, options *pebble.Options, cacheSize int64) *Store {
 	db := &Store{
 		dbpath:  dbpath,
@@ -89,16 +85,6 @@ func NewStoreOptions() *pebble.Options {
 		// EventListener: pebble.MakeLoggingEventListener(pebble.DefaultLogger),
 	}
 
-	configureLevels(opts)
-	return opts
-}
-
-func NewMetaStoreOptions() *pebble.Options {
-	opts := &pebble.Options{
-		LBaseMaxBytes:               64 << 20, // 64 MB
-		MemTableSize:                64 << 20, // 64 MB
-		MemTableStopWritesThreshold: 4,
-	}
 	configureLevels(opts)
 	return opts
 }
