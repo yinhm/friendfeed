@@ -42,7 +42,7 @@ func TestFeedIndex(t *testing.T) {
 	assert.Equal(t, MinQueue-1, len(index.bufq))
 	assert.Equal(t, 1000, cap(index.bufq))
 
-	index.doneCh <- struct{}{}
+	index.Stop()
 }
 
 func TestFeedIndexRebuildFullDuplicateBuffer(t *testing.T) {

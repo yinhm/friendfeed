@@ -38,12 +38,12 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
 	signal := <-sigCh
 
 	log.Printf("Signal %s received, shutdown server...", signal)
+	rpcSrv.GracefulStop()
+	log.Println("rpc server stopped.")
 	apiSrv.Shutdown()
 	log.Println("api server stopped.")
 	search.Indexer.Close()
 	log.Println("index server closed.")
-	rpcSrv.Stop()
-	log.Println("rpc server stopped.")
 }
 
 func main() {
@@ -77,10 +77,18 @@ func main() {
 	search.InitIndexService(filepath.Join(cfg.DBPath, "index"))
 
 	apiServer.StartBackgroundJobs()
-	go waitShutdown(rpcServer, apiServer)
+	shutdownDone := make(chan struct{})
+	go func() {
+		waitShutdown(rpcServer, apiServer)
+		close(shutdownDone)
+	}()
 
 	pb.RegisterApiServer(rpcServer, apiServer)
+	// Serve returns nil once GracefulStop completes; main must not
+	// return before waitShutdown finished closing the index and db,
+	// otherwise process exit kills the cleanup mid-flight.
 	if err := rpcServer.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 		log.Fatalf("RPC server failed: %v", err)
 	}
+	<-shutdownDone
 }

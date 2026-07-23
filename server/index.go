@@ -18,25 +18,28 @@ const MinQueue = 1000
 
 type FeedIndex struct {
 	sync.RWMutex
-	Id     string
-	Uuid   uuid.UUID
-	bufq   []string
-	iq     *queue.Queue
-	itemCh chan string
-	doneCh chan struct{}
-	dirty  bool
+	Id        string
+	Uuid      uuid.UUID
+	bufq      []string
+	iq        *queue.Queue
+	itemCh    chan string
+	doneCh    chan struct{}
+	stoppedCh chan struct{}
+	stopOnce  sync.Once
+	dirty     bool
 }
 
 func NewFeedIndex(db *store.Store, id string, indexUUID uuid.UUID) *FeedIndex {
 	iq := queue.New()
 	index := &FeedIndex{
-		Id:     id,
-		Uuid:   indexUUID,
-		iq:     iq,
-		bufq:   make([]string, MinQueue),
-		itemCh: make(chan string, 1),
-		doneCh: make(chan struct{}, 1),
-		dirty:  false,
+		Id:        id,
+		Uuid:      indexUUID,
+		iq:        iq,
+		bufq:      make([]string, MinQueue),
+		itemCh:    make(chan string, 1),
+		doneCh:    make(chan struct{}),
+		stoppedCh: make(chan struct{}),
+		dirty:     false,
 	}
 	go index.Serve(db)
 	return index
@@ -47,7 +50,9 @@ func (f *FeedIndex) Key() store.Key {
 }
 
 func (f *FeedIndex) Serve(db *store.Store) {
-	timeout := 1 * time.Second
+	defer close(f.stoppedCh)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-f.itemCh:
@@ -55,14 +60,20 @@ func (f *FeedIndex) Serve(db *store.Store) {
 			// f.Push(uuid)
 			// channel act as congestion control now,
 			// if timeout rebuild frontpage faster.
-		case <-time.After(timeout):
+		case <-ticker.C:
 			f.rebuild(db)
 		case <-f.doneCh:
-			// close(f.itemCh)
-			close(f.doneCh)
 			return
 		}
 	}
+}
+
+// Stop waits until the index worker has stopped using its database.
+func (f *FeedIndex) Stop() {
+	f.stopOnce.Do(func() {
+		close(f.doneCh)
+	})
+	<-f.stoppedCh
 }
 
 func (f *FeedIndex) Push(uuid string) {

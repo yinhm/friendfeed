@@ -14,6 +14,11 @@ import (
 )
 
 func (s *ApiServer) RefetchJobTicker() {
+	if !s.beginBackgroundJob() {
+		return
+	}
+	defer s.wg.Done()
+
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 	for {
@@ -28,6 +33,11 @@ func (s *ApiServer) RefetchJobTicker() {
 }
 
 func (s *ApiServer) IndexJobTicker() {
+	if !s.beginBackgroundJob() {
+		return
+	}
+	defer s.wg.Done()
+
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for {

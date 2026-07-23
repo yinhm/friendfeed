@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -693,5 +694,36 @@ func TestShutdownStopsBackgroundJobs(t *testing.T) {
 	case <-done:
 	case <-time.After(10 * time.Second):
 		t.Fatal("Shutdown did not return: background jobs were not stopped")
+	}
+}
+
+func TestShutdownIsConcurrentAndIdempotent(t *testing.T) {
+	dbpath := t.TempDir()
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	assert.NoError(t, err)
+
+	search.InitMockIndexService(filepath.Join(dbpath, "index"))
+	srv := NewApiServer(dbpath, cfg)
+	srv.StartBackgroundJobs()
+	srv.StartBackgroundJobs()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for range 2 {
+		go func() {
+			defer wg.Done()
+			srv.Shutdown()
+		}()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("concurrent Shutdown calls did not return")
 	}
 }

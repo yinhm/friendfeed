@@ -47,6 +47,11 @@ type ApiServer struct {
 	// closing the database.
 	done chan struct{}
 	wg   sync.WaitGroup
+
+	lifecycleMu           sync.Mutex
+	backgroundJobsStarted bool
+	shuttingDown          bool
+	shutdownOnce          sync.Once
 }
 
 func init() {
@@ -91,36 +96,46 @@ func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 // StartBackgroundJobs starts the periodic refetch and index dump jobs.
 // They are stopped by Shutdown before the database is closed.
 func (s *ApiServer) StartBackgroundJobs() {
-	s.wg.Add(2)
-	go func() {
-		defer s.wg.Done()
-		s.RefetchJobTicker()
-	}()
-	go func() {
-		defer s.wg.Done()
-		s.IndexJobTicker()
-	}()
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.backgroundJobsStarted || s.shuttingDown {
+		return
+	}
+	s.backgroundJobsStarted = true
+	go s.RefetchJobTicker()
+	go s.IndexJobTicker()
+}
+
+func (s *ApiServer) beginBackgroundJob() bool {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.shuttingDown {
+		return false
+	}
+	s.wg.Add(1)
+	return true
 }
 
 func (s *ApiServer) Shutdown() {
-	if s.rdb == nil {
-		return // already closed
-	}
+	s.shutdownOnce.Do(func() {
+		// Prevent new background jobs from starting, then wait for existing
+		// jobs to finish using the database.
+		s.lifecycleMu.Lock()
+		s.shuttingDown = true
+		close(s.done)
+		s.lifecycleMu.Unlock()
+		s.wg.Wait()
 
-	// stop background jobs and wait for in-flight job work to
-	// finish before touching the database.
-	close(s.done)
-	s.wg.Wait()
+		idx := s.cached["public"]
+		idx.Stop()
+		logger.Debug("dump index to db...")
+		idx.dump(s.mdb)
 
-	idx := s.cached["public"]
-	logger.Debug("dump index to db...")
-	idx.dump(s.mdb)
-	idx.doneCh <- struct{}{}
-
-	s.rdb.Close()
-	// s.mdb.Close()
-	s.rdb = nil
-	s.mdb = nil
+		s.rdb.Close()
+		// s.mdb.Close()
+		s.rdb = nil
+		s.mdb = nil
+	})
 }
 
 func (s *ApiServer) Destroy() {
