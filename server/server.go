@@ -41,6 +41,12 @@ type ApiServer struct {
 
 	// cached feed
 	cached map[string]*FeedIndex
+
+	// background job lifecycle: done signals shutdown, wg tracks
+	// running job goroutines so Shutdown can wait for them before
+	// closing the database.
+	done chan struct{}
+	wg   sync.WaitGroup
 }
 
 func init() {
@@ -75,16 +81,36 @@ func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 		mdb:    mdb,
 		rdb:    rdb,
 		cached: cached,
+		done:   make(chan struct{}),
 	}
 
 	srv.fs = media.NewLocalStorage(cfg, 1024)
 	return srv
 }
 
+// StartBackgroundJobs starts the periodic refetch and index dump jobs.
+// They are stopped by Shutdown before the database is closed.
+func (s *ApiServer) StartBackgroundJobs() {
+	s.wg.Add(2)
+	go func() {
+		defer s.wg.Done()
+		s.RefetchJobTicker()
+	}()
+	go func() {
+		defer s.wg.Done()
+		s.IndexJobTicker()
+	}()
+}
+
 func (s *ApiServer) Shutdown() {
 	if s.rdb == nil {
 		return // already closed
 	}
+
+	// stop background jobs and wait for in-flight job work to
+	// finish before touching the database.
+	close(s.done)
+	s.wg.Wait()
 
 	idx := s.cached["public"]
 	logger.Debug("dump index to db...")

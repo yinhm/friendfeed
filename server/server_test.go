@@ -670,3 +670,28 @@ func (s *RpcTestSuite) TestKLines() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 1, len(xrxds.XRXDS))
 }
+
+// Shutdown must stop the background job tickers and wait for them
+// before closing the database, otherwise a running job panics with
+// "pebble: closed" on an already closed db.
+func TestShutdownStopsBackgroundJobs(t *testing.T) {
+	dbpath := t.TempDir()
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	assert.Nil(t, err)
+
+	search.InitMockIndexService(filepath.Join(dbpath, "index"))
+	srv := NewApiServer(dbpath, cfg)
+	srv.StartBackgroundJobs()
+
+	done := make(chan struct{})
+	go func() {
+		srv.Shutdown()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Shutdown did not return: background jobs were not stopped")
+	}
+}

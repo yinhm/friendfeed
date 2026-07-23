@@ -76,8 +76,7 @@ func main() {
 	// index service
 	search.InitIndexService(filepath.Join(cfg.DBPath, "index"))
 
-	go apiServer.RefetchJobTicker()
-	go apiServer.IndexJobTicker()
+	apiServer.StartBackgroundJobs()
 	go waitShutdown(rpcServer, apiServer)
 
 	pb.RegisterApiServer(rpcServer, apiServer)
