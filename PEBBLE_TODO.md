@@ -6,6 +6,8 @@
 
 可行，代码工作量小，但有一个不可跳过的数据格式（Format Major Version, FMV）前置步骤。建议拆成两个独立发布。
 
+基线：git tag `v1.0.0` 标记最后一个 pebble v1 / FMV 1 兼容版本，是 FMV ratchet 前唯一的代码回退锚点（数据回退仍须依赖备份）。
+
 ## 背景
 
 - 当前依赖 `github.com/cockroachdb/pebble v1.1.5`，已是 v1 线最终版；v2 线为独立 module path `github.com/cockroachdb/pebble/v2`（评估时最新 v2.1.6，CockroachDB 25.3 生产使用）。
