@@ -23,7 +23,8 @@ var fromPath string
 var toPath string
 var command string
 var timelineUser string
-var timelineMaxFeeds int
+var timelineMaxLimit int
+var debugTable string
 var dryRun bool
 
 func init() {
@@ -31,7 +32,8 @@ func init() {
 	flag.StringVar(&toPath, "to", "", "to directory")
 	flag.StringVar(&command, "c", "", "command to do")
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
-	flag.IntVar(&timelineMaxFeeds, "max-feeds", 0, "maximum source feeds per timeline (0 is unlimited)")
+	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump (0 is unlimited)")
+	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
 	flag.BoolVar(&dryRun, "dry-run", false, "report timeline rebuild without writing changes")
 }
 
@@ -71,7 +73,7 @@ type timelineRebuildStats struct {
 
 type timelineRebuildOptions struct {
 	user     string
-	maxFeeds int
+	maxLimit int
 	dryRun   bool
 }
 
@@ -303,7 +305,7 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	selectedFollows := 0
 	followPrefix := model.NewKeyFrom(model.Follow.Prefix, profileID.Bytes())
 	_, err = db.ForwardScan(followPrefix, func(i int, key, value []byte) error {
-		if options.maxFeeds > 0 && len(feeds) >= options.maxFeeds {
+		if options.maxLimit > 0 && len(feeds) >= options.maxLimit {
 			return &store.Error{Code: store.StopIteration, Msg: "feed limit reached"}
 		}
 		feedID, err := uuid.FromBytes(key[len(followPrefix):])
@@ -439,7 +441,7 @@ func runDBCommand(db, ndb *store.Store) {
 }
 
 func runRebuildTimelineCommand(ndb *store.Store) {
-	options := timelineRebuildOptions{user: timelineUser, maxFeeds: timelineMaxFeeds, dryRun: dryRun}
+	options := timelineRebuildOptions{user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun}
 	stats, err := rebuildTimelines(ndb, options)
 	if err != nil {
 		log.Fatal(err)
@@ -512,6 +514,59 @@ func runPurgeOAuthCommand(ndb *store.Store) {
 	ndb.Flush()
 }
 
+var errDebugLimitReached = errors.New("debug table limit reached")
+
+// dumpTable 逐条解码并打印表记录；maxLimit 为 0 时不限条数。
+// keyFn 负责把内部 key 渲染成可读形式（不同表 key 编码不同）。
+func dumpTable(db *store.Store, table *model.Table, newMsg func() proto.Message, keyFn func(key []byte) string, maxLimit int, out io.Writer) (int, error) {
+	n := 0
+	err := table.Iter(db, func(key, raw []byte) error {
+		if maxLimit > 0 && n >= maxLimit {
+			return errDebugLimitReached
+		}
+		msg := newMsg()
+		if err := proto.Unmarshal(raw, msg); err != nil {
+			return fmt.Errorf("decode record at %x: %w", key, err)
+		}
+		fmt.Fprintf(out, "%s: %v\n", keyFn(key), msg)
+		n++
+		return nil
+	})
+	if errors.Is(err, errDebugLimitReached) {
+		err = nil
+	}
+	return n, err
+}
+
+// stripPrefixKey 去掉表前缀后按字符串渲染 key，适用于字符串编码的表（如 oauth）。
+func stripPrefixKey(table *model.Table, key []byte) string {
+	return strings.TrimPrefix(string(key), string(table.Prefix))
+}
+
+func runDebugTableCommand(ndb *store.Store, tableName string, maxLimit int) {
+	var table *model.Table
+	var newMsg func() proto.Message
+	var keyFn func(key []byte) string
+	switch tableName {
+	case "oauth":
+		table = model.OAuth
+		newMsg = func() proto.Message { return new(pb.OAuthUser) }
+		keyFn = func(key []byte) string { return stripPrefixKey(table, key) }
+	case "profile":
+		table = model.Profile
+		newMsg = func() proto.Message { return new(pb.Profile) }
+		keyFn = func(key []byte) string { return table.ToStringKey(store.Key(key)) }
+	default:
+		log.Fatalf("unknown debug table %q (supported: oauth, profile)", tableName)
+	}
+
+	n, err := dumpTable(ndb, table, newMsg, keyFn, maxLimit, os.Stdout)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("debug table %s: %d records dumped (max-limit=%d)", tableName, n, maxLimit)
+}
+
 func runDebugCommand(db, ndb *store.Store) {
 	entryId := "744b310d5dca442d82f1ec2366554b1e"
 	// entryId := "0000012820141462fa7290a658763ae1"
@@ -563,11 +618,13 @@ func runDebugCommand(db, ndb *store.Store) {
 // We should open original db ad readonly mode.
 //
 // rebuild Home timelines from each profile's own feed and Follow edges
-// ./tools -to new_db -c rebuild_timeline -user yinhm -max-feeds 20 -dry-run
+// ./tools -to new_db -c rebuild_timeline -user yinhm -max-limit 20 -dry-run
 // rebuild Follow and Follower tables from legacy Feedinfo metadata
 // ./tools -to new_db -c rebuild_social_graph -dry-run
 // migrate legacy GCS and FriendFeed media URLs in profiles and entries
 // ./tools -to new_db -c migrate_media_urls -dry-run
+// dump decoded table records
+// ./tools -to new_db -c debug -table oauth -max-limit 10
 //
 // sync all data from db
 // ./tools -from old_db -to new_db -c db
@@ -582,6 +639,10 @@ func main() {
 	}
 	needsSource := command != "rebuild_timeline" && command != "rebuild_social_graph" &&
 		command != "migrate_media_urls" && command != "purge_profile" && command != "purge_oauth"
+	if command == "debug" && debugTable != "" {
+		// debug -table 只读目标库
+		needsSource = false
+	}
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
 	}
@@ -616,7 +677,11 @@ func main() {
 	case "purge_oauth":
 		runPurgeOAuthCommand(ndb)
 	case "debug":
-		runDebugCommand(db, ndb)
+		if debugTable != "" {
+			runDebugTableCommand(ndb, debugTable, timelineMaxLimit)
+		} else {
+			runDebugCommand(db, ndb)
+		}
 	default:
 		// Retired old_db migration commands (meta, sync_meta, public_feed,
 		// profile, count_meta) must fail loudly rather than exit 0 silently.

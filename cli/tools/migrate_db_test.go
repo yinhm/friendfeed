@@ -11,6 +11,7 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestConfirmDestructive(t *testing.T) {
@@ -37,6 +38,81 @@ func TestConfirmDestructive(t *testing.T) {
 				t.Fatalf("prompt missing warning: %q", out.String())
 			}
 		})
+	}
+}
+
+func TestDumpTable(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	for _, userID := range []string{"dump-1", "dump-2", "dump-3"} {
+		_, err := model.PutOAuthUser(db, &pb.OAuthUser{
+			UserId:   userID,
+			Provider: "twitter",
+		})
+		if err != nil {
+			t.Fatalf("PutOAuthUser(%q): %v", userID, err)
+		}
+	}
+
+	newMsg := func() proto.Message { return new(pb.OAuthUser) }
+	keyFn := func(key []byte) string { return stripPrefixKey(model.OAuth, key) }
+
+	// unlimited: all records, decoded and printed with string keys
+	out := new(bytes.Buffer)
+	n, err := dumpTable(db, model.OAuth, newMsg, keyFn, 0, out)
+	if err != nil {
+		t.Fatalf("dumpTable: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("dumped %d records; want 3", n)
+	}
+	for _, want := range []string{"twitter:dump-1", "twitter:dump-2", "twitter:dump-3"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output missing %q: %q", want, out.String())
+		}
+	}
+
+	// max-limit caps the dump
+	out.Reset()
+	n, err = dumpTable(db, model.OAuth, newMsg, keyFn, 2, out)
+	if err != nil {
+		t.Fatalf("dumpTable with limit: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("dumped %d records; want 2", n)
+	}
+	if got := strings.Count(out.String(), "twitter:dump-"); got != 2 {
+		t.Fatalf("output has %d records; want 2: %q", got, out.String())
+	}
+}
+
+func TestDumpTableProfile(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	profileID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileID.String(), Id: "yinhm", Type: "user"}
+	if err := model.UpdateProfile(db, profile); err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+
+	newMsg := func() proto.Message { return new(pb.Profile) }
+	keyFn := func(key []byte) string { return model.Profile.ToStringKey(store.Key(key)) }
+
+	out := new(bytes.Buffer)
+	n, err := dumpTable(db, model.Profile, newMsg, keyFn, 0, out)
+	if err != nil {
+		t.Fatalf("dumpTable: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("dumped %d records; want 1", n)
+	}
+	// Profile keys render as the hex-encoded UUID; the value must be decoded.
+	for _, want := range []string{fmt.Sprintf("%x", profileID.Bytes()), "yinhm"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output missing %q: %q", want, out.String())
+		}
 	}
 }
 
@@ -174,7 +250,7 @@ func TestRebuildTimelines(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dryStats, err := rebuildTimelines(db, timelineRebuildOptions{user: "user", maxFeeds: 1, dryRun: true})
+	dryStats, err := rebuildTimelines(db, timelineRebuildOptions{user: "user", maxLimit: 1, dryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +296,7 @@ func TestExplicitTimelineUserDoesNotRequireOAuthMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stats, err := rebuildTimelines(db, timelineRebuildOptions{user: "yinhm", maxFeeds: 20, dryRun: true})
+	stats, err := rebuildTimelines(db, timelineRebuildOptions{user: "yinhm", maxLimit: 20, dryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
