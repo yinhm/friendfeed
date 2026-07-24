@@ -154,6 +154,19 @@ func (s *ApiServer) Destroy() {
 
 // WARN: UPDATE ARE NOT SAFE
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {
+	profileUUID, err := uuid.FromString(in.Uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch the current profile to detect ID changes
+	currentProfile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
+	if err != nil {
+		// Profile doesn't exist yet; this is a create, not an update.
+		// Proceed with the standard path.
+		currentProfile = nil
+	}
+
 	profile := &pb.Profile{
 		Uuid:        in.Uuid,
 		Id:          in.Id,
@@ -169,8 +182,31 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	}
 	logger.Debugf("profile pic: <%s, %s>", profile.Id, profile.Picture)
 
-	if err := model.UpdateProfile(s.mdb, profile); err != nil {
-		return nil, err
+	// If the ID is changing, use RenameProfileId to handle UserMap updates
+	// atomically. Otherwise just update the profile in place.
+	if currentProfile != nil && currentProfile.Id != profile.Id {
+		if err := model.RenameProfileId(s.mdb, profileUUID, profile.Id); err != nil {
+			return nil, err
+		}
+		// RenameProfileId updates Profile.Id but not the other fields;
+		// fetch the renamed profile and apply the remaining updates.
+		currentProfile, err = model.GetProfileFromUuid(s.mdb, profileUUID)
+		if err != nil {
+			return nil, err
+		}
+		currentProfile.Name = profile.Name
+		currentProfile.Type = profile.Type
+		currentProfile.Private = profile.Private
+		currentProfile.Picture = profile.Picture
+		currentProfile.Description = profile.Description
+		if err := model.UpdateProfile(s.mdb, currentProfile); err != nil {
+			return nil, err
+		}
+		profile = currentProfile
+	} else {
+		if err := model.UpdateProfile(s.mdb, profile); err != nil {
+			return nil, err
+		}
 	}
 
 	// save all feed info in one key for simplicity

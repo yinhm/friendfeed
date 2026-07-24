@@ -149,6 +149,8 @@ func Serve(s *server.Server, config *util.Config) error {
 	authorized := r.Group("/account", server.LoginRequired())
 	{
 		authorized.GET("/", s.AccountHandler)
+		authorized.GET("/profile", s.AccountProfileHandler)
+		authorized.POST("/profile", s.AccountProfileUpdateHandler)
 		authorized.GET("/import/", s.ImportHandler)
 		// authorized.POST("/ffimport/", s.FriendFeedImportHandler)
 		authorized.GET("/import/twitter", s.TwitterImportHandler)
