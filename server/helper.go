@@ -47,9 +47,10 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	if entry.From == nil {
 		entry.From = &pb.Feed{}
 	}
-	// Refresh denormalized fields from the canonical profile so a renamed ID
-	// (and updated picture) render correctly for historical entries.
+	// Refresh denormalized fields from the canonical profile so a renamed ID,
+	// updated name or picture render correctly for historical entries.
 	entry.From.Id = profile.Id
+	entry.From.Name = profile.Name
 	entry.From.Picture = profile.Picture
 	return nil
 }

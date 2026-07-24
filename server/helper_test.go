@@ -34,7 +34,7 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 	entry := &pb.Entry{
 		Id:          uuid.Must(uuid.NewV4()).String(),
 		ProfileUuid: profileUUID.String(),
-		From:        &pb.Feed{Id: "oldname", Uuid: profileUUID.String()},
+		From:        &pb.Feed{Id: "oldname", Name: "Test User", Uuid: profileUUID.String()},
 	}
 
 	// Rename the profile ID; the old id->uuid mapping disappears.
@@ -45,12 +45,25 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 		t.Fatal("precondition failed: old id still resolves")
 	}
 
-	// Formatting the historical entry must succeed and refresh From.Id.
+	// The profile edit page may also update the display name.
+	renamed, err := model.GetProfileFromUuid(db, profileUUID)
+	if err != nil {
+		t.Fatalf("fetch renamed profile: %v", err)
+	}
+	renamed.Name = "Renamed User"
+	if err := model.UpdateProfile(db, renamed); err != nil {
+		t.Fatalf("update name: %v", err)
+	}
+
+	// Formatting the historical entry must succeed and refresh From fields.
 	if err := fmtEntryProfile(db, entry); err != nil {
 		t.Fatalf("fmtEntryProfile after rename: %v", err)
 	}
 	if entry.From.Id != "newname" {
 		t.Errorf("From.Id = %q; want %q (should refresh to current id)", entry.From.Id, "newname")
+	}
+	if entry.From.Name != "Renamed User" {
+		t.Errorf("From.Name = %q; want %q (should refresh to current name)", entry.From.Name, "Renamed User")
 	}
 	if entry.From.Picture != "http://example.com/new.jpg" {
 		t.Errorf("From.Picture = %q; want refreshed picture", entry.From.Picture)
@@ -84,5 +97,8 @@ func TestFmtEntryProfileLegacyFallback(t *testing.T) {
 	}
 	if entry.From.Id != "legacy" {
 		t.Errorf("From.Id = %q; want legacy", entry.From.Id)
+	}
+	if entry.From.Name != "Legacy User" {
+		t.Errorf("From.Name = %q; want %q", entry.From.Name, "Legacy User")
 	}
 }
