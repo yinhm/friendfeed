@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +12,33 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
+
+func TestConfirmDestructive(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "exact command name", input: "purge_profile\n"},
+		{name: "surrounding whitespace tolerated", input: "  purge_profile  \n"},
+		{name: "piped input without newline", input: "purge_profile"},
+		{name: "plain yes is not enough", input: "yes\n", wantErr: true},
+		{name: "wrong command name", input: "purge_oauth\n", wantErr: true},
+		{name: "empty input", input: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := new(bytes.Buffer)
+			err := confirmDestructive("purge_profile", "/data/db", strings.NewReader(tt.input), out)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("confirmDestructive(%q) err = %v; wantErr %t", tt.input, err, tt.wantErr)
+			}
+			if !strings.Contains(out.String(), "WARNING") {
+				t.Fatalf("prompt missing warning: %q", out.String())
+			}
+		})
+	}
+}
 
 func TestMigrateMediaURL(t *testing.T) {
 	tests := []struct {

@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -36,6 +39,27 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 	return db.ForwardScan(prefix, func(i int, k, v []byte) error {
 		return db.Delete(k)
 	})
+}
+
+// destructiveCommands 会不可逆地删除整表数据，执行前必须交互确认。
+var destructiveCommands = map[string]bool{
+	"purge_profile": true,
+	"purge_oauth":   true,
+}
+
+// confirmDestructive 要求用户完整输入命令名才放行；脚本化场景可以管道喂入，
+// 例如 `echo purge_profile | ./tools -to db -c purge_profile`。
+func confirmDestructive(command, dbPath string, in io.Reader, out io.Writer) error {
+	fmt.Fprintf(out, "WARNING: %q will permanently delete data in %s; this cannot be undone.\n", command, dbPath)
+	fmt.Fprintf(out, "Type %q to continue: ", command)
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("read confirmation: %w", err)
+	}
+	if strings.TrimSpace(line) != command {
+		return errors.New("confirmation did not match; aborted")
+	}
+	return nil
 }
 
 type timelineRebuildStats struct {
@@ -556,9 +580,17 @@ func main() {
 	if toPath == "" {
 		log.Fatal("-to is required")
 	}
-	needsSource := command != "rebuild_timeline" && command != "rebuild_social_graph" && command != "migrate_media_urls"
+	needsSource := command != "rebuild_timeline" && command != "rebuild_social_graph" &&
+		command != "migrate_media_urls" && command != "purge_profile" && command != "purge_oauth"
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
+	}
+
+	// 确认必须发生在打开(创建)目标库之前,避免误操作产生副作用。
+	if destructiveCommands[command] {
+		if err := confirmDestructive(command, toPath, os.Stdin, os.Stderr); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	ndb := store.NewStore(toPath)

@@ -45,11 +45,11 @@ migrate all to new db
 ```
 
 
-purge and rebuild meta if wrong oauth:
+purge and rebuild meta if wrong oauth（`purge_*` 会整表删除，执行前需在提示中输入完整命令名确认；脚本化用 `echo purge_profile | ./tools ...` 管道喂入）:
 
 ```
-./tools -from old_db -to new_db -c purge_profile
-./tools -from old_db -to new_db -c purge_oauth
+./tools -to new_db -c purge_profile
+./tools -to new_db -c purge_oauth
 ./tools -from old_db -to new_db -c sync_meta
 ```
 
