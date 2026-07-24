@@ -2,7 +2,9 @@
 
 > 本文档从 README 拆出，记录 `old_db` 到 `new_db` 的迁移命令。
 > 这些工具属于 `v1.0.0` 基线（tag）；old_db 迁移与 Pebble v2 升级均已完成。
-> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`。
+> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`，以及诊断/修复命令 `inspect_profile`、`audit_profiles`、`fix_twitter_oauth_fields`（见下文）。
+>
+> `-from` 只对读取源库的命令（`db`、`sync`、无 `-table` 的 `debug`）为必填；其余命令仅操作 `-to` 目标库，无需 `-from`。
 
 rebuild public feed
 
@@ -52,6 +54,32 @@ purge and rebuild meta if wrong oauth（`purge_*` 会整表删除，执行前需
 ./tools -to new_db -c purge_oauth
 ./tools -from old_db -to new_db -c sync_meta
 ```
+
+# 诊断与修复命令
+
+以下命令均只需 `-to` 目标库，不需要 `-from`。`inspect_profile`、`audit_profiles` 以只读方式打开数据库（`store.NewStoreReadOnly`），不会写盘、也不与其他进程争抢写锁，可在服务运行时安全执行。
+
+## inspect_profile
+
+追踪某个登录名的 `UserMap -> uuid -> Profile` 解析链路，用于排查 `/feed/:name` 为什么 404。
+
+    ./tools -to new_db -c inspect_profile -id elonmusk
+
+## audit_profiles
+
+全库审计 feed 路由不变量（每个非删除 `Profile.Id` 是否能经 `UserMap` 解析回自身 uuid），并报告 OAuth twitter handle 与 feed id 的差异、以及把 handle 作为别名回填的可行性（是否与其他 profile 冲突）。
+
+    ./tools -to new_db -c audit_profiles
+
+背景：feed 路由只认 `Profile.Id`（FriendFeed 昵称），而 twitter 的 OAuth `NickName` 是 screen_name（handle），二者可以合法地不同。例如 `/feed/elon_musk`（handle）会 404，而 `/feed/elon_musk`（feed id）正常。
+
+## fix_twitter_oauth_fields
+
+对每一条 `provider == "twitter"` 的 OAuth 记录，交换 `Name` 与 `NickName`。迁移进来的旧记录字段顺序是 `Name=显示名、NickName=handle`，而当前登录实现（`httpd/src/auth.go`）期望 `Name=handle、NickName=显示名`，此命令把旧记录翻正。
+
+    ./tools -to new_db -c fix_twitter_oauth_fields
+
+注意：命令**不是幂等的** —— 每执行一次就翻转一次，重复执行会翻回去，只应运行一次。仅影响 twitter provider，其他 provider（如 google）不受影响。
 
 # Pebble v2 / FMV 升级（2026-07，dev 与 production 已完成）
 
