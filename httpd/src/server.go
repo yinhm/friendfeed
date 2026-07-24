@@ -11,11 +11,11 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
 	"context"
+
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -266,10 +266,6 @@ func (s *Server) feedReadable(c *gin.Context, feedUuid string) bool {
 	// }
 
 	return false
-}
-
-func contains(slice []string, item string) bool {
-	return slices.Contains(slice, item)
 }
 
 func (s *Server) ExpandCommentHandler(c *gin.Context) {

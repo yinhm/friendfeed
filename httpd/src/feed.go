@@ -19,15 +19,14 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 
 	var format = false
 
-	//lint:ignore S1034 DO KNOW HOW
-	switch req.(type) {
+	switch r := req.(type) {
 	case *pb.FeedRequest:
-		feed, err = s.client.FetchFeed(ctx, req.(*pb.FeedRequest))
+		feed, err = s.client.FetchFeed(ctx, r)
 		format = true
 	case *pb.EntryRequest:
-		feed, err = s.client.FetchEntry(ctx, req.(*pb.EntryRequest))
+		feed, err = s.client.FetchEntry(ctx, r)
 	case *pb.SearchRequest:
-		feed, err = s.client.Search(ctx, req.(*pb.SearchRequest))
+		feed, err = s.client.Search(ctx, r)
 		format = true
 	}
 	if err != nil {

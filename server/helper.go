@@ -44,16 +44,6 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	return nil
 }
 
-//lint:ignore U1000 keep it
-func fmtComments(req *pb.FeedRequest, entry *pb.Entry) {
-	entry.FormatComments(req.MaxComments)
-}
-
-//lint:ignore U1000 keep it
-func fmtLikes(req *pb.FeedRequest, entry *pb.Entry) {
-	entry.FormatLikes(req.MaxLikes)
-}
-
 func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 	graph := &pb.Graph{
 		Following: make(map[string]*pb.Profile),

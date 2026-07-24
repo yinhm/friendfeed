@@ -66,9 +66,9 @@ func (s *TableTestSuite) TestTableFarm() {
 func (s *TableTestSuite) TestPutEntry() {
 	p := &pb.Profile{
 		Uuid: "c6f8dca854f011ddb489003048343a40",
-		Id:   "yinhm",
-		Name: "yinhm",
-		Type: "user",
+		// Id:   "yinhm",
+		// Name: "yinhm",
+		// Type: "user",
 	}
 
 	feed := &pb.Feed{

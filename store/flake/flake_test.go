@@ -39,7 +39,7 @@ func TestWorkerIdIsNext48Bits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(id[8:14], workerId[:]) != 0 {
+	if !bytes.Equal(id[8:14], workerId[:]) {
 		t.Fatalf("Expected worker ID in ID to be %v, but was %v", workerId, id[8:14])
 	}
 }
@@ -62,7 +62,7 @@ func TestSequenceIsFinal16Bits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(id[14:16], sequenceBytes) != 0 {
+	if !bytes.Equal(id[14:16], sequenceBytes) {
 		t.Fatalf("Expected sequence in ID to be %v, but was %v", sequenceBytes, id[14:16])
 	}
 }
@@ -78,7 +78,7 @@ func TestSequenceIsIncrementedForSameTimestamp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(id[14:16], []byte{0, 0}) != 0 {
+	if !bytes.Equal(id[14:16], []byte{0, 0}) {
 		t.Fatalf("Expected sequence in ID to be [0 0] on the first run, but was %v", id[14:16])
 	}
 
@@ -87,7 +87,7 @@ func TestSequenceIsIncrementedForSameTimestamp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(id2[14:16], []byte{0, 1}) != 0 {
+	if !bytes.Equal(id2[14:16], []byte{0, 1}) {
 		t.Fatalf("Expected sequence in ID to be [0 1] on the second run, but was %v", id2[14:16])
 	}
 }
@@ -107,7 +107,7 @@ func TestSequenceIsResetWhenTimeMovesForward(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(id[14:16], []byte{0, 0}) != 0 {
+	if !bytes.Equal(id[14:16], []byte{0, 0}) {
 		t.Fatalf("Expected sequence in ID to be [0 0] on the first run, but was %v", id[14:16])
 	}
 
@@ -116,7 +116,7 @@ func TestSequenceIsResetWhenTimeMovesForward(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(id2[14:16], []byte{0, 0}) != 0 {
+	if !bytes.Equal(id2[14:16], []byte{0, 0}) {
 		t.Fatalf("Expected sequence in ID to be [0 0] on the second run, but was %v", id2[14:16])
 	}
 }
