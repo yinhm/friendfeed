@@ -511,7 +511,13 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		return nil, err
 	}
 
-	profile, err := model.GetProfileFromUserId(s.mdb, entry.From.Id)
+	// Resolve the feed owner by stable uuid, not the denormalized From.Id
+	// which goes stale after a profile rename.
+	profileUuid, err := uuid.FromString(entry.ProfileUuid)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "profile not found")
+	}
+	profile, err := model.GetProfileFromUuid(s.mdb, profileUuid)
 	if err != nil || profile == nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}

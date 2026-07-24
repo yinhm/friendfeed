@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/hex"
+	"errors"
 	"math/rand"
 
 	"github.com/gofrs/uuid"
@@ -21,25 +22,34 @@ func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) err
 }
 
 func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
-	// refetch user profile
-	var err error
+	// Refetch the author profile. Resolve by the stable ProfileUuid, NOT by
+	// the denormalized From.Id: From.Id is a snapshot taken when the entry
+	// was posted and goes stale if the author later renames their profile
+	// ID. Resolving by id would then fail and 404 the entire feed.
 	var profile *pb.Profile
-	if entry.From != nil {
-		profile, err = model.GetProfileFromUserId(mdb, entry.From.Id)
-		if err != nil {
-			return err
-		}
-	} else {
-		profileUUID, err := uuid.FromString(entry.ProfileUuid)
-		if err != nil {
-			return err
+	var err error
+	if entry.ProfileUuid != "" {
+		profileUUID, uerr := uuid.FromString(entry.ProfileUuid)
+		if uerr != nil {
+			return uerr
 		}
 		profile, err = model.GetProfileFromUuid(mdb, profileUUID)
-		if err != nil {
-			return err
-		}
-		entry.From = &pb.Feed{Id: profile.Id}
+	} else if entry.From != nil {
+		// Legacy entries without ProfileUuid fall back to id lookup.
+		profile, err = model.GetProfileFromUserId(mdb, entry.From.Id)
+	} else {
+		return errors.New("entry has neither ProfileUuid nor From")
 	}
+	if err != nil {
+		return err
+	}
+
+	if entry.From == nil {
+		entry.From = &pb.Feed{}
+	}
+	// Refresh denormalized fields from the canonical profile so a renamed ID
+	// (and updated picture) render correctly for historical entries.
+	entry.From.Id = profile.Id
 	entry.From.Picture = profile.Picture
 	return nil
 }
