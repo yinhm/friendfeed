@@ -727,3 +727,93 @@ func TestShutdownIsConcurrentAndIdempotent(t *testing.T) {
 		t.Fatal("concurrent Shutdown calls did not return")
 	}
 }
+
+// Twitter 登录完整生命周期：首次登录创建 profile 和 twitter service；
+// 重复登录保留旧 uuid（旧 uuid 可能来自 FriendFeed 迁移，绝不能重新生成）、
+// 刷新 token，且不重建 profile。
+func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
+	ctx := context.Background()
+
+	// 与 httpd AuthCallback 的映射一致：Name 存 screen_name，NickName 存显示名
+	first := &pb.OAuthUser{
+		Name:        "screenname",
+		NickName:    "Screen Name",
+		UserId:      "tw-lifecycle",
+		AccessToken: "token-1",
+		Provider:    "twitter",
+	}
+	profile, err := s.srv.PutOAuth(ctx, first)
+	assert.Nil(s.T(), err)
+	assert.NotEmpty(s.T(), profile.Uuid)
+	assert.Equal(s.T(), "screenname", profile.Id)
+	assert.Equal(s.T(), "Screen Name", profile.Name)
+
+	// twitter provider 必须创建 service
+	profileUUID, err := uuid.FromString(profile.Uuid)
+	assert.Nil(s.T(), err)
+	services, err := model.GetServicesForProfile(s.srv.rdb, profileUUID)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(services))
+	svc := services[0]
+	assert.Equal(s.T(), "twitter", svc.Id)
+	// 现状固化：service.Profile 拼的是 authinfo.NickName（goth 的显示名），
+	// 疑似 bug（显示名含空格时 URL 无效），但字段映射历史较乱，
+	// 是否修正需另行确认，本测试只锁定当前行为。
+	assert.Equal(s.T(), "https://twitter.com/Screen Name", svc.Profile)
+	assert.Equal(s.T(), "screenname", svc.Username)
+	assert.Equal(s.T(), "token-1", svc.Oauth.AccessToken)
+
+	// 重复登录：新 token、空 uuid
+	relogin := &pb.OAuthUser{
+		Name:        "screenname",
+		NickName:    "Screen Name",
+		UserId:      "tw-lifecycle",
+		AccessToken: "token-2",
+		Provider:    "twitter",
+	}
+	profile2, err := s.srv.PutOAuth(ctx, relogin)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), profile.Uuid, profile2.Uuid)
+
+	// token 已刷新，uuid 未变
+	_, oauthUser, err := model.GetOAuthUser(s.srv.mdb, "twitter", "tw-lifecycle")
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), profile.Uuid, oauthUser.Uuid)
+	assert.Equal(s.T(), "token-2", oauthUser.AccessToken)
+
+	// 仍然只有一个 service（重建而非追加）
+	services, err = model.GetServicesForProfile(s.srv.rdb, profileUUID)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(services))
+}
+
+// Google 登录创建 profile，但不创建任何 service。
+func (s *RpcTestSuite) TestPutOAuthGoogleLoginCreatesNoService() {
+	ctx := context.Background()
+
+	req := &pb.OAuthUser{
+		Name:     "guser",
+		NickName: "Google User",
+		UserId:   "google-nosvc",
+		Provider: "google",
+	}
+	profile, err := s.srv.PutOAuth(ctx, req)
+	assert.Nil(s.T(), err)
+	assert.NotEmpty(s.T(), profile.Uuid)
+
+	profileUUID, err := uuid.FromString(profile.Uuid)
+	assert.Nil(s.T(), err)
+	services, err := model.GetServicesForProfile(s.srv.rdb, profileUUID)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 0, len(services))
+
+	// 重复登录同样保留 uuid
+	profile2, err := s.srv.PutOAuth(ctx, &pb.OAuthUser{
+		Name:     "guser",
+		NickName: "Google User",
+		UserId:   "google-nosvc",
+		Provider: "google",
+	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), profile.Uuid, profile2.Uuid)
+}
