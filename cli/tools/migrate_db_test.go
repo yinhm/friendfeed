@@ -41,6 +41,45 @@ func TestConfirmDestructive(t *testing.T) {
 	}
 }
 
+func TestFixTwitterOAuthFields(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	seed := []*pb.OAuthUser{
+		{Provider: "twitter", UserId: "1", Name: "芸窗", NickName: "yun_chuang"},
+		{Provider: "twitter", UserId: "2", Name: "Olive Fee", NickName: "Olivefee"},
+		// non-twitter rows must never be touched
+		{Provider: "google", UserId: "3", Name: "Yin Heming", NickName: "epaulin"},
+	}
+	for _, u := range seed {
+		if _, err := model.PutOAuthUser(db, u); err != nil {
+			t.Fatalf("seed %s: %v", u.UserId, err)
+		}
+	}
+
+	runFixTwitterOAuthFieldsCommand(db)
+
+	want := map[string]struct{ name, nick string }{
+		"1": {"yun_chuang", "芸窗"},
+		"2": {"Olivefee", "Olive Fee"},
+	}
+	for id, w := range want {
+		_, u, err := model.GetOAuthUser(db, "twitter", id)
+		if err != nil {
+			t.Fatalf("get twitter:%s: %v", id, err)
+		}
+		if u.Name != w.name || u.NickName != w.nick {
+			t.Fatalf("twitter:%s = (Name=%q, NickName=%q); want (Name=%q, NickName=%q)",
+				id, u.Name, u.NickName, w.name, w.nick)
+		}
+	}
+
+	// google row must be untouched
+	if _, u, _ := model.GetOAuthUser(db, "google", "3"); u.Name != "Yin Heming" || u.NickName != "epaulin" {
+		t.Fatalf("google row mutated: Name=%q NickName=%q", u.Name, u.NickName)
+	}
+}
+
 func TestDumpTable(t *testing.T) {
 	db := store.NewStore(t.TempDir())
 	defer db.Close()

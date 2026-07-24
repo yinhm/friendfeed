@@ -25,6 +25,7 @@ var command string
 var timelineUser string
 var timelineMaxLimit int
 var debugTable string
+var inspectID string
 var dryRun bool
 
 func init() {
@@ -34,6 +35,7 @@ func init() {
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
 	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump (0 is unlimited)")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
+	flag.StringVar(&inspectID, "id", "", "login id to inspect (inspect_profile command)")
 	flag.BoolVar(&dryRun, "dry-run", false, "report timeline rebuild without writing changes")
 }
 
@@ -514,6 +516,37 @@ func runPurgeOAuthCommand(ndb *store.Store) {
 	ndb.Flush()
 }
 
+// runFixTwitterOAuthFieldsCommand swaps Name and NickName on every twitter
+// OAuth row. Migrated rows use the old field order (Name=display,
+// NickName=handle); the current login path (httpd/src/auth.go) expects
+// Name=handle, NickName=display. Only touches provider == "twitter".
+func runFixTwitterOAuthFieldsCommand(ndb *store.Store) {
+	n := 0
+	err := model.OAuth.Iter(ndb, func(key, raw []byte) error {
+		u := new(pb.OAuthUser)
+		if err := proto.Unmarshal(raw, u); err != nil {
+			return fmt.Errorf("decode oauth at %x: %w", key, err)
+		}
+		if strings.ToLower(u.Provider) != "twitter" {
+			return nil
+		}
+		u.Name, u.NickName = u.NickName, u.Name
+		// Iter's key buffer is reused across iterations; strip the table
+		// prefix and copy before writing back to the same slot.
+		k := append(store.Key(nil), model.OAuth.PrefixRemove(store.Key(key))...)
+		if _, err := model.OAuth.Put(ndb, k, u); err != nil {
+			return fmt.Errorf("write oauth twitter:%s: %w", u.UserId, err)
+		}
+		n++
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("fix twitter oauth fields: %v", err)
+	}
+	ndb.Flush()
+	fmt.Printf("swapped Name/NickName on %d twitter oauth rows\n", n)
+}
+
 var errDebugLimitReached = errors.New("debug table limit reached")
 
 // dumpTable 逐条解码并打印表记录；maxLimit 为 0 时不限条数。
@@ -565,6 +598,222 @@ func runDebugTableCommand(ndb *store.Store, tableName string, maxLimit int) {
 		log.Fatal(err)
 	}
 	log.Printf("debug table %s: %d records dumped (max-limit=%d)", tableName, n, maxLimit)
+}
+
+// runInspectProfileCommand traces the two-step profile lookup used by the
+// feed handler: UserMap (login id -> uuid) and Profile (uuid -> record). A
+// feed 404 means one of these links is broken, so we report each hop and the
+// raw bytes involved rather than a single opaque "not found".
+func runInspectProfileCommand(ndb *store.Store, id string) {
+	if id == "" {
+		log.Fatal("-id is required for inspect_profile")
+	}
+	fmt.Printf("inspecting login id %q\n", id)
+
+	mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(id))
+	raw, err := ndb.Get(mapKey)
+	if err != nil {
+		log.Fatalf("UserMap get %q: %v", id, err)
+	}
+	if len(raw) == 0 {
+		fmt.Printf("  UserMap: MISSING (no %q -> uuid mapping)\n", id)
+	} else {
+		fmt.Printf("  UserMap: %q -> uuid bytes %x (len=%d)\n", id, raw, len(raw))
+		profileUUID, err := uuid.FromBytes(raw)
+		if err != nil {
+			fmt.Printf("  UserMap value is not a valid uuid: %v\n", err)
+		} else {
+			fmt.Printf("  uuid: %s\n", profileUUID)
+			inspectProfileByUUID(ndb, profileUUID)
+		}
+	}
+
+	// Reverse check: scan the Profile table for a record whose Id matches, so
+	// we can tell a missing UserMap entry apart from a missing Profile record.
+	fmt.Printf("  scanning Profile table for Id == %q ...\n", id)
+	found := 0
+	err = model.Profile.Iter(ndb, func(key, rawval []byte) error {
+		p := new(pb.Profile)
+		if err := proto.Unmarshal(rawval, p); err != nil {
+			return fmt.Errorf("decode profile at %x: %w", key, err)
+		}
+		if p.Id == id {
+			found++
+			fmt.Printf("    match: profile key uuid=%s, Uuid field=%q, deleted=%t\n",
+				model.Profile.ToStringKey(store.Key(key)), p.Uuid, p.Deleted)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("scan Profile: %v", err)
+	}
+	fmt.Printf("  Profile scan matches: %d\n", found)
+
+	// The OAuth row is the source of truth for a login. If it carries a Uuid we
+	// can tell whether the Profile/UserMap rows should have been derived from it.
+	fmt.Printf("  scanning OAuth table for Name/NickName/UserId == %q ...\n", id)
+	oauthHits := 0
+	err = model.OAuth.Iter(ndb, func(key, rawval []byte) error {
+		u := new(pb.OAuthUser)
+		if err := proto.Unmarshal(rawval, u); err != nil {
+			return fmt.Errorf("decode oauth at %x: %w", key, err)
+		}
+		if u.Name == id || u.NickName == id || u.UserId == id {
+			oauthHits++
+			fmt.Printf("    match: key=%q provider=%q userId=%q name=%q nickName=%q uuid=%q\n",
+				stripPrefixKey(model.OAuth, key), u.Provider, u.UserId, u.Name, u.NickName, u.Uuid)
+			if u.Uuid != "" {
+				if pu, err := uuid.FromString(u.Uuid); err == nil {
+					inspectProfileByUUID(ndb, pu)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("scan OAuth: %v", err)
+	}
+	fmt.Printf("  OAuth scan matches: %d\n", oauthHits)
+}
+
+func inspectProfileByUUID(db *store.Store, profileUUID uuid.UUID) {
+	msg := new(pb.Profile)
+	err := model.Profile.Get(db, profileUUID.Bytes(), msg)
+	if errors.Is(err, model.ErrNotFound) {
+		fmt.Printf("  Profile: MISSING for uuid %s\n", profileUUID)
+		return
+	}
+	if err != nil {
+		fmt.Printf("  Profile get error: %v\n", err)
+		return
+	}
+	fmt.Printf("  Profile: found Id=%q Name=%q Type=%q deleted=%t\n", msg.Id, msg.Name, msg.Type, msg.Deleted)
+}
+
+// runAuditProfilesCommand walks every OAuth login and checks that its Twitter
+// handle (nickName) resolves to a feed via the UserMap. It classifies each
+// mismatch so we can tell a migration bug (handle normalized/truncated into
+// Profile.Id) apart from a legitimate FriendFeed-vs-Twitter name difference.
+func runAuditProfilesCommand(ndb *store.Store) {
+	total, resolvable, handleMismatch, unresolvable := 0, 0, 0, 0
+	err := model.OAuth.Iter(ndb, func(key, raw []byte) error {
+		u := new(pb.OAuthUser)
+		if err := proto.Unmarshal(raw, u); err != nil {
+			return fmt.Errorf("decode oauth at %x: %w", key, err)
+		}
+		total++
+		handle := u.NickName // gothic screen_name lives in NickName
+		if handle == "" {
+			return nil
+		}
+		// Does the Twitter handle resolve to a feed directly?
+		mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(handle))
+		if v, err := ndb.Get(mapKey); err == nil && len(v) > 0 {
+			resolvable++
+			return nil
+		}
+		// Handle does not resolve. Look up the profile via the OAuth uuid to
+		// see what Id it actually carries.
+		profileID := "<none>"
+		if u.Uuid != "" {
+			if pu, err := uuid.FromString(u.Uuid); err == nil {
+				p := new(pb.Profile)
+				if err := model.Profile.Get(ndb, pu.Bytes(), p); err == nil {
+					profileID = p.Id
+				}
+			}
+		}
+		if profileID != "<none>" && profileID != handle {
+			handleMismatch++
+			fmt.Printf("mismatch: handle=%q profileId=%q userId=%q uuid=%q\n",
+				handle, profileID, u.UserId, u.Uuid)
+		} else {
+			unresolvable++
+			fmt.Printf("unresolvable: handle=%q profileId=%q userId=%q uuid=%q\n",
+				handle, profileID, u.UserId, u.Uuid)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("audit profiles: %v", err)
+	}
+	fmt.Printf("\naudit summary: %d oauth logins, %d resolvable, %d handle!=profileId, %d unresolvable\n",
+		total, resolvable, handleMismatch, unresolvable)
+
+	// The feed-routing invariant: every non-deleted Profile.Id must resolve
+	// through UserMap back to that same profile uuid. A break here is what
+	// makes /feed/<id> return 404 for a profile that plainly exists.
+	profiles, mapMissing, mapMismatch, badUUID := 0, 0, 0, 0
+	err = model.Profile.Iter(ndb, func(key, raw []byte) error {
+		p := new(pb.Profile)
+		if err := proto.Unmarshal(raw, p); err != nil {
+			return fmt.Errorf("decode profile at %x: %w", key, err)
+		}
+		if p.Deleted || p.Id == "" {
+			return nil
+		}
+		profiles++
+		pu, err := uuid.FromString(p.Uuid)
+		if err != nil {
+			badUUID++
+			fmt.Printf("bad profile uuid: id=%q uuid=%q\n", p.Id, p.Uuid)
+			return nil
+		}
+		mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(p.Id))
+		v, err := ndb.Get(mapKey)
+		if err != nil || len(v) == 0 {
+			mapMissing++
+			fmt.Printf("usermap MISSING: id=%q uuid=%q\n", p.Id, p.Uuid)
+			return nil
+		}
+		mapped, err := uuid.FromBytes(v)
+		if err != nil || mapped != pu {
+			mapMismatch++
+			fmt.Printf("usermap MISMATCH: id=%q profileUuid=%q mappedBytes=%x\n", p.Id, p.Uuid, v)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("audit profile->usermap: %v", err)
+	}
+	fmt.Printf("\nprofile routing: %d profiles, %d usermap missing, %d usermap mismatch, %d bad uuid\n",
+		profiles, mapMissing, mapMismatch, badUUID)
+
+	// Feasibility of aliasing handle -> feed: would adding UserMap[handle]
+	// collide with a *different* profile's existing id?
+	aliasable, aliasCollision, aliasSameOwner := 0, 0, 0
+	err = model.OAuth.Iter(ndb, func(key, raw []byte) error {
+		u := new(pb.OAuthUser)
+		if err := proto.Unmarshal(raw, u); err != nil {
+			return err
+		}
+		handle := u.NickName
+		if handle == "" || u.Uuid == "" {
+			return nil
+		}
+		pu, err := uuid.FromString(u.Uuid)
+		if err != nil {
+			return nil
+		}
+		mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(handle))
+		v, err := ndb.Get(mapKey)
+		if err != nil || len(v) == 0 {
+			aliasable++ // handle is free; safe to alias to this uuid
+			return nil
+		}
+		if mapped, err := uuid.FromBytes(v); err == nil && mapped == pu {
+			aliasSameOwner++ // already points at the same owner (no-op)
+		} else {
+			aliasCollision++ // handle taken by a different profile
+			fmt.Printf("alias collision: handle=%q wanted uuid=%q but usermap has %x\n", handle, u.Uuid, v)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("audit alias feasibility: %v", err)
+	}
+	fmt.Printf("alias feasibility: %d free-to-alias, %d already-owner, %d collide with other profile\n",
+		aliasable, aliasSameOwner, aliasCollision)
 }
 
 func runDebugCommand(db, ndb *store.Store) {
@@ -637,12 +886,14 @@ func main() {
 	if toPath == "" {
 		log.Fatal("-to is required")
 	}
-	needsSource := command != "rebuild_timeline" && command != "rebuild_social_graph" &&
-		command != "migrate_media_urls" && command != "purge_profile" && command != "purge_oauth"
-	if command == "debug" && debugTable != "" {
-		// debug -table 只读目标库
-		needsSource = false
-	}
+	// Only a few commands read from a source db; everything else operates on
+	// the target (-to) alone. Default to not requiring -from and opt those in.
+	needsSource := command == "db" || command == "sync" ||
+		(command == "debug" && debugTable == "")
+	// readOnly commands only inspect the target db; open it read-only so we
+	// never mutate on-disk state or fight another process for the write lock.
+	readOnly := command == "inspect_profile" || command == "audit_profiles" ||
+		(command == "debug" && debugTable != "")
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
 	}
@@ -654,8 +905,13 @@ func main() {
 		}
 	}
 
-	ndb := store.NewStore(toPath)
-	ndb.SetSync(false)
+	var ndb *store.Store
+	if readOnly {
+		ndb = store.NewStoreReadOnly(toPath)
+	} else {
+		ndb = store.NewStore(toPath)
+		ndb.SetSync(false)
+	}
 	var db *store.Store
 	if needsSource {
 		db = store.NewStore(fromPath)
@@ -676,6 +932,12 @@ func main() {
 		runPurgeProfileCommand(ndb)
 	case "purge_oauth":
 		runPurgeOAuthCommand(ndb)
+	case "inspect_profile":
+		runInspectProfileCommand(ndb, inspectID)
+	case "audit_profiles":
+		runAuditProfilesCommand(ndb)
+	case "fix_twitter_oauth_fields":
+		runFixTwitterOAuthFieldsCommand(ndb)
 	case "debug":
 		if debugTable != "" {
 			runDebugTableCommand(ndb, debugTable, timelineMaxLimit)

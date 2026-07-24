@@ -41,6 +41,16 @@ func NewStore(dbpath string) *Store {
 	return openStore(dbpath, NewStoreOptions(), 512<<20)
 }
 
+// NewStoreReadOnly opens an existing database in read-only mode. It never
+// creates or mutates on-disk state, which makes it safe for inspecting a
+// database that another process may also have open. Writes through the
+// returned Store will fail.
+func NewStoreReadOnly(dbpath string) *Store {
+	opts := NewStoreOptions()
+	opts.ReadOnly = true
+	return openStore(dbpath, opts, 512<<20)
+}
+
 func openStore(dbpath string, options *pebble.Options, cacheSize int64) *Store {
 	db := &Store{
 		dbpath:  dbpath,
