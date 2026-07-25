@@ -8,6 +8,7 @@ import './App.css';
 import './styles/globals.css';
 import { App } from './App';
 import { Search } from './search';
+import { ProfileApp } from './profile';
 import { initNavigation } from './navigation';
 
 // Pages without the sidebar have no #search element, so guard every mount.
@@ -25,6 +26,15 @@ if (searchEl) {
   createRoot(searchEl).render(
     <React.StrictMode>
       <Search />
+    </React.StrictMode>
+  );
+}
+
+const profileEl = document.getElementById("profile-root");
+if (profileEl) {
+  createRoot(profileEl).render(
+    <React.StrictMode>
+      <ProfileApp />
     </React.StrictMode>
   );
 }
