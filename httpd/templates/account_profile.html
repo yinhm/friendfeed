@@ -7,103 +7,22 @@
   <a href="/account/import">Import Services</a>
 </div>
 
-<div>
-  <h3>Edit Profile</h3>
-
-  <form method="POST" action="/account/profile">
-    <div style="margin-bottom: 1em;">
-      <label for="id" style="display: block; margin-bottom: 0.5em;">
-        <strong>Profile ID</strong> <span style="color: #c00;">*</span>
-      </label>
-      <input
-        type="text"
-        id="id"
-        name="id"
-        value="{{ profile.Id }}"
-        required
-        minlength="4"
-        pattern="[a-z0-9_-]+"
-        style="padding: 0.5em; width: 300px; max-width: 100%;"
-      />
-      <div style="margin-top: 0.5em; font-size: 0.9em; color: #666;">
-        Your feed URL: <code>/feed/{{ profile.Id }}</code><br/>
-        • Minimum 4 characters<br/>
-        • Lowercase letters, numbers, hyphens, and underscores only<br/>
-        • Uppercase will be converted to lowercase
-      </div>
-    </div>
-
-    <div style="margin-bottom: 1em;">
-      <label for="name" style="display: block; margin-bottom: 0.5em;">
-        <strong>Display Name</strong> <span style="color: #c00;">*</span>
-      </label>
-      <input
-        type="text"
-        id="name"
-        name="name"
-        value="{{ profile.Name }}"
-        required
-        style="padding: 0.5em; width: 300px; max-width: 100%;"
-      />
-      <div style="margin-top: 0.5em; font-size: 0.9em; color: #666;">
-        Your public display name
-      </div>
-    </div>
-
-    <div style="margin-bottom: 1em;">
-      <label for="description" style="display: block; margin-bottom: 0.5em;">
-        <strong>Description</strong>
-      </label>
-      <textarea
-        id="description"
-        name="description"
-        rows="3"
-        style="padding: 0.5em; width: 300px; max-width: 100%;"
-      >{{ profile.Description }}</textarea>
-      <div style="margin-top: 0.5em; font-size: 0.9em; color: #666;">
-        Brief bio or description
-      </div>
-    </div>
-
-    <div style="margin-bottom: 1em;">
-      <label for="picture" style="display: block; margin-bottom: 0.5em;">
-        <strong>Picture URL</strong>
-      </label>
-      <input
-        type="url"
-        id="picture"
-        name="picture"
-        value="{{ profile.Picture }}"
-        style="padding: 0.5em; width: 300px; max-width: 100%;"
-      />
-      <div style="margin-top: 0.5em; font-size: 0.9em; color: #666;">
-        Full URL to your profile picture (leave empty for default)
-      </div>
-    </div>
-
-    <div style="margin-bottom: 1em;">
-      <label>
-        <input
-          type="checkbox"
-          name="private"
-          {% if profile.Private %}checked{% endif %}
-        />
-        <strong>Private</strong> (only visible to followers)
-      </label>
-    </div>
-
-    <div style="margin-top: 1.5em;">
-      <button type="submit" class="legacy-button" style="padding: 0.5em 1.5em;">
-        Save Changes
-      </button>
-      <a href="/feed/{{ profile.Id }}" style="margin-left: 1em;">Cancel</a>
-    </div>
-  </form>
-
-  <div style="margin-top: 2em; padding-top: 1em; border-top: 1px solid #ddd; color: #666; font-size: 0.9em;">
-    <strong>Type:</strong> {{ profile.Type }} (system field, cannot be changed)<br/>
-    <strong>UUID:</strong> <code>{{ profile.Uuid }}</code> (immutable)
-  </div>
+<div id="profile-root">
+  <noscript>This page requires JavaScript.</noscript>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.profileData = {{profileData|safe}};
+</script>
+
+{% if dev %}
+  {% for filename in jsFiles %}
+  <script type="module" src="/app/build/static/js/{{filename}}"></script>
+  {% endfor %}
+{% else %}
+  <script type="module" src="/{{ jsFile }}"></script>
+{% endif %}
 {% endblock %}

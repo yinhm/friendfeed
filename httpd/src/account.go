@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/pb"
+	"google.golang.org/grpc/status"
 )
 
 func (s *Server) AccountHandler(c *gin.Context) {
@@ -31,9 +33,17 @@ func (s *Server) AccountProfileHandler(c *gin.Context) {
 		return
 	}
 
+	// The page is a React app (see account_profile.html); hand it the
+	// profile as JSON, mirroring the window.appData pattern in feed.html.
+	profileJSON, err := json.Marshal(profile)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "failed to encode profile")
+		return
+	}
 	data := pongo2.Context{
-		"title":   "Edit Profile",
-		"profile": profile,
+		"title":       "Edit Profile",
+		"profile":     profile,
+		"profileData": string(profileJSON),
 	}
 	s.HTML(c, 200, "account_profile.html", data)
 }
@@ -44,7 +54,7 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "please login first"})
 		return
 	}
 
@@ -53,7 +63,7 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 	currentProfile, err := s.client.FetchProfile(ctx, req)
 	if err != nil {
 		log.Printf("FetchProfile error: %s", err)
-		c.String(http.StatusInternalServerError, "Failed to fetch current profile")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch current profile"})
 		return
 	}
 
@@ -72,23 +82,25 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 
 	// Validate required fields
 	if feedinfo.Id == "" {
-		c.String(http.StatusBadRequest, "ID cannot be empty")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID cannot be empty"})
 		return
 	}
 	if feedinfo.Name == "" {
-		c.String(http.StatusBadRequest, "Name cannot be empty")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Name cannot be empty"})
 		return
 	}
 
 	profile, err := s.client.PostFeedinfo(ctx, feedinfo)
 	if err != nil {
 		log.Printf("PostFeedinfo error: %s", err)
-		c.String(http.StatusBadRequest, "Failed to update profile: %s", err)
+		// Surface the RPC message (e.g. "ID is already taken") without the
+		// "rpc error: code = ... desc = ..." wrapper.
+		msg := status.Convert(err).Message()
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
-	// Redirect to the feed with the (possibly new) ID
-	c.Redirect(http.StatusFound, "/feed/"+profile.Id)
+	c.JSON(200, profile)
 }
 
 func (s *Server) ImportHandler(c *gin.Context) {
