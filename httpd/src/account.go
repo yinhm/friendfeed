@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
@@ -24,29 +25,16 @@ func (s *Server) AccountProfileHandler(c *gin.Context) {
 // Both /account/profile and /account/import load the same bundle; tab tells
 // the app which panel to show first.
 func (s *Server) renderAccountPage(c *gin.Context, tab string) {
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
 		c.String(http.StatusUnauthorized, "please login first")
 		return
 	}
 
-	req := &pb.ProfileRequest{Uuid: uuid}
-	profile, err := s.client.FetchProfile(ctx, req)
+	profile, services, err := fetchAccountData(s.client, uuid)
 	if err != nil {
 		RequestError(c, err)
 		return
-	}
-	graph, err := s.client.FetchGraph(ctx, req)
-	if err != nil {
-		RequestError(c, err)
-		return
-	}
-	services := graph.Services
-	if services == nil {
-		services = map[string]*pb.Service{}
 	}
 
 	// Hand the React app its data as JSON, mirroring the window.appData
@@ -66,6 +54,47 @@ func (s *Server) renderAccountPage(c *gin.Context, tab string) {
 		"accountData": string(accountJSON),
 	}
 	s.HTML(c, 200, "account.html", data)
+}
+
+// fetchAccountData loads the profile and the services graph in parallel,
+// each with its own timeout: the unified account page needs both, and two
+// serial calls sharing one deadline would let a slow first call starve the
+// second.
+func fetchAccountData(client pb.ApiClient, userUuid string) (*pb.Profile, map[string]*pb.Service, error) {
+	req := &pb.ProfileRequest{Uuid: userUuid}
+
+	var wg sync.WaitGroup
+	var profile *pb.Profile
+	var graph *pb.Graph
+	var profileErr, graphErr error
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		ctx, cancel := DefaultTimeoutContext()
+		defer cancel()
+		profile, profileErr = client.FetchProfile(ctx, req)
+	}()
+	go func() {
+		defer wg.Done()
+		ctx, cancel := DefaultTimeoutContext()
+		defer cancel()
+		graph, graphErr = client.FetchGraph(ctx, req)
+	}()
+	wg.Wait()
+
+	if profileErr != nil {
+		return nil, nil, profileErr
+	}
+	if graphErr != nil {
+		return nil, nil, graphErr
+	}
+
+	services := graph.Services
+	if services == nil {
+		services = map[string]*pb.Service{}
+	}
+	return profile, services, nil
 }
 
 func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
