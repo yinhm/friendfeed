@@ -510,6 +510,43 @@ func (s *RpcTestSuite) TestPostFeedinfoPreservesSystemFields() {
 	assert.True(s.T(), got.IsSuper, "IsSuper must survive a rename")
 }
 
+// TestFetchEntryLegacyWithoutProfileUuid covers historical entries that
+// predate the ProfileUuid field: FetchEntry must resolve the author via
+// the From.Id fallback instead of 404ing the permalink page.
+func (s *RpcTestSuite) TestFetchEntryLegacyWithoutProfileUuid() {
+	profileUUID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{
+		Uuid:    profileUUID.String(),
+		Id:      "legacy",
+		Name:    "Legacy User",
+		Type:    "user",
+		Picture: "http://example.com/legacy.jpg",
+	}
+	assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, profile))
+
+	// Write the entry record directly: PutEntry rejects an empty
+	// ProfileUuid today, but historical rows may lack it.
+	entry := &pb.Entry{
+		Id:   uuid.Must(uuid.NewV4()).String(),
+		Date: "2012-09-07T07:40:22Z",
+		Body: "legacy entry",
+		From: &pb.Feed{Id: "legacy"},
+		// no ProfileUuid
+	}
+	entryUUID := uuid.Must(uuid.FromString(entry.Id))
+	_, err := model.Entry.Put(s.srv.rdb, entryUUID.Bytes(), entry)
+	assert.Nil(s.T(), err)
+
+	feed, err := s.srv.FetchEntry(context.Background(), &pb.EntryRequest{Uuid: entry.Id})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "legacy", feed.Id)
+	assert.Equal(s.T(), "Legacy User", feed.Name)
+	got := feed.Entries[0]
+	assert.Equal(s.T(), "legacy", got.From.Id)
+	assert.Equal(s.T(), "Legacy User", got.From.Name)
+	assert.Equal(s.T(), "http://example.com/legacy.jpg", got.From.Picture)
+}
+
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	// Given FeedIndex, load and dump to db
 	entryID := "c6f8dca854f011ddb489003048343a40"

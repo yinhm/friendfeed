@@ -13,7 +13,7 @@ import (
 )
 
 func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
-	if err := fmtEntryProfile(mdb, entry); err != nil {
+	if _, err := fmtEntryProfile(mdb, entry); err != nil {
 		return err
 	}
 	// fmtComments(req, entry)
@@ -21,7 +21,9 @@ func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) err
 	return nil
 }
 
-func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
+// fmtEntryProfile resolves the entry author profile and refreshes the
+// denormalized entry.From snapshot from it. Returns the resolved profile.
+func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 	// Refetch the author profile. Resolve by the stable ProfileUuid, NOT by
 	// the denormalized From.Id: From.Id is a snapshot taken when the entry
 	// was posted and goes stale if the author later renames their profile
@@ -31,17 +33,17 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	if entry.ProfileUuid != "" {
 		profileUUID, uerr := uuid.FromString(entry.ProfileUuid)
 		if uerr != nil {
-			return uerr
+			return nil, uerr
 		}
 		profile, err = model.GetProfileFromUuid(mdb, profileUUID)
 	} else if entry.From != nil {
 		// Legacy entries without ProfileUuid fall back to id lookup.
 		profile, err = model.GetProfileFromUserId(mdb, entry.From.Id)
 	} else {
-		return errors.New("entry has neither ProfileUuid nor From")
+		return nil, errors.New("entry has neither ProfileUuid nor From")
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if entry.From == nil {
@@ -52,7 +54,7 @@ func fmtEntryProfile(mdb *store.Store, entry *pb.Entry) error {
 	entry.From.Id = profile.Id
 	entry.From.Name = profile.Name
 	entry.From.Picture = profile.Picture
-	return nil
+	return profile, nil
 }
 
 func BuildGraph(info *pb.Feedinfo) *pb.Graph {

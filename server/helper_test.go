@@ -56,7 +56,7 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 	}
 
 	// Formatting the historical entry must succeed and refresh From fields.
-	if err := fmtEntryProfile(db, entry); err != nil {
+	if _, err := fmtEntryProfile(db, entry); err != nil {
 		t.Fatalf("fmtEntryProfile after rename: %v", err)
 	}
 	if entry.From.Id != "newname" {
@@ -92,7 +92,7 @@ func TestFmtEntryProfileLegacyFallback(t *testing.T) {
 		From: &pb.Feed{Id: "legacy"},
 		// no ProfileUuid
 	}
-	if err := fmtEntryProfile(db, entry); err != nil {
+	if _, err := fmtEntryProfile(db, entry); err != nil {
 		t.Fatalf("fmtEntryProfile legacy: %v", err)
 	}
 	if entry.From.Id != "legacy" {

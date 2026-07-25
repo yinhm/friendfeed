@@ -512,19 +512,10 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		return nil, status.Errorf(codes.NotFound, "entry not found")
 	}
 	// logger.Debugf("entry: %s", entry.RawBody)
-	err = fmtEntryProfile(s.mdb, entry)
+	// fmtEntryProfile resolves the author by stable ProfileUuid, falling back
+	// to From.Id for legacy entries without one, and refreshes entry.From.
+	profile, err := fmtEntryProfile(s.mdb, entry)
 	if err != nil {
-		return nil, err
-	}
-
-	// Resolve the feed owner by stable uuid, not the denormalized From.Id
-	// which goes stale after a profile rename.
-	profileUuid, err := uuid.FromString(entry.ProfileUuid)
-	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "profile not found")
-	}
-	profile, err := model.GetProfileFromUuid(s.mdb, profileUuid)
-	if err != nil || profile == nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
 
@@ -736,7 +727,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 			continue
 		}
 		logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
-		if err := fmtEntryProfile(s.mdb, entry); err != nil {
+		if _, err := fmtEntryProfile(s.mdb, entry); err != nil {
 			logger.Warnf("search: entry format error: %s", hit.ID)
 			continue
 		}
