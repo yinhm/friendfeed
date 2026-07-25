@@ -2,12 +2,7 @@
 
 {% block content %}
 
-<div style="margin-bottom: 2em;">
-  <a href="/account/profile">Edit Profile</a> |
-  <a href="/account/import">Import Services</a>
-</div>
-
-<div id="profile-root">
+<div id="account-root">
   <noscript>This page requires JavaScript.</noscript>
 </div>
 
@@ -15,7 +10,7 @@
 
 {% block scripts %}
 <script>
-window.profileData = {{profileData|safe}};
+window.accountData = {{accountData|safe}};
 </script>
 
 {% if dev %}

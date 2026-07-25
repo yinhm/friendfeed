@@ -17,6 +17,13 @@ func (s *Server) AccountHandler(c *gin.Context) {
 }
 
 func (s *Server) AccountProfileHandler(c *gin.Context) {
+	s.renderAccountPage(c, "profile")
+}
+
+// renderAccountPage serves the unified React account app (see account.html).
+// Both /account/profile and /account/import load the same bundle; tab tells
+// the app which panel to show first.
+func (s *Server) renderAccountPage(c *gin.Context, tab string) {
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
@@ -32,20 +39,33 @@ func (s *Server) AccountProfileHandler(c *gin.Context) {
 		RequestError(c, err)
 		return
 	}
-
-	// The page is a React app (see account_profile.html); hand it the
-	// profile as JSON, mirroring the window.appData pattern in feed.html.
-	profileJSON, err := json.Marshal(profile)
+	graph, err := s.client.FetchGraph(ctx, req)
 	if err != nil {
-		c.String(http.StatusInternalServerError, "failed to encode profile")
+		RequestError(c, err)
+		return
+	}
+	services := graph.Services
+	if services == nil {
+		services = map[string]*pb.Service{}
+	}
+
+	// Hand the React app its data as JSON, mirroring the window.appData
+	// pattern in feed.html.
+	accountJSON, err := json.Marshal(gin.H{
+		"tab":      tab,
+		"profile":  profile,
+		"services": services,
+	})
+	if err != nil {
+		c.String(http.StatusInternalServerError, "failed to encode account data")
 		return
 	}
 	data := pongo2.Context{
-		"title":       "Edit Profile",
+		"title":       "Account",
 		"profile":     profile,
-		"profileData": string(profileJSON),
+		"accountData": string(accountJSON),
 	}
-	s.HTML(c, 200, "account_profile.html", data)
+	s.HTML(c, 200, "account.html", data)
 }
 
 func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
@@ -104,26 +124,7 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 }
 
 func (s *Server) ImportHandler(c *gin.Context) {
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-
-	uuid := CurrentUserUuid(c)
-	if uuid == "" {
-		c.String(http.StatusBadRequest, "please login first")
-		return
-	}
-	req := &pb.ProfileRequest{Uuid: uuid}
-	graph, err := s.client.FetchGraph(ctx, req)
-	if err != nil {
-		RequestError(c, err)
-		return
-	}
-
-	data := pongo2.Context{
-		"title": "Import services",
-		"graph": graph,
-	}
-	s.HTML(c, 200, "import.html", data)
+	s.renderAccountPage(c, "import")
 }
 
 func (s *Server) TwitterImportHandler(c *gin.Context) {
@@ -137,7 +138,7 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
-		c.AbortWithStatus(http.StatusBadRequest)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "please login first"})
 		return
 	}
 	req := &pb.ServiceRequest{
@@ -147,7 +148,13 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 	_, err := s.client.DeleteService(ctx, req)
 	if err != nil {
 		log.Printf("Error on deleting: %s, %s", uuid, err)
-		c.AbortWithStatus(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
+		return
+	}
+	// The React account app expects JSON; legacy direct hits get a redirect.
+	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
+		c.Request.Header.Get("Content-Type") == "application/json" {
+		c.JSON(200, gin.H{"deleted": service})
 		return
 	}
 	c.Redirect(http.StatusFound, "/account/import")
