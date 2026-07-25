@@ -5,6 +5,8 @@ const manifest = JSON.parse(await readFile('build/static/manifest.json', 'utf8')
 
 // Budgets include modest headroom over the 2026-07-22 production baseline.
 // Raising one requires reviewing both the raw and compressed size change.
+// 2026-07-25: entry CSS raw 70,000 -> 72,000 for the React account pages
+// (profile/import); reviewed: +1,035 raw / +247 gzip over baseline.
 const budgets = [
   {
     name: 'entry JS',
@@ -27,7 +29,7 @@ const budgets = [
   {
     name: 'entry CSS',
     manifestKey: 'style.css',
-    maxBytes: 70_000,
+    maxBytes: 72_000,
     maxGzipBytes: 14_000,
   },
 ];

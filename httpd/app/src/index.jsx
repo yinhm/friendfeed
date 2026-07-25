@@ -8,7 +8,7 @@ import './App.css';
 import './styles/globals.css';
 import { App } from './App';
 import { Search } from './search';
-import { ProfileApp } from './profile';
+import { AccountPage } from './account';
 import { initNavigation } from './navigation';
 
 // Pages without the sidebar have no #search element, so guard every mount.
@@ -30,11 +30,11 @@ if (searchEl) {
   );
 }
 
-const profileEl = document.getElementById("profile-root");
-if (profileEl) {
-  createRoot(profileEl).render(
+const accountEl = document.getElementById("account-root");
+if (accountEl) {
+  createRoot(accountEl).render(
     <React.StrictMode>
-      <ProfileApp />
+      <AccountPage />
     </React.StrictMode>
   );
 }

@@ -177,10 +177,3 @@ export function ProfileForm(props) {
     </form>
   );
 }
-
-export function ProfileApp() {
-  const profile = /** @type {Window & {profileData: ProfileData}} */ (
-    /** @type {unknown} */ (window)
-  ).profileData;
-  return <ProfileForm profile={profile} />;
-}
