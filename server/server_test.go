@@ -469,6 +469,47 @@ func (s *RpcTestSuite) TestPostProfile() {
 	assert.Equal(s.T(), 0, len(feed.Entries))
 }
 
+// TestPostFeedinfoPreservesSystemFields guards the profile edit path:
+// Feedinfo carries no is_super/deleted fields, so an update that rewrites
+// the whole Profile record would silently strip them (e.g. a super admin
+// editing only their display name would lose IsSuper).
+func (s *RpcTestSuite) TestPostFeedinfoPreservesSystemFields() {
+	ctx := context.Background()
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{
+		Uuid:    profileUUID.String(),
+		Id:      "superadmin",
+		Name:    "Super Admin",
+		Type:    "user",
+		IsSuper: true,
+	}
+	assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, profile))
+
+	// Edit the display name only, no ID change (the non-rename path).
+	feedinfo := &pb.Feedinfo{
+		Uuid: profileUUID.String(),
+		Id:   "superadmin",
+		Name: "Renamed Admin",
+		Type: "user",
+	}
+	got, err := s.srv.PostFeedinfo(ctx, feedinfo)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "Renamed Admin", got.Name)
+	assert.True(s.T(), got.IsSuper, "IsSuper must survive a plain profile edit")
+
+	stored, err := model.GetProfileFromUuid(s.srv.mdb, profileUUID)
+	assert.Nil(s.T(), err)
+	assert.True(s.T(), stored.IsSuper, "stored profile must keep IsSuper")
+
+	// Same guarantee on the rename path.
+	feedinfo.Id = "superadmin2"
+	got, err = s.srv.PostFeedinfo(ctx, feedinfo)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "superadmin2", got.Id)
+	assert.True(s.T(), got.IsSuper, "IsSuper must survive a rename")
+}
+
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	// Given FeedIndex, load and dump to db
 	entryID := "c6f8dca854f011ddb489003048343a40"

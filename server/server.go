@@ -152,7 +152,9 @@ func (s *ApiServer) Destroy() {
 // 	return model.GetFeedinfo(s.rdb, req.Uuid)
 // }
 
-// WARN: UPDATE ARE NOT SAFE
+// PostFeedinfo creates or updates a profile. Updates patch the editable
+// fields onto the stored profile so system-only fields (IsSuper, Deleted)
+// are preserved; Feedinfo does not carry them.
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {
 	profileUUID, err := uuid.FromString(in.Uuid)
 	if err != nil {
@@ -182,17 +184,21 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	}
 	logger.Debugf("profile pic: <%s, %s>", profile.Id, profile.Picture)
 
-	// If the ID is changing, use RenameProfileId to handle UserMap updates
-	// atomically. Otherwise just update the profile in place.
-	if currentProfile != nil && currentProfile.Id != profile.Id {
-		if err := model.RenameProfileId(s.mdb, profileUUID, profile.Id); err != nil {
-			return nil, err
-		}
-		// RenameProfileId updates Profile.Id but not the other fields;
-		// fetch the renamed profile and apply the remaining updates.
-		currentProfile, err = model.GetProfileFromUuid(s.mdb, profileUUID)
-		if err != nil {
-			return nil, err
+	if currentProfile != nil {
+		// Update: patch editable fields onto the stored profile so
+		// system-only fields (IsSuper, Deleted) survive the write.
+		// If the ID is changing, use RenameProfileId to handle UserMap
+		// updates atomically first.
+		if currentProfile.Id != profile.Id {
+			if err := model.RenameProfileId(s.mdb, profileUUID, profile.Id); err != nil {
+				return nil, err
+			}
+			// RenameProfileId updates Profile.Id but not the other fields;
+			// fetch the renamed profile and apply the remaining updates.
+			currentProfile, err = model.GetProfileFromUuid(s.mdb, profileUUID)
+			if err != nil {
+				return nil, err
+			}
 		}
 		currentProfile.Name = profile.Name
 		currentProfile.Type = profile.Type
