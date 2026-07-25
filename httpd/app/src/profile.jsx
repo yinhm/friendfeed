@@ -39,7 +39,7 @@ const hintClass = 'mt-1 text-xs text-gray-500';
 const errorClass = 'mt-1 text-xs text-red-600';
 
 /**
- * @param {{profile: ProfileData}} props
+ * @param {{profile: ProfileData, onSaved?: (profile: ProfileData) => void}} props
  */
 export function ProfileForm(props) {
   const initial = props.profile;
@@ -81,9 +81,19 @@ export function ProfileForm(props) {
           setError(data.error);
           return;
         }
+        // Sync every editable field from the server response: the server
+        // may normalize the id or generate a default picture, and the
+        // parent (AccountApp) needs the authoritative copy so remounts
+        // after a tab switch don't resurrect stale values.
         setSaved(true);
-        setSavedId(data.id);
         setId(data.id);
+        setSavedId(data.id);
+        setName(data.name ?? '');
+        setDescription(data.description ?? '');
+        setPicture(data.picture ?? '');
+        setAvatarBroken(false);
+        setIsPrivate(data.private ?? false);
+        props.onSaved?.(data);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setSaving(false));

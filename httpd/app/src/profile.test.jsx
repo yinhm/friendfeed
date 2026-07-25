@@ -89,4 +89,32 @@ describe('ProfileForm', () => {
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('already taken'));
   });
+
+  it('syncs every field from the server response after saving', async () => {
+    // The server normalizes the id and generates a default picture when
+    // the field is left empty; the form must adopt those values.
+    const saved = {
+      ...profile,
+      id: 'newname',
+      name: 'New Name',
+      picture: 'http://example.com/generated.jpg',
+      private: true,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(saved));
+    vi.stubGlobal('fetch', fetchMock);
+    const onSaved = vi.fn();
+    const { container } = render(<ProfileForm profile={profile} onSaved={onSaved} />);
+
+    fireEvent.change(screen.getByLabelText(/Profile ID/), { target: { value: 'NEWNAME' } });
+    fireEvent.change(screen.getByLabelText(/Display Name/), { target: { value: 'New Name' } });
+    fireEvent.change(screen.getByLabelText(/Picture URL/), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.submit(container.querySelector('form'));
+
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(screen.getByLabelText(/Profile ID/)).toHaveValue('newname');
+    expect(screen.getByLabelText(/Picture URL/)).toHaveValue('http://example.com/generated.jpg');
+    expect(screen.getByRole('checkbox')).toBeChecked();
+    expect(onSaved).toHaveBeenCalledWith(saved);
+  });
 });

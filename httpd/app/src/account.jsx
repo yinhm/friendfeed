@@ -21,27 +21,45 @@ const TAB_PATHS = {
 };
 
 /**
+ * Derives the tab from a URL path, for history entries that carry no
+ * state (e.g. the initial page load, reached via the Back button).
+ * @param {string} pathname
+ * @returns {AccountTab}
+ */
+export function tabFromPath(pathname) {
+  return pathname.startsWith(TAB_PATHS.import) ? 'import' : 'profile';
+}
+
+/**
  * Unified account page: profile editing and import services as tabs in a
  * single app. Tab switches are client-side and keep the URL in sync so a
  * refresh or direct link lands on the same tab.
+ *
+ * The latest profile/services live here: panels remount on tab switches,
+ * so children report mutations (save, removal) back via callbacks instead
+ * of letting a remount resurrect the server-injected snapshot.
  *
  * @param {{initialTab: AccountTab, profile: ProfileData,
  * services: Record<string, ServiceData>}} props
  */
 export function AccountApp(props) {
-  const [tab, setTab] = useState(props.initialTab);
+  const {initialTab} = props;
+  const [tab, setTab] = useState(initialTab);
+  const [profile, setProfile] = useState(props.profile);
+  const [services, setServices] = useState(props.services);
 
   useEffect(() => {
+    // Stamp the initial history entry so Back from a pushed tab lands on
+    // a stateful entry; fall back to the URL for entries without state.
+    window.history.replaceState({tab: initialTab}, '');
     /** @param {PopStateEvent} event */
     const onPopState = (event) => {
       const stateTab = /** @type {{tab?: AccountTab} | null} */ (event.state)?.tab;
-      if (stateTab) {
-        setTab(stateTab);
-      }
+      setTab(stateTab ?? tabFromPath(window.location.pathname));
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, []);
+  }, [initialTab]);
 
   /**
    * @param {AccountTab} next
@@ -75,8 +93,8 @@ export function AccountApp(props) {
         {tabLink('import', 'Import Services')}
       </nav>
       {tab === 'profile'
-        ? <ProfileForm profile={props.profile} />
-        : <ImportPanel services={props.services} />}
+        ? <ProfileForm profile={profile} onSaved={setProfile} />
+        : <ImportPanel services={services} onServicesChange={setServices} />}
     </div>
   );
 }

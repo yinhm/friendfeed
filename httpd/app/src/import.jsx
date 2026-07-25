@@ -16,13 +16,17 @@ import {getJSON} from './utils';
  * Connected import services with removal, plus entry points for adding
  * new imports (e.g. the Twitter OAuth flow).
  *
- * @param {{services: Record<string, ServiceData>}} props
+ * The services map is owned by the parent (AccountApp) so deletions
+ * survive tab switches; this panel only renders and reports changes.
+ *
+ * @param {{services: Record<string, ServiceData>,
+ * onServicesChange?: (services: Record<string, ServiceData>) => void}} props
  */
 export function ImportPanel(props) {
-  const [services, setServices] = useState(props.services ?? {});
   const [removing, setRemoving] = useState(/** @type {string | null} */ (null));
   const [error, setError] = useState(/** @type {string | null} */ (null));
 
+  const services = props.services ?? {};
   const list = Object.values(services);
   const hasTwitter = 'twitter' in services;
 
@@ -39,11 +43,9 @@ export function ImportPanel(props) {
           setError(data.error);
           return;
         }
-        setServices(current => {
-          const next = {...current};
-          delete next[service.id];
-          return next;
-        });
+        const next = {...services};
+        delete next[service.id];
+        props.onServicesChange?.(next);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setRemoving(null));

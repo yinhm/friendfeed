@@ -15,6 +15,12 @@ const services = {
 
 const jsonResponse = (value) => ({ json: vi.fn().mockResolvedValue(value) });
 
+/** Stateful host mirroring AccountApp: owns the services map. */
+function Harness({ initial }) {
+  const [services, setServices] = React.useState(initial);
+  return <ImportPanel services={services} onServicesChange={setServices} />;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -42,7 +48,7 @@ describe('ImportPanel', () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ deleted: 'rss' }));
     vi.stubGlobal('fetch', fetchMock);
-    render(<ImportPanel services={services} />);
+    render(<Harness initial={services} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'remove rss' }));
 
