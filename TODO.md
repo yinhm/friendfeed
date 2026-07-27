@@ -284,3 +284,31 @@ HistoricalProfileAlias[old ID] -> 历史原始所有者
 - legacy 数据行为有明确、安全且经过测试的边界；
 - 若 profiling 证明存在明显 N+1，再完成并验证 resolver cache；
 - 全量门禁和 rename E2E 通过。
+
+## 完成记录（2026-07-27）
+
+Step 0–5 已全部落地，完成条件逐条达成：
+
+- Step 0：目标权限测试先行（`model/like_test.go`，曾 8 红，Step 5 全绿）；
+- Step 1：`model/perm.go` 的 `feedFromProfile`（错误返回契约，拒绝 nil/空/非法/零 UUID）与 `permOwnedBy`（UUID 唯一身份，零 UUID 显式拒绝）；
+- Step 2：`CommentRequest.user_uuid=3`、`CommentDeleteRequest.user_uuid=4` 兼容新增；server 只按 `principalFromUserUuid` 解析 canonical profile，缺失/非法/零/未知一律拒绝（对潜在外部调用方的有意行为收紧，不再回退 `From.Id`/legacy `user`）；
+- Step 3：`model.Like`/`model.Comment` 经 `feedFromProfile` 铸造 `From`，伪造身份无法落库；入口先校验身份再扫描存量；
+- Step 4：读路径 `fmtEntryProfiles`/`fmtCommentOrLike`——UUID 有效且 profile 存在才刷新；legacy 无 UUID 保留快照；author UUID 仅在稳定 `ProfileUuid` 路径盖戳；
+- Step 5：mutation 全部按 `permOwnedBy` 授权；comment 编辑原地保留 author/Date/Id；`DeleteComment` 关闭越权（作者/`entry.ProfileUuid` 作者/super）；
+- Step 6：`httpd/app/e2e/rename.spec.ts` 覆盖 rename 后作者显示、like 状态、unlike、comment Edit 全流程；legacy 采用方案 A。
+
+### E2E 暴露并已修复的两个计划外缺陷
+
+1. **作者缺失时 comment/like 不刷新**（`server/helper.go`）：归档/导入 entry 的作者 profile 不存在时，`fmtEntryProfiles` 在作者解析失败后提前返回，comment/like hydration 被跳过。现改为作者失败仍继续 hydration（错误照常返回，严格调用方语义不变；public 缓存路径渲染其余部分）。
+2. **httpd profile/graph 缓存不失效**（`httpd/src/account.go`）：`CurrentUser`/`GraphFrom` 有 5 分钟缓存，rename 后 `RebuildCommand`/`RebuildCommentsCommand` 用旧 id 比对，like 状态与 comment 命令错乱。profile 更新成功后现在删除 `profile:<uuid>` 与 `graph:<uuid>` 缓存键。
+
+### 已知 legacy 行为（方案 A 的显式成本）
+
+- 无 UUID 的历史 like 显示旧快照；若作者从未改名，UI 可能显示 Unlike 但点击无效（`DeleteLike` 按 UUID 定位不到旧记录），再次 Like 会产生一条新的带 UUID 记录。不为此恢复 ID fallback；缓解路径是方案 C 离线回填。
+- 无 UUID 的历史 comment 保持只读：显示旧快照，无 Edit/Delete。
+
+### 未做
+
+- resolver cache（TODO 4b）：待 profiling 证据；
+- 方案 B 历史 alias、方案 C 离线回填：独立任务，需产品决策；
+- group admin moderation：单独定义。
