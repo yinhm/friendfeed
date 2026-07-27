@@ -52,10 +52,14 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 		entry.From = &pb.Feed{}
 	}
 	// Refresh denormalized fields from the canonical profile so a renamed ID,
-	// updated name or picture render correctly for historical entries.
+	// updated name or picture render correctly for historical entries. The
+	// author identity itself (ProfileUuid) is stable, so stamping Uuid here
+	// is safe — unlike comment/like refs, it is not an id-based guess.
+	entry.From.Uuid = profile.Uuid
 	entry.From.Id = profile.Id
 	entry.From.Name = profile.Name
 	entry.From.Picture = profile.Picture
+	entry.From.Type = profile.Type
 
 	for _, cmt := range entry.Comments {
 		if cmt != nil {
@@ -83,6 +87,11 @@ func fmtCommentOrLike(mdb *store.Store, from *pb.Feed) {
 	}
 	profileUUID, err := uuid.FromString(from.Uuid)
 	if err != nil {
+		return
+	}
+	// The zero UUID parses but is not a valid identity (same contract as
+	// permOwnedBy); never hydrate a ref to it.
+	if profileUUID == uuid.Nil {
 		return
 	}
 	profile, err := model.GetProfileFromUuid(mdb, profileUUID)

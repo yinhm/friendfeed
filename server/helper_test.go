@@ -68,6 +68,12 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 	if entry.From.Picture != "http://example.com/new.jpg" {
 		t.Errorf("From.Picture = %q; want refreshed picture", entry.From.Picture)
 	}
+	if entry.From.Uuid != profileUUID.String() {
+		t.Errorf("From.Uuid = %q; want %q", entry.From.Uuid, profileUUID.String())
+	}
+	if entry.From.Type != "user" {
+		t.Errorf("From.Type = %q; want %q", entry.From.Type, "user")
+	}
 }
 
 // TestFmtEntryProfileLegacyFallback covers entries without a ProfileUuid
@@ -100,6 +106,44 @@ func TestFmtEntryProfileLegacyFallback(t *testing.T) {
 	}
 	if entry.From.Name != "Legacy User" {
 		t.Errorf("From.Name = %q; want %q", entry.From.Name, "Legacy User")
+	}
+	if entry.From.Uuid != profileUUID.String() {
+		t.Errorf("From.Uuid = %q; want %q (stamped from the resolved profile)", entry.From.Uuid, profileUUID.String())
+	}
+	if entry.From.Type != "user" {
+		t.Errorf("From.Type = %q; want %q", entry.From.Type, "user")
+	}
+}
+
+// An entry with a nil From must gain a complete canonical reference,
+// including Uuid and Type.
+func TestFmtEntryProfilesNilFrom(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	if err := model.UpdateProfile(db, &pb.Profile{
+		Uuid: profileUUID.String(), Id: "author", Name: "Author", Type: "user",
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+
+	entry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: profileUUID.String(),
+		// no From at all
+	}
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles nil From: %v", err)
+	}
+	from := entry.From
+	if from == nil {
+		t.Fatal("From still nil")
+	}
+	if from.Uuid != profileUUID.String() || from.Id != "author" ||
+		from.Name != "Author" || from.Type != "user" {
+		t.Errorf("From = <%q, %q, %q, %q>; want full canonical ref",
+			from.Uuid, from.Id, from.Name, from.Type)
 	}
 }
 
@@ -144,6 +188,7 @@ func TestFmtCommentOrLikeRefreshesUuidRefs(t *testing.T) {
 		t.Fatalf("fetch renamed: %v", err)
 	}
 	renamed.Name = "New Commenter"
+	renamed.Picture = "http://example.com/newcmt.jpg"
 	if err := model.UpdateProfile(db, renamed); err != nil {
 		t.Fatalf("update name: %v", err)
 	}
@@ -162,6 +207,37 @@ func TestFmtCommentOrLikeRefreshesUuidRefs(t *testing.T) {
 		if ref.Id != "newcmt" || ref.Name != "New Commenter" {
 			t.Errorf("ref = <%q, %q>; want <newcmt, New Commenter>", ref.Id, ref.Name)
 		}
+		if ref.Picture != "http://example.com/newcmt.jpg" || ref.Type != "user" {
+			t.Errorf("ref snapshot = <%q, %q>; want refreshed picture and type", ref.Picture, ref.Type)
+		}
+	}
+}
+
+// The zero UUID parses but is not a valid identity: a zero-uuid ref
+// keeps its snapshot even if a zero-uuid profile somehow exists.
+func TestFmtCommentOrLikeRejectsZeroUuid(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+	authorUUID := seedAuthorProfile(t, db)
+
+	// Abnormal data: a profile keyed by the zero UUID.
+	if err := model.UpdateProfile(db, &pb.Profile{
+		Uuid: uuid.Nil.String(), Id: "zeroprofile", Name: "Zero Profile", Type: "user",
+	}); err != nil {
+		t.Fatalf("seed zero-uuid profile: %v", err)
+	}
+
+	entry := newAuthorEntry(authorUUID)
+	entry.Comments = []*pb.Comment{{
+		Id:   uuid.Must(uuid.NewV4()).String(),
+		From: &pb.Feed{Uuid: uuid.Nil.String(), Id: "ghost", Name: "Ghost"},
+	}}
+
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles: %v", err)
+	}
+	if got := entry.Comments[0].From; got.Id != "ghost" || got.Name != "Ghost" {
+		t.Errorf("zero-uuid ref = <%q, %q>; want snapshot kept, not refreshed to Zero Profile", got.Id, got.Name)
 	}
 }
 
