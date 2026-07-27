@@ -193,6 +193,32 @@ func seedAuthorProfile(t *testing.T, db *store.Store) uuid.UUID {
 	return authorUUID
 }
 
+// An entry whose ProfileUuid is the zero UUID must be rejected: the
+// zero UUID parses but is not an identity, even if an abnormal
+// zero-uuid profile exists in the database.
+func TestFmtEntryProfilesRejectsZeroProfileUuid(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	if err := model.UpdateProfile(db, &pb.Profile{
+		Uuid: uuid.Nil.String(), Id: "zeroprofile", Name: "Zero Profile", Type: "user",
+	}); err != nil {
+		t.Fatalf("seed zero-uuid profile: %v", err)
+	}
+
+	entry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: uuid.Nil.String(),
+		From:        &pb.Feed{Id: "original", Name: "Original"},
+	}
+	if _, err := fmtEntryProfiles(db, entry); err == nil {
+		t.Fatal("zero ProfileUuid must be rejected")
+	}
+	if entry.From.Id != "original" || entry.From.Name != "Original" || entry.From.Uuid != "" {
+		t.Errorf("From = <%q, %q, %q>; want untouched", entry.From.Id, entry.From.Name, entry.From.Uuid)
+	}
+}
+
 func newAuthorEntry(authorUUID uuid.UUID) *pb.Entry {
 	return &pb.Entry{
 		Id:          uuid.Must(uuid.NewV4()).String(),

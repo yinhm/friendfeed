@@ -35,8 +35,10 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 	stableAuthor := false
 	if entry.ProfileUuid != "" {
 		profileUUID, uerr := uuid.FromString(entry.ProfileUuid)
-		if uerr != nil {
-			return nil, uerr
+		if uerr != nil || profileUUID == uuid.Nil {
+			// The zero UUID parses but is not a valid identity (same
+			// contract as feedFromProfile/permOwnedBy/fmtCommentOrLike).
+			return nil, errors.New("entry ProfileUuid is invalid")
 		}
 		profile, err = model.GetProfileFromUuid(mdb, profileUUID)
 		stableAuthor = true
