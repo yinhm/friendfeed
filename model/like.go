@@ -11,16 +11,19 @@ import (
 
 // returns a full key and entry if succedd
 func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
-	var err error
+	// Validate the caller's identity before anything else: the canonical
+	// mint must not be bypassed by a dedupe hit, and a nil profile must
+	// not panic the dedupe scan.
+	from, err := feedFromProfile(profile)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var key store.Key
 	index := slices.IndexFunc(entry.Likes, func(like *pb.Like) bool {
 		return like.From.Id == profile.Id
 	})
 	if index == -1 {
-		from, err := feedFromProfile(profile)
-		if err != nil {
-			return nil, nil, err
-		}
 		like := &pb.Like{
 			Date: time.Now().Format(time.RFC3339),
 			From: from,
@@ -44,7 +47,13 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 }
 
 func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
-	var err error
+	// Validate the caller's identity before scanning existing comments;
+	// the author reference always comes from the canonical profile
+	// resolved server-side, any From the caller sent is display data.
+	from, err := feedFromProfile(profile)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// is update?
 	idx := -1
@@ -59,12 +68,6 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 		}
 	}
 
-	// The author identity always comes from the canonical profile resolved
-	// server-side; any From the caller sent is display data at best.
-	from, err := feedFromProfile(profile)
-	if err != nil {
-		return nil, nil, err
-	}
 	comment.From = from
 
 	if idx >= 0 {

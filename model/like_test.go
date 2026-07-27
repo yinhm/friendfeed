@@ -274,6 +274,60 @@ func TestLikeRejectsProfileWithoutIdentity(t *testing.T) {
 	}
 }
 
+// The identity mint must not be bypassed by a dedupe hit: even when an
+// existing like's From.Id already matches, invalid profiles are
+// rejected (and a nil profile fails cleanly instead of panicking).
+func TestLikeValidatesProfileBeforeDedupe(t *testing.T) {
+	db := likeTestDB(t)
+	entry := newLikeTestEntry()
+	entry.Likes = []*pb.Like{{From: &pb.Feed{Id: "owner"}}}
+
+	cases := map[string]*pb.Profile{
+		"empty uuid":     {Id: "owner"},
+		"malformed uuid": {Uuid: "not-a-uuid", Id: "owner"},
+		"zero uuid":      {Uuid: uuid.Nil.String(), Id: "owner"},
+	}
+	for name, profile := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := Like(db, profile, entry); err == nil {
+				t.Error("Like must reject the profile even on a dedupe hit")
+			}
+		})
+	}
+
+	t.Run("nil profile", func(t *testing.T) {
+		var err error
+		mustNotPanic(t, "Like", func() { _, _, err = Like(db, nil, entry) })
+		if err == nil {
+			t.Error("Like with nil profile must fail")
+		}
+	})
+}
+
+// Comment validates the principal before scanning existing comments, so
+// an invalid profile is rejected as such, not masked by a 403 or an
+// append.
+func TestCommentValidatesProfileFirst(t *testing.T) {
+	db := likeTestDB(t)
+	entry := newLikeTestEntry()
+	entry.Comments = []*pb.Comment{ownerComment()}
+
+	if _, _, err := Comment(db, &pb.Profile{Id: "owner"}, entry, &pb.Comment{
+		Id:   uuid.Must(uuid.NewV4()).String(),
+		Body: "hi",
+	}); err == nil {
+		t.Fatal("Comment with uuid-less profile must fail")
+	}
+
+	var err error
+	mustNotPanic(t, "Comment", func() {
+		_, _, err = Comment(db, nil, entry, &pb.Comment{Id: uuid.Must(uuid.NewV4()).String(), Body: "hi"})
+	})
+	if err == nil {
+		t.Fatal("Comment with nil profile must fail")
+	}
+}
+
 func TestCommentStoresCanonicalActorRef(t *testing.T) {
 	db := likeTestDB(t)
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
