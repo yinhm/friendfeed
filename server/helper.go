@@ -13,7 +13,7 @@ import (
 )
 
 func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
-	if _, err := hydrateEntryActorRefs(mdb, entry); err != nil {
+	if _, err := fmtEntryProfiles(mdb, entry); err != nil {
 		return err
 	}
 	// fmtComments(req, entry)
@@ -21,11 +21,11 @@ func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) err
 	return nil
 }
 
-// hydrateEntryActorRefs resolves the entry author profile and refreshes
-// the denormalized entry.From snapshot from it, then hydrates every
-// comment and like actor reference via hydrateFeedRef. Returns the
+// fmtEntryProfiles resolves the entry author profile and refreshes
+// the denormalized entry.From snapshot from it, then refreshes every
+// comment and like actor reference via fmtCommentOrLike. Returns the
 // resolved author profile.
-func hydrateEntryActorRefs(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
+func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 	// Refetch the author profile. Resolve by the stable ProfileUuid, NOT by
 	// the denormalized From.Id: From.Id is a snapshot taken when the entry
 	// was posted and goes stale if the author later renames their profile
@@ -59,25 +59,25 @@ func hydrateEntryActorRefs(mdb *store.Store, entry *pb.Entry) (*pb.Profile, erro
 
 	for _, cmt := range entry.Comments {
 		if cmt != nil {
-			hydrateFeedRef(mdb, cmt.From)
+			fmtCommentOrLike(mdb, cmt.From)
 		}
 	}
 	for _, like := range entry.Likes {
 		if like != nil {
-			hydrateFeedRef(mdb, like.From)
+			fmtCommentOrLike(mdb, like.From)
 		}
 	}
 	return profile, nil
 }
 
-// hydrateFeedRef refreshes a denormalized comment/like actor reference
+// fmtCommentOrLike refreshes a denormalized comment/like actor reference
 // from the canonical profile. UUID is the ONLY key: a legacy ref without
 // one keeps its snapshot even if its From.Id currently resolves — the id
 // may have been recycled by another user, so resolving it could
 // misattribute the record. A ref whose UUID is malformed, or whose
 // profile no longer exists, also keeps its snapshot: a single
 // unresolvable reference must never fail the whole feed.
-func hydrateFeedRef(mdb *store.Store, from *pb.Feed) {
+func fmtCommentOrLike(mdb *store.Store, from *pb.Feed) {
 	if from == nil || from.Uuid == "" {
 		return
 	}

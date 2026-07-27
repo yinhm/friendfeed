@@ -145,8 +145,8 @@ Comment 写入依赖第 2 步，不能先从不可信 `comment.From.Id` 查 prof
 写入 UUID 后即可独立修复新数据的显示，不必等待全部 mutation 授权改造。将身份刷新职责从仅处理 entry author 的 `fmtEntryProfile` 中拆清，形成类似：
 
 ```go
-hydrateEntryActorRefs
-hydrateFeedRef
+fmtEntryProfiles
+fmtCommentOrLike
 ```
 
 处理 entry author、comments 和 likes：

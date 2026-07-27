@@ -56,8 +56,8 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 	}
 
 	// Formatting the historical entry must succeed and refresh From fields.
-	if _, err := hydrateEntryActorRefs(db, entry); err != nil {
-		t.Fatalf("hydrateEntryActorRefs after rename: %v", err)
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles after rename: %v", err)
 	}
 	if entry.From.Id != "newname" {
 		t.Errorf("From.Id = %q; want %q (should refresh to current id)", entry.From.Id, "newname")
@@ -92,8 +92,8 @@ func TestFmtEntryProfileLegacyFallback(t *testing.T) {
 		From: &pb.Feed{Id: "legacy"},
 		// no ProfileUuid
 	}
-	if _, err := hydrateEntryActorRefs(db, entry); err != nil {
-		t.Fatalf("hydrateEntryActorRefs legacy: %v", err)
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles legacy: %v", err)
 	}
 	if entry.From.Id != "legacy" {
 		t.Errorf("From.Id = %q; want legacy", entry.From.Id)
@@ -103,8 +103,8 @@ func TestFmtEntryProfileLegacyFallback(t *testing.T) {
 	}
 }
 
-// seedHydrateAuthor creates the entry author hydrateEntryActorRefs needs.
-func seedHydrateAuthor(t *testing.T, db *store.Store) uuid.UUID {
+// seedAuthorProfile seeds the entry author fmtEntryProfiles needs.
+func seedAuthorProfile(t *testing.T, db *store.Store) uuid.UUID {
 	t.Helper()
 	authorUUID := uuid.Must(uuid.NewV4())
 	if err := model.UpdateProfile(db, &pb.Profile{
@@ -115,7 +115,7 @@ func seedHydrateAuthor(t *testing.T, db *store.Store) uuid.UUID {
 	return authorUUID
 }
 
-func newHydrateEntry(authorUUID uuid.UUID) *pb.Entry {
+func newAuthorEntry(authorUUID uuid.UUID) *pb.Entry {
 	return &pb.Entry{
 		Id:          uuid.Must(uuid.NewV4()).String(),
 		ProfileUuid: authorUUID.String(),
@@ -123,12 +123,12 @@ func newHydrateEntry(authorUUID uuid.UUID) *pb.Entry {
 	}
 }
 
-// UUID-bearing comment/like refs hydrate to the current profile after a
+// UUID-bearing comment/like refs refresh to the current profile after a
 // rename and display-name change.
-func TestHydrateFeedRefRefreshesUuidRefs(t *testing.T) {
+func TestFmtCommentOrLikeRefreshesUuidRefs(t *testing.T) {
 	db := store.NewStore(t.TempDir())
 	defer db.Close()
-	authorUUID := seedHydrateAuthor(t, db)
+	authorUUID := seedAuthorProfile(t, db)
 
 	commenterUUID := uuid.Must(uuid.NewV4())
 	if err := model.UpdateProfile(db, &pb.Profile{
@@ -151,12 +151,12 @@ func TestHydrateFeedRefRefreshesUuidRefs(t *testing.T) {
 	snapshot := func() *pb.Feed {
 		return &pb.Feed{Uuid: commenterUUID.String(), Id: "oldcmt", Name: "Old Commenter"}
 	}
-	entry := newHydrateEntry(authorUUID)
+	entry := newAuthorEntry(authorUUID)
 	entry.Comments = []*pb.Comment{{Id: uuid.Must(uuid.NewV4()).String(), From: snapshot()}}
 	entry.Likes = []*pb.Like{{From: snapshot()}}
 
-	if _, err := hydrateEntryActorRefs(db, entry); err != nil {
-		t.Fatalf("hydrateEntryActorRefs: %v", err)
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles: %v", err)
 	}
 	for _, ref := range []*pb.Feed{entry.Comments[0].From, entry.Likes[0].From} {
 		if ref.Id != "newcmt" || ref.Name != "New Commenter" {
@@ -168,10 +168,10 @@ func TestHydrateFeedRefRefreshesUuidRefs(t *testing.T) {
 // A legacy ref WITHOUT a uuid keeps its snapshot even when its From.Id
 // currently resolves to a real profile: the id may have been recycled,
 // so hydrating by id could misattribute the record.
-func TestHydrateFeedRefKeepsLegacySnapshot(t *testing.T) {
+func TestFmtCommentOrLikeKeepsLegacySnapshot(t *testing.T) {
 	db := store.NewStore(t.TempDir())
 	defer db.Close()
-	authorUUID := seedHydrateAuthor(t, db)
+	authorUUID := seedAuthorProfile(t, db)
 
 	// "newbie" is a real, current profile — a recycled id stand-in.
 	if err := model.UpdateProfile(db, &pb.Profile{
@@ -180,32 +180,32 @@ func TestHydrateFeedRefKeepsLegacySnapshot(t *testing.T) {
 		t.Fatalf("seed recycled id: %v", err)
 	}
 
-	entry := newHydrateEntry(authorUUID)
+	entry := newAuthorEntry(authorUUID)
 	entry.Comments = []*pb.Comment{{
 		Id:   uuid.Must(uuid.NewV4()).String(),
 		From: &pb.Feed{Id: "newbie", Name: "Original Poster"}, // legacy, no uuid
 	}}
 	entry.Likes = []*pb.Like{{From: &pb.Feed{Id: "newbie", Name: "Original Liker"}}}
 
-	if _, err := hydrateEntryActorRefs(db, entry); err != nil {
-		t.Fatalf("hydrateEntryActorRefs: %v", err)
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles: %v", err)
 	}
 	if got := entry.Comments[0].From; got.Id != "newbie" || got.Name != "Original Poster" {
-		t.Errorf("comment ref = <%q, %q>; want snapshot kept, not hydrated to Newbie", got.Id, got.Name)
+		t.Errorf("comment ref = <%q, %q>; want snapshot kept, not refreshed to Newbie", got.Id, got.Name)
 	}
 	if got := entry.Likes[0].From; got.Id != "newbie" || got.Name != "Original Liker" {
-		t.Errorf("like ref = <%q, %q>; want snapshot kept, not hydrated to Newbie", got.Id, got.Name)
+		t.Errorf("like ref = <%q, %q>; want snapshot kept, not refreshed to Newbie", got.Id, got.Name)
 	}
 }
 
 // Malformed uuids, unknown profiles, and nil refs are skipped quietly:
 // the snapshot survives and the feed renders.
-func TestHydrateFeedRefSkipsUnresolvable(t *testing.T) {
+func TestFmtCommentOrLikeSkipsUnresolvable(t *testing.T) {
 	db := store.NewStore(t.TempDir())
 	defer db.Close()
-	authorUUID := seedHydrateAuthor(t, db)
+	authorUUID := seedAuthorProfile(t, db)
 
-	entry := newHydrateEntry(authorUUID)
+	entry := newAuthorEntry(authorUUID)
 	entry.Comments = []*pb.Comment{
 		{Id: uuid.Must(uuid.NewV4()).String(), From: &pb.Feed{Uuid: "not-a-uuid", Id: "ghost", Name: "Ghost"}},
 		{Id: uuid.Must(uuid.NewV4()).String(), From: &pb.Feed{Uuid: uuid.Must(uuid.NewV4()).String(), Id: "gone", Name: "Gone"}},
@@ -216,8 +216,8 @@ func TestHydrateFeedRefSkipsUnresolvable(t *testing.T) {
 		{From: nil},
 	}
 
-	if _, err := hydrateEntryActorRefs(db, entry); err != nil {
-		t.Fatalf("hydrateEntryActorRefs: %v", err)
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles: %v", err)
 	}
 	if got := entry.Comments[0].From; got.Id != "ghost" || got.Name != "Ghost" {
 		t.Errorf("malformed uuid ref = <%q, %q>; want snapshot kept", got.Id, got.Name)
