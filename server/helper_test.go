@@ -365,3 +365,47 @@ func TestFmtCommentOrLikeSkipsUnresolvable(t *testing.T) {
 		t.Errorf("malformed uuid like = <%q, %q>; want snapshot kept", got.Id, got.Name)
 	}
 }
+
+// An entry whose author profile no longer resolves (deleted or archived
+// data) must still hydrate its comment/like refs: they carry their own
+// stable UUIDs. The author error is returned for strict callers, but
+// lenient paths (public cached feed) render the hydrated rest.
+func TestFmtEntryProfilesHydratesRefsWhenAuthorMissing(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	commenterUUID := uuid.Must(uuid.NewV4())
+	if err := model.UpdateProfile(db, &pb.Profile{
+		Uuid: commenterUUID.String(), Id: "commenter", Name: "Real Commenter", Type: "user",
+	}); err != nil {
+		t.Fatalf("seed commenter: %v", err)
+	}
+
+	entry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: uuid.Must(uuid.NewV4()).String(), // no such profile
+		From:        &pb.Feed{Id: "bot", Name: "Bot"},
+		Comments: []*pb.Comment{{
+			Id:   uuid.Must(uuid.NewV4()).String(),
+			From: &pb.Feed{Uuid: commenterUUID.String(), Id: "oldsnap", Name: "Old Snapshot"},
+		}},
+		Likes: []*pb.Like{{
+			From: &pb.Feed{Uuid: commenterUUID.String(), Id: "oldsnap", Name: "Old Snapshot"},
+		}},
+	}
+
+	if _, err := fmtEntryProfiles(db, entry); err == nil {
+		t.Fatal("missing author must still return an error")
+	}
+	// Author snapshot untouched...
+	if entry.From.Id != "bot" || entry.From.Name != "Bot" {
+		t.Errorf("author From = <%q, %q>; want snapshot kept", entry.From.Id, entry.From.Name)
+	}
+	// ...but comment and like refs hydrated.
+	if got := entry.Comments[0].From; got.Id != "commenter" || got.Name != "Real Commenter" {
+		t.Errorf("comment From = <%q, %q>; want hydrated", got.Id, got.Name)
+	}
+	if got := entry.Likes[0].From; got.Id != "commenter" || got.Name != "Real Commenter" {
+		t.Errorf("like From = <%q, %q>; want hydrated", got.Id, got.Name)
+	}
+}

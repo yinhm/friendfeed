@@ -49,6 +49,22 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 		return nil, errors.New("entry has neither ProfileUuid nor From")
 	}
 	if err != nil {
+		// The author profile is gone (deleted, or never existed — e.g.
+		// archived/imported entries). Comment and like refs carry their own
+		// stable UUIDs and must still be hydrated; only the author refresh
+		// is skipped. The error is still returned so callers that treat a
+		// missing author as fatal (FetchEntry, ForwardFetchFeed) keep their
+		// behavior, while lenient callers (cachedFeed) render the rest.
+		for _, cmt := range entry.Comments {
+			if cmt != nil {
+				fmtCommentOrLike(mdb, cmt.From)
+			}
+		}
+		for _, like := range entry.Likes {
+			if like != nil {
+				fmtCommentOrLike(mdb, like.From)
+			}
+		}
 		return nil, err
 	}
 
