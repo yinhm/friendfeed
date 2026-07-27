@@ -134,6 +134,30 @@ func TestCommentEditForbiddenForOthers(t *testing.T) {
 	}
 }
 
+// Edit is author-only: even the entry author and super admins, who may
+// delete comments for moderation, must not edit other users' comments.
+func TestPrivilegedUsersCannotEditOthersComment(t *testing.T) {
+	entryAuthor := likeTestProfileFor("entry", likeTestEntryUUID)
+	super := likeTestProfileFor("super", likeTestSuperUUID)
+	super.IsSuper = true
+
+	cases := map[string]*pb.Profile{
+		"entry author": entryAuthor,
+		"super":        super,
+	}
+	for name, caller := range cases {
+		t.Run(name, func(t *testing.T) {
+			db := likeTestDB(t)
+			entry := newLikeTestEntry()
+			entry.Comments = []*pb.Comment{ownerComment()}
+
+			if _, _, err := Comment(db, caller, entry, editBy(caller, "hijack")); err == nil {
+				t.Errorf("%s must not edit another user's comment", name)
+			}
+		})
+	}
+}
+
 func TestCommentOwnerCanDelete(t *testing.T) {
 	db := likeTestDB(t)
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
@@ -271,31 +295,196 @@ func TestUnlikeAfterRename(t *testing.T) {
 	}
 }
 
+// The core no-fallback contract: a caller whose current ID happens to
+// match the stored From.Id snapshot but whose UUID differs (e.g. the ID
+// was recycled after a rename) must gain NOTHING from the ID match.
+// Expected to FAIL until Step 5: the current implementation compares
+// ids, so the impostor is treated as the author.
+func TestSameIdDifferentUuidNeverAuthorizes(t *testing.T) {
+	// Impostor currently owns the id "owner" but is a different profile.
+	impostor := likeTestProfileFor("owner", likeTestOtherUUID)
+
+	t.Run("cannot edit", func(t *testing.T) {
+		db := likeTestDB(t)
+		entry := newLikeTestEntry()
+		entry.Comments = []*pb.Comment{ownerComment()}
+
+		entry, err := func() (*pb.Entry, error) {
+			_, e, err := Comment(db, impostor, entry, editBy(impostor, "hijack"))
+			return e, err
+		}()
+		if err == nil {
+			t.Error("same-id different-uuid edit must be rejected")
+		}
+		if entry.Comments[0].Body != "original body" {
+			t.Errorf("body = %q; comment must stay untouched", entry.Comments[0].Body)
+		}
+	})
+
+	t.Run("cannot delete", func(t *testing.T) {
+		db := likeTestDB(t)
+		entry := newLikeTestEntry()
+		entry.Comments = []*pb.Comment{ownerComment()}
+
+		entry, err := DeleteComment(db, impostor, entry, likeTestCommentID)
+		if err == nil {
+			t.Error("same-id different-uuid delete must be rejected")
+		}
+		if len(entry.Comments) != 1 {
+			t.Errorf("comments = %d; want 1", len(entry.Comments))
+		}
+	})
+
+	t.Run("cannot unlike", func(t *testing.T) {
+		db := likeTestDB(t)
+		entry := newLikeTestEntry()
+		entry.Likes = []*pb.Like{ownerLike()}
+
+		entry, err := DeleteLike(db, impostor, entry)
+		if err != nil {
+			t.Fatalf("DeleteLike: %v", err)
+		}
+		if len(entry.Likes) != 1 {
+			t.Errorf("likes = %d; want 1 (impostor must not remove it)", len(entry.Likes))
+		}
+	})
+
+	t.Run("like is not a duplicate", func(t *testing.T) {
+		db := likeTestDB(t)
+		entry := newLikeTestEntry()
+		entry.Likes = []*pb.Like{ownerLike()}
+
+		_, entry, err := Like(db, impostor, entry)
+		if err != nil {
+			t.Fatalf("Like: %v", err)
+		}
+		if len(entry.Likes) != 2 {
+			t.Errorf("likes = %d; want 2 (impostor's like is new, not a duplicate)", len(entry.Likes))
+		}
+	})
+}
+
+// UUID-less legacy records are read-only: a matching From.Id alone must
+// never authorize, because the id may have been recycled. Same for
+// malformed UUIDs — an unparseable UUID must not fall back to the id.
+// Expected to FAIL until Step 5.
+func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+
+	refs := map[string]*pb.Feed{
+		"empty uuid":     {Id: "owner", Name: "Owner"},
+		"malformed uuid": {Uuid: "not-a-uuid", Id: "owner", Name: "Owner"},
+	}
+	for name, ref := range refs {
+		t.Run(name+"/cannot edit", func(t *testing.T) {
+			db := likeTestDB(t)
+			entry := newLikeTestEntry()
+			entry.Comments = []*pb.Comment{{
+				Id:   likeTestCommentID,
+				Body: "original body",
+				From: ref,
+			}}
+
+			if _, _, err := Comment(db, owner, entry, editBy(owner, "hijack")); err == nil {
+				t.Error("uuid-less/malformed ref must not authorize edit via matching id")
+			}
+		})
+
+		t.Run(name+"/cannot delete", func(t *testing.T) {
+			db := likeTestDB(t)
+			entry := newLikeTestEntry()
+			entry.Comments = []*pb.Comment{{
+				Id:   likeTestCommentID,
+				Body: "original body",
+				From: ref,
+			}}
+
+			entry, err := DeleteComment(db, owner, entry, likeTestCommentID)
+			if err == nil {
+				t.Error("uuid-less/malformed ref must not authorize delete via matching id")
+			}
+			if len(entry.Comments) != 1 {
+				t.Errorf("comments = %d; want 1", len(entry.Comments))
+			}
+		})
+
+		t.Run(name+"/cannot unlike", func(t *testing.T) {
+			db := likeTestDB(t)
+			entry := newLikeTestEntry()
+			entry.Likes = []*pb.Like{{From: ref}}
+
+			entry, err := DeleteLike(db, owner, entry)
+			if err != nil {
+				t.Fatalf("DeleteLike: %v", err)
+			}
+			if len(entry.Likes) != 1 {
+				t.Errorf("likes = %d; want 1", len(entry.Likes))
+			}
+		})
+
+		t.Run(name+"/like is not a duplicate", func(t *testing.T) {
+			db := likeTestDB(t)
+			entry := newLikeTestEntry()
+			entry.Likes = []*pb.Like{{From: ref}}
+
+			_, entry, err := Like(db, owner, entry)
+			if err != nil {
+				t.Fatalf("Like: %v", err)
+			}
+			if len(entry.Likes) != 2 {
+				t.Errorf("likes = %d; want 2 (malformed ref must not dedupe against the caller)", len(entry.Likes))
+			}
+		})
+	}
+}
+
 // Expected to FAIL (panic) until Step 5: the mutation paths dereference
 // From without nil checks, and must tolerate nil From plus empty and
-// malformed UUIDs.
+// malformed UUIDs. Table-driven so one panic cannot mask later inputs,
+// and every mutation path sees each malformed ref — including Comment
+// update, which only compares From when the comment id matches.
 func TestMalformedActorRefsDoNotPanic(t *testing.T) {
 	db := likeTestDB(t)
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
 
-	entry := newLikeTestEntry()
-	entry.Likes = []*pb.Like{
-		{From: nil},
-		{From: &pb.Feed{Uuid: ""}},
-		{From: &pb.Feed{Uuid: "not-a-uuid"}},
-	}
-	entry.Comments = []*pb.Comment{
-		{Id: uuid.Must(uuid.NewV4()).String(), From: nil},
-		{Id: uuid.Must(uuid.NewV4()).String(), From: &pb.Feed{Uuid: ""}},
-		{Id: uuid.Must(uuid.NewV4()).String(), From: &pb.Feed{Uuid: "not-a-uuid"}},
+	commentID := uuid.Must(uuid.NewV4()).String()
+	refs := []struct {
+		name string
+		ref  *pb.Feed
+	}{
+		{"nil from", nil},
+		{"empty uuid", &pb.Feed{Id: "owner"}},
+		{"malformed uuid", &pb.Feed{Uuid: "not-a-uuid", Id: "owner"}},
 	}
 
-	mustNotPanic(t, "Like", func() { _, _, _ = Like(db, owner, entry) })
-	mustNotPanic(t, "DeleteLike", func() { _, _ = DeleteLike(db, owner, entry) })
-	mustNotPanic(t, "Comment", func() {
-		_, _, _ = Comment(db, owner, entry, editBy(owner, "body"))
-	})
-	mustNotPanic(t, "DeleteComment", func() {
-		_, _ = DeleteComment(db, owner, entry, entry.Comments[0].Id)
-	})
+	for _, tc := range refs {
+		t.Run(tc.name+"/Like", func(t *testing.T) {
+			entry := newLikeTestEntry()
+			entry.Likes = []*pb.Like{{From: tc.ref}}
+			mustNotPanic(t, "Like", func() { _, _, _ = Like(db, owner, entry) })
+		})
+		t.Run(tc.name+"/DeleteLike", func(t *testing.T) {
+			entry := newLikeTestEntry()
+			entry.Likes = []*pb.Like{{From: tc.ref}}
+			mustNotPanic(t, "DeleteLike", func() { _, _ = DeleteLike(db, owner, entry) })
+		})
+		t.Run(tc.name+"/Comment update", func(t *testing.T) {
+			entry := newLikeTestEntry()
+			entry.Comments = []*pb.Comment{{Id: commentID, From: tc.ref}}
+			mustNotPanic(t, "Comment", func() {
+				_, _, _ = Comment(db, owner, entry, &pb.Comment{
+					Id:   commentID,
+					Body: "edited",
+					From: &pb.Feed{Uuid: owner.Uuid, Id: owner.Id},
+				})
+			})
+		})
+		t.Run(tc.name+"/DeleteComment", func(t *testing.T) {
+			entry := newLikeTestEntry()
+			entry.Comments = []*pb.Comment{{Id: commentID, From: tc.ref}}
+			mustNotPanic(t, "DeleteComment", func() {
+				_, _ = DeleteComment(db, owner, entry, commentID)
+			})
+		})
+	}
 }
