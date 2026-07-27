@@ -512,9 +512,9 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		return nil, status.Errorf(codes.NotFound, "entry not found")
 	}
 	// logger.Debugf("entry: %s", entry.RawBody)
-	// fmtEntryProfile resolves the author by stable ProfileUuid, falling back
+	// hydrateEntryActorRefs resolves the author by stable ProfileUuid, falling back
 	// to From.Id for legacy entries without one, and refreshes entry.From.
-	profile, err := fmtEntryProfile(s.mdb, entry)
+	profile, err := hydrateEntryActorRefs(s.mdb, entry)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
@@ -753,7 +753,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 			continue
 		}
 		logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
-		if _, err := fmtEntryProfile(s.mdb, entry); err != nil {
+		if _, err := hydrateEntryActorRefs(s.mdb, entry); err != nil {
 			logger.Warnf("search: entry format error: %s", hit.ID)
 			continue
 		}
