@@ -149,6 +149,12 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 		return
 	}
 
+	// CurrentUser/GraphFrom cache profile and graph for 5 minutes; a stale
+	// cached id would mis-evaluate RebuildCommand/RebuildCommentsCommand
+	// (like state, comment edit commands) after an id rename.
+	s.cache.Delete("profile:" + uuid)
+	s.cache.Delete("graph:" + uuid)
+
 	c.JSON(200, profile)
 }
 
