@@ -71,10 +71,10 @@ From.Type    写入时类型快照
 
 ### 1. 集中生成 canonical actor reference
 
-在 model 增加内部 helper（名称可调整）：
+在 model 增加内部 helper（`model/perm.go`）：
 
 ```go
-func feedRefFromProfile(profile *pb.Profile) *pb.Feed
+func feedFromProfile(profile *pb.Profile) (*pb.Feed, error)
 ```
 
 它统一填充：
@@ -83,12 +83,14 @@ func feedRefFromProfile(profile *pb.Profile) *pb.Feed
 Uuid, Id, Name, Picture, Type
 ```
 
+构造函数即身份铸造点：nil profile、空/非法 UUID、零 UUID 一律返回错误，不得把不可授权的身份写入数据库；展示字段（Id/Name/Picture/Type）允许为空。
+
 Like 和 Comment 保存时都使用该 helper。不要继续在 httpd、server、model 多处手写 `pb.Feed{...}`。
 
 比较逻辑集中为内部 helper：
 
 ```go
-func sameProfileRef(ref *pb.Feed, profile *pb.Profile) bool
+func permOwnedBy(ref *pb.Feed, profile *pb.Profile) bool
 ```
 
 语义必须是：
@@ -96,6 +98,7 @@ func sameProfileRef(ref *pb.Feed, profile *pb.Profile) bool
 - nil 输入返回 false；
 - `ref.Uuid` 存在时，解析并与 `profile.Uuid` 比较；
 - UUID 无效或不一致返回 false，不得 fallback 到 ID；
+- 任一侧为零 UUID 返回 false（零 UUID 可解析但不是有效身份）；
 - legacy 无 UUID 默认返回 false，除非将来有经过产品决策的历史 alias resolver。
 
 ### 2. command 请求先携带稳定 principal
@@ -130,7 +133,7 @@ message CommentDeleteRequest {
 
 ### 3. 新 comment/like 写入 UUID
 
-- `model/like.go` `Like` 使用 `feedRefFromProfile(profile)`；
+- `model/like.go` `Like` 使用 `feedFromProfile(profile)`；
 - Comment 保存前由 server/model 使用第 2 步解析出的 canonical profile 覆盖 `comment.From`；
 - `httpd/src/server.go` 不再承担构造可信作者身份的职责；它提交的展示字段不能成为最终授权依据；
 - 新数据必须包含 `From.Uuid`，同时保留当前 id/name/picture/type 快照。
@@ -169,7 +172,7 @@ map[profile UUID]*pb.Profile
 
 ### 5. 所有 mutation 按 UUID 授权
 
-接入 `sameProfileRef`：
+接入 `permOwnedBy`：
 
 - `Like`：按 UUID 去重；
 - `DeleteLike`：按 UUID 定位；

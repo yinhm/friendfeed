@@ -17,9 +17,9 @@ func TestFeedFromProfile(t *testing.T) {
 		Type:    "user",
 	}
 
-	ref := feedFromProfile(profile)
-	if ref == nil {
-		t.Fatal("ref is nil")
+	ref, err := feedFromProfile(profile)
+	if err != nil {
+		t.Fatalf("feedFromProfile: %v", err)
 	}
 	if ref.Uuid != profile.Uuid {
 		t.Errorf("Uuid = %q; want %q", ref.Uuid, profile.Uuid)
@@ -31,20 +31,31 @@ func TestFeedFromProfile(t *testing.T) {
 	}
 }
 
-func TestFeedFromProfileNil(t *testing.T) {
-	if ref := feedFromProfile(nil); ref != nil {
-		t.Errorf("feedFromProfile(nil) = %v; want nil", ref)
+// The constructor is the single identity mint: it must refuse profiles
+// that would persist an unauthorizable reference.
+func TestFeedFromProfileRejectsInvalidIdentity(t *testing.T) {
+	valid := uuid.Must(uuid.NewV4()).String()
+	cases := map[string]*pb.Profile{
+		"nil profile":   nil,
+		"empty uuid":    {Id: "yinhm"},
+		"malformed uuid": {Uuid: "not-a-uuid", Id: "yinhm"},
+		"zero uuid":     {Uuid: uuid.Nil.String(), Id: "yinhm"},
 	}
-}
+	for name, profile := range cases {
+		t.Run(name, func(t *testing.T) {
+			if ref, err := feedFromProfile(profile); err == nil {
+				t.Errorf("feedFromProfile() = %v, nil; want error", ref)
+			}
+		})
+	}
 
-func TestFeedFromProfileSparse(t *testing.T) {
-	profileUUID := uuid.Must(uuid.NewV4())
-	ref := feedFromProfile(&pb.Profile{Uuid: profileUUID.String(), Id: "yinhm"})
-	if ref.Uuid != profileUUID.String() || ref.Id != "yinhm" {
-		t.Errorf("ref = <%q, %q>; want uuid and id set", ref.Uuid, ref.Id)
+	// Display fields may be empty; only identity is mandatory.
+	ref, err := feedFromProfile(&pb.Profile{Uuid: valid, Id: "yinhm"})
+	if err != nil {
+		t.Fatalf("sparse profile: %v", err)
 	}
-	if ref.Name != "" || ref.Picture != "" || ref.Type != "" {
-		t.Errorf("empty fields = <%q, %q, %q>; want empty strings", ref.Name, ref.Picture, ref.Type)
+	if ref.Uuid != valid || ref.Id != "yinhm" {
+		t.Errorf("ref = <%q, %q>; want uuid and id set", ref.Uuid, ref.Id)
 	}
 }
 
@@ -111,6 +122,24 @@ func TestPermOwnedBy(t *testing.T) {
 			name:    "malformed profile uuid fails safe",
 			ref:     &pb.Feed{Uuid: ownerUUID.String(), Id: "owner"},
 			profile: &pb.Profile{Uuid: "not-a-uuid", Id: "owner"},
+			want:    false,
+		},
+		{
+			name:    "zero uuid ref is not an identity",
+			ref:     &pb.Feed{Uuid: uuid.Nil.String(), Id: "owner"},
+			profile: owner,
+			want:    false,
+		},
+		{
+			name:    "zero uuid profile is not an identity",
+			ref:     &pb.Feed{Uuid: ownerUUID.String(), Id: "owner"},
+			profile: &pb.Profile{Uuid: uuid.Nil.String(), Id: "owner"},
+			want:    false,
+		},
+		{
+			name:    "two zero uuids are never the same user",
+			ref:     &pb.Feed{Uuid: uuid.Nil.String(), Id: "owner"},
+			profile: &pb.Profile{Uuid: uuid.Nil.String(), Id: "owner"},
 			want:    false,
 		},
 	}
