@@ -662,7 +662,14 @@ func (s *ApiServer) principalFromUserUuid(userUuid string) (*pb.Profile, error) 
 		return nil, status.Error(codes.InvalidArgument, "user_uuid is invalid")
 	}
 	profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
-	if err != nil || profile == nil {
+	if errors.Is(err, model.ErrNotFound) || errors.Is(err, model.ErrProfileDeleted) {
+		return nil, status.Error(codes.NotFound, "profile not found")
+	}
+	if err != nil {
+		// Real storage failures must not masquerade as a missing user.
+		return nil, status.Errorf(codes.Internal, "read profile: %v", err)
+	}
+	if profile == nil {
 		return nil, status.Error(codes.NotFound, "profile not found")
 	}
 	return profile, nil

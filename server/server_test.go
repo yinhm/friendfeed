@@ -610,6 +610,27 @@ func (s *RpcTestSuite) TestCommentPrincipalRequirement() {
 	assert.Equal(s.T(), 0, len(got.Comments))
 }
 
+// TestPrincipalFromUserUuid proves the canonical profile is actually
+// resolved (Uuid/Id/Name), and that a deleted profile maps to NotFound.
+func (s *RpcTestSuite) TestPrincipalFromUserUuid() {
+	profileUUID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileUUID.String(), Id: "principal", Name: "Principal User", Type: "user"}
+	assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, profile))
+
+	got, err := s.srv.principalFromUserUuid(profile.Uuid)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), profile.Uuid, got.Uuid)
+	assert.Equal(s.T(), "principal", got.Id)
+	assert.Equal(s.T(), "Principal User", got.Name)
+
+	deletedUUID := uuid.Must(uuid.NewV4())
+	assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, &pb.Profile{
+		Uuid: deletedUUID.String(), Id: "ghost", Type: "user", Deleted: true,
+	}))
+	_, err = s.srv.principalFromUserUuid(deletedUUID.String())
+	assert.Equal(s.T(), codes.NotFound, status.Code(err))
+}
+
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	// Given FeedIndex, load and dump to db
 	entryID := "c6f8dca854f011ddb489003048343a40"

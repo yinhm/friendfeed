@@ -8,6 +8,10 @@ import (
 	"github.com/yinhm/friendfeed/store"
 )
 
+// ErrProfileDeleted is returned by GetProfileFromUuid when the profile
+// exists but is marked deleted. Callers should treat it like not-found.
+var ErrProfileDeleted = errors.New("profile deleted")
+
 func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profile, error) {
 	// create new profile on oauth
 	profile := &pb.Profile{
@@ -64,7 +68,7 @@ func GetProfileFromUuid(db *store.Store, profileUUID uuid.UUID) (*pb.Profile, er
 		return nil, err
 	}
 	if msg.Deleted {
-		return nil, errors.New("Profile deleted")
+		return nil, ErrProfileDeleted
 	}
 	return msg, nil
 }
