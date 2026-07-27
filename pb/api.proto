@@ -183,12 +183,14 @@ message LikeRequest {
 message CommentRequest {
   string entry = 1;
   Comment comment = 2;
+  string user_uuid = 3;  // stable principal; required, client From is not trusted
 }
 
 message CommentDeleteRequest {
   string entry = 1;
   string comment = 2;
-  string user = 3;
+  string user = 3;       // legacy profile ID; kept for wire compat, not an authz fallback
+  string user_uuid = 4;  // stable principal; required
 }
 
 message ServiceRequest {

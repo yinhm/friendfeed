@@ -649,14 +649,33 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 	return entry, err
 }
 
+// principalFromUserUuid resolves the canonical profile for a command
+// request's stable principal. user_uuid is REQUIRED: client-supplied
+// actor references (comment.From, the legacy user id field) are kept on
+// the wire for compatibility but are never an authorization fallback.
+func (s *ApiServer) principalFromUserUuid(userUuid string) (*pb.Profile, error) {
+	if userUuid == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_uuid is required")
+	}
+	profileUUID, err := uuid.FromString(userUuid)
+	if err != nil || profileUUID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, "user_uuid is invalid")
+	}
+	profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
+	if err != nil || profile == nil {
+		return nil, status.Error(codes.NotFound, "profile not found")
+	}
+	return profile, nil
+}
+
 func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*pb.Entry, error) {
 	entry, err := model.GetEntry(s.rdb, req.Entry)
 	if err != nil {
 		return nil, err
 	}
 
-	profile, err := model.GetProfileFromUserId(s.mdb, req.Comment.From.Id)
-	if err != nil || profile == nil {
+	profile, err := s.principalFromUserUuid(req.UserUuid)
+	if err != nil {
 		return nil, err
 	}
 
@@ -674,8 +693,8 @@ func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequ
 		return nil, err
 	}
 
-	profile, err := model.GetProfileFromUserId(s.mdb, req.User)
-	if err != nil || profile == nil {
+	profile, err := s.principalFromUserUuid(req.UserUuid)
+	if err != nil {
 		return nil, err
 	}
 

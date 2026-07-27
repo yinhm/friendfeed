@@ -387,8 +387,9 @@ func (s *Server) CommentHandler(c *gin.Context) {
 	comment.Id = commentUUID.String()
 
 	req := &pb.CommentRequest{
-		Entry:   entryId,
-		Comment: comment,
+		Entry:    entryId,
+		Comment:  comment,
+		UserUuid: CurrentUserUuid(c),
 	}
 
 	ctx, cancel := DefaultTimeoutContext()
@@ -416,9 +417,9 @@ func (s *Server) CommentDeleteHandler(c *gin.Context) {
 	profile, _ := s.CurrentUser(c)
 	graph, _ := s.CurrentGraph(c)
 	req := &pb.CommentDeleteRequest{
-		Entry:   form.Entry,
-		Comment: form.Comment,
-		User:    profile.Id,
+		Entry:    form.Entry,
+		Comment:  form.Comment,
+		UserUuid: CurrentUserUuid(c),
 	}
 
 	ctx, cancel := DefaultTimeoutContext()

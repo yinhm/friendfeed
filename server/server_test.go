@@ -18,7 +18,9 @@ import (
 	"github.com/yinhm/friendfeed/store"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -399,8 +401,9 @@ func (s *RpcTestSuite) TestPostProfile() {
 		RawBody: "this is a comment",
 	}
 	cReq := &pb.CommentRequest{
-		Entry:   entry.Id,
-		Comment: cmt,
+		Entry:    entry.Id,
+		Comment:  cmt,
+		UserUuid: "c6f8dca854f011ddb489003048343a40",
 	}
 	entry, err = s.srv.CommentEntry(context.Background(), cReq)
 	assert.Nil(s.T(), err)
@@ -545,6 +548,66 @@ func (s *RpcTestSuite) TestFetchEntryLegacyWithoutProfileUuid() {
 	assert.Equal(s.T(), "legacy", got.From.Id)
 	assert.Equal(s.T(), "Legacy User", got.From.Name)
 	assert.Equal(s.T(), "http://example.com/legacy.jpg", got.From.Picture)
+}
+
+// TestCommentPrincipalRequirement covers Step 2 of TODO.md: comment
+// commands must carry a valid user_uuid; the server resolves the
+// canonical profile from it and rejects missing, malformed, zero, or
+// unknown principals instead of trusting client actor references.
+func (s *RpcTestSuite) TestCommentPrincipalRequirement() {
+	ctx := context.Background()
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileUUID.String(), Id: "commenter", Name: "Commenter", Type: "user"}
+	assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, profile))
+
+	entry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: profileUUID.String(),
+		Date:        time.Now().UTC().Format(time.RFC3339),
+	}
+	_, err := model.PutEntry(s.srv.rdb, entry)
+	assert.Nil(s.T(), err)
+
+	newComment := func() *pb.Comment {
+		return &pb.Comment{
+			Id:   uuid.Must(uuid.NewV4()).String(),
+			Date: time.Now().UTC().Format(time.RFC3339),
+			Body: "hi",
+			From: &pb.Feed{Id: "commenter", Name: "Commenter"},
+		}
+	}
+
+	for name, tc := range map[string]struct {
+		userUuid string
+		code     codes.Code
+	}{
+		"missing":   {"", codes.InvalidArgument},
+		"malformed": {"not-a-uuid", codes.InvalidArgument},
+		"zero":      {uuid.Nil.String(), codes.InvalidArgument},
+		"unknown":   {uuid.Must(uuid.NewV4()).String(), codes.NotFound},
+	} {
+		_, err := s.srv.CommentEntry(ctx, &pb.CommentRequest{
+			Entry: entry.Id, Comment: newComment(), UserUuid: tc.userUuid,
+		})
+		assert.Equal(s.T(), tc.code, status.Code(err), "CommentEntry %s", name)
+
+		_, err = s.srv.DeleteComment(ctx, &pb.CommentDeleteRequest{
+			Entry: entry.Id, Comment: "x", UserUuid: tc.userUuid,
+		})
+		assert.Equal(s.T(), tc.code, status.Code(err), "DeleteComment %s", name)
+	}
+
+	// A valid principal resolves the canonical profile.
+	cReq := &pb.CommentRequest{Entry: entry.Id, Comment: newComment(), UserUuid: profile.Uuid}
+	got, err := s.srv.CommentEntry(ctx, cReq)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(got.Comments))
+
+	dReq := &pb.CommentDeleteRequest{Entry: entry.Id, Comment: got.Comments[0].Id, UserUuid: profile.Uuid}
+	got, err = s.srv.DeleteComment(ctx, dReq)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 0, len(got.Comments))
 }
 
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
