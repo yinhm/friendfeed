@@ -243,6 +243,61 @@ func TestLikeNotDuplicated(t *testing.T) {
 	}
 }
 
+// Step 3 of TODO.md: new likes/comments persist the canonical actor
+// reference (stable UUID plus display snapshot), never caller-supplied
+// identity fields.
+func TestLikeStoresCanonicalActorRef(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+	owner.Picture = "http://example.com/o.jpg"
+
+	_, entry, err := Like(db, owner, newLikeTestEntry())
+	if err != nil {
+		t.Fatalf("Like: %v", err)
+	}
+	if len(entry.Likes) != 1 {
+		t.Fatalf("likes = %d; want 1", len(entry.Likes))
+	}
+	from := entry.Likes[0].From
+	if from.Uuid != owner.Uuid {
+		t.Errorf("From.Uuid = %q; want %q", from.Uuid, owner.Uuid)
+	}
+	if from.Id != "owner" || from.Name != "owner" || from.Picture != "http://example.com/o.jpg" {
+		t.Errorf("snapshot = <%q, %q, %q>; want copied from profile", from.Id, from.Name, from.Picture)
+	}
+}
+
+func TestLikeRejectsProfileWithoutIdentity(t *testing.T) {
+	db := likeTestDB(t)
+	if _, _, err := Like(db, &pb.Profile{Id: "nouuid"}, newLikeTestEntry()); err == nil {
+		t.Fatal("Like with uuid-less profile must fail")
+	}
+}
+
+func TestCommentStoresCanonicalActorRef(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+
+	// The caller forges From as another user; the stored comment must
+	// carry the canonical principal's identity instead.
+	forged := &pb.Comment{
+		Id:   uuid.Must(uuid.NewV4()).String(),
+		Body: "hello",
+		From: &pb.Feed{Uuid: likeTestOtherUUID.String(), Id: "other", Name: "Other"},
+	}
+	_, entry, err := Comment(db, owner, newLikeTestEntry(), forged)
+	if err != nil {
+		t.Fatalf("Comment: %v", err)
+	}
+	if len(entry.Comments) != 1 {
+		t.Fatalf("comments = %d; want 1", len(entry.Comments))
+	}
+	from := entry.Comments[0].From
+	if from.Uuid != owner.Uuid || from.Id != "owner" || from.Name != "owner" {
+		t.Errorf("From = <%q, %q, %q>; want canonical owner", from.Uuid, from.Id, from.Name)
+	}
+}
+
 // Expected to FAIL until Step 5: the stored like carries the author's
 // stable UUID with a stale From.Id; dedupe by id misses it and appends.
 func TestLikeNotDuplicatedAfterRename(t *testing.T) {

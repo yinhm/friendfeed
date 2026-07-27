@@ -17,13 +17,13 @@ func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb
 		return like.From.Id == profile.Id
 	})
 	if index == -1 {
+		from, err := feedFromProfile(profile)
+		if err != nil {
+			return nil, nil, err
+		}
 		like := &pb.Like{
 			Date: time.Now().Format(time.RFC3339),
-			From: &pb.Feed{
-				Id:   profile.Id,
-				Name: profile.Name,
-				Type: profile.Type,
-			},
+			From: from,
 		}
 		entry.Likes = append(entry.Likes, like)
 		key, err = PutEntry(db, entry)
@@ -58,6 +58,15 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 			break
 		}
 	}
+
+	// The author identity always comes from the canonical profile resolved
+	// server-side; any From the caller sent is display data at best.
+	from, err := feedFromProfile(profile)
+	if err != nil {
+		return nil, nil, err
+	}
+	comment.From = from
+
 	if idx >= 0 {
 		entry.Comments[idx] = comment
 	} else {

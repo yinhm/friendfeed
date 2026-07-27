@@ -631,6 +631,45 @@ func (s *RpcTestSuite) TestPrincipalFromUserUuid() {
 	assert.Equal(s.T(), codes.NotFound, status.Code(err))
 }
 
+// TestCommentEntryOverridesForgedFrom proves the server persists the
+// canonical principal as the comment author even when the caller forges
+// comment.From as someone else (Step 3 of TODO.md).
+func (s *RpcTestSuite) TestCommentEntryOverridesForgedFrom() {
+	ctx := context.Background()
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileUUID.String(), Id: "realuser", Name: "Real User", Type: "user"}
+	assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, profile))
+	victimUUID := uuid.Must(uuid.NewV4())
+	assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, &pb.Profile{
+		Uuid: victimUUID.String(), Id: "victim", Name: "Victim", Type: "user",
+	}))
+
+	entry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: profileUUID.String(),
+		Date:        time.Now().UTC().Format(time.RFC3339),
+	}
+	_, err := model.PutEntry(s.srv.rdb, entry)
+	assert.Nil(s.T(), err)
+
+	forged := &pb.Comment{
+		Id:   uuid.Must(uuid.NewV4()).String(),
+		Date: time.Now().UTC().Format(time.RFC3339),
+		Body: "forged identity",
+		From: &pb.Feed{Uuid: victimUUID.String(), Id: "victim", Name: "Victim"},
+	}
+	got, err := s.srv.CommentEntry(ctx, &pb.CommentRequest{
+		Entry: entry.Id, Comment: forged, UserUuid: profile.Uuid,
+	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(got.Comments))
+	from := got.Comments[0].From
+	assert.Equal(s.T(), profile.Uuid, from.Uuid)
+	assert.Equal(s.T(), "realuser", from.Id)
+	assert.Equal(s.T(), "Real User", from.Name)
+}
+
 func (s *RpcTestSuite) TestFeedIndexLoadDump() {
 	// Given FeedIndex, load and dump to db
 	entryID := "c6f8dca854f011ddb489003048343a40"
