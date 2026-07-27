@@ -663,3 +663,73 @@ func TestMalformedActorRefsDoNotPanic(t *testing.T) {
 		})
 	}
 }
+
+// Comment edit updates only the body: the stored author, date and id
+// are preserved even when the client tries to overwrite them.
+func TestCommentEditPreservesAuthorDateAndId(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+
+	stored := ownerComment()
+	stored.Date = "2012-09-07T07:40:22Z"
+	entry := newLikeTestEntry()
+	entry.Comments = []*pb.Comment{stored}
+
+	forged := editBy(owner, "edited body")
+	forged.Date = "2030-01-01T00:00:00Z" // client tries to rewrite history
+	_, entry, err := Comment(db, owner, entry, forged)
+	if err != nil {
+		t.Fatalf("owner edit: %v", err)
+	}
+	got := entry.Comments[0]
+	if got.Body != "edited body" {
+		t.Errorf("Body = %q; want edited", got.Body)
+	}
+	if got.Date != "2012-09-07T07:40:22Z" {
+		t.Errorf("Date = %q; want original preserved", got.Date)
+	}
+	if got.Id != likeTestCommentID {
+		t.Errorf("Id = %q; want original preserved", got.Id)
+	}
+	if got.From.Id != "owner" || got.From.Uuid != owner.Uuid {
+		t.Errorf("From = <%q, %q>; want original author preserved", got.From.Id, got.From.Uuid)
+	}
+}
+
+// Moderation comes from entry.ProfileUuid only: an entry without it
+// grants nothing through the recyclable entry.From.Id snapshot.
+func TestDeleteCommentNoModerationViaEntryFromId(t *testing.T) {
+	db := likeTestDB(t)
+	entryAuthor := likeTestProfileFor("entry", likeTestEntryUUID)
+
+	entry := newLikeTestEntry()
+	entry.ProfileUuid = "" // legacy entry without a stable author id
+	entry.From = &pb.Feed{Id: "entry"}
+	entry.Comments = []*pb.Comment{ownerComment()}
+
+	entry, err := DeleteComment(db, entryAuthor, entry, likeTestCommentID)
+	if err == nil {
+		t.Error("entry.From.Id must not grant moderation")
+	}
+	if len(entry.Comments) != 1 {
+		t.Errorf("comments = %d; want 1", len(entry.Comments))
+	}
+}
+
+// Deleting a non-existent comment keeps the current blind-delete
+// semantics: no error, comments untouched.
+func TestDeleteCommentBlindDeleteKeepsSemantics(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+
+	entry := newLikeTestEntry()
+	entry.Comments = []*pb.Comment{ownerComment()}
+
+	entry, err := DeleteComment(db, owner, entry, uuid.Must(uuid.NewV4()).String())
+	if err != nil {
+		t.Fatalf("blind delete: %v", err)
+	}
+	if len(entry.Comments) != 1 {
+		t.Errorf("comments = %d; want 1", len(entry.Comments))
+	}
+}

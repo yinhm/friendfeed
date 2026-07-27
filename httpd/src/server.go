@@ -413,7 +413,7 @@ func (s *Server) CommentDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	// TODO: check perm
+	// Permission is enforced server-side by DeleteComment via user_uuid.
 	profile, _ := s.CurrentUser(c)
 	graph, _ := s.CurrentGraph(c)
 	req := &pb.CommentDeleteRequest{
