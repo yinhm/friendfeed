@@ -438,6 +438,72 @@ func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
 	}
 }
 
+// nil From is part of the no-fallback contract: panic-safety alone is
+// not enough, a nil identity must never be treated as the caller.
+// Expected to FAIL until Step 5 (panics or unconditional mutation).
+func TestNilFromNeverAuthorizes(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+	commentID := uuid.Must(uuid.NewV4()).String()
+
+	t.Run("cannot edit", func(t *testing.T) {
+		entry := newLikeTestEntry()
+		entry.Comments = []*pb.Comment{{Id: commentID, Body: "original body", From: nil}}
+
+		var err error
+		mustNotPanic(t, "Comment", func() {
+			_, _, err = Comment(db, owner, entry, &pb.Comment{
+				Id:   commentID,
+				Body: "hijack",
+				From: &pb.Feed{Uuid: owner.Uuid, Id: owner.Id},
+			})
+		})
+		if err == nil {
+			t.Error("nil From must not authorize edit")
+		}
+	})
+
+	t.Run("cannot delete", func(t *testing.T) {
+		entry := newLikeTestEntry()
+		entry.Comments = []*pb.Comment{{Id: commentID, Body: "original body", From: nil}}
+
+		var err error
+		mustNotPanic(t, "DeleteComment", func() {
+			entry, err = DeleteComment(db, owner, entry, commentID)
+		})
+		if err == nil {
+			t.Error("nil From must not authorize delete")
+		}
+		if len(entry.Comments) != 1 {
+			t.Errorf("comments = %d; want 1", len(entry.Comments))
+		}
+	})
+
+	t.Run("cannot unlike", func(t *testing.T) {
+		entry := newLikeTestEntry()
+		entry.Likes = []*pb.Like{{From: nil}}
+
+		mustNotPanic(t, "DeleteLike", func() {
+			entry, _ = DeleteLike(db, owner, entry)
+		})
+		if len(entry.Likes) != 1 {
+			t.Errorf("likes = %d; want 1 (nil From must not match the caller)", len(entry.Likes))
+		}
+	})
+
+	t.Run("like is not a duplicate", func(t *testing.T) {
+		entry := newLikeTestEntry()
+		entry.Likes = []*pb.Like{{From: nil}}
+
+		mustNotPanic(t, "Like", func() {
+			_, entry, _ = Like(db, owner, entry)
+		})
+		if len(entry.Likes) != 2 {
+			t.Errorf("likes = %d; want 2 (nil From must not dedupe against the caller)", len(entry.Likes))
+		}
+	})
+}
+
 // Expected to FAIL (panic) until Step 5: the mutation paths dereference
 // From without nil checks, and must tolerate nil From plus empty and
 // malformed UUIDs. Table-driven so one panic cannot mask later inputs,
