@@ -32,12 +32,14 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 	// ID. Resolving by id would then fail and 404 the entire feed.
 	var profile *pb.Profile
 	var err error
+	stableAuthor := false
 	if entry.ProfileUuid != "" {
 		profileUUID, uerr := uuid.FromString(entry.ProfileUuid)
 		if uerr != nil {
 			return nil, uerr
 		}
 		profile, err = model.GetProfileFromUuid(mdb, profileUUID)
+		stableAuthor = true
 	} else if entry.From != nil {
 		// Legacy entries without ProfileUuid fall back to id lookup.
 		profile, err = model.GetProfileFromUserId(mdb, entry.From.Id)
@@ -51,15 +53,20 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 	if entry.From == nil {
 		entry.From = &pb.Feed{}
 	}
-	// Refresh denormalized fields from the canonical profile so a renamed ID,
-	// updated name or picture render correctly for historical entries. The
-	// author identity itself (ProfileUuid) is stable, so stamping Uuid here
-	// is safe — unlike comment/like refs, it is not an id-based guess.
-	entry.From.Uuid = profile.Uuid
+	// Refresh denormalized display fields from the canonical profile so a
+	// renamed ID, updated name or picture render correctly for historical
+	// entries.
 	entry.From.Id = profile.Id
 	entry.From.Name = profile.Name
 	entry.From.Picture = profile.Picture
 	entry.From.Type = profile.Type
+	// Stamp the identity UUID only when the profile came from the stable
+	// ProfileUuid. The legacy id fallback resolves through a recyclable
+	// id; stamping there could misattribute the entry to whoever currently
+	// owns that id.
+	if stableAuthor {
+		entry.From.Uuid = profile.Uuid
+	}
 
 	for _, cmt := range entry.Comments {
 		if cmt != nil {

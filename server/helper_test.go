@@ -107,11 +107,45 @@ func TestFmtEntryProfileLegacyFallback(t *testing.T) {
 	if entry.From.Name != "Legacy User" {
 		t.Errorf("From.Name = %q; want %q", entry.From.Name, "Legacy User")
 	}
-	if entry.From.Uuid != profileUUID.String() {
-		t.Errorf("From.Uuid = %q; want %q (stamped from the resolved profile)", entry.From.Uuid, profileUUID.String())
-	}
 	if entry.From.Type != "user" {
 		t.Errorf("From.Type = %q; want %q", entry.From.Type, "user")
+	}
+	// The profile was resolved through the recyclable id, so the stable
+	// identity field must NOT be stamped from it.
+	if entry.From.Uuid != "" {
+		t.Errorf("From.Uuid = %q; want empty (no stamping via legacy id fallback)", entry.From.Uuid)
+	}
+}
+
+// A legacy entry whose From.Id has been recycled by another user must
+// not have the current registrant's UUID attributed to it: display
+// fields may refresh for compatibility, but the identity field stays
+// untouched.
+func TestFmtEntryProfilesLegacyRecycledIdNoUuidStamp(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	registrantUUID := uuid.Must(uuid.NewV4())
+	if err := model.UpdateProfile(db, &pb.Profile{
+		Uuid: registrantUUID.String(), Id: "newbie", Name: "Newbie", Type: "user",
+	}); err != nil {
+		t.Fatalf("seed registrant: %v", err)
+	}
+
+	// Legacy entry from the ORIGINAL owner of "newbie": no ProfileUuid,
+	// no From.Uuid — only the recyclable id snapshot.
+	entry := &pb.Entry{
+		Id:   uuid.Must(uuid.NewV4()).String(),
+		From: &pb.Feed{Id: "newbie", Name: "Original Author"},
+	}
+	if _, err := fmtEntryProfiles(db, entry); err != nil {
+		t.Fatalf("fmtEntryProfiles: %v", err)
+	}
+	if entry.From.Uuid == registrantUUID.String() {
+		t.Errorf("From.Uuid stamped with the current registrant %q; identity misattribution", registrantUUID)
+	}
+	if entry.From.Uuid != "" {
+		t.Errorf("From.Uuid = %q; want empty", entry.From.Uuid)
 	}
 }
 
