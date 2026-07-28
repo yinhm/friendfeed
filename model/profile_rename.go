@@ -6,9 +6,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 // profileIdRe defines the valid format for a profile ID (feed URL slug):
@@ -52,62 +54,80 @@ func NormalizeProfileId(id string) (string, error) {
 //  4. Creates the new UserMap entry
 //  5. Updates the Profile record
 //
-// If the profile's current ID already matches newId (case-insensitive), the
-// call is a no-op and returns nil.
+// If the profile's current ID exactly matches the normalized newId and its
+// existing UserMap entry still points to profileUUID, the call is a no-op.
+// A missing, malformed, or conflicting old mapping is reported even when the
+// requested ID text is unchanged, because that state is not a valid no-op.
 func RenameProfileId(db *store.Store, profileUUID uuid.UUID, newId string) error {
+	if profileUUID == uuid.Nil {
+		return errors.New("profile UUID is invalid")
+	}
+
 	// Normalize and validate the new ID
 	newId, err := NormalizeProfileId(newId)
 	if err != nil {
 		return fmt.Errorf("invalid new ID: %w", err)
 	}
 
-	// Fetch the current profile to get the old ID
-	profile := new(pb.Profile)
-	if err := Profile.Get(db, profileUUID.Bytes(), profile); err != nil {
-		return fmt.Errorf("profile not found: %w", err)
-	}
-
-	oldId := profile.Id
-	if oldId == newId {
-		// Already the desired ID; no-op
-		return nil
-	}
-
-	// Check for collision: does the new ID already map to a different profile?
-	newMapKey := NewKeyFrom(TableUserMap.Bytes(), []byte(newId))
-	if existingUUID, err := db.Get(newMapKey); err == nil && len(existingUUID) > 0 {
-		existing, err := uuid.FromBytes(existingUUID)
-		if err == nil && existing != profileUUID {
-			return fmt.Errorf("ID %q is already taken by another profile", newId)
+	return db.ApplyBatch(func(batch *pebble.Batch) error {
+		// The profile read, collision check and commit are serialized with
+		// other rename batches on this Store.
+		profile := new(pb.Profile)
+		if err := Profile.Get(db, profileUUID.Bytes(), profile); err != nil {
+			return fmt.Errorf("profile not found: %w", err)
 		}
-		// If it maps to this same profile, proceed (handles double-apply)
-	}
 
-	// Atomic update: delete old UserMap, create new UserMap, update Profile.
-	// (Pebble WriteBatch would be cleaner but store.Store doesn't expose it;
-	// this order minimizes the window where lookups might fail.)
+		oldId := profile.Id
+		oldMapKey := NewKeyFrom(TableUserMap.Bytes(), []byte(oldId))
+		oldMappedUUID, err := db.Get(oldMapKey)
+		if err != nil {
+			return fmt.Errorf("read old UserMap[%s]: %w", oldId, err)
+		}
+		if len(oldMappedUUID) == 0 {
+			return fmt.Errorf("old UserMap[%s] is missing", oldId)
+		}
+		oldMappedProfile, err := uuid.FromBytes(oldMappedUUID)
+		if err != nil {
+			return fmt.Errorf("decode old UserMap[%s]: %w", oldId, err)
+		}
+		if oldMappedProfile != profileUUID {
+			return fmt.Errorf("old UserMap[%s] belongs to another profile", oldId)
+		}
+		if oldId == newId {
+			return nil
+		}
 
-	// Delete the old UserMap entry
-	oldMapKey := NewKeyFrom(TableUserMap.Bytes(), []byte(oldId))
-	if err := db.Delete(oldMapKey); err != nil {
-		return fmt.Errorf("delete old UserMap[%s]: %w", oldId, err)
-	}
+		newMapKey := NewKeyFrom(TableUserMap.Bytes(), []byte(newId))
+		existingUUID, err := db.Get(newMapKey)
+		if err != nil {
+			return fmt.Errorf("read UserMap[%s]: %w", newId, err)
+		}
+		if len(existingUUID) > 0 {
+			existing, err := uuid.FromBytes(existingUUID)
+			if err != nil {
+				return fmt.Errorf("decode UserMap[%s]: %w", newId, err)
+			}
+			if existing != profileUUID {
+				return fmt.Errorf("ID %q is already taken by another profile", newId)
+			}
+		}
 
-	// Create the new UserMap entry
-	if err := db.Put(newMapKey, profileUUID.Bytes()); err != nil {
-		// Try to restore the old mapping before returning error
-		_ = db.Put(oldMapKey, profileUUID.Bytes())
-		return fmt.Errorf("create new UserMap[%s]: %w", newId, err)
-	}
+		profile.Id = newId
+		encodedProfile, err := proto.Marshal(profile)
+		if err != nil {
+			return fmt.Errorf("encode Profile: %w", err)
+		}
 
-	// Update the Profile record
-	profile.Id = newId
-	if _, err := Profile.Put(db, profileUUID.Bytes(), profile); err != nil {
-		// Rollback: restore old UserMap, delete new UserMap
-		_ = db.Put(oldMapKey, profileUUID.Bytes())
-		_ = db.Delete(newMapKey)
-		return fmt.Errorf("update Profile: %w", err)
-	}
-
-	return nil
+		profileKey := Profile.PrefixAppend(profileUUID.Bytes())
+		if err := batch.Delete(oldMapKey, nil); err != nil {
+			return fmt.Errorf("delete old UserMap[%s]: %w", oldId, err)
+		}
+		if err := batch.Set(newMapKey, profileUUID.Bytes(), nil); err != nil {
+			return fmt.Errorf("create new UserMap[%s]: %w", newId, err)
+		}
+		if err := batch.Set(profileKey, encodedProfile, nil); err != nil {
+			return fmt.Errorf("update Profile: %w", err)
+		}
+		return nil
+	})
 }

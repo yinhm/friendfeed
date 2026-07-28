@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +33,7 @@ type Store struct {
 	idGen  *flake.Generator
 
 	syncWrites atomic.Bool
+	batchMu    sync.Mutex
 }
 
 func NewStore(dbpath string) *Store {
@@ -208,6 +210,25 @@ func (db *Store) Exist(key []byte) bool {
 
 func (db *Store) NewBatch() *pebble.Batch {
 	return db.rdb.NewBatch()
+}
+
+// ApplyBatch builds and commits one atomic Pebble batch while serializing
+// other ApplyBatch callers on this Store. The callback may perform reads
+// through db before adding writes to the batch; returning an error aborts
+// the batch without committing it. Commit honors SetSync.
+func (db *Store) ApplyBatch(fn func(*pebble.Batch) error) error {
+	db.batchMu.Lock()
+	defer db.batchMu.Unlock()
+
+	batch := db.rdb.NewBatch()
+	defer batch.Close()
+	if err := fn(batch); err != nil {
+		return err
+	}
+	if batch.Count() == 0 {
+		return nil
+	}
+	return batch.Commit(db.writeOptions())
 }
 
 func (db *Store) Metrics() *pebble.Metrics {

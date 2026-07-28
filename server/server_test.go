@@ -513,6 +513,63 @@ func (s *RpcTestSuite) TestPostFeedinfoPreservesSystemFields() {
 	assert.True(s.T(), got.IsSuper, "IsSuper must survive a rename")
 }
 
+func (s *RpcTestSuite) TestPostFeedinfoSerializesConcurrentRenameCollision() {
+	ctx := context.Background()
+	firstUUID := uuid.Must(uuid.NewV4())
+	secondUUID := uuid.Must(uuid.NewV4())
+	for _, profile := range []*pb.Profile{
+		{Uuid: firstUUID.String(), Id: "first-user", Name: "First", Type: "user"},
+		{Uuid: secondUUID.String(), Id: "second-user", Name: "Second", Type: "user"},
+	} {
+		assert.Nil(s.T(), model.UpdateProfile(s.srv.mdb, profile))
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, profileUUID := range []uuid.UUID{firstUUID, secondUUID} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := s.srv.PostFeedinfo(ctx, &pb.Feedinfo{
+				Uuid: profileUUID.String(),
+				Id:   "shared-name",
+				Name: "Updated",
+				Type: "user",
+			})
+			results <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	successes := 0
+	failures := 0
+	for err := range results {
+		if err == nil {
+			successes++
+		} else {
+			failures++
+		}
+	}
+	assert.Equal(s.T(), 1, successes)
+	assert.Equal(s.T(), 1, failures)
+
+	winner, err := model.GetProfileFromUserId(s.srv.mdb, "shared-name")
+	assert.Nil(s.T(), err)
+	assert.Contains(s.T(), []string{firstUUID.String(), secondUUID.String()}, winner.Uuid)
+
+	loserID := "first-user"
+	if winner.Uuid == firstUUID.String() {
+		loserID = "second-user"
+	}
+	loser, err := model.GetProfileFromUserId(s.srv.mdb, loserID)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), loserID, loser.Id)
+}
+
 // TestFetchEntryLegacyWithoutProfileUuid covers historical entries that
 // predate the ProfileUuid field: FetchEntry must resolve the author via
 // the From.Id fallback instead of 404ing the permalink page.

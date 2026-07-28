@@ -31,6 +31,7 @@ var logger *logrus.Logger
 // server implementation.
 type ApiServer struct {
 	sync.RWMutex
+	profileUpdateMu sync.Mutex
 
 	// meta database
 	mdb *store.Store
@@ -156,6 +157,12 @@ func (s *ApiServer) Destroy() {
 // fields onto the stored profile so system-only fields (IsSuper, Deleted)
 // are preserved; Feedinfo does not carry them.
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {
+	// Keep the read/rename/patch sequence together. RenameProfileId makes
+	// its key changes atomic; this lock prevents a concurrent profile
+	// update from writing an older snapshot back after that atomic commit.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	profileUUID, err := uuid.FromString(in.Uuid)
 	if err != nil {
 		return nil, err
