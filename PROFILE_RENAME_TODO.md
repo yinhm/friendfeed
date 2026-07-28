@@ -140,15 +140,15 @@ map[uuid.UUID]profile lookup result
 - 不做跨请求 profile cache，避免新增 rename 失效问题；
 - 测试同一 UUID每个请求最多读取一次。
 
-## 5. Legacy UUID回填工具（已评估，暂不实施，2026-07-28）
+## 5. Legacy UUID回填工具（已实现，待执行，2026-07-28）
 
-评估结果：
+实施依据与结果：
 
-- 当前 OAuth `(provider, UserId) -> profile UUID` 只能证明登录身份，不能证明某条历史 comment/like 的 `From.Id` 在写入当时属于该 profile。
-- 当前 `UserMap[From.Id]` 会受 rename 和 ID 复用影响，不能作为历史归属来源。
-- new DB 中没有 HistoricalAlias、旧 ID 时间线或逐条 actor provenance；old DB 已退出支持范围，不重新引入。
-- 因此无法满足“可证明归属”的安全门槛，不创建猜测式回填工具。UUID-less comment/like 继续保留原展示快照并保持只读。
-- 未来只有导入带稳定 UUID 的历史导出或其他可审计 provenance 后才重新开启本项。
+- 2026-07-28 明确确认：当前 dev/production 节点从导入至今没有发生 Profile ID 修改，历史 `From.Id` 仍是原 owner，可作为本次一次性迁移的受控 provenance。
+- 新增 `migrate_db -c backfill_actor_uuids`，仅依赖 new DB；完整校验 `From.Id -> UserMap -> Profile` 后回填 entry author、comment 和 like UUID。
+- 默认 report-only，必须显式 `-apply` 写入；支持 `-user` 与 `-max-limit`，输出 changed/already/unresolved/conflict 统计。
+- 已有 UUID 非法或与解析结果冲突时不覆盖；不修改展示快照和 `FeedUuid`；迁移幂等。
+- dev/production 执行前仍需停止服务、备份并先核对完整 dry-run 统计。
 
 默认继续采用方案 A：UUID-less comment/like 保留快照且只读。
 

@@ -27,6 +27,7 @@ var timelineMaxLimit int
 var debugTable string
 var inspectID string
 var dryRun bool
+var apply bool
 
 func init() {
 	flag.StringVar(&fromPath, "from", "", "from directory")
@@ -37,6 +38,7 @@ func init() {
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
 	flag.StringVar(&inspectID, "id", "", "login id to inspect (inspect_profile command)")
 	flag.BoolVar(&dryRun, "dry-run", false, "report timeline rebuild without writing changes")
+	flag.BoolVar(&apply, "apply", false, "apply actor UUID backfill changes (default is report only)")
 }
 
 func purge_table(db *store.Store, prefix store.Key) (int, error) {
@@ -476,6 +478,33 @@ func runMigrateMediaURLsCommand(ndb *store.Store) {
 	log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, dry-run=%t", stats.profiles, stats.entries, stats.thumbnails, dryRun)
 }
 
+func runBackfillActorUUIDsCommand(ndb *store.Store) {
+	options := actorUUIDBackfillOptions{
+		user:     timelineUser,
+		maxLimit: timelineMaxLimit,
+		apply:    apply,
+	}
+	stats, err := backfillActorUUIDs(ndb, options)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if apply {
+		ndb.Flush()
+	}
+	log.Printf(
+		"actor UUID backfill summary: %d entries scanned, %d entries changed, %d entry authors, %d comments, %d likes, %d already set, %d unresolved, %d conflicts, apply=%t",
+		stats.entriesScanned,
+		stats.entriesChanged,
+		stats.entryAuthors,
+		stats.comments,
+		stats.likes,
+		stats.alreadySet,
+		stats.unresolved,
+		stats.conflicts,
+		apply,
+	)
+}
+
 func runSyncCommand(db, ndb *store.Store) {
 	// EntryIndex
 	model.EntryIndex.Iter(db, func(k, v []byte) error {
@@ -872,6 +901,8 @@ func runDebugCommand(db, ndb *store.Store) {
 // ./tools -to new_db -c rebuild_social_graph -dry-run
 // migrate legacy GCS and FriendFeed media URLs in profiles and entries
 // ./tools -to new_db -c migrate_media_urls -dry-run
+// backfill stable actor UUIDs; report-only unless -apply is provided
+// ./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20
 // dump decoded table records
 // ./tools -to new_db -c debug -table oauth -max-limit 10
 //
@@ -893,9 +924,13 @@ func main() {
 	// readOnly commands only inspect the target db; open it read-only so we
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "audit_profiles" ||
-		(command == "debug" && debugTable != "")
+		(command == "debug" && debugTable != "") ||
+		(command == "backfill_actor_uuids" && !apply)
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
+	}
+	if command == "backfill_actor_uuids" && apply && dryRun {
+		log.Fatal("-apply and -dry-run cannot be combined")
 	}
 
 	// 确认必须发生在打开(创建)目标库之前,避免误操作产生副作用。
@@ -926,6 +961,8 @@ func main() {
 		runRebuildSocialGraphCommand(ndb)
 	case "migrate_media_urls":
 		runMigrateMediaURLsCommand(ndb)
+	case "backfill_actor_uuids":
+		runBackfillActorUUIDsCommand(ndb)
 	case "sync":
 		runSyncCommand(db, ndb)
 	case "purge_profile":

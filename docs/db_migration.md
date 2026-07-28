@@ -2,7 +2,7 @@
 
 > 本文档从 README 拆出，记录 `old_db` 到 `new_db` 的迁移命令。
 > 这些工具属于 `v1.0.0` 基线（tag）；old_db 迁移与 Pebble v2 升级均已完成。
-> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`，以及诊断/修复命令 `inspect_profile`、`audit_profiles`、`fix_twitter_oauth_fields`（见下文）。
+> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`，以及诊断/修复命令 `inspect_profile`、`audit_profiles`、`fix_twitter_oauth_fields`、`backfill_actor_uuids`（见下文）。
 >
 > `-from` 只对读取源库的命令（`db`、`sync`、无 `-table` 的 `debug`）为必填；其余命令仅操作 `-to` 目标库，无需 `-from`。
 
@@ -57,7 +57,7 @@ purge and rebuild meta if wrong oauth（`purge_*` 会整表删除，执行前需
 
 # 诊断与修复命令
 
-以下命令均只需 `-to` 目标库，不需要 `-from`。`inspect_profile`、`audit_profiles` 以只读方式打开数据库（`store.NewStoreReadOnly`），不会写盘、也不与其他进程争抢写锁，可在服务运行时安全执行。
+以下命令均只需 `-to` 目标库，不需要 `-from`。`inspect_profile`、`audit_profiles` 以只读方式打开数据库（`store.NewStoreReadOnly`），不会写盘，但 Pebble 仍要求取得数据库锁；需停止使用该目录的服务，或改为检查一致性备份副本。
 
 ## inspect_profile
 
@@ -80,6 +80,31 @@ purge and rebuild meta if wrong oauth（`purge_*` 会整表删除，执行前需
     ./tools -to new_db -c fix_twitter_oauth_fields
 
 注意：命令**不是幂等的** —— 每执行一次就翻转一次，重复执行会翻回去，只应运行一次。仅影响 twitter provider，其他 provider（如 google）不受影响。
+
+## backfill_actor_uuids
+
+为当前 new DB 的历史 Entry 回填稳定身份：
+
+- `entry.From.Uuid` 与 `entry.ProfileUuid`；
+- `comment.From.Uuid`；
+- `like.From.Uuid`。
+
+本命令依赖一次性迁移前提：目标 dev/production 数据从导入至今没有发生 Profile ID 修改，因此历史 `From.Id` 仍能通过当前 `UserMap -> Profile` 证明原 owner。命令仍会完整校验映射链；缺失、损坏或与已有 UUID 冲突的记录只计数，不会猜测或覆盖。
+
+默认仅报告，并以只读方式打开目标 DB，但仍需取得 Pebble 数据库锁。请停止使用该目录的服务，或对一致性备份副本执行：
+
+```bash
+./tools -to new_db -c backfill_actor_uuids
+./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20
+```
+
+确认 dry-run 的 `unresolved`/`conflicts` 后，停止所有使用该 Pebble 目录的服务、完成备份，再显式写入：
+
+```bash
+./tools -to new_db -c backfill_actor_uuids -apply
+```
+
+`-apply` 与 `-dry-run` 不可同时使用。迁移不依赖 old DB，不修改 ID/Name/Picture 等展示快照，不修改 `FeedUuid`；可重复执行，第二次应报告零 changed。
 
 # Pebble v2 / FMV 升级（2026-07，dev 与 production 已完成）
 
