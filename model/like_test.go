@@ -9,22 +9,14 @@ import (
 	"github.com/yinhm/friendfeed/store"
 )
 
-// Step 0 of TODO.md: target permission rules for comment/like mutations,
-// written against the current implementation. Several tests are expected
-// to FAIL until Step 5 lands — they are the proof of the defects:
-//
-//   - DeleteComment performs no ownership check at all (any user can
-//     delete anyone's comment);
-//   - after a profile rename, the author loses edit/unlike on their own
-//     UUID-bearing (target-shape) records because comparisons key on the
-//     stale From.Id snapshot;
-//   - nil From references panic the mutation paths.
-//
-// Target rules (TODO.md Step 0):
-//   - edit comment: the comment author only;
+// Target permission rules for comment/like mutations (TODO.md Step 0),
+// locked by these tests:
+//   - edit comment: the comment author only, verified by stable UUID;
 //   - delete comment: the comment author, the entry author (resolved via
 //     entry.ProfileUuid), or a super admin;
-//   - like: no duplicates per user; unlike removes only the caller's like.
+//   - like: no duplicates per user; unlike removes only the caller's like;
+//   - identity is UUID-only: legacy UUID-less, malformed-UUID, nil and
+//     recycled-id references never authorize and never panic.
 
 var (
 	likeTestOwnerUUID  = uuid.Must(uuid.NewV4())
@@ -107,9 +99,8 @@ func TestCommentOwnerCanEdit(t *testing.T) {
 	}
 }
 
-// Expected to FAIL until Step 5: after a rename the stored From.Id is
-// stale, and the current implementation compares ids, so the author gets
-// a 403 on their own comment.
+// After a rename the stored From.Id is stale; ownership is verified by
+// the stable From.Uuid, so the author can still edit their own comment.
 func TestCommentOwnerCanEditAfterRename(t *testing.T) {
 	db := likeTestDB(t)
 	renamed := likeTestProfileFor("newowner", likeTestOwnerUUID)
@@ -209,8 +200,8 @@ func TestSuperCanDeleteComment(t *testing.T) {
 	}
 }
 
-// Expected to FAIL until Step 5: DeleteComment currently performs no
-// ownership check, so an unrelated user can delete anyone's comment.
+// An unrelated user must not delete another user's comment: delete
+// requires comment author, entry author (entry.ProfileUuid) or super.
 func TestOtherUserCannotDeleteComment(t *testing.T) {
 	db := likeTestDB(t)
 	other := likeTestProfileFor("other", likeTestOtherUUID)
@@ -352,8 +343,8 @@ func TestCommentStoresCanonicalActorRef(t *testing.T) {
 	}
 }
 
-// Expected to FAIL until Step 5: the stored like carries the author's
-// stable UUID with a stale From.Id; dedupe by id misses it and appends.
+// The stored like carries the author's stable UUID with a stale From.Id;
+// dedupe by UUID must still recognize it after a rename.
 func TestLikeNotDuplicatedAfterRename(t *testing.T) {
 	db := likeTestDB(t)
 	renamed := likeTestProfileFor("newowner", likeTestOwnerUUID)
@@ -386,8 +377,8 @@ func TestUnlikeKeepsOthersLikes(t *testing.T) {
 	}
 }
 
-// Expected to FAIL until Step 5: unlike locates the like by From.Id,
-// which is stale after a rename, so the author's own like survives.
+// Unlike locates the like by stable UUID, so the author can remove
+// their own like even after a rename.
 func TestUnlikeAfterRename(t *testing.T) {
 	db := likeTestDB(t)
 	renamed := likeTestProfileFor("newowner", likeTestOwnerUUID)
@@ -407,8 +398,8 @@ func TestUnlikeAfterRename(t *testing.T) {
 // The core no-fallback contract: a caller whose current ID happens to
 // match the stored From.Id snapshot but whose UUID differs (e.g. the ID
 // was recycled after a rename) must gain NOTHING from the ID match.
-// Expected to FAIL until Step 5: the current implementation compares
-// ids, so the impostor is treated as the author.
+// The current implementation must compare UUIDs only, so the impostor
+// gains nothing from the recycled id.
 func TestSameIdDifferentUuidNeverAuthorizes(t *testing.T) {
 	// Impostor currently owns the id "owner" but is a different profile.
 	impostor := likeTestProfileFor("owner", likeTestOtherUUID)
@@ -476,7 +467,7 @@ func TestSameIdDifferentUuidNeverAuthorizes(t *testing.T) {
 // UUID-less legacy records are read-only: a matching From.Id alone must
 // never authorize, because the id may have been recycled. Same for
 // malformed UUIDs — an unparseable UUID must not fall back to the id.
-// Expected to FAIL until Step 5.
+// Legacy UUID-less and malformed-UUID records stay read-only.
 func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
 
@@ -549,7 +540,8 @@ func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
 
 // nil From is part of the no-fallback contract: panic-safety alone is
 // not enough, a nil identity must never be treated as the caller.
-// Expected to FAIL until Step 5 (panics or unconditional mutation).
+// A nil identity is not the caller (panics and unauthorized mutations
+// are both rejected).
 func TestNilFromNeverAuthorizes(t *testing.T) {
 	db := likeTestDB(t)
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
@@ -613,9 +605,8 @@ func TestNilFromNeverAuthorizes(t *testing.T) {
 	})
 }
 
-// Expected to FAIL (panic) until Step 5: the mutation paths dereference
-// From without nil checks, and must tolerate nil From plus empty and
-// malformed UUIDs. Table-driven so one panic cannot mask later inputs,
+// The mutation paths must tolerate nil From plus empty and malformed
+// UUIDs without dereferencing them. Table-driven so one panic cannot mask later inputs,
 // and every mutation path sees each malformed ref — including Comment
 // update, which only compares From when the comment id matches.
 func TestMalformedActorRefsDoNotPanic(t *testing.T) {

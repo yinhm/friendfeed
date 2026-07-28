@@ -305,7 +305,7 @@ Step 0–5 已全部落地，完成条件逐条达成：
 ### 已知 legacy 行为（方案 A 的显式成本）
 
 - 无 UUID 的历史 like 显示旧快照；若作者从未改名，UI 可能显示 Unlike 但点击无效（`DeleteLike` 按 UUID 定位不到旧记录），再次 Like 会产生一条新的带 UUID 记录。不为此恢复 ID fallback；缓解路径是方案 C 离线回填。
-- 无 UUID 的历史 comment 保持只读：显示旧快照，无 Edit/Delete。
+- 无 UUID 的历史 comment 后端保持只读（编辑/删除均被拒）；但注意 `pb/helper.go` 的 `RebuildCommentsCommand` 仍按 ID 生成命令，因此旧 ID 与当前用户 ID 相同（含 ID 被回收后的新注册者）时，UI 仍可能显示最终会被后端拒绝的 Edit/Delete。command helper 的 UUID 化按 TODO 既定范围延后，此处如实记录该不一致。
 
 ### 未做
 

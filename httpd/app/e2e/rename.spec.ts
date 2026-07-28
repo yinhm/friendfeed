@@ -22,8 +22,11 @@ async function authenticate(context: BrowserContext) {
 // TODO.md acceptance: after a profile rename, UUID-bearing entries,
 // comments and likes must keep working — display follows the canonical
 // profile, like state survives, and the author keeps edit/unlike.
-// The test restores the original identity in `finally` so spec files
-// stay order-independent on the shared seeded database.
+//
+// The spec shares the seeded database with the other specs, so every
+// mutation is contained in try/finally: the created entry and comment
+// are deleted afterwards and the profile identity is restored (the
+// restore is idempotent — a no-op if the rename never happened).
 test('profile rename propagates to author display, like state and comment commands', async ({
   context,
   page,
@@ -53,15 +56,15 @@ test('profile rename propagates to author display, like state and comment comman
   await botEntry.getByRole('button', { name: 'Like', exact: true }).click();
   await expect(botEntry.getByRole('button', { name: 'Unlike', exact: true })).toBeVisible();
 
-  // Rename both the profile id (feed slug) and the display name.
   const newId = `e2e-u${Date.now().toString(36)}`;
-  await page.goto('/account/profile');
-  await page.locator('#id').fill(newId);
-  await page.locator('#name').fill('E2E Renamed');
-  await page.getByRole('button', { name: 'Save Changes' }).click();
-  await expect(page.getByRole('status')).toContainText(`/feed/${newId}`);
-
   try {
+    // Rename both the profile id (feed slug) and the display name.
+    await page.goto('/account/profile');
+    await page.locator('#id').fill(newId);
+    await page.locator('#name').fill('E2E Renamed');
+    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await expect(page.getByRole('status')).toContainText(`/feed/${newId}`);
+
     await page.goto('/public');
 
     // Own entry author shows the new identity and feed link.
@@ -101,11 +104,50 @@ test('profile rename propagates to author display, like state and comment comman
     await renamedBotEntry.getByRole('button', { name: 'Post' }).click();
     await expect(renamedBotEntry.locator('.comment', { hasText: editedText })).toBeVisible();
   } finally {
-    // Restore the seeded identity for the other specs.
-    await page.goto('/account/profile');
-    await page.locator('#id').fill('e2e-user');
-    await page.locator('#name').fill('E2E User');
-    await page.getByRole('button', { name: 'Save Changes' }).click();
-    await expect(page.getByRole('status')).toContainText('/feed/e2e-user');
+    // Best-effort cleanup over the JSON API (robust against UI timing),
+    // each step independent so one failure cannot skip the rest: delete
+    // the created comment and entry, then restore the seeded identity
+    // (a no-op when the rename never happened).
+    try {
+      // /a/entry/:uuid 404s for the bot entry (its author profile does
+      // not exist), so read the comment id from window.appData instead.
+      const ids = await page.evaluate((body) => {
+        const w = /** @type {any} */ (window);
+        for (const e of w.appData.feed.entries) {
+          for (const c of e.comments ?? []) {
+            if (c.body?.includes(body)) {
+              return { entry: e.id, comment: c.id };
+            }
+          }
+        }
+        return null;
+      }, commentText);
+      if (ids) {
+        await page.request.post('/a/comment/delete', { form: ids });
+      }
+    } catch (e) {
+      console.warn('cleanup: delete comment failed', e);
+    }
+
+    try {
+      const entryId = await page
+        .locator('[data-eid]', { hasText: text })
+        .getAttribute('data-eid');
+      if (entryId) {
+        await page.request.post('/a/delete', { form: { entry: entryId } });
+      }
+    } catch (e) {
+      console.warn('cleanup: delete entry failed', e);
+    }
+
+    try {
+      await page.goto('/account/profile');
+      await page.locator('#id').fill('e2e-user');
+      await page.locator('#name').fill('E2E User');
+      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await expect(page.getByRole('status')).toContainText('/feed/e2e-user');
+    } catch (e) {
+      console.warn('cleanup: restore profile failed', e);
+    }
   }
 });
