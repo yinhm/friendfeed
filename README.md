@@ -66,6 +66,9 @@ migrate
 
   See [docs/db_migration.md](docs/db_migration.md).
 
+  Profile identity, rename redirects and rename-map operations are documented
+  in [docs/profile_rename.md](docs/profile_rename.md).
+
 
 Deploy FriendFeed
 =================

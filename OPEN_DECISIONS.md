@@ -26,6 +26,9 @@
 - **Twitter 写入模型**：先决定 `fetch_user` 是否继续维护 legacy Entry feed，还是迁往 Tweet/PostTweet，再考虑复用转换代码。
 - **Feedinfo 退役**：旧 Feedinfo 仍用于历史数据迁移和社交图重建。确认外部工具与历史数据不再依赖后，才能整体退役表及导出 API。
 - **archive RPC 退役**：`ArchiveFeed`/`ForceArchiveFeed` 不再做内部重构；确认部署、抓取、E2E 和迁移依赖后，才能制定协议级退役方案。
+- **gRPC principal**：comment mutation 当前信任内部调用方提交的 `user_uuid`。对不可信网络开放 ffdb 前，必须从认证 middleware/context 获取 principal；此前应绑定 loopback 或用防火墙限制来源。
+- **Group comment moderation**：comment delete 当前只允许评论作者、entry 作者和 super。是否让 group admin 审核 cross-post comment，需要先定义 graph 缺失、缓存过期和跨 feed 的授权语义。
+- **多实例 Profile cache 失效**：单实例 rename 只失效本地 `profile:<uuid>` 与 `graph:<uuid>`，其他实例及跨用户快照依赖 TTL。出现多实例即时一致性需求后，再设计 revision、失效事件或共享 cache。
 
 ## 媒体镜像
 

@@ -2,57 +2,45 @@
 
 > 本文档从 README 拆出，记录 `old_db` 到 `new_db` 的迁移命令。
 > 这些工具属于 `v1.0.0` 基线（tag）；old_db 迁移与 Pebble v2 升级均已完成。
-> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`，以及诊断/修复命令 `inspect_profile`、`audit_profiles`、`fix_twitter_oauth_fields`、`backfill_actor_uuids`（见下文）。
+> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`，以及诊断/修复命令 `inspect_profile`、`audit_profiles`、`fix_twitter_oauth_fields`、`backfill_actor_uuids`、`inspect_user_rename_map`、`purge_user_rename_map`（见下文）。
 >
 > `-from` 只对读取源库的命令（`db`、`sync`、无 `-table` 的 `debug`）为必填；其余命令仅操作 `-to` 目标库，无需 `-from`。
 
-rebuild public feed
-
-    ./tools -to new_db -c public_feed
-
-rebuild social graph after db migrated
+当前版本可在 new DB 上重建社交图：
 
     ./tools -to new_db -c rebuild_social_graph
 
-rebuild user timeline after social graph
+社交图完成后重建用户 timeline。
 
-for one user:
+单个用户：
 
     ./tools -to new_db -c rebuild_timeline -user yinhm
 
-for all users:
+全部用户：
 
     ./tools -to new_db -c rebuild_timeline
 
-migrate to R2
+迁移媒体 URL 到 R2：
 
     ./tools -to new_db -c migrate_media_urls
 
-migrate all to new db
+## v1.0.0 old DB 迁移记录
 
-```
+`meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 仅存在于 `v1.0.0` tag。需要处理尚未迁移的 old DB 时，必须先使用 v1.0.0 工具完成迁移，再使用当前版本打开 new DB；不要在 master 上寻找或重新实现这些命令。
+
+当前仍保留 `db` 与 `sync` 供内部数据复制使用：
+
+```bash
 ./tools -from old_db -to new_db -c db
-// ./tools -from old_db -to new_db -c meta # may not needed
-./tools -from old_db -to new_db -c sync_meta
-
-./tools -from old_db -to new_db -c public_feed
-./tools -to new_db -c rebuild_social_graph
-./tools -to new_db -c rebuild_timeline
-./tools -to new_db -c migrate_media_urls
-
-
-./tools -from old_db -to new_db -c profile
-./tools -from old_db -to new_db -c debug
-
+./tools -from old_db -to new_db -c sync
 ```
 
+整表清理命令执行前会要求输入完整命令名确认；脚本化可通过管道输入：
 
-purge and rebuild meta if wrong oauth（`purge_*` 会整表删除，执行前需在提示中输入完整命令名确认；脚本化用 `echo purge_profile | ./tools ...` 管道喂入）:
-
-```
+```bash
 ./tools -to new_db -c purge_profile
 ./tools -to new_db -c purge_oauth
-./tools -from old_db -to new_db -c sync_meta
+./tools -to new_db -c purge_user_rename_map
 ```
 
 # 诊断与修复命令
@@ -64,6 +52,25 @@ purge and rebuild meta if wrong oauth（`purge_*` 会整表删除，执行前需
 追踪某个登录名的 `UserMap -> uuid -> Profile` 解析链路，用于排查 `/feed/:name` 为什么 404。
 
     ./tools -to new_db -c inspect_profile -id elonmusk
+
+## inspect_user_rename_map / purge_user_rename_map
+
+查看 soft rename 的 `old_id -> UUID -> current_id` 映射：
+
+```bash
+./tools -to new_db -c inspect_user_rename_map
+./tools -to new_db -c inspect_user_rename_map -id old_id
+./tools -to new_db -c inspect_user_rename_map -max-limit 20
+```
+
+整表回收 rename metadata：
+
+```bash
+echo purge_user_rename_map | \
+  ./tools -to new_db -c purge_user_rename_map
+```
+
+inspect 只读；purge 会释放全部保留的旧 ID，并允许相关用户再次 rename，因此必须停服、备份并输入完整命令名确认。详细契约见 [profile_rename.md](profile_rename.md)。
 
 ## audit_profiles
 

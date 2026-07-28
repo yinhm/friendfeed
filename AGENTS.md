@@ -17,6 +17,7 @@
   - `NewServer` 现有签名；不能把参数变成无意义 no-op 来“简化”。
   - protobuf 中既有的 `EnqueJob`、`ArchiveFeed`、`ForceArchiveFeed` 方法和路径。纠正拼写只能新增兼容 RPC，再安排退役周期。
   - model/store 的表前缀、错误码、key 编码和迭代顺序；数值与字节布局都是数据兼容的一部分。
+  - `TableUserRenameMap = 7`，编码为 `old_id -> 16-byte user UUID`；它与 `UserMap` 分属历史跳转和当前路由命名空间。
 - `model/feed.go` 的旧 Feedinfo、`UserMap` 等仍服务历史数据迁移；不能按运行时零引用删除。（`store.NewMetaStore`/`NewMetaStoreOptions` 已于 old_db 迁移完成、全量升级 Pebble v2 后退役删除。）
 - Pebble 的同步写入开关必须真实控制写入模式，不能重构成不影响底层写入的空逻辑。
 
