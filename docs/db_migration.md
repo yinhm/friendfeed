@@ -91,20 +91,20 @@ purge and rebuild meta if wrong oauth（`purge_*` 会整表删除，执行前需
 
 本命令依赖一次性迁移前提：目标 dev/production 数据从导入至今没有发生 Profile ID 修改，因此历史 `From.Id` 仍能通过当前 `UserMap -> Profile` 证明原 owner。命令仍会完整校验映射链；缺失、损坏或与已有 UUID 冲突的记录只计数，不会猜测或覆盖。
 
-默认仅报告，并以只读方式打开目标 DB，但仍需取得 Pebble 数据库锁。请停止使用该目录的服务，或对一致性备份副本执行：
+使用 `-dry-run` 时仅报告，并以只读方式打开目标 DB，但仍需取得 Pebble 数据库锁。请停止使用该目录的服务，或对一致性备份副本执行：
+
+```bash
+./tools -to new_db -c backfill_actor_uuids -dry-run
+./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20 -dry-run
+```
+
+确认 dry-run 的 `unresolved`/`conflicts` 后，停止所有使用该 Pebble 目录的服务、完成备份，再执行写入：
 
 ```bash
 ./tools -to new_db -c backfill_actor_uuids
-./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20
 ```
 
-确认 dry-run 的 `unresolved`/`conflicts` 后，停止所有使用该 Pebble 目录的服务、完成备份，再显式写入：
-
-```bash
-./tools -to new_db -c backfill_actor_uuids -apply
-```
-
-`-apply` 与 `-dry-run` 不可同时使用。迁移不依赖 old DB，不修改 ID/Name/Picture 等展示快照，不修改 `FeedUuid`；可重复执行，第二次应报告零 changed。
+迁移不依赖 old DB，不修改 ID/Name/Picture 等展示快照，不修改 `FeedUuid`；可重复执行，第二次应报告零 changed。dry-run 的安全边界是核心迁移函数在所有 mutation API 之前返回；末尾是否调用 Pebble `Flush` 不决定数据是否已经写入。
 
 # Pebble v2 / FMV 升级（2026-07，dev 与 production 已完成）
 

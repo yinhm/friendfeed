@@ -34,8 +34,9 @@ func seedActorEntry(t *testing.T, db *store.Store, entry *pb.Entry) uuid.UUID {
 }
 
 func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
-	db := store.NewStore(t.TempDir())
-	defer db.Close()
+	dbPath := t.TempDir()
+	db := store.NewStore(dbPath)
+	t.Cleanup(func() { db.Close() })
 
 	authorUUID := seedActorProfile(t, db, "author")
 	commenterUUID := seedActorProfile(t, db, "commenter")
@@ -46,7 +47,7 @@ func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 		Likes:    []*pb.Like{{From: &pb.Feed{Id: "liker"}}},
 	})
 
-	dryStats, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{})
+	dryStats, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{dryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,13 +64,17 @@ func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 		t.Fatalf("dry-run mutated entry: %+v", unchanged)
 	}
 
-	stats, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{apply: true})
+	stats, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if stats != dryStats {
-		t.Fatalf("apply stats %+v differ from dry-run %+v", stats, dryStats)
+		t.Fatalf("write stats %+v differ from dry-run %+v", stats, dryStats)
 	}
+	// backfillActorUUIDs does not call Flush. Closing and reopening proves the
+	// applied Set survived independently of the command wrapper's final Flush.
+	db.Close()
+	db = store.NewStore(dbPath)
 	migrated, err := model.GetEntry(db, entryUUID.String())
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +93,7 @@ func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 		t.Fatalf("display snapshot changed to %q", migrated.From.Name)
 	}
 
-	repeated, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{apply: true})
+	repeated, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +122,7 @@ func TestBackfillActorUUIDsPreservesConflictsAndSkipsUnresolved(t *testing.T) {
 		},
 	})
 
-	stats, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{apply: true})
+	stats, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,6 +158,7 @@ func TestBackfillActorUUIDsFiltersByUserAndLimit(t *testing.T) {
 	stats, err := backfillActorUUIDs(db, actorUUIDBackfillOptions{
 		user:     "wanted",
 		maxLimit: 1,
+		dryRun:   true,
 	})
 	if err != nil {
 		t.Fatal(err)

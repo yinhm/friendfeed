@@ -146,7 +146,7 @@ map[uuid.UUID]profile lookup result
 
 - 2026-07-28 明确确认：当前 dev/production 节点从导入至今没有发生 Profile ID 修改，历史 `From.Id` 仍是原 owner，可作为本次一次性迁移的受控 provenance。
 - 新增 `migrate_db -c backfill_actor_uuids`，仅依赖 new DB；完整校验 `From.Id -> UserMap -> Profile` 后回填 entry author、comment 和 like UUID。
-- 默认 report-only，必须显式 `-apply` 写入；支持 `-user` 与 `-max-limit`，输出 changed/already/unresolved/conflict 统计。
+- 使用 `-dry-run` 时只读报告；不带 `-dry-run` 时写入。支持 `-user` 与 `-max-limit`，输出 changed/already/unresolved/conflict 统计。
 - 已有 UUID 非法或与解析结果冲突时不覆盖；不修改展示快照和 `FeedUuid`；迁移幂等。
 - dev/production 执行前仍需停止服务、备份并先核对完整 dry-run 统计。
 

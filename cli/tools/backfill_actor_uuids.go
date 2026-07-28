@@ -16,7 +16,7 @@ var errActorBackfillLimitReached = errors.New("actor UUID backfill limit reached
 type actorUUIDBackfillOptions struct {
 	user     string
 	maxLimit int
-	apply    bool
+	dryRun   bool
 }
 
 type actorUUIDBackfillStats struct {
@@ -180,7 +180,10 @@ func backfillActorUUIDs(db *store.Store, options actorUUIDBackfillOptions) (acto
 			return nil
 		}
 		stats.entriesChanged++
-		if !options.apply {
+		// Dry-run correctness depends on returning before db.Set. Flush is
+		// not a write boundary: Pebble commits Set calls to WAL/memtable and
+		// may flush them automatically.
+		if options.dryRun {
 			return nil
 		}
 		encoded, err := proto.Marshal(entry)

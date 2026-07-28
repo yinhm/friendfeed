@@ -27,7 +27,6 @@ var timelineMaxLimit int
 var debugTable string
 var inspectID string
 var dryRun bool
-var apply bool
 
 func init() {
 	flag.StringVar(&fromPath, "from", "", "from directory")
@@ -37,8 +36,7 @@ func init() {
 	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump (0 is unlimited)")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
 	flag.StringVar(&inspectID, "id", "", "login id to inspect (inspect_profile command)")
-	flag.BoolVar(&dryRun, "dry-run", false, "report timeline rebuild without writing changes")
-	flag.BoolVar(&apply, "apply", false, "apply actor UUID backfill changes (default is report only)")
+	flag.BoolVar(&dryRun, "dry-run", false, "report supported migrations without writing changes")
 }
 
 func purge_table(db *store.Store, prefix store.Key) (int, error) {
@@ -482,17 +480,19 @@ func runBackfillActorUUIDsCommand(ndb *store.Store) {
 	options := actorUUIDBackfillOptions{
 		user:     timelineUser,
 		maxLimit: timelineMaxLimit,
-		apply:    apply,
+		dryRun:   dryRun,
 	}
 	stats, err := backfillActorUUIDs(ndb, options)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if apply {
+	if !dryRun {
+		// Writes have already committed to Pebble's WAL/memtable. Flush only
+		// forces the memtable to stable storage; it is not the dry-run switch.
 		ndb.Flush()
 	}
 	log.Printf(
-		"actor UUID backfill summary: %d entries scanned, %d entries changed, %d entry authors, %d comments, %d likes, %d already set, %d unresolved, %d conflicts, apply=%t",
+		"actor UUID backfill summary: %d entries scanned, %d entries changed, %d entry authors, %d comments, %d likes, %d already set, %d unresolved, %d conflicts, dry-run=%t",
 		stats.entriesScanned,
 		stats.entriesChanged,
 		stats.entryAuthors,
@@ -501,7 +501,7 @@ func runBackfillActorUUIDsCommand(ndb *store.Store) {
 		stats.alreadySet,
 		stats.unresolved,
 		stats.conflicts,
-		apply,
+		dryRun,
 	)
 }
 
@@ -901,8 +901,8 @@ func runDebugCommand(db, ndb *store.Store) {
 // ./tools -to new_db -c rebuild_social_graph -dry-run
 // migrate legacy GCS and FriendFeed media URLs in profiles and entries
 // ./tools -to new_db -c migrate_media_urls -dry-run
-// backfill stable actor UUIDs; report-only unless -apply is provided
-// ./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20
+// backfill stable actor UUIDs
+// ./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20 -dry-run
 // dump decoded table records
 // ./tools -to new_db -c debug -table oauth -max-limit 10
 //
@@ -925,12 +925,9 @@ func main() {
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "audit_profiles" ||
 		(command == "debug" && debugTable != "") ||
-		(command == "backfill_actor_uuids" && !apply)
+		(command == "backfill_actor_uuids" && dryRun)
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
-	}
-	if command == "backfill_actor_uuids" && apply && dryRun {
-		log.Fatal("-apply and -dry-run cannot be combined")
 	}
 
 	// 确认必须发生在打开(创建)目标库之前,避免误操作产生副作用。
