@@ -23,41 +23,58 @@ async function authenticate(context: BrowserContext) {
 // comments and likes must keep working — display follows the canonical
 // profile, like state survives, and the author keeps edit/unlike.
 //
-// The spec shares the seeded database with the other specs, so every
-// mutation is contained in try/finally: the created entry and comment
-// are deleted afterwards and the profile identity is restored (the
-// restore is idempotent — a no-op if the rename never happened).
+// The spec shares the seeded database with the other specs. try starts
+// before the first mutation, every created object id is captured at
+// creation time, and finally cleans up via those ids alone — never via
+// whatever page happens to be open after a failure. Cleanup failures
+// fail the test when the body itself did not already fail.
 test('profile rename propagates to author display, like state and comment commands', async ({
   context,
   page,
 }) => {
   await authenticate(context);
 
-  // Post an entry as the session user.
-  await page.goto('/');
-  const editor = page.locator('[contenteditable="true"]');
-  await expect(editor).toBeVisible();
   const text = `E2E rename post ${Date.now()}`;
-  await editor.fill(text);
-  await page.locator('.sharebox button.submit').click();
-  await expect(page.locator('[data-eid] .content', { hasText: text })).toBeVisible();
-
-  // Comment on and like a bot entry.
-  await page.goto('/public');
-  const botEntry = page.locator('[data-eid]', {
-    hasText: 'E2E second entry plain text',
-  });
-  await botEntry.getByRole('button', { name: 'Comment' }).click();
   const commentText = `E2E rename comment ${Date.now()}`;
-  await botEntry.getByRole('textbox', { name: 'Comment' }).fill(commentText);
-  await botEntry.getByRole('button', { name: 'Post' }).click();
-  await expect(botEntry.locator('.comment', { hasText: commentText })).toBeVisible();
-
-  await botEntry.getByRole('button', { name: 'Like', exact: true }).click();
-  await expect(botEntry.getByRole('button', { name: 'Unlike', exact: true })).toBeVisible();
-
   const newId = `e2e-u${Date.now().toString(36)}`;
+
+  let entryId = /** @type {string | null} */ (null);
+  let botEntryId = /** @type {string | null} */ (null);
+  let commentId = /** @type {string | null} */ (null);
+  let liked = false;
+  let testError = /** @type {unknown} */ (null);
+  const cleanupErrors = /** @type {string[]} */ ([]);
+
   try {
+    // Post an entry as the session user; capture its id right away.
+    await page.goto('/');
+    const editor = page.locator('[contenteditable="true"]');
+    await expect(editor).toBeVisible();
+    await editor.fill(text);
+    await page.locator('.sharebox button.submit').click();
+    await expect(page.locator('[data-eid] .content', { hasText: text })).toBeVisible();
+    entryId = await page.locator('[data-eid]', { hasText: text }).getAttribute('data-eid');
+
+    // Comment on a bot entry; capture both ids at creation time.
+    await page.goto('/public');
+    const botEntry = page.locator('[data-eid]', {
+      hasText: 'E2E second entry plain text',
+    });
+    botEntryId = await botEntry.getAttribute('data-eid');
+
+    await botEntry.getByRole('button', { name: 'Comment' }).click();
+    const commentResponse = page.waitForResponse(
+      (resp) => resp.url().includes('/a/comment') && resp.request().method() === 'POST'
+    );
+    await botEntry.getByRole('textbox', { name: 'Comment' }).fill(commentText);
+    await botEntry.getByRole('button', { name: 'Post' }).click();
+    commentId = (await (await commentResponse).json()).id;
+    await expect(botEntry.locator('.comment', { hasText: commentText })).toBeVisible();
+
+    await botEntry.getByRole('button', { name: 'Like', exact: true }).click();
+    await expect(botEntry.getByRole('button', { name: 'Unlike', exact: true })).toBeVisible();
+    liked = true;
+
     // Rename both the profile id (feed slug) and the display name.
     await page.goto('/account/profile');
     await page.locator('#id').fill(newId);
@@ -95,6 +112,7 @@ test('profile rename propagates to author display, like state and comment comman
     await expect(
       renamedBotEntry.getByRole('button', { name: 'Like', exact: true })
     ).toBeVisible();
+    liked = false;
 
     // Comment edit works after the rename.
     const editedText = `${commentText} edited`;
@@ -103,57 +121,53 @@ test('profile rename propagates to author display, like state and comment comman
     await renamedBotEntry.getByRole('textbox', { name: 'Edit comment' }).fill(editedText);
     await renamedBotEntry.getByRole('button', { name: 'Post' }).click();
     await expect(renamedBotEntry.locator('.comment', { hasText: editedText })).toBeVisible();
+  } catch (e) {
+    testError = e;
   } finally {
-    // Best-effort cleanup over the JSON API (robust against UI timing),
-    // each step independent so one failure cannot skip the rest: delete
-    // the created comment and entry, then restore the seeded identity
-    // (a no-op when the rename never happened).
-    try {
-      // /a/entry/:uuid 404s for the bot entry (its author profile does
-      // not exist), so read the comment id from window.appData instead.
-      const ids = await page.evaluate((body) => {
-        const w = window as unknown as {
-          appData: {
-            feed: {
-              entries: { id: string; comments?: { id: string; body?: string }[] }[];
-            };
-          };
-        };
-        for (const e of w.appData.feed.entries) {
-          for (const c of e.comments ?? []) {
-            if (c.body?.includes(body)) {
-              return { entry: e.id, comment: c.id };
-            }
-          }
-        }
-        return null;
-      }, commentText);
-      if (ids) {
-        await page.request.post('/a/comment/delete', { form: ids });
+    // Best-effort cleanup via captured ids, independent of the current
+    // page. Each step is isolated so one failure cannot skip the rest.
+    if (liked && botEntryId) {
+      try {
+        await page.request.post('/a/like/delete', { form: { entry: botEntryId } });
+      } catch (e) {
+        cleanupErrors.push(`unlike: ${e}`);
       }
-    } catch (e) {
-      console.warn('cleanup: delete comment failed', e);
     }
-
-    try {
-      const entryId = await page
-        .locator('[data-eid]', { hasText: text })
-        .getAttribute('data-eid');
-      if (entryId) {
+    if (commentId && botEntryId) {
+      try {
+        await page.request.post('/a/comment/delete', {
+          form: { entry: botEntryId, comment: commentId },
+        });
+      } catch (e) {
+        cleanupErrors.push(`delete comment: ${e}`);
+      }
+    }
+    if (entryId) {
+      try {
         await page.request.post('/a/delete', { form: { entry: entryId } });
+      } catch (e) {
+        cleanupErrors.push(`delete entry: ${e}`);
+      }
+    }
+    try {
+      // Idempotent: a no-op when the rename never happened.
+      const resp = await page.request.post('/account/profile', {
+        form: { id: 'e2e-user', name: 'E2E User', description: '', picture: '' },
+      });
+      if (!resp.ok()) {
+        cleanupErrors.push(`restore profile: status ${resp.status()}: ${await resp.text()}`);
       }
     } catch (e) {
-      console.warn('cleanup: delete entry failed', e);
+      cleanupErrors.push(`restore profile: ${e}`);
     }
+  }
 
-    try {
-      await page.goto('/account/profile');
-      await page.locator('#id').fill('e2e-user');
-      await page.locator('#name').fill('E2E User');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
-      await expect(page.getByRole('status')).toContainText('/feed/e2e-user');
-    } catch (e) {
-      console.warn('cleanup: restore profile failed', e);
-    }
+  // The body error wins; cleanup failures only fail an otherwise
+  // passing test, so polluted shared state can never go unnoticed.
+  if (testError !== null) {
+    throw testError;
+  }
+  if (cleanupErrors.length > 0) {
+    throw new Error(`cleanup failed: ${cleanupErrors.join('; ')}`);
   }
 });
