@@ -386,6 +386,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 
 	var entries []*pb.Entry
 	found := 0
+	resolver := newProfileResolver(s.mdb)
 	for i := range bufq {
 		if start > 0 {
 			start--
@@ -410,7 +411,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 			return nil, err
 		}
 		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
-		FormatFeedEntry(s.mdb, req, entry)
+		_ = formatFeedEntryWithResolver(resolver, req, entry)
 		entries = append(entries, entry)
 		found++
 		if found > int(req.PageSize) {
@@ -462,6 +463,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	start := req.Start
 	var entries []*pb.Entry
+	resolver := newProfileResolver(s.mdb)
 	_, err = s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		if start > 0 {
 			start--
@@ -482,7 +484,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 			return err
 		}
 		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
-		if err = FormatFeedEntry(s.mdb, req, entry); err != nil {
+		if err = formatFeedEntryWithResolver(resolver, req, entry); err != nil {
 			return err
 		}
 
@@ -736,6 +738,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 
 	var entries []*pb.Entry
 	found := 0
+	resolver := newProfileResolver(s.mdb)
 	for _, hit := range res.Hits {
 		if start > 0 {
 			start--
@@ -760,7 +763,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 			continue
 		}
 		logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
-		if _, err := fmtEntryProfiles(s.mdb, entry); err != nil {
+		if _, err := fmtEntryProfilesWithResolver(resolver, entry); err != nil {
 			logger.Warnf("search: entry format error: %s", hit.ID)
 			continue
 		}

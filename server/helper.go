@@ -12,8 +12,43 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type profileLookup struct {
+	profile *pb.Profile
+	err     error
+}
+
+// profileResolver deduplicates stable-UUID profile reads within one request.
+// It intentionally has no lifetime beyond its caller's feed construction.
+type profileResolver struct {
+	mdb     *store.Store
+	results map[uuid.UUID]profileLookup
+}
+
+func newProfileResolver(mdb *store.Store) *profileResolver {
+	return &profileResolver{
+		mdb:     mdb,
+		results: make(map[uuid.UUID]profileLookup),
+	}
+}
+
+func (r *profileResolver) profile(profileUUID uuid.UUID) (*pb.Profile, error) {
+	if profileUUID == uuid.Nil {
+		return nil, errors.New("profile uuid is zero")
+	}
+	if result, ok := r.results[profileUUID]; ok {
+		return result.profile, result.err
+	}
+	profile, err := model.GetProfileFromUuid(r.mdb, profileUUID)
+	r.results[profileUUID] = profileLookup{profile: profile, err: err}
+	return profile, err
+}
+
 func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) error {
-	if _, err := fmtEntryProfiles(mdb, entry); err != nil {
+	return formatFeedEntryWithResolver(newProfileResolver(mdb), req, entry)
+}
+
+func formatFeedEntryWithResolver(resolver *profileResolver, req *pb.FeedRequest, entry *pb.Entry) error {
+	if _, err := fmtEntryProfilesWithResolver(resolver, entry); err != nil {
 		return err
 	}
 	// fmtComments(req, entry)
@@ -26,6 +61,10 @@ func FormatFeedEntry(mdb *store.Store, req *pb.FeedRequest, entry *pb.Entry) err
 // comment and like actor reference via fmtCommentOrLike. Returns the
 // resolved author profile.
 func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
+	return fmtEntryProfilesWithResolver(newProfileResolver(mdb), entry)
+}
+
+func fmtEntryProfilesWithResolver(resolver *profileResolver, entry *pb.Entry) (*pb.Profile, error) {
 	// Refetch the author profile. Resolve by the stable ProfileUuid, NOT by
 	// the denormalized From.Id: From.Id is a snapshot taken when the entry
 	// was posted and goes stale if the author later renames their profile
@@ -40,11 +79,11 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 			// contract as feedFromProfile/permOwnedBy/fmtCommentOrLike).
 			return nil, errors.New("entry ProfileUuid is invalid")
 		}
-		profile, err = model.GetProfileFromUuid(mdb, profileUUID)
+		profile, err = resolver.profile(profileUUID)
 		stableAuthor = true
 	} else if entry.From != nil {
 		// Legacy entries without ProfileUuid fall back to id lookup.
-		profile, err = model.GetProfileFromUserId(mdb, entry.From.Id)
+		profile, err = model.GetProfileFromUserId(resolver.mdb, entry.From.Id)
 	} else {
 		return nil, errors.New("entry has neither ProfileUuid nor From")
 	}
@@ -57,12 +96,12 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 		// behavior, while lenient callers (cachedFeed) render the rest.
 		for _, cmt := range entry.Comments {
 			if cmt != nil {
-				fmtCommentOrLike(mdb, cmt.From)
+				fmtCommentOrLikeWithResolver(resolver, cmt.From)
 			}
 		}
 		for _, like := range entry.Likes {
 			if like != nil {
-				fmtCommentOrLike(mdb, like.From)
+				fmtCommentOrLikeWithResolver(resolver, like.From)
 			}
 		}
 		return nil, err
@@ -88,12 +127,12 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 
 	for _, cmt := range entry.Comments {
 		if cmt != nil {
-			fmtCommentOrLike(mdb, cmt.From)
+			fmtCommentOrLikeWithResolver(resolver, cmt.From)
 		}
 	}
 	for _, like := range entry.Likes {
 		if like != nil {
-			fmtCommentOrLike(mdb, like.From)
+			fmtCommentOrLikeWithResolver(resolver, like.From)
 		}
 	}
 	return profile, nil
@@ -107,6 +146,10 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 // profile no longer exists, also keeps its snapshot: a single
 // unresolvable reference must never fail the whole feed.
 func fmtCommentOrLike(mdb *store.Store, from *pb.Feed) {
+	fmtCommentOrLikeWithResolver(newProfileResolver(mdb), from)
+}
+
+func fmtCommentOrLikeWithResolver(resolver *profileResolver, from *pb.Feed) {
 	if from == nil || from.Uuid == "" {
 		return
 	}
@@ -119,7 +162,7 @@ func fmtCommentOrLike(mdb *store.Store, from *pb.Feed) {
 	if profileUUID == uuid.Nil {
 		return
 	}
-	profile, err := model.GetProfileFromUuid(mdb, profileUUID)
+	profile, err := resolver.profile(profileUUID)
 	if err != nil || profile == nil {
 		return
 	}

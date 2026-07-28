@@ -117,7 +117,16 @@ graph:<当前 UUID>
 
 不得为缓存方便重新按 ID认领历史数据。
 
-## 4. 请求级 hydration resolver cache（需要 profiling）
+## 4. 请求级 hydration resolver cache（已完成，2026-07-28）
+
+Profiling 与实施结果：
+
+- 对线上 `/public` 做只读采样：31 条 entry 至少触发 31 次作者 profile lookup，但只有 8 个唯一 UUID；23 次（74%）重复，单个 UUID 最多出现 10 次。
+- 5 次完整 HTTP 请求耗时约 48–52ms；该数字只作为端到端上界，不冒充 Pebble lookup 的独立耗时。
+- 重复率足以支持请求级去重：`cachedFeed`、`ForwardFetchFeed` 和 `Search` 每次请求共享一个 UUID resolver。
+- resolver 同时缓存成功与 NotFound/错误结果；legacy ID 继续走原路径，malformed/zero UUID 不查询。
+- `FormatFeedEntry` 等既有签名保持不变；不增加跨请求 cache。
+- 测试锁定同一请求复用首次结果、NotFound 缓存、下一请求可见新数据及零 UUID 不查询。
 
 先记录一次 feed 请求的 profile lookup 总数、唯一 UUID数和耗时。只有真实数据证明重复 lookup 明显时实施：
 

@@ -7,6 +7,7 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 // TestFmtEntryProfileSurvivesRename reproduces the feed 404 that occurred
@@ -191,6 +192,80 @@ func seedAuthorProfile(t *testing.T, db *store.Store) uuid.UUID {
 		t.Fatalf("seed author: %v", err)
 	}
 	return authorUUID
+}
+
+func TestProfileResolverCachesStableUUIDLookup(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	profileUUID := seedAuthorProfile(t, db)
+	resolver := newProfileResolver(db)
+
+	first, err := resolver.profile(profileUUID)
+	if err != nil {
+		t.Fatalf("first lookup: %v", err)
+	}
+	updated := proto.Clone(first).(*pb.Profile)
+	updated.Name = "Updated after first lookup"
+	if err := model.UpdateProfile(db, updated); err != nil {
+		t.Fatalf("update profile: %v", err)
+	}
+
+	second, err := resolver.profile(profileUUID)
+	if err != nil {
+		t.Fatalf("second lookup: %v", err)
+	}
+	if second != first {
+		t.Fatal("same request returned a different cached profile pointer")
+	}
+	if second.Name != "Author" {
+		t.Fatalf("cached name = %q; want first lookup snapshot", second.Name)
+	}
+
+	fresh, err := newProfileResolver(db).profile(profileUUID)
+	if err != nil {
+		t.Fatalf("fresh request lookup: %v", err)
+	}
+	if fresh.Name != updated.Name {
+		t.Fatalf("fresh request name = %q; want %q", fresh.Name, updated.Name)
+	}
+}
+
+func TestProfileResolverCachesNotFound(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	resolver := newProfileResolver(db)
+	if _, err := resolver.profile(profileUUID); err == nil {
+		t.Fatal("first missing lookup returned no error")
+	}
+	if err := model.UpdateProfile(db, &pb.Profile{
+		Uuid: profileUUID.String(),
+		Id:   "created-after-miss",
+		Name: "Created After Miss",
+		Type: "user",
+	}); err != nil {
+		t.Fatalf("create profile: %v", err)
+	}
+	if _, err := resolver.profile(profileUUID); err == nil {
+		t.Fatal("same request did not retain the cached NotFound result")
+	}
+	if _, err := newProfileResolver(db).profile(profileUUID); err != nil {
+		t.Fatalf("fresh request did not see created profile: %v", err)
+	}
+}
+
+func TestProfileResolverRejectsZeroUUIDWithoutLookup(t *testing.T) {
+	resolver := newProfileResolver(store.NewStore(t.TempDir()))
+	defer resolver.mdb.Close()
+
+	if _, err := resolver.profile(uuid.Nil); err == nil {
+		t.Fatal("zero UUID returned no error")
+	}
+	if len(resolver.results) != 0 {
+		t.Fatalf("resolver cached %d results; zero UUID must not be queried", len(resolver.results))
+	}
 }
 
 // An entry whose ProfileUuid is the zero UUID must be rejected: the
