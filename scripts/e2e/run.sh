@@ -77,8 +77,10 @@ fi
 go run ./scripts/e2e/seed \
   -addr "$GRPC_ADDR" \
   -session-key "$SESSION_KEY" \
-  -session-cookie-file "$TMP/session-cookie"
+  -session-cookie-file "$TMP/session-cookie" \
+  -rename-session-cookie-file "$TMP/rename-session-cookie"
 export E2E_SESSION_COOKIE="$(<"$TMP/session-cookie")"
+export E2E_RENAME_SESSION_COOKIE="$(<"$TMP/rename-session-cookie")"
 
 cd "$ROOT/httpd/app"
 pnpm exec playwright test "$@"

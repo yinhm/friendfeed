@@ -53,6 +53,13 @@ func TestMetaKey(t *testing.T) {
 	assert.Equal(t, "00000068666f6f626172", key.String())
 }
 
+func TestUserRenameMapKeyEncoding(t *testing.T) {
+	key := UserRenameMap.PrefixAppend([]byte("oldname"))
+
+	assert.Equal(t, "000000076f6c646e616d65", key.String())
+	assert.Equal(t, "oldname", string(UserRenameMap.PrefixRemove(key)))
+}
+
 func TestUniqueKey(t *testing.T) {
 	db := &store.Store{}
 	dt := time.Date(2021, 7, 25, 15, 0, 0, 0, time.UTC)

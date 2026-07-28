@@ -35,7 +35,7 @@ func init() {
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
 	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump (0 is unlimited)")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
-	flag.StringVar(&inspectID, "id", "", "login id to inspect (inspect_profile command)")
+	flag.StringVar(&inspectID, "id", "", "profile or previous profile ID to inspect")
 	flag.BoolVar(&dryRun, "dry-run", false, "report supported migrations without writing changes")
 }
 
@@ -47,8 +47,9 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 
 // destructiveCommands 会不可逆地删除整表数据，执行前必须交互确认。
 var destructiveCommands = map[string]bool{
-	"purge_profile": true,
-	"purge_oauth":   true,
+	"purge_profile":         true,
+	"purge_oauth":           true,
+	"purge_user_rename_map": true,
 }
 
 // confirmDestructive 要求用户完整输入命令名才放行；脚本化场景可以管道喂入，
@@ -545,6 +546,65 @@ func runPurgeOAuthCommand(ndb *store.Store) {
 	ndb.Flush()
 }
 
+func inspectUserRenameMap(db *store.Store, oldID string, maxLimit int, out io.Writer) (int, error) {
+	n := 0
+	printRecord := func(id string, raw []byte) error {
+		profileUUID, err := uuid.FromBytes(raw)
+		if err != nil {
+			return fmt.Errorf("decode UserRenameMap[%s]: %w", id, err)
+		}
+		profile, err := model.GetProfileFromUuid(db, profileUUID)
+		if err != nil {
+			return fmt.Errorf("resolve UserRenameMap[%s] profile %s: %w", id, profileUUID, err)
+		}
+		fmt.Fprintf(out, "%s -> %s -> %s\n", id, profileUUID, profile.Id)
+		n++
+		return nil
+	}
+
+	if oldID != "" {
+		raw, err := model.UserRenameMap.GetRaw(db, []byte(oldID))
+		if err != nil {
+			return 0, err
+		}
+		if len(raw) == 0 {
+			return 0, model.ErrNotFound
+		}
+		if err := printRecord(oldID, raw); err != nil {
+			return 0, err
+		}
+		return n, nil
+	}
+
+	err := model.UserRenameMap.Iter(db, func(key, raw []byte) error {
+		if maxLimit > 0 && n >= maxLimit {
+			return errDebugLimitReached
+		}
+		oldID := string(model.UserRenameMap.PrefixRemove(store.Key(key)))
+		return printRecord(oldID, raw)
+	})
+	if errors.Is(err, errDebugLimitReached) {
+		err = nil
+	}
+	return n, err
+}
+
+func runInspectUserRenameMapCommand(ndb *store.Store) {
+	n, err := inspectUserRenameMap(ndb, inspectID, timelineMaxLimit, os.Stdout)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("UserRenameMap: %d records inspected (max-limit=%d)", n, timelineMaxLimit)
+}
+
+func runPurgeUserRenameMapCommand(ndb *store.Store) {
+	n, err := purge_table(ndb, model.TableUserRenameMap.Bytes())
+	if err != nil {
+		log.Fatalf("purge UserRenameMap: %v", err)
+	}
+	fmt.Printf("UserRenameMap: %d records removed.\n", n)
+}
+
 // runFixTwitterOAuthFieldsCommand swaps Name and NickName on every twitter
 // OAuth row. Migrated rows use the old field order (Name=display,
 // NickName=handle); the current login path (httpd/src/auth.go) expects
@@ -923,7 +983,8 @@ func main() {
 		(command == "debug" && debugTable == "")
 	// readOnly commands only inspect the target db; open it read-only so we
 	// never mutate on-disk state or fight another process for the write lock.
-	readOnly := command == "inspect_profile" || command == "audit_profiles" ||
+	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
+		command == "audit_profiles" ||
 		(command == "debug" && debugTable != "") ||
 		(command == "backfill_actor_uuids" && dryRun)
 	if needsSource && fromPath == "" {
@@ -966,8 +1027,12 @@ func main() {
 		runPurgeProfileCommand(ndb)
 	case "purge_oauth":
 		runPurgeOAuthCommand(ndb)
+	case "purge_user_rename_map":
+		runPurgeUserRenameMapCommand(ndb)
 	case "inspect_profile":
 		runInspectProfileCommand(ndb, inspectID)
+	case "inspect_user_rename_map":
+		runInspectUserRenameMapCommand(ndb)
 	case "audit_profiles":
 		runAuditProfilesCommand(ndb)
 	case "fix_twitter_oauth_fields":

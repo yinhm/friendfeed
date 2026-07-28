@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"testing"
@@ -95,19 +96,27 @@ func TestRenameProfileId(t *testing.T) {
 		t.Errorf("renamed profile = (Uuid=%q, Id=%q); want (Uuid=%q, Id=%q)",
 			renamed.Uuid, renamed.Id, profileUUID.String(), "newname")
 	}
+	renameRaw, err := UserRenameMap.GetRaw(db, []byte("oldname"))
+	if err != nil || !bytes.Equal(renameRaw, profileUUID.Bytes()) {
+		t.Fatalf("UserRenameMap = %x, %v; want %x", renameRaw, err, profileUUID.Bytes())
+	}
+	softRenamed, err := GetProfileFromRenameId(db, "oldname")
+	if err != nil || softRenamed.Id != "newname" || softRenamed.Uuid != profileUUID.String() {
+		t.Fatalf("soft rename lookup = %v, %v; want current newname profile", softRenamed, err)
+	}
 
 	// Idempotent: renaming to the same ID is a no-op
 	if err := RenameProfileId(db, profileUUID, "newname"); err != nil {
 		t.Errorf("rename to same ID failed: %v", err)
 	}
 
-	// Uppercase input gets normalized
-	if err := RenameProfileId(db, profileUUID, "FINAL"); err != nil {
-		t.Fatalf("rename with uppercase: %v", err)
+	// A profile may change its ID only once.
+	if err := RenameProfileId(db, profileUUID, "FINAL"); err == nil {
+		t.Fatal("second rename unexpectedly succeeded")
 	}
-	final, _ := GetProfileFromUserId(db, "final")
-	if final == nil || final.Id != "final" {
-		t.Error("uppercase ID was not normalized to lowercase")
+	stillRenamed, err := GetProfileFromUserId(db, "newname")
+	if err != nil || stillRenamed.Id != "newname" {
+		t.Fatalf("second rename changed profile: %v, %v", stillRenamed, err)
 	}
 
 	// Collision: create a second profile and try to rename to its ID
@@ -131,6 +140,63 @@ func TestRenameProfileId(t *testing.T) {
 	}
 	if err := RenameProfileId(db, profileUUID, "has space"); err == nil {
 		t.Error("expected validation error for ID with space")
+	}
+}
+
+func TestRenameProfileIdRejectsReservedPreviousID(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	firstUUID := uuid.Must(uuid.NewV4())
+	secondUUID := uuid.Must(uuid.NewV4())
+	for _, profile := range []*pb.Profile{
+		{Uuid: firstUUID.String(), Id: "first-old", Name: "First", Type: "user"},
+		{Uuid: secondUUID.String(), Id: "second-old", Name: "Second", Type: "user"},
+	} {
+		if err := UpdateProfile(db, profile); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := RenameProfileId(db, firstUUID, "first-new"); err != nil {
+		t.Fatal(err)
+	}
+	if err := RenameProfileId(db, secondUUID, "first-old"); err == nil {
+		t.Fatal("rename reused a reserved previous ID")
+	}
+	thirdUUID := uuid.Must(uuid.NewV4())
+	if err := UpdateProfile(db, &pb.Profile{
+		Uuid: thirdUUID.String(),
+		Id:   "first-old",
+		Name: "Third",
+		Type: "user",
+	}); err == nil {
+		t.Fatal("profile creation reused a reserved previous ID")
+	}
+	second, err := GetProfileFromUserId(db, "second-old")
+	if err != nil || second.Uuid != secondUUID.String() {
+		t.Fatalf("rejected profile changed: %v, %v", second, err)
+	}
+}
+
+func TestRenameProfileIdNormalizesUppercaseInput(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	if err := UpdateProfile(db, &pb.Profile{
+		Uuid: profileUUID.String(),
+		Id:   "before",
+		Name: "Before",
+		Type: "user",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := RenameProfileId(db, profileUUID, "AFTER"); err != nil {
+		t.Fatalf("rename uppercase ID: %v", err)
+	}
+	profile, err := GetProfileFromUserId(db, "after")
+	if err != nil || profile.Id != "after" {
+		t.Fatalf("normalized profile = %v, %v; want id after", profile, err)
 	}
 }
 

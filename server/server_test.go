@@ -107,6 +107,29 @@ func (s *RpcTestSuite) TestServerJob() {
 	assert.NotNil(s.T(), err)
 }
 
+func (s *RpcTestSuite) TestFetchFeedResolvesPreviousProfileID() {
+	profileUUID := uuid.Must(uuid.NewV4())
+	if err := model.UpdateProfile(s.srv.mdb, &pb.Profile{
+		Uuid: profileUUID.String(),
+		Id:   "before-rename",
+		Name: "Renamed User",
+		Type: "user",
+	}); err != nil {
+		s.T().Fatal(err)
+	}
+	if err := model.RenameProfileId(s.srv.mdb, profileUUID, "after-rename"); err != nil {
+		s.T().Fatal(err)
+	}
+
+	feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id:       "before-rename",
+		PageSize: 30,
+	})
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "after-rename", feed.Id)
+	assert.Equal(s.T(), profileUUID.String(), feed.Uuid)
+}
+
 func (s *RpcTestSuite) TestRedoFailedJob() {
 	// Simulate a job pulled by a worker that never finished: it lives in
 	// TableJobRunning and is gone from the queue.

@@ -452,8 +452,12 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	} else { // from user.id
 		profile, err = model.GetProfileFromUserId(s.mdb, req.Id)
 		if err != nil {
-			logger.Debugf("ForwardFetchFeed: profile %s not found, err: %s", req.Id, err)
-			return nil, status.Errorf(codes.NotFound, "profile not found")
+			profile, err = model.GetProfileFromRenameId(s.mdb, req.Id)
+			if err != nil {
+				logger.Debugf("ForwardFetchFeed: profile %s not found, err: %s", req.Id, err)
+				return nil, status.Errorf(codes.NotFound, "profile not found")
+			}
+			logger.Debugf("ForwardFetchFeed: resolved previous profile ID <%s> to <%s>", req.Id, profile.Id)
 		}
 		logger.Debugf("ForwardFetchFeed: profile <%s>", profile)
 		profileUuid, _ := uuid.FromString(profile.Uuid)

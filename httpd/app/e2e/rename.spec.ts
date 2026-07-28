@@ -8,19 +8,11 @@ import {
   type Response,
 } from '@playwright/test';
 
-type EditableProfile = {
-  id: string;
-  name: string;
-  description?: string;
-  picture?: string;
-  private?: boolean;
-};
-
 async function authenticate(context: BrowserContext) {
   const baseURL = process.env.E2E_BASE_URL;
-  const sessionCookie = process.env.E2E_SESSION_COOKIE;
+  const sessionCookie = process.env.E2E_RENAME_SESSION_COOKIE;
   if (!baseURL || !sessionCookie) {
-    throw new Error('E2E_BASE_URL and E2E_SESSION_COOKIE are required');
+    throw new Error('E2E_BASE_URL and E2E_RENAME_SESSION_COOKIE are required');
   }
 
   await context.addCookies([
@@ -73,16 +65,6 @@ test('profile rename propagates to author display, like state and comment comman
   const text = `E2E rename post ${Date.now()}`;
   const commentText = `E2E rename comment ${Date.now()}`;
   const newId = `e2e-u${Date.now().toString(36)}`;
-
-  // Capture the complete editable profile before the first mutation so
-  // cleanup restores state instead of assuming seed defaults.
-  await page.goto('/account/profile');
-  const originalProfile = await page.evaluate(() => {
-    const w = window as unknown as {
-      accountData: { profile: EditableProfile };
-    };
-    return w.accountData.profile;
-  });
 
   let entryId: string | null = null;
   let botEntryId: string | null = null;
@@ -162,13 +144,20 @@ test('profile rename propagates to author display, like state and comment comman
     await page.getByRole('button', { name: 'Save Changes' }).click();
     await expect(page.getByRole('status')).toContainText(`/feed/${newId}`);
 
-    await page.goto('/public');
+    // The old feed URL follows the soft-rename record to the canonical ID.
+    await page.goto('/feed/e2e-rename-user');
+    await expect(page).toHaveURL(new RegExp(`/feed/${newId}$`));
 
-    // Own entry author shows the new identity and feed link.
+    // Read the entry through its captured permalink rather than the public
+    // cache, whose background rebuild may legitimately replace recent
+    // in-memory pushes. Its author follows the canonical profile.
+    await page.goto(`/e/${entryId}`);
     const ownEntry = page.locator('[data-eid]', { hasText: text });
     const authorLink = ownEntry.locator('.author a').first();
     await expect(authorLink).toHaveText('E2E Renamed');
     await expect(authorLink).toHaveAttribute('href', `/feed/${newId}`);
+
+    await page.goto('/public');
 
     // The comment shows the new name and keeps its Edit command.
     const renamedBotEntry = page.locator('[data-eid]', {
@@ -248,22 +237,6 @@ test('profile rename propagates to author display, like state and comment comman
       } catch (e) {
         cleanupErrors.push(`delete entry: ${e}`);
       }
-    }
-    try {
-      await postCleanup(
-        page.request,
-        '/account/profile',
-        {
-          id: originalProfile.id,
-          name: originalProfile.name,
-          description: originalProfile.description ?? '',
-          picture: originalProfile.picture ?? '',
-          private: originalProfile.private ? 'on' : '',
-        },
-        'restore profile'
-      );
-    } catch (e) {
-      cleanupErrors.push(`restore profile: ${e}`);
     }
   }
 

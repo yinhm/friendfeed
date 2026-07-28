@@ -50,9 +50,10 @@ func NormalizeProfileId(id string) (string, error) {
 // RenameProfileId changes the profile's ID (feed URL slug) atomically:
 //  1. Validates the new ID format
 //  2. Checks that the new ID is not already taken by another profile
-//  3. Deletes the old UserMap entry
-//  4. Creates the new UserMap entry
-//  5. Updates the Profile record
+//  3. Records old ID -> stable UUID in UserRenameMap
+//  4. Deletes the old UserMap entry
+//  5. Creates the new UserMap entry
+//  6. Updates the Profile record
 //
 // If the profile's current ID exactly matches the normalized newId and its
 // existing UserMap entry still points to profileUUID, the call is a no-op.
@@ -97,6 +98,19 @@ func RenameProfileId(db *store.Store, profileUUID uuid.UUID, newId string) error
 			return nil
 		}
 
+		previousID, err := findPreviousIDByProfileUUID(db, profileUUID)
+		if err == nil {
+			return fmt.Errorf("profile ID was already renamed from %q", previousID)
+		}
+		if !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("check previous rename for profile %s: %w", profileUUID, err)
+		}
+		if reservedUUID, err := FindProfileRenameByOldId(db, newId); err == nil {
+			return fmt.Errorf("ID %q is reserved by a previous rename of profile %s", newId, reservedUUID)
+		} else if !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("check renamed ID %q: %w", newId, err)
+		}
+
 		newMapKey := NewKeyFrom(TableUserMap.Bytes(), []byte(newId))
 		existingUUID, err := db.Get(newMapKey)
 		if err != nil {
@@ -128,6 +142,72 @@ func RenameProfileId(db *store.Store, profileUUID uuid.UUID, newId string) error
 		if err := batch.Set(profileKey, encodedProfile, nil); err != nil {
 			return fmt.Errorf("update Profile: %w", err)
 		}
+		renameKey := UserRenameMap.PrefixAppend([]byte(oldId))
+		if err := batch.Set(renameKey, profileUUID.Bytes(), nil); err != nil {
+			return fmt.Errorf("create UserRenameMap[%s]: %w", oldId, err)
+		}
 		return nil
 	})
+}
+
+// FindProfileRenameByOldId returns the stable profile UUID recorded for oldID.
+// This is the normal read path for resolving /feed/<old-id>.
+func FindProfileRenameByOldId(db *store.Store, oldID string) (uuid.UUID, error) {
+	raw, err := UserRenameMap.GetRaw(db, []byte(oldID))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if len(raw) == 0 {
+		return uuid.Nil, ErrNotFound
+	}
+	profileUUID, err := uuid.FromBytes(raw)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("decode UserRenameMap[%s]: %w", oldID, err)
+	}
+	if profileUUID == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("decode UserRenameMap[%s]: zero UUID", oldID)
+	}
+	return profileUUID, nil
+}
+
+// findPreviousIDByProfileUUID scans the deliberately small metadata table to
+// enforce the one-active-rename-per-profile rule. Redirect lookup itself is a
+// direct old-ID key lookup.
+func findPreviousIDByProfileUUID(db *store.Store, profileUUID uuid.UUID) (string, error) {
+	var previousID string
+	err := UserRenameMap.Iter(db, func(key, raw []byte) error {
+		mappedUUID, err := uuid.FromBytes(raw)
+		if err != nil {
+			return fmt.Errorf("decode UserRenameMap value for key %x: %w", key, err)
+		}
+		if mappedUUID != profileUUID {
+			return nil
+		}
+		oldID := string(UserRenameMap.PrefixRemove(store.Key(key)))
+		if oldID == "" {
+			return errors.New("UserRenameMap contains an empty old ID")
+		}
+		if previousID != "" && previousID != oldID {
+			return fmt.Errorf("profile %s has multiple previous IDs", profileUUID)
+		}
+		previousID = oldID
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if previousID == "" {
+		return "", ErrNotFound
+	}
+	return previousID, nil
+}
+
+// GetProfileFromRenameId resolves an old profile ID to the profile's current
+// canonical record.
+func GetProfileFromRenameId(db *store.Store, oldID string) (*pb.Profile, error) {
+	profileUUID, err := FindProfileRenameByOldId(db, oldID)
+	if err != nil {
+		return nil, err
+	}
+	return GetProfileFromUuid(db, profileUUID)
 }

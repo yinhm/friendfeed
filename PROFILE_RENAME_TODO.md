@@ -11,6 +11,15 @@
 - 功能修复、存储重构、UI调整和迁移工具分开提交。
 - 每项先补行为测试；完成后执行全量门禁。
 
+## Soft rename 元数据（已完成，2026-07-28）
+
+- `TableUserRenameMap = 7`，持久化格式固定为 `old_id -> 用户稳定 UUID`；不新增 protobuf 类型。
+- rename 与 `UserMap`、Profile 更新在同一 batch 中提交。记录存在期间，同一 UUID 不得再次 rename，旧 ID 也不得被注册。
+- `/feed/:old_id` 通过该表直接解析当前 Profile，并在权限检查后返回临时 302；不使用 301，因为回收后旧 ID 可以重新分配。
+- 管理员使用 `inspect_user_rename_map` 查看 `old_id -> UUID -> current_id`，使用带完整命令确认的 `purge_user_rename_map` 整表回收。表中没有时间字段，因此当前不提供按时间回收。
+- soft redirect 当前只覆盖 `/feed/:id`。entry permalink、搜索等其他入口不承诺解析旧 ID。
+- rename E2E 使用独立身份且不尝试改回旧 ID，避免测试清理绕过“一条活动 rename 记录”的产品契约。
+
 ## 1. Rename 原子性与并发安全（已完成，2026-07-28）
 
 实施结果：

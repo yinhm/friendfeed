@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/flosch/pongo2"
@@ -82,6 +83,17 @@ func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {
 	}
 }
 
+func renamedFeedLocation(requestedID string, feed *pb.Feed, rawQuery string) (string, bool) {
+	if feed == nil || feed.Id == "" || feed.Id == requestedID {
+		return "", false
+	}
+	location := "/feed/" + url.PathEscape(feed.Id)
+	if rawQuery != "" {
+		location += "?" + rawQuery
+	}
+	return location, true
+}
+
 func (s *Server) HomeHandler(c *gin.Context) {
 	userUuid := CurrentUserUuid(c)
 	if userUuid == "" {
@@ -122,6 +134,12 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	}
 	if feed.Private && !s.feedReadable(c, feed.Uuid) {
 		c.HTML(http.StatusForbidden, "403.html", pongo2.Context{})
+		return
+	}
+	if location, renamed := renamedFeedLocation(feedname, feed, c.Request.URL.RawQuery); renamed {
+		// Rename metadata is periodically reclaimed, so do not let clients
+		// cache this redirect permanently after the old ID becomes reusable.
+		c.Redirect(http.StatusFound, location)
 		return
 	}
 

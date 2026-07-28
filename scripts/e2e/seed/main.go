@@ -22,6 +22,7 @@ func main() {
 	addr := flag.String("addr", "localhost:12119", "ffdb gRPC address")
 	sessionKey := flag.String("session-key", "", "ffweb cookie signing key")
 	sessionCookieFile := flag.String("session-cookie-file", "", "file to receive the signed ffweb session cookie")
+	renameSessionCookieFile := flag.String("rename-session-cookie-file", "", "file to receive the rename-test session cookie")
 	flag.Parse()
 
 	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -45,6 +46,21 @@ func main() {
 	if *sessionKey != "" && *sessionCookieFile != "" {
 		if err := writeSessionCookie(*sessionCookieFile, *sessionKey, authUser.UserId, profile.Uuid); err != nil {
 			log.Fatalf("write session cookie: %v", err)
+		}
+	}
+	renameAuthUser := &pb.OAuthUser{
+		UserId:   "e2e-rename-user-id",
+		Name:     "e2e-rename-user",
+		NickName: "E2E Rename User",
+		Provider: "google",
+	}
+	renameProfile, err := client.PutOAuth(ctx, renameAuthUser)
+	if err != nil {
+		log.Fatalf("PutOAuth rename user: %v", err)
+	}
+	if *sessionKey != "" && *renameSessionCookieFile != "" {
+		if err := writeSessionCookie(*renameSessionCookieFile, *sessionKey, renameAuthUser.UserId, renameProfile.Uuid); err != nil {
+			log.Fatalf("write rename session cookie: %v", err)
 		}
 	}
 

@@ -41,6 +41,54 @@ func TestConfirmDestructive(t *testing.T) {
 	}
 }
 
+func TestInspectAndPurgeUserRenameMap(t *testing.T) {
+	db := store.NewStore(t.TempDir())
+	defer db.Close()
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	if err := model.UpdateProfile(db, &pb.Profile{
+		Uuid: profileUUID.String(),
+		Id:   "before",
+		Name: "Rename",
+		Type: "user",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := model.RenameProfileId(db, profileUUID, "after"); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	n, err := inspectUserRenameMap(db, "before", 0, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "before -> " + profileUUID.String() + " -> after\n"
+	if n != 1 || out.String() != want {
+		t.Fatalf("inspect = (%d, %q); want (1, %q)", n, out.String(), want)
+	}
+
+	removed, err := purge_table(db, model.TableUserRenameMap.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 1 {
+		t.Fatalf("purged %d records; want 1", removed)
+	}
+	if _, err := model.FindProfileRenameByOldId(db, "before"); err == nil {
+		t.Fatal("purged rename record is still resolvable")
+	}
+	if err := model.RenameProfileId(db, profileUUID, "final"); err != nil {
+		t.Fatalf("rename after reclamation: %v", err)
+	}
+}
+
+func TestUserRenameMapPurgeRequiresConfirmation(t *testing.T) {
+	if !destructiveCommands["purge_user_rename_map"] {
+		t.Fatal("purge_user_rename_map is not marked destructive")
+	}
+}
+
 func TestFixTwitterOAuthFields(t *testing.T) {
 	db := store.NewStore(t.TempDir())
 	defer db.Close()

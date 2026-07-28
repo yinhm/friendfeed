@@ -20,6 +20,9 @@ const (
 	TableEntry    store.KeyPrefix = 3
 	TableTweet    store.KeyPrefix = 6
 	TableUserMap  store.KeyPrefix = 4
+	// UserRenameMap maps a previous profile ID to the profile's stable UUID. It
+	// is a small, periodically reclaimed metadata table used for soft redirects.
+	TableUserRenameMap store.KeyPrefix = 7
 
 	// Prev iter was broken on rocksdb when this was coded,
 	// this index was actually a manually reverse index.
@@ -54,12 +57,13 @@ var (
 	// Feed = NewTable(KeyPrefixToBytes(TableFeed))
 	// TODO:
 	// Feedinfo should be generated from Profile and Feed?
-	Feedinfo   = NewTable(KeyPrefixToBytes(TableFeedinfo))
-	Entry      = NewTable(KeyPrefixToBytes(TableEntry))
-	Tweet      = NewTable(KeyPrefixToBytes(TableTweet))
-	EntryIndex = NewTable(KeyPrefixToBytes(TableEntryIndex))
-	UserMap    = NewTable(KeyPrefixToBytes(TableUserMap))
-	Profile    = NewTable(KeyPrefixToBytes(TableProfile))
+	Feedinfo      = NewTable(KeyPrefixToBytes(TableFeedinfo))
+	Entry         = NewTable(KeyPrefixToBytes(TableEntry))
+	Tweet         = NewTable(KeyPrefixToBytes(TableTweet))
+	EntryIndex    = NewTable(KeyPrefixToBytes(TableEntryIndex))
+	UserMap       = NewTable(KeyPrefixToBytes(TableUserMap))
+	UserRenameMap = NewTable(KeyPrefixToBytes(TableUserRenameMap))
+	Profile       = NewTable(KeyPrefixToBytes(TableProfile))
 
 	Service  = NewTable(KeyPrefixToBytes(TableService))
 	Follow   = NewTable(KeyPrefixToBytes(TableFollow))

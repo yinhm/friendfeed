@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
@@ -33,6 +34,11 @@ func UpdateProfile(db *store.Store, profile *pb.Profile) error {
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
 		return err
+	}
+	if reservedBy, err := FindProfileRenameByOldId(db, profile.Id); err == nil {
+		return fmt.Errorf("profile ID %q is reserved by a previous rename of profile %s", profile.Id, reservedBy)
+	} else if !errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("check profile ID %q against UserRenameMap: %w", profile.Id, err)
 	}
 
 	// user id(login) to uuid map
