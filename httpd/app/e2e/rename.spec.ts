@@ -112,7 +112,13 @@ test('profile rename propagates to author display, like state and comment comman
       // /a/entry/:uuid 404s for the bot entry (its author profile does
       // not exist), so read the comment id from window.appData instead.
       const ids = await page.evaluate((body) => {
-        const w = /** @type {any} */ (window);
+        const w = window as unknown as {
+          appData: {
+            feed: {
+              entries: { id: string; comments?: { id: string; body?: string }[] }[];
+            };
+          };
+        };
         for (const e of w.appData.feed.entries) {
           for (const c of e.comments ?? []) {
             if (c.body?.includes(body)) {
