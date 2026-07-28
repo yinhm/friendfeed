@@ -1,5 +1,20 @@
 // @ts-check
-import { expect, test, type BrowserContext } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type APIResponse,
+  type BrowserContext,
+  type Response,
+} from '@playwright/test';
+
+type EditableProfile = {
+  id: string;
+  name: string;
+  description?: string;
+  picture?: string;
+  private?: boolean;
+};
 
 async function authenticate(context: BrowserContext) {
   const baseURL = process.env.E2E_BASE_URL;
@@ -17,6 +32,27 @@ async function authenticate(context: BrowserContext) {
       sameSite: 'Lax',
     },
   ]);
+}
+
+async function requireOk<T extends APIResponse | Response>(
+  response: T,
+  operation: string
+): Promise<T> {
+  if (!response.ok()) {
+    throw new Error(
+      `${operation}: status ${response.status()}: ${await response.text()}`
+    );
+  }
+  return response;
+}
+
+async function postCleanup(
+  request: APIRequestContext,
+  path: string,
+  form: Record<string, string>,
+  operation: string
+) {
+  return requireOk(await request.post(path, { form }), operation);
 }
 
 // TODO.md acceptance: after a profile rename, UUID-bearing entries,
@@ -38,22 +74,46 @@ test('profile rename propagates to author display, like state and comment comman
   const commentText = `E2E rename comment ${Date.now()}`;
   const newId = `e2e-u${Date.now().toString(36)}`;
 
-  let entryId = /** @type {string | null} */ (null);
-  let botEntryId = /** @type {string | null} */ (null);
-  let commentId = /** @type {string | null} */ (null);
+  // Capture the complete editable profile before the first mutation so
+  // cleanup restores state instead of assuming seed defaults.
+  await page.goto('/account/profile');
+  const originalProfile = await page.evaluate(() => {
+    const w = window as unknown as {
+      accountData: { profile: EditableProfile };
+    };
+    return w.accountData.profile;
+  });
+
+  let entryId: string | null = null;
+  let botEntryId: string | null = null;
+  let commentId: string | null = null;
   let liked = false;
-  let testError = /** @type {unknown} */ (null);
-  const cleanupErrors = /** @type {string[]} */ ([]);
+  let testError: unknown = null;
+  const cleanupErrors: string[] = [];
 
   try {
-    // Post an entry as the session user; capture its id right away.
+    // Post an entry as the session user. Capture the authoritative id
+    // from the response before making any UI assertion.
     await page.goto('/');
     const editor = page.locator('[contenteditable="true"]');
     await expect(editor).toBeVisible();
     await editor.fill(text);
+    const entryResponsePromise = page.waitForResponse(
+      (resp) =>
+        new URL(resp.url()).pathname === '/a/share' &&
+        resp.request().method() === 'POST'
+    );
     await page.locator('.sharebox button.submit').click();
+    const entryResponse = await requireOk(
+      await entryResponsePromise,
+      'create entry'
+    );
+    const createdEntry = (await entryResponse.json()) as { id?: string };
+    if (!createdEntry.id) {
+      throw new Error('create entry: response has no id');
+    }
+    entryId = createdEntry.id;
     await expect(page.locator('[data-eid] .content', { hasText: text })).toBeVisible();
-    entryId = await page.locator('[data-eid]', { hasText: text }).getAttribute('data-eid');
 
     // Comment on a bot entry; capture both ids at creation time.
     await page.goto('/public');
@@ -61,19 +121,39 @@ test('profile rename propagates to author display, like state and comment comman
       hasText: 'E2E second entry plain text',
     });
     botEntryId = await botEntry.getAttribute('data-eid');
+    if (!botEntryId) {
+      throw new Error('bot entry is missing data-eid');
+    }
 
     await botEntry.getByRole('button', { name: 'Comment' }).click();
     const commentResponse = page.waitForResponse(
-      (resp) => resp.url().includes('/a/comment') && resp.request().method() === 'POST'
+      (resp) =>
+        new URL(resp.url()).pathname === '/a/comment' &&
+        resp.request().method() === 'POST'
     );
     await botEntry.getByRole('textbox', { name: 'Comment' }).fill(commentText);
     await botEntry.getByRole('button', { name: 'Post' }).click();
-    commentId = (await (await commentResponse).json()).id;
+    const createdCommentResponse = await requireOk(
+      await commentResponse,
+      'create comment'
+    );
+    const createdComment = (await createdCommentResponse.json()) as { id?: string };
+    if (!createdComment.id) {
+      throw new Error('create comment: response has no id');
+    }
+    commentId = createdComment.id;
     await expect(botEntry.locator('.comment', { hasText: commentText })).toBeVisible();
 
+    const likeResponse = page.waitForResponse(
+      (resp) =>
+        new URL(resp.url()).pathname === '/a/like' &&
+        resp.request().method() === 'POST'
+    );
     await botEntry.getByRole('button', { name: 'Like', exact: true }).click();
-    await expect(botEntry.getByRole('button', { name: 'Unlike', exact: true })).toBeVisible();
+    await requireOk(await likeResponse, 'like entry');
+    // Set this before UI assertions: the server mutation has completed.
     liked = true;
+    await expect(botEntry.getByRole('button', { name: 'Unlike', exact: true })).toBeVisible();
 
     // Rename both the profile id (feed slug) and the display name.
     await page.goto('/account/profile');
@@ -108,11 +188,18 @@ test('profile rename propagates to author display, like state and comment comman
     await expect(renamedBotEntry.locator('.likes')).toContainText('E2E Renamed liked this');
 
     // Unlike works after the rename.
+    const unlikeResponse = page.waitForResponse(
+      (resp) =>
+        new URL(resp.url()).pathname === '/a/like/delete' &&
+        resp.request().method() === 'POST'
+    );
     await renamedBotEntry.getByRole('button', { name: 'Unlike', exact: true }).click();
+    await requireOk(await unlikeResponse, 'unlike entry');
+    // Clear this before UI assertions: the server mutation has completed.
+    liked = false;
     await expect(
       renamedBotEntry.getByRole('button', { name: 'Like', exact: true })
     ).toBeVisible();
-    liked = false;
 
     // Comment edit works after the rename.
     const editedText = `${commentText} edited`;
@@ -128,43 +215,67 @@ test('profile rename propagates to author display, like state and comment comman
     // page. Each step is isolated so one failure cannot skip the rest.
     if (liked && botEntryId) {
       try {
-        await page.request.post('/a/like/delete', { form: { entry: botEntryId } });
+        await postCleanup(
+          page.request,
+          '/a/like/delete',
+          { entry: botEntryId },
+          'cleanup unlike'
+        );
       } catch (e) {
         cleanupErrors.push(`unlike: ${e}`);
       }
     }
     if (commentId && botEntryId) {
       try {
-        await page.request.post('/a/comment/delete', {
-          form: { entry: botEntryId, comment: commentId },
-        });
+        await postCleanup(
+          page.request,
+          '/a/comment/delete',
+          { entry: botEntryId, comment: commentId },
+          'cleanup comment'
+        );
       } catch (e) {
         cleanupErrors.push(`delete comment: ${e}`);
       }
     }
     if (entryId) {
       try {
-        await page.request.post('/a/delete', { form: { entry: entryId } });
+        await postCleanup(
+          page.request,
+          '/a/delete',
+          { entry: entryId },
+          'cleanup entry'
+        );
       } catch (e) {
         cleanupErrors.push(`delete entry: ${e}`);
       }
     }
     try {
-      // Idempotent: a no-op when the rename never happened.
-      const resp = await page.request.post('/account/profile', {
-        form: { id: 'e2e-user', name: 'E2E User', description: '', picture: '' },
-      });
-      if (!resp.ok()) {
-        cleanupErrors.push(`restore profile: status ${resp.status()}: ${await resp.text()}`);
-      }
+      await postCleanup(
+        page.request,
+        '/account/profile',
+        {
+          id: originalProfile.id,
+          name: originalProfile.name,
+          description: originalProfile.description ?? '',
+          picture: originalProfile.picture ?? '',
+          private: originalProfile.private ? 'on' : '',
+        },
+        'restore profile'
+      );
     } catch (e) {
       cleanupErrors.push(`restore profile: ${e}`);
     }
   }
 
-  // The body error wins; cleanup failures only fail an otherwise
-  // passing test, so polluted shared state can never go unnoticed.
+  // Preserve the body failure while also reporting cleanup failures:
+  // either condition must leave an explicit red result.
   if (testError !== null) {
+    if (cleanupErrors.length > 0) {
+      throw new Error(
+        `test failed: ${String(testError)}; cleanup also failed: ${cleanupErrors.join('; ')}`,
+        { cause: testError }
+      );
+    }
     throw testError;
   }
   if (cleanupErrors.length > 0) {
