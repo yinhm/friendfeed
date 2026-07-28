@@ -90,7 +90,13 @@
 - entry 作者和 super 可看到 comment delete，但不能看到他人 comment edit；
 - nil entry/comment/like refs 不 panic。
 
-## 3. Rename 后缓存失效
+## 3. Rename 后缓存失效（确认现有实现，2026-07-28）
+
+确认结果：
+
+- `profile:<uuid>` 与 `graph:<uuid>` 都以当前用户 UUID 为 cache owner；profile 更新成功后定向删除这两个 key 已满足当前请求路径。
+- 不遍历其他用户的 cache key。跨用户嵌入快照允许按现有 5 分钟 TTL 自然更新，避免为低频 rename 引入全 cache 扫描。
+- 多实例失效和更强的跨用户即时一致性继续延期到出现明确部署需求时。
 
 ### 当前问题
 
