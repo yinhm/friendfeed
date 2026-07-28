@@ -174,6 +174,10 @@ map[uuid.UUID]profile lookup result
 
 ### 旧 ID策略
 
+当前实现与建议默认值：rename 原子删除旧 `UserMap`，旧 ID 立即释放并允许复用。没有明确的历史链接产品需求前维持现状，不新增 alias schema。
+
+该选择的已知代价是旧 `/feed/:id` 链接可能 404，或在 ID 被他人注册后指向新 owner；授权仍只按 UUID，不会把旧 comment/like 权限转移给新 owner。若产品要求旧链接稳定，再单独设计 HistoricalAlias 和 redirect，不能复用普通 `UserMap`。
+
 明确 rename 后旧 ID是：
 
 - 立即释放并允许复用；
@@ -194,9 +198,13 @@ HistoricalAlias[oldId] -> 原 profile UUID / redirect target
 
 当前 `user_uuid` 是可信内部调用方提交的过渡 principal。gRPC 对不可信客户端开放前，必须从认证 middleware/context 获取 UUID，不再信任请求字段。
 
+2026-07-28 实机核查：ffdb 当前监听 `*:8901`（配置 `"address": ":8901"`），监听层没有把“内部调用方”限制为 loopback。应优先将部署地址改为 `127.0.0.1:8901` 或用防火墙明确限制来源；在完成认证 middleware 前，不得把该端口暴露给不可信网络。监听配置修正与 RPC principal 架构改造分开处理。
+
 ### Group admin moderation
 
 另行定义 group、cross-post、graph 缺失和缓存过期时的授权语义，不在 UI command 重构中顺带扩张。
+
+当前建议维持不扩权：entry 既有 group admin 行为保留，comment delete 仍只允许评论作者、entry 作者和 super。没有完整语义与测试前不增加 group admin comment moderation。
 
 ## 推荐执行顺序
 
