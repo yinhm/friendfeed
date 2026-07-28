@@ -140,7 +140,15 @@ map[uuid.UUID]profile lookup result
 - 不做跨请求 profile cache，避免新增 rename 失效问题；
 - 测试同一 UUID每个请求最多读取一次。
 
-## 5. Legacy UUID回填工具（需要可靠来源）
+## 5. Legacy UUID回填工具（已评估，暂不实施，2026-07-28）
+
+评估结果：
+
+- 当前 OAuth `(provider, UserId) -> profile UUID` 只能证明登录身份，不能证明某条历史 comment/like 的 `From.Id` 在写入当时属于该 profile。
+- 当前 `UserMap[From.Id]` 会受 rename 和 ID 复用影响，不能作为历史归属来源。
+- new DB 中没有 HistoricalAlias、旧 ID 时间线或逐条 actor provenance；old DB 已退出支持范围，不重新引入。
+- 因此无法满足“可证明归属”的安全门槛，不创建猜测式回填工具。UUID-less comment/like 继续保留原展示快照并保持只读。
+- 未来只有导入带稳定 UUID 的历史导出或其他可审计 provenance 后才重新开启本项。
 
 默认继续采用方案 A：UUID-less comment/like 保留快照且只读。
 
