@@ -56,7 +56,16 @@
 - no-op 不产生无意义写；
 - malformed/zero profile UUID安全失败。
 
-## 2. UI commands 与 UUID授权统一
+## 2. UI commands 与 UUID授权统一（已完成，2026-07-28）
+
+实施结果：
+
+- `RebuildCommand` 的 entry owner 与 like/unlike 判断改为只比较有效、非零 UUID；rename 后不受 ID 快照变化影响。
+- `RebuildCommentsCommand` 将 edit 限于评论作者，将 delete 限于评论作者、entry 作者和 super；未加入 group admin 评论审核权限。
+- nil、缺失、非法和零 UUID 均安全失败，不再通过相同 ID 获得 mutation command；无效 viewer 会清除旧 commands。
+- 保留既有方法签名、graph 参数和 entry 的 group admin edit/delete 行为。
+- 前端按 `comment.commands` 的具体内容分别渲染 Edit/Delete，支持 entry 作者和 super 的 delete-only 权限。
+- 覆盖 rename、同 ID 不同 UUID、legacy/malformed/zero refs、entry owner、super、nil 输入和 delete-only 渲染；Go、前端及 E2E 全量门禁通过。
 
 ### 当前问题
 

@@ -41,7 +41,10 @@ func feedFromProfile(profile *pb.Profile) (*pb.Feed, error) {
 }
 
 // permOwnedBy reports whether ref belongs to profile, for authorization
-// and ownership dedupe. UUID is the only identity:
+// and ownership dedupe. Its UUID validity semantics are mirrored by
+// pb.validUUID/sameUUID when building UI command hints; keep the two packages
+// aligned without introducing a model <-> pb dependency cycle.
+// UUID is the only identity:
 //
 //   - nil ref or nil profile: false;
 //   - ref.Uuid empty (legacy record): false — never claimed via the id;

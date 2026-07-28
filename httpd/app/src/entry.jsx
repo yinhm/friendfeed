@@ -747,13 +747,19 @@ class EntryComment extends React.Component{
     }
 
     var cmds = null
-    if (comment.commands && comment.commands.length > 0) {
+    const canEdit = comment.commands?.includes("edit") ?? false;
+    const canDelete = comment.commands?.includes("delete") ?? false;
+    if (canEdit || canDelete) {
       cmds = (
         <span className="commands">
           {" ( "}
-          <button type="button" className="inline-action action-link" onClick={this.editComment}>Edit</button>
-          {" | "}
-          <button type="button" className="inline-action action-link" onClick={this.deleteComment}>Delete</button>
+          {canEdit &&
+            <button type="button" className="inline-action action-link" onClick={this.editComment}>Edit</button>
+          }
+          {canEdit && canDelete && " | "}
+          {canDelete &&
+            <button type="button" className="inline-action action-link" onClick={this.deleteComment}>Delete</button>
+          }
           {" )"}
         </span>
       );

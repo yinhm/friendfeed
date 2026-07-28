@@ -1,30 +1,62 @@
 package pb
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/gofrs/uuid"
+)
+
+// validUUID and sameUUID mirror model.permOwnedBy's identity rules for UI
+// command hints. Keep both packages aligned: malformed, missing, and zero
+// UUIDs must fail closed, without falling back to a recyclable profile ID.
+// They live here to avoid making pb depend on model.
+func validUUID(value string) (uuid.UUID, bool) {
+	id, err := uuid.FromString(value)
+	if err != nil || id == uuid.Nil {
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func sameUUID(value, other string) bool {
+	id, ok := validUUID(value)
+	if !ok {
+		return false
+	}
+	otherID, ok := validUUID(other)
+	return ok && id == otherID
+}
 
 func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
-	if profile.Id == "" {
-		e.Commands = []string{}
+	if e == nil {
+		return
+	}
+	e.Commands = []string{}
+	if profile == nil {
+		return
+	}
+	if _, ok := validUUID(profile.Uuid); !ok {
 		return
 	}
 
 	ownerOrSuper := profile.IsSuper
 	commands := []string{"comment"}
-	if _, ok := graph.Admins[profile.Id]; ok {
-		ownerOrSuper = true
+	if graph != nil {
+		if _, ok := graph.Admins[profile.Id]; ok {
+			ownerOrSuper = true
+		}
 	}
 	// FIXME: subscriptions may huge
 	// if _, ok := graph.Subscriptions[author]; ok {
 	// 	// private check
 	// }
-	if profile.Id == e.From.Id {
+	if sameUUID(e.ProfileUuid, profile.Uuid) {
 		ownerOrSuper = true
 	} else {
 		// liked?
 		liked := false
 		for _, like := range e.Likes {
-			// TODO: fixme, why on earth like.From == nil?
-			if like.From != nil && like.From.Id == profile.Id {
+			if like != nil && sameUUID(like.GetFrom().GetUuid(), profile.Uuid) {
 				liked = true
 				break
 			}
@@ -44,13 +76,28 @@ func (e *Entry) RebuildCommand(profile *Profile, graph *Graph) {
 }
 
 func (e *Entry) RebuildCommentsCommand(profile *Profile, graph *Graph) {
+	if e == nil {
+		return
+	}
+	viewerValid := profile != nil
+	if viewerValid {
+		_, viewerValid = validUUID(profile.Uuid)
+	}
+	entryOwner := viewerValid && sameUUID(e.ProfileUuid, profile.Uuid)
+	canModerate := viewerValid && (entryOwner || profile.IsSuper)
+
 	for _, cmt := range e.Comments {
-		cmt.Commands = []string{}
-		if cmt.From == nil || profile.Id == "" {
+		if cmt == nil {
 			continue
 		}
-		if profile.Id == cmt.From.Id {
-			cmt.Commands = []string{"edit", "delete"}
+		cmt.Commands = []string{}
+		if !viewerValid {
+			continue
+		}
+		if sameUUID(cmt.GetFrom().GetUuid(), profile.Uuid) {
+			cmt.Commands = append(cmt.Commands, "edit", "delete")
+		} else if canModerate {
+			cmt.Commands = append(cmt.Commands, "delete")
 		}
 	}
 }
