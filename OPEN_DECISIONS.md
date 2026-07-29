@@ -29,6 +29,7 @@
 - **gRPC principal**：comment mutation 当前信任内部调用方提交的 `user_uuid`。对不可信网络开放 ffdb 前，必须从认证 middleware/context 获取 principal；此前应绑定 loopback 或用防火墙限制来源。
 - **Group comment moderation**：comment delete 当前只允许评论作者、entry 作者和 super。是否让 group admin 审核 cross-post comment，需要先定义 graph 缺失、缓存过期和跨 feed 的授权语义。
 - **多实例 Profile cache 失效**：单实例 rename 只失效本地 `profile:<uuid>` 与 `graph:<uuid>`，其他实例及跨用户快照依赖 TTL。出现多实例即时一致性需求后，再设计 revision、失效事件或共享 cache。
+- **Pebble shared cache**：每个 `Store` 当前创建 512 MiB cache；正常 server 已统一为一个 Store，但 BackupDB 和同时打开 source/target 的工具会增加内存占用。共享前必须明确 cache `Ref/Unref` 所有权、进程内存预算和备份生命周期。
 
 ## 媒体镜像
 
