@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -113,10 +114,10 @@ func (s *ApiServer) EnqueJob(ctx context.Context, job *pb.FeedJob) (*pb.FeedJob,
 }
 
 func (s *ApiServer) GetFeedJob(ctx context.Context, in *pb.Worker) (*pb.FeedJob, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
 
-	job, err := s.dequeJob()
+	job, queuedKey, err := s.peekQueuedJob()
 	if err != nil {
 		return nil, err
 	}
@@ -133,14 +134,20 @@ func (s *ApiServer) GetFeedJob(ctx context.Context, in *pb.Worker) (*pb.FeedJob,
 	if err != nil {
 		return nil, err
 	}
-	if err := s.mdb.Put(key.Bytes(), bytes); err != nil {
+	if err := s.mdb.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := batch.Delete(queuedKey, nil); err != nil {
+			return err
+		}
+		return batch.Set(key.Bytes(), bytes, nil)
+	}); err != nil {
 		return nil, err
 	}
 	return job, nil
 }
 
-func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
+func (s *ApiServer) peekQueuedJob() (*pb.FeedJob, store.Key, error) {
 	var job *pb.FeedJob
+	var queuedKey store.Key
 
 	key := store.NewFlakeKey(model.TableJobFeed, s.mdb.NextId())
 	_, err := s.mdb.ForwardScan(key.Prefix().Bytes(), func(i int, k, v []byte) error {
@@ -148,18 +155,30 @@ func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
 		if err := proto.Unmarshal(v, job); err != nil {
 			return err
 		}
+		// ForwardScan reuses iterator buffers; retain the exact database key
+		// rather than trusting the denormalized job.Key field.
+		queuedKey = append(store.Key(nil), k...)
 		return &store.Error{Msg: "ok", Code: store.StopIteration}
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if job == nil {
-		return nil, errors.New("no more job available")
+		return nil, nil, errors.New("no more job available")
 	}
+	return job, queuedKey, nil
+}
 
-	kb, _ := hex.DecodeString(job.Key)
-	if err := s.mdb.Delete(kb); err != nil {
+func (s *ApiServer) dequeJob() (*pb.FeedJob, error) {
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
+
+	job, queuedKey, err := s.peekQueuedJob()
+	if err != nil {
+		return nil, err
+	}
+	if err := s.mdb.Delete(queuedKey); err != nil {
 		return nil, err
 	}
 	return job, nil

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"path/filepath"
@@ -168,6 +169,116 @@ func (s *RpcTestSuite) TestEnqueJobReportsError() {
 	// because pebble panics (rather than errors) on a closed instance.
 	_, err := s.srv.EnqueJob(context.Background(), &pb.FeedJob{Id: "\xff"})
 	assert.NotNil(s.T(), err)
+}
+
+func (s *RpcTestSuite) TestGetFeedJobMarshalFailureKeepsQueuedJob() {
+	ctx := context.Background()
+	queued, err := s.srv.EnqueJob(ctx, &pb.FeedJob{Id: "keep-me"})
+	s.Require().NoError(err)
+	queuedKey := queued.Key
+
+	// Invalid UTF-8 in a protobuf string makes marshaling the running record
+	// fail. The queued record must remain claimable.
+	_, err = s.srv.GetFeedJob(ctx, &pb.Worker{Id: "\xff"})
+	s.Require().Error(err)
+
+	jobs, err := s.srv.ListJobQueue(model.TableJobFeed)
+	s.Require().NoError(err)
+	s.Require().Len(jobs, 1)
+	s.Equal("keep-me", jobs[0].Id)
+	s.Equal(queuedKey, jobs[0].Key)
+
+	running, err := s.srv.ListJobQueue(model.TableJobRunning)
+	s.Require().NoError(err)
+	s.Empty(running)
+}
+
+func (s *RpcTestSuite) TestGetFeedJobConcurrentClaimIsUnique() {
+	ctx := context.Background()
+	_, err := s.srv.EnqueJob(ctx, &pb.FeedJob{Id: "only-job"})
+	s.Require().NoError(err)
+
+	const consumers = 2
+	results := make(chan *pb.FeedJob, consumers)
+	errs := make(chan error, consumers)
+	var wg sync.WaitGroup
+	wg.Add(consumers)
+	for i := 0; i < consumers; i++ {
+		go func(workerID string) {
+			defer wg.Done()
+			job, err := s.srv.GetFeedJob(ctx, &pb.Worker{Id: workerID})
+			results <- job
+			errs <- err
+		}(fmt.Sprintf("worker-%d", i))
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	successes := 0
+	failures := 0
+	for err := range errs {
+		if err == nil {
+			successes++
+		} else {
+			failures++
+		}
+	}
+	s.Equal(1, successes)
+	s.Equal(1, failures)
+
+	claimed := 0
+	for job := range results {
+		if job != nil {
+			claimed++
+			s.Equal("only-job", job.Id)
+		}
+	}
+	s.Equal(1, claimed)
+
+	queued, err := s.srv.ListJobQueue(model.TableJobFeed)
+	s.Require().NoError(err)
+	s.Empty(queued)
+	running, err := s.srv.ListJobQueue(model.TableJobRunning)
+	s.Require().NoError(err)
+	s.Require().Len(running, 1)
+	s.Equal("only-job", running[0].Id)
+}
+
+func (s *RpcTestSuite) TestGetFeedJobPreservesQueueOrderAndRunningFields() {
+	ctx := context.Background()
+	first, err := s.srv.EnqueJob(ctx, &pb.FeedJob{Id: "first"})
+	s.Require().NoError(err)
+	firstQueuedKey := first.Key
+	_, err = s.srv.EnqueJob(ctx, &pb.FeedJob{Id: "second"})
+	s.Require().NoError(err)
+
+	claimed, err := s.srv.GetFeedJob(ctx, &pb.Worker{Id: "worker-order"})
+	s.Require().NoError(err)
+	s.Equal("first", claimed.Id)
+	s.Equal("worker-order", claimed.Worker)
+	s.NotEqual(firstQueuedKey, claimed.Key)
+	s.NotZero(claimed.Created)
+	s.NotZero(claimed.Updated)
+
+	next, err := s.srv.GetFeedJob(ctx, &pb.Worker{Id: "worker-order"})
+	s.Require().NoError(err)
+	s.Equal("second", next.Id)
+}
+
+func (s *RpcTestSuite) TestGetFeedJobCorruptQueuedRecordStaysQueued() {
+	key := store.NewFlakeKey(model.TableJobFeed, s.srv.mdb.NextId())
+	s.Require().NoError(s.srv.mdb.Put(key.Bytes(), []byte{0xff}))
+
+	_, err := s.srv.GetFeedJob(context.Background(), &pb.Worker{Id: "worker"})
+	s.Require().Error(err)
+
+	raw, err := s.srv.mdb.Get(key.Bytes())
+	s.Require().NoError(err)
+	s.Equal([]byte{0xff}, raw)
+	running, err := s.srv.ListJobQueue(model.TableJobRunning)
+	s.Require().NoError(err)
+	s.Empty(running)
 }
 
 func (s *RpcTestSuite) TestRedoFailedJobCommandError() {

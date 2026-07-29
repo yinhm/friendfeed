@@ -32,6 +32,7 @@ var logger *logrus.Logger
 type ApiServer struct {
 	sync.RWMutex
 	profileUpdateMu sync.Mutex
+	jobMu           sync.Mutex
 
 	// meta database
 	mdb *store.Store

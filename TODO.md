@@ -4,7 +4,7 @@
 
 > `model/like.go`、`model/like_test.go`、`server/server_test.go` 中的 “TODO.md Step N” 指已经完成的 comment principal 加固计划，不指向本文。
 
-## 1. Job queue 原子 claim 与独立锁
+## 1. Job queue 原子 claim 与独立锁（已完成，2026-07-29）
 
 ### 已确认问题
 
@@ -14,14 +14,14 @@
 
 ### 实施
 
-- [ ] 先补 characterization test，锁定空队列、正常 claim、损坏 job、running job 字段和队列顺序。
-- [ ] 为 `ApiServer` 增加独立 `jobMu`；`GetFeedJob` 不再占用保护 feed cache 的全局锁。
-- [ ] 确认并保持 `cached` map 在构造完成后不可变；`IndexJobTicker`、`FetchFeed` 只并发读取 map，不使用 `jobMu` 保护它。未来若支持动态增删 cache，必须另设 `cacheMu` 并统一保护所有访问点。
-- [ ] 在 `jobMu` 内完成 queued job 选择、running job 编码和 key 生成。
-- [ ] 使用一次 `store.ApplyBatch` 原子删除 queued key并写入 running key。
-- [ ] callback 返回错误时 queued job 保持不变，不能产生 running 残片。
-- [ ] 补并发测试：两个 consumer 竞争一个 job 时只能一个成功；不同 job 不重复领取。
-- [ ] 确认 `EnqueJob`、`FinishJob`、`RedoFailedJob` 的既有导出 API 和持久化 key 编码不变。
+- [x] characterization test 锁定空队列、正常 claim、损坏 job、running job 字段和队列顺序。
+- [x] 为 `ApiServer` 增加独立 `jobMu`；`GetFeedJob` 不再占用保护 feed cache 的全局锁。
+- [x] 确认并保持 `cached` map 在构造完成后不可变；`IndexJobTicker`、`FetchFeed` 只并发读取 map，不使用 `jobMu` 保护它。未来若支持动态增删 cache，必须另设 `cacheMu` 并统一保护所有访问点。
+- [x] 在 `jobMu` 内完成 queued job 选择、running job 编码和 key 生成。
+- [x] 使用一次 `store.ApplyBatch` 原子删除 queued key并写入 running key。
+- [x] claim 准备或提交失败时 queued job 保持不变，不产生 running 残片。
+- [x] 并发测试证明两个 consumer 竞争一个 job 时只能一个成功，FIFO job 不重复领取。
+- [x] `EnqueJob`、`FinishJob`、`RedoFailedJob` 的既有导出 API 和持久化 key 编码保持不变。
 
 ### 不做
 
