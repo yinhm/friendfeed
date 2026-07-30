@@ -25,10 +25,12 @@
 
 ## Plate 与组件
 
-- Plate/Slate 按兼容版本整体升级，不拆开碰运气；先读 `PLATE_MIGRATION.md` 和契约测试。
+- Plate/Slate 按兼容版本整体升级，不拆开碰运气；以锁文件、peer 依赖图和契约测试为准。
 - Shift+Enter 软换行、图片 Backspace 先选中、H1-H6 exit-break、reset rules 都已有行为测试，不得静默回退。
-- `cn`/`withProps` 来自 `components/cn`；`withRef`/`createPrimitiveElement` 来自 `platejs/react`；不重新引入 `@udecode/*`。
-- plate-ui 组件已迁移到 Plate 49 官方 registry 风格：普通函数组件 + `PlateElement`/`PlateLeaf` + `cn`（React 19 ref-as-prop）。新组件照此写法，参考 `https://platejs.org/r/<name>.json`；不再使用 `withCn`/`withVariants` 包装。
+- Plate 53 的 Markdown 快捷输入由各功能插件的 `inputRules` 和本地 `MarkdownShortcutsPlugin` 提供；不要重新引入已经失效的 `@platejs/autoformat`。
+- blockquote 的新持久化形状是 `blockquote > p`；必须继续读取、渲染并序列化旧的扁平 blockquote，首次编辑可规范化为新形状。
+- `cn`/`withProps` 来自 `components/cn`；不重新引入 `@udecode/*`。
+- plate-ui 组件采用当前官方 registry 风格：普通函数组件 + `PlateElement`/`PlateLeaf` + `cn`（React 19 ref-as-prop）。新组件照此写法，参考 `https://platejs.org/r/<name>.json`；不再使用 `withCn`/`withVariants` 包装。
 - 稳定组件不做无收益的机械改写；组件改动必须先补当前实现的行为测试。
 
 ## 类型、测试与 E2E

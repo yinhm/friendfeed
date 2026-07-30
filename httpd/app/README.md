@@ -7,25 +7,24 @@ assets; this app only produces the JS/CSS bundle.
 
 ```
 pnpm install
-pnpm build     # vite build + publish to ../static (bundle.min.js/css)
+pnpm run build # Vite build, verification and publish to ../static
 pnpm dev       # vite build --watch (development mode, sourcemaps)
 pnpm test      # vitest
 ```
 
 ## How it integrates
 
-- `vite build` emits `build/static/js/bundle.min.js` and `build/static/css/bundle.min.css`
-  (single self-contained ESM bundle; the Go templates load it with
-  `<script type="module">`).
-- `scripts/publish-build.mjs` copies `build/static/*` into `../static/` and
-  copies those files to `../static`, which the Go binary embeds and serves in
-  production.
+- Vite emits content-hashed entry, editor and CSS assets under
+  `build/static/`, plus `build/static/manifest.json`. Go templates resolve
+  asset URLs through that manifest.
+- `scripts/publish-build.mjs` replaces generated files under `../static/`
+  while preserving the hand-written `../static/css/style.css`. The Go binary
+  embeds and serves the published directory in production.
 - In Go debug mode (`httpd -d`) the templates instead serve the files under
   `build/static/` directly. `air` (see `.air.toml`) reruns `yarn build` on
   file changes.
 
-For plate UI components:
-
-```
-pnpx @udecode/plate-ui@latest init
-```
+Plate UI components follow the current registry structure documented in
+`../AGENTS.md`. Use `https://platejs.org/r/<name>.json` as a reference and
+preserve the local behavior and visual tokens instead of replacing files
+blindly.
