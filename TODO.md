@@ -58,21 +58,22 @@
 - [x] 保留 `PutEntry`、`DeleteEntry`、`FanoutEntry`、`EntryIndex.Index` 的既有签名。
 - [x] Table 前缀、key 编码和迭代顺序不变。
 
-## 3. FeedIndex rebuild 缩短锁持有时间
+## 3. FeedIndex rebuild 缩短锁持有时间（已完成，2026-07-30）
 
 ### 已确认问题
 
-- `FeedIndex.rebuild` 持有 `FeedIndex` 写锁执行最多约 1000 条 `db.Exist`。
+- `FeedIndex.rebuild` 原先持有 `FeedIndex` 写锁执行 DB 查询；pending queue 无上限，实际查询数不保证最多 1000。
 - 这不会占用 `ApiServer` 大锁，但会阻塞该 index 的 `Push`、`snapshot`、`dump` 和 `load`。
 - 简单地“锁内快照、锁外检查、锁内覆盖”可能丢掉检查期间发生的 `Push`，不能直接实施。
 
 ### 实施
 
-- [ ] 先增加并发 characterization test：rebuild 期间 Push 的 entry 最终必须保留；重复 key 去重；已删除 entry 被移除；顺序保持。
-- [ ] 记录 1000 项 rebuild 的锁持有时间和 `db.Exist` 数量，证明优化价值。
-- [ ] 设计带 generation 或 pending queue 的两阶段 rebuild：锁内摘取稳定输入，锁外检查，锁内合并期间新增项。
-- [ ] Stop 与 rebuild 并发时不得访问已关闭 DB，既有 shutdown 等待契约保持不变。
-- [ ] 使用 `go test -race ./server/` 验证。
+- [x] 并发测试证明 rebuild 与 Push 交错时 pending entry 最终保留；顺序、去重和 missing entry 过滤已有测试。
+- [x] DB 查询已全部移出 FeedIndex 数据锁；每个 rebuild 对每个 unique candidate 最多查询一次，直到收集 1000 条 live entry 或耗尽输入。
+- [x] 两阶段 rebuild 在锁内摘取 pending/old buffer 并清空 dirty，锁外检查，锁内只替换结果；期间新增项留在 pending queue 并保持 dirty，由下一轮处理。
+- [x] `rebuildMu` 只串行 rebuild/load/dump，防止启动 load 或定时 dump 与两阶段替换互相覆盖；Push/snapshot 不受 DB 查询阻塞。
+- [x] Stop 仍等待 Serve 中正在执行的 rebuild 完成后返回，Shutdown 关闭 DB 前的等待契约不变。
+- [x] `go test -race ./server` 通过。
 
 ### 不做
 

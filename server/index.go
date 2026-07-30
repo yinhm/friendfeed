@@ -18,6 +18,7 @@ const MinQueue = 1000
 
 type FeedIndex struct {
 	sync.RWMutex
+	rebuildMu sync.Mutex
 	Id        string
 	Uuid      uuid.UUID
 	bufq      []string
@@ -94,68 +95,81 @@ func (f *FeedIndex) remove(i int) {
 }
 
 func (f *FeedIndex) rebuild(db *store.Store) {
+	// Serve has one caller, but tests and maintenance code may invoke rebuild
+	// directly. Serialize rebuild cycles without holding the data lock across
+	// Pebble reads.
+	f.rebuildMu.Lock()
+	defer f.rebuildMu.Unlock()
+
 	f.Lock()
-	defer f.Unlock()
 	if !f.dirty {
+		f.Unlock()
 		return
 	}
 
-	oldbuf := make([]string, MinQueue)
+	oldbuf := make([]string, len(f.bufq))
 	copy(oldbuf, f.bufq)
 
-	f.bufq = make([]string, MinQueue)
-	index := make(map[string]struct{})
-
-	i := 0
-	for j := 0; j < f.iq.Length(); j++ {
-		item := f.iq.Get(f.iq.Length() - j - 1).(string)
-
-		// skip deleted entry
-		kb, _ := hex.DecodeString(item)
-		if db != nil && !db.Exist(kb) {
-			logger.Debugf("skip key: %s", item)
-			continue
-		}
-
-		if _, ok := index[item]; !ok {
-			index[item] = struct{}{}
-			f.bufq[i] = item
-			i++
-		}
-		if i == MinQueue {
-			break
-		}
+	pending := make([]string, f.iq.Length())
+	for i := range pending {
+		pending[i] = f.iq.Get(f.iq.Length() - i - 1).(string)
 	}
-
-	// TODO: should we shrink queue cap?
 	for f.iq.Length() > 0 {
 		f.iq.Remove()
 	}
+	// A Push or markDirty during the lock-free phase sets dirty again and is
+	// intentionally handled by the next rebuild.
+	f.dirty = false
+	f.Unlock()
 
-	for j := 0; j < len(oldbuf) && i < MinQueue; j++ {
-		item := oldbuf[j]
-		if item == "" {
-			break
+	rebuilt := rebuildFeedBuffer(db, pending, oldbuf)
+
+	f.Lock()
+	f.bufq = rebuilt
+	f.Unlock()
+}
+
+func rebuildFeedBuffer(db *store.Store, pending, oldbuf []string) []string {
+	bufq := make([]string, MinQueue)
+	index := make(map[string]struct{})
+
+	i := 0
+	appendItem := func(item string) bool {
+		if _, ok := index[item]; ok {
+			return false
 		}
+		index[item] = struct{}{}
 
 		// skip deleted entry
 		kb, _ := hex.DecodeString(item)
 		if db != nil && !db.Exist(kb) {
 			logger.Debugf("skip key: %s", item)
-			continue
+			return false
 		}
 
-		if _, ok := index[item]; !ok {
-			index[item] = struct{}{}
-			f.bufq[i] = item
-			i++
-		}
-		if i == MinQueue {
+		bufq[i] = item
+		i++
+		return i == MinQueue
+	}
+
+	for _, item := range pending {
+		if appendItem(item) {
 			break
 		}
 	}
 
-	f.dirty = false
+	for _, item := range oldbuf {
+		if i == MinQueue {
+			break
+		}
+		if item == "" {
+			break
+		}
+		if appendItem(item) {
+			break
+		}
+	}
+	return bufq
 }
 
 func (f *FeedIndex) snapshot() []string {
@@ -168,6 +182,8 @@ func (f *FeedIndex) snapshot() []string {
 }
 
 func (f *FeedIndex) load(db *store.Store) error {
+	f.rebuildMu.Lock()
+	defer f.rebuildMu.Unlock()
 	f.Lock()
 	defer f.Unlock()
 
@@ -192,6 +208,8 @@ func (f *FeedIndex) load(db *store.Store) error {
 }
 
 func (f *FeedIndex) dump(db *store.Store) error {
+	f.rebuildMu.Lock()
+	defer f.rebuildMu.Unlock()
 	f.Lock()
 	defer f.Unlock()
 
