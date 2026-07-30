@@ -35,7 +35,7 @@
 - `mirrorMedia` 链路不可删除。未来实现应补全 `Mirror(Fetch+Post)`，并在 `PutEntry` 前完成 URL 改写和持久化。
 - `ArchiveFeed`/`ForceArchiveFeed` 不再做内部重构；若退役，先确认部署、抓取和迁移依赖，再整体处理协议。
 - 注释中的迁移、排障、备用 SSR 路径和调试代码要保留；先提供等价的可参数化诊断能力，不能以“已注释/零引用”为由批量删除。
-- 不机械处理以下未决项：feed/search 分页协议、股票 gob schema、job 公共抽象、key API、linkify、Twitter Entry/Tweet 模型、日志框架统一、Fabric 1 迁移、Python 依赖锁定。
+- 不机械处理以下未决项：feed/search 分页协议、股票 gob schema、job 公共抽象、key API、linkify、Twitter Entry/Tweet 模型、日志框架统一、Fabric 1 迁移、Python 依赖锁定。分页必须覆盖 cached/profile/timeline/search 及全部消费方统一设计，当前协议和返回数量不允许局部调整。
 - `--debug`、Fabric task、Python 模块级函数和配置数据属于外部接口；即使当前仓库未调用也不能直接删除。
 
 ## 修改原则

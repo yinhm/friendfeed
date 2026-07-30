@@ -18,7 +18,7 @@
 
 ## 协议、数据与服务模型
 
-- **feed/search 分页**：当前使用 `PageSize+1` 探测下一页，存在多展示一条及翻页重复风险。需决定扩展 `pb.Feed` 的 `has_more/next` 元数据，或在 httpd 计算分页后统一截断。
+- **feed/search 分页**：当前协议与返回数量不允许局部调整。`cachedFeed`、profile feed、timeline、search 及 httpd 模板/JSON 消费方必须在同一任务中完成现状审计、协议选择、兼容迁移和回归测试；在统一方案确定前，不修改 `Start/PageSize`、`PageSize+1`、缺失 entry 处理或 protobuf 分页字段。
 - **股票存储**：`GetStockList`/`GetStock` 当前读取整表 gob。按 symbol 建索引会改变 schema 和迁移要求，必须结合股票数据模型整体设计。
 - **job 公共抽象**：合并 `PurgeJobs`/`FixTooMuchJobs`、`TestJob`/`RefetchUserFeed` 前，先明确双表错误处理、计数、profile/service 选择和时间戳语义。
 - **key API**：需要统一 model/store 的 key 构造与解析规则，尤其是“合法 hex 自动解码，否则原样返回”的模糊语义；不能通过新增包装函数回避设计。

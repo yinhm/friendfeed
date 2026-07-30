@@ -80,18 +80,7 @@
 - 不改变 `MinQueue`、队列容量或 public index 持久化格式。
 - 不顺带重写 FeedIndex 数据结构。
 
-## 4. 分页行为 characterization
-
-当前 `cachedFeed`、`ForwardFetchFeed` 和 `Search` 的停止条件不一致，均可能返回 `PageSize+1`。协议方案仍在 `OPEN_DECISIONS.md`，本项只收集事实，不提前选择新协议。
-
-- [ ] 分别锁定 cached public feed、profile feed、timeline 和 search 的 `Start/PageSize` 当前返回数量及边界。
-- [ ] 覆盖 `PageSize <= 0`、`PageSize >= 100`、最后一页和缺失 entry。
-- [ ] 记录 httpd 模板/JSON 消费方是否依赖额外一条探测 next page。
-- [ ] 将测试证据写入 `OPEN_DECISIONS.md`，再决定统一截断还是扩展分页元数据。
-
-本项不修改 protobuf，不在决策前改变线上返回数量。
-
-## 5. 关闭路径 characterization
+## 4. 关闭路径 characterization
 
 - [ ] 补 Store 并发 Close 测试，确认 `closed` 数据竞争和 Pebble 重复 Close 的实际行为。
 - [ ] 补 ApiServer Shutdown 后内部直接调用路径测试，区分生产 gRPC `GracefulStop` 已保护的路径与测试/内部误用。
