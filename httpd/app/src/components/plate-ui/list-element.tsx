@@ -1,8 +1,7 @@
-import React from 'react';
-import { withRef } from 'platejs/react';
-import { withVariants } from 'components/cn';
-import { PlateElement } from 'platejs/react';
-import { cva } from 'class-variance-authority';
+import { type VariantProps, cva } from 'class-variance-authority';
+import { type PlateElementProps, PlateElement } from 'platejs/react';
+
+import { cn } from 'components/cn';
 
 const listVariants = cva('m-0 ps-6', {
   variants: {
@@ -13,16 +12,19 @@ const listVariants = cva('m-0 ps-6', {
   },
 });
 
-const ListElementVariants = withVariants(PlateElement, listVariants, [
-  'variant',
-]);
-
-export const ListElement = withRef<typeof ListElementVariants>(
-  ({ className: _className, children, variant = 'ul', ...props }, ref) => {
-    return (
-      <ListElementVariants ref={ref} as={variant ?? 'ul'} variant={variant} {...props}>
-        {children}
-      </ListElementVariants>
-    );
-  }
-);
+export function ListElement({
+  className,
+  variant = 'ul',
+  children,
+  ...props
+}: PlateElementProps & VariantProps<typeof listVariants>) {
+  return (
+    <PlateElement
+      as={variant ?? 'ul'}
+      className={cn(listVariants({ variant }), className)}
+      {...props}
+    >
+      {children}
+    </PlateElement>
+  );
+}

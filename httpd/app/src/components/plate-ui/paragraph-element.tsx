@@ -1,4 +1,9 @@
-import { withCn } from 'components/cn';
-import { PlateElement } from 'platejs/react';
+import { type PlateElementProps, PlateElement } from 'platejs/react';
 
-export const ParagraphElement = withCn(PlateElement, 'm-0 px-0 py-1');
+import { cn } from 'components/cn';
+
+export function ParagraphElement({ className, ...props }: PlateElementProps) {
+  return (
+    <PlateElement className={cn('m-0 px-0 py-1', className)} {...props} />
+  );
+}

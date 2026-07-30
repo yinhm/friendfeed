@@ -1,15 +1,20 @@
-import React from 'react';
-import { withRef } from 'platejs/react';
-import { cn } from 'components/cn';
-import { PlateElement } from 'platejs/react';
-import { useFocused, useSelected } from 'slate-react';
+import {
+  type PlateElementProps,
+  PlateElement,
+  useFocused,
+  useSelected,
+} from 'platejs/react';
 
-export const MentionInputElement = withRef<
-  typeof PlateElement,
-  {
-    onClick?: (mentionNode: any) => void;
-  }
->(({ attributes, className, onClick, ...props }, ref) => {
+import { cn } from 'components/cn';
+
+export function MentionInputElement({
+  attributes,
+  className,
+  onClick,
+  ...props
+}: PlateElementProps & {
+  onClick?: (mentionNode: any) => void;
+}) {
   const { children, element } = props;
 
   const selected = useSelected();
@@ -17,7 +22,6 @@ export const MentionInputElement = withRef<
 
   return (
     <PlateElement
-      ref={ref}
       as="span"
       data-slate-value={element.value}
       attributes={{
@@ -34,4 +38,4 @@ export const MentionInputElement = withRef<
       {children}
     </PlateElement>
   );
-});
+}

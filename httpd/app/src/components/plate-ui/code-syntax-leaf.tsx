@@ -1,19 +1,15 @@
 'use client';
 
-import React from 'react';
-import { withRef } from 'platejs/react';
-import { PlateLeaf } from 'platejs/react';
+import { type PlateLeafProps, PlateLeaf } from 'platejs/react';
 
-export const CodeSyntaxLeaf = withRef<typeof PlateLeaf>(
-  ({ children, ...props }, ref) => {
-    const { leaf } = props;
+export function CodeSyntaxLeaf({ children, ...props }: PlateLeafProps) {
+  const { leaf } = props;
 
-    return (
-      <PlateLeaf ref={ref} {...props}>
-        <span className={`prism-token token ${leaf.tokenType ?? ''}`}>
-          {children}
-        </span>
-      </PlateLeaf>
-    );
-  }
-);
+  return (
+    <PlateLeaf {...props}>
+      <span className={`prism-token token ${(leaf.tokenType as string) ?? ''}`}>
+        {children}
+      </span>
+    </PlateLeaf>
+  );
+}

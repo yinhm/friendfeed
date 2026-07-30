@@ -1,8 +1,7 @@
-import React from 'react';
-import { withRef } from 'platejs/react';
-import { withVariants } from 'components/cn';
-import { PlateElement } from 'platejs/react';
-import { cva } from 'class-variance-authority';
+import { type VariantProps, cva } from 'class-variance-authority';
+import { type PlateElementProps, PlateElement } from 'platejs/react';
+
+import { cn } from 'components/cn';
 
 const headingVariants = cva('', {
   variants: {
@@ -21,27 +20,30 @@ const headingVariants = cva('', {
   },
 });
 
-const HeadingElementVariants = withVariants(PlateElement, headingVariants, [
-  'isFirstBlock',
-  'variant',
-]);
+export function HeadingElement({
+  className,
+  variant,
+  isFirstBlock: _isFirstBlock,
+  children,
+  ...props
+}: PlateElementProps & VariantProps<typeof headingVariants>) {
+  const { editor, element } = props;
 
-export const HeadingElement = withRef<typeof HeadingElementVariants>(
-  ({ variant, isFirstBlock: _isFirstBlock, children, ...props }, ref) => {
-    const { element, editor } = props;
+  const Element = (variant ?? element.type) as keyof HTMLElementTagNameMap;
 
-    const Element = (variant ?? element.type) as keyof HTMLElementTagNameMap;
-
-    return (
-      <HeadingElementVariants
-        ref={ref}
-        as={Element}
-        variant={variant}
-        isFirstBlock={element === editor.children[0]}
-        {...props}
-      >
-        {children}
-      </HeadingElementVariants>
-    );
-  }
-);
+  return (
+    <PlateElement
+      as={Element}
+      className={cn(
+        headingVariants({
+          isFirstBlock: element === editor.children[0],
+          variant,
+        }),
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </PlateElement>
+  );
+}
