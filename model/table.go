@@ -2,12 +2,15 @@ package model
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/store/flake"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -103,14 +106,34 @@ func (t *Table) Index(db *store.Store, indexUUID uuid.UUID, oldtime time.Time, e
 	flakeid := db.TimeTravelReverseId(oldtime)
 	k := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeid)
 
-	// remove the last 8 bytes(Worker ID (MAC addr) + Seqn)
-	iEnd := k.Len() - 8
-	db.ForwardScan(k.Bytes()[:iEnd], func(i int, k, v []byte) error {
+	if _, err := db.ForwardScan(entryIndexTimestampPrefix(k), func(i int, k, v []byte) error {
 		// log.Printf("db.Delete(%x, %x)", k, v)
 		return db.Delete(k)
-	})
+	}); err != nil {
+		return fmt.Errorf("remove existing entry index: %w", err)
+	}
 
 	return db.Put(k.Bytes(), entryKey)
+}
+
+// indexBatch preserves Index's key encoding and duplicate-removal semantics
+// while adding its mutations to the caller's atomic batch.
+func (t *Table) indexBatch(db *store.Store, batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
+	flakeid := db.TimeTravelReverseId(oldtime)
+	k := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeid)
+
+	if _, err := db.ForwardScan(entryIndexTimestampPrefix(k), func(i int, oldKey, v []byte) error {
+		return batch.Delete(oldKey, nil)
+	}); err != nil {
+		return fmt.Errorf("remove existing entry index: %w", err)
+	}
+	return batch.Set(k.Bytes(), entryKey, nil)
+}
+
+func entryIndexTimestampPrefix(k *store.UUIDFlakeKey) []byte {
+	var layout flake.Generator
+	uniquenessSuffixSize := len(layout.WorkerId) + binary.Size(layout.Sequence)
+	return k.Bytes()[:k.Len()-uniquenessSuffixSize]
 }
 
 func (t *Table) RemoveIndex(db *store.Store, indexUUID uuid.UUID, oldtime time.Time) error {

@@ -204,6 +204,96 @@ func (s *TableTestSuite) TestFanoutEntryAndDeleteFanoutEntry() {
 	assert.Equal(s.T(), 0, s.countEntryIndex(followerTimeline))
 }
 
+func (s *TableTestSuite) TestUpdateFollowerTimelinesPropagatesUpdateError() {
+	feedUUID := uuid.Must(uuid.NewV4())
+	followerUUID := uuid.Must(uuid.NewV4())
+	followerKey := NewKeyFrom(Follower.Prefix, feedUUID.Bytes(), followerUUID.Bytes())
+	assert.NoError(s.T(), s.db.Put(followerKey, []byte("1")))
+
+	wantErr := errors.New("timeline update failed")
+	n, err := updateFollowerTimelines(s.db, feedUUID, func(uuid.UUID) error {
+		return wantErr
+	})
+	assert.Zero(s.T(), n)
+	assert.ErrorIs(s.T(), err, wantErr)
+}
+
+func (s *TableTestSuite) TestPutDeleteEntryMaintainsAuthorTimeline() {
+	authorUUID := uuid.Must(uuid.NewV4())
+	entryUUID := uuid.Must(uuid.NewV4())
+	entry := &pb.Entry{
+		Id:          entryUUID.String(),
+		Date:        time.Now().UTC().Truncate(time.Second).Format(time.RFC3339),
+		ProfileUuid: authorUUID.String(),
+		From:        &pb.Feed{Uuid: authorUUID.String(), Id: "author"},
+	}
+
+	_, err := PutEntry(s.db, entry)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), 1, s.countEntryIndex(authorUUID))
+	assert.Equal(s.T(), 1, s.countEntryIndex(TimelineUUID(authorUUID)))
+
+	assert.NoError(s.T(), DeleteEntry(s.db, entryUUID.String()))
+	assert.Equal(s.T(), 0, s.countEntryIndex(authorUUID))
+	assert.Equal(s.T(), 0, s.countEntryIndex(TimelineUUID(authorUUID)))
+}
+
+func (s *TableTestSuite) TestPutEntryValidationFailureDoesNotPersistEntry() {
+	authorUUID := uuid.Must(uuid.NewV4())
+	entryUUID := uuid.Must(uuid.NewV4())
+	_, err := PutEntry(s.db, &pb.Entry{
+		Id:          entryUUID.String(),
+		Date:        "not-rfc3339",
+		ProfileUuid: authorUUID.String(),
+	})
+	assert.Error(s.T(), err)
+
+	_, err = GetEntry(s.db, entryUUID.String())
+	assert.ErrorIs(s.T(), err, ErrNotFound)
+	assert.Equal(s.T(), 0, s.countEntryIndex(authorUUID))
+	assert.Equal(s.T(), 0, s.countEntryIndex(TimelineUUID(authorUUID)))
+}
+
+func (s *TableTestSuite) TestPutDeleteGroupEntryMaintainsAllIndexes() {
+	authorUUID := uuid.Must(uuid.NewV4())
+	groupUUID := uuid.Must(uuid.NewV4())
+	followerUUID := uuid.Must(uuid.NewV4())
+	entryUUID := uuid.Must(uuid.NewV4())
+	followerKey := NewKeyFrom(Follower.Prefix, groupUUID.Bytes(), followerUUID.Bytes())
+	assert.NoError(s.T(), s.db.Put(followerKey, []byte("1")))
+
+	entry := &pb.Entry{
+		Id:          entryUUID.String(),
+		Date:        time.Now().UTC().Truncate(time.Second).Format(time.RFC3339),
+		ProfileUuid: authorUUID.String(),
+		FeedUuid:    groupUUID.String(),
+		From:        &pb.Feed{Uuid: authorUUID.String(), Id: "author"},
+	}
+	authorTimeline := TimelineUUID(authorUUID)
+	followerTimeline := TimelineUUID(followerUUID)
+
+	_, err := PutEntry(s.db, entry)
+	assert.NoError(s.T(), err)
+	for name, indexUUID := range map[string]uuid.UUID{
+		"author":            authorUUID,
+		"group":             groupUUID,
+		"author timeline":   authorTimeline,
+		"follower timeline": followerTimeline,
+	} {
+		assert.Equal(s.T(), 1, s.countEntryIndex(indexUUID), name)
+	}
+
+	assert.NoError(s.T(), DeleteEntry(s.db, entryUUID.String()))
+	for name, indexUUID := range map[string]uuid.UUID{
+		"author":            authorUUID,
+		"group":             groupUUID,
+		"author timeline":   authorTimeline,
+		"follower timeline": followerTimeline,
+	} {
+		assert.Equal(s.T(), 0, s.countEntryIndex(indexUUID), name)
+	}
+}
+
 func (s *TableTestSuite) countEntryIndex(timelineUUID uuid.UUID) int {
 	n, err := s.db.ForwardScan(store.NewUUIDKey(TableEntryIndex, timelineUUID).Bytes(), func(i int, k, v []byte) error {
 		return nil

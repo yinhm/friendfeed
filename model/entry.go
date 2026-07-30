@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
@@ -27,34 +29,44 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	// unique key:
 	// | table | entry uuid |
 
-	// force full update
 	entryUuid, err := uuid.FromString(entry.Id)
 	if err != nil {
 		return nil, err
 	}
-	key, err := Entry.Put(db, entryUuid.Bytes(), entry)
-	if err != nil {
-		return nil, err
-	}
-
-	// index entry key
 	oldtime, err := time.Parse(time.RFC3339, entry.Date)
 	if err != nil {
 		return nil, err
 	}
-	err = EntryIndex.Index(db, userUuid, oldtime, key)
+	encodedEntry, err := proto.Marshal(entry)
 	if err != nil {
 		return nil, err
 	}
-	if userUuid != feedUuid { // post to group
-		err = EntryIndex.Index(db, feedUuid, oldtime, key)
-		if err != nil {
-			return nil, err
+
+	// Keep the entry record and its direct author/group indexes consistent.
+	// Timeline fanout remains outside this batch because follower count is
+	// unbounded and must not inflate one synchronous Pebble commit.
+	key := Entry.PrefixAppend(entryUuid.Bytes())
+	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := batch.Set(key, encodedEntry, nil); err != nil {
+			return fmt.Errorf("write entry: %w", err)
 		}
+		if err := EntryIndex.indexBatch(db, batch, userUuid, oldtime, key); err != nil {
+			return fmt.Errorf("index entry for author: %w", err)
+		}
+		if userUuid != feedUuid {
+			if err := EntryIndex.indexBatch(db, batch, feedUuid, oldtime, key); err != nil {
+				return fmt.Errorf("index entry for feed: %w", err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	// fanout to feed followers(user timeline)
-	FanoutEntry(db, userUuid, feedUuid, oldtime, key)
+	if _, err := FanoutEntry(db, userUuid, feedUuid, oldtime, key); err != nil {
+		return nil, fmt.Errorf("fanout entry: %w", err)
+	}
 
 	// index entry body
 	if entry.Body != "" {
@@ -68,11 +80,17 @@ func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time, entryKey store.Key) (n int, err error) {
 	fanOutToTimeline := TimelineUUID(userUuid)
 	// fmt.Println(hex.EncodeToString(fanOutToTimeline.Bytes()))
-	EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey)
+	if err := EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey); err != nil {
+		return 0, fmt.Errorf("index author timeline: %w", err)
+	}
 
-	return updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
+	n, err = updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
 		return EntryIndex.Index(db, timelineUuid, oldtime, entryKey)
 	})
+	if err != nil {
+		return n, fmt.Errorf("index follower timeline: %w", err)
+	}
+	return n, nil
 }
 
 func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
@@ -113,17 +131,26 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 	if err != nil {
 		return err
 	}
-	EntryIndex.RemoveIndex(db, profileUuid, oldtime)
+	if err := EntryIndex.RemoveIndex(db, profileUuid, oldtime); err != nil {
+		return fmt.Errorf("remove author entry index: %w", err)
+	}
 
-	// delete group index aswell
-	if entry.FeedUuid != entry.ProfileUuid && entry.FeedUuid != "" {
-		feedUuid, err := uuid.FromString(entry.FeedUuid)
+	feedUuid := profileUuid
+	if entry.FeedUuid != "" {
+		feedUuid, err = uuid.FromString(entry.FeedUuid)
 		if err != nil {
 			return err
 		}
-		EntryIndex.RemoveIndex(db, feedUuid, oldtime)
-
-		DeleteFanoutEntry(db, profileUuid, feedUuid, oldtime)
+	}
+	if feedUuid != profileUuid {
+		if err := EntryIndex.RemoveIndex(db, feedUuid, oldtime); err != nil {
+			return fmt.Errorf("remove feed entry index: %w", err)
+		}
+	}
+	// PutEntry always writes the author timeline and fans out to the target
+	// feed's followers, including ordinary entries where both UUIDs match.
+	if _, err := DeleteFanoutEntry(db, profileUuid, feedUuid, oldtime); err != nil {
+		return fmt.Errorf("delete entry fanout: %w", err)
 	}
 
 	if err = Entry.Delete(db, entryUUID.Bytes()); err != nil {
@@ -137,11 +164,17 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 func DeleteFanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time) (n int, err error) {
 	fanOutToTimeline := TimelineUUID(userUuid)
-	EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime)
+	if err := EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime); err != nil {
+		return 0, fmt.Errorf("remove author timeline index: %w", err)
+	}
 
-	return updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
+	n, err = updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
 		return EntryIndex.RemoveIndex(db, timelineUuid, oldtime)
 	})
+	if err != nil {
+		return n, fmt.Errorf("remove follower timeline index: %w", err)
+	}
+	return n, nil
 }
 
 func updateFollowerTimelines(db *store.Store, feedUuid uuid.UUID, update func(uuid.UUID) error) (n int, err error) {

@@ -29,7 +29,7 @@
 - 不修改 protobuf RPC 或字段。
 - 不为测试增加生产 hook。
 
-## 2. Entry 写入与删除的错误边界
+## 2. Entry 写入与删除的错误边界（已完成，2026-07-29）
 
 ### 现有覆盖
 
@@ -44,18 +44,19 @@
 
 ### 第一阶段：先明确错误语义
 
-- [ ] 补测试覆盖 `PutEntry` 的 index/fanout 失败和 `DeleteEntry` 的 index/fanout 失败。
-- [ ] 明确 mutation 已部分成功时函数应返回什么错误；所有错误必须保留底层 cause。
-- [ ] 修复被忽略的错误，不改变成功路径、key 布局、索引顺序和 fanout 范围。
-- [ ] 补 group cross-post：author index、group index、author timeline、followers timeline 的完整断言。
-- [ ] 补删除后的对应反向断言。
+- [x] follower update 的底层错误传播已有直接测试；不为不可安全注入的 Pebble 写错误增加生产 hook。
+- [x] mutation 已部分成功时返回带底层 cause 的错误：PutEntry 的 core commit 已完成但 fanout 失败时允许调用方按相同 entry ID 重试；DeleteEntry 在索引/fanout 失败时不删除 entry 本体。
+- [x] 修复 `EntryIndex.Index`、`PutEntry`、`FanoutEntry`、`DeleteEntry`、`DeleteFanoutEntry` 忽略的错误，成功路径、key 布局、索引顺序和 fanout 范围不变。
+- [x] group cross-post 已覆盖 author index、group index、author timeline、followers timeline 的完整断言。
+- [x] 普通 entry 与 group cross-post 删除后的反向索引断言均已覆盖；顺带修复普通 entry 遗留 author timeline 的 bug。
 
 ### 第二阶段：评估最小原子边界
 
-- [ ] 在第一阶段测试稳定后，设计私有的 batch-aware index helper。
-- [ ] 优先原子提交 entry 本体及 author/group index；fanout 是否加入同一 batch，需根据 follower 数量和 batch 大小实测决定。
-- [ ] 保留 `PutEntry`、`DeleteEntry`、`FanoutEntry`、`EntryIndex.Index` 的既有签名与行为。
-- [ ] 不改变 Table 前缀、key 编码或迭代顺序。
+- [x] 新增私有 `indexBatch`，复用既有 key 编码和重复索引清理语义。
+- [x] entry 本体及 author/group 直接索引原子提交；fanout 因 follower 数量无上限而保留为独立阶段。
+- [x] `PutEntry` 在任何写入前完成 UUID、日期和 protobuf 校验，失败不会留下 entry 孤儿。
+- [x] 保留 `PutEntry`、`DeleteEntry`、`FanoutEntry`、`EntryIndex.Index` 的既有签名。
+- [x] Table 前缀、key 编码和迭代顺序不变。
 
 ## 3. FeedIndex rebuild 缩短锁持有时间
 
