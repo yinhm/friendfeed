@@ -78,6 +78,16 @@ div.content h1 { font-size: 1.4em; }
 div.content h2 { font-size: 1.25em; }
 div.content h3 { font-size: 1.1em; }
 
+/* Quoted blocks: left rule + indent + muted italic, matching the
+   editor's blockquote affordance. */
+div.content blockquote {
+    margin: 0.5em 0;
+    padding-left: 1em;
+    border-left: 2px solid #d1d5db;
+    color: #4b5563;
+    font-style: italic;
+}
+
 div.content img,
 .entry img {
     display: inline;
