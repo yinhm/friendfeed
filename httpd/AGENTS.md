@@ -27,8 +27,9 @@
 
 - Plate/Slate 按兼容版本整体升级，不拆开碰运气；先读 `PLATE_MIGRATION.md` 和契约测试。
 - Shift+Enter 软换行、图片 Backspace 先选中、H1-H6 exit-break、reset rules 都已有行为测试，不得静默回退。
-- `cn`/`withProps`/`withCn`/`withVariants` 来自 `components/cn`；`withRef`/`createPrimitiveElement` 来自 `platejs/react`；不重新引入 `@udecode/*`。
-- 不为统一写法迁移稳定叶子组件。组件迁移必须有用户可见收益，并先补当前实现的行为测试。
+- `cn`/`withProps` 来自 `components/cn`；`withRef`/`createPrimitiveElement` 来自 `platejs/react`；不重新引入 `@udecode/*`。
+- plate-ui 组件已迁移到 Plate 49 官方 registry 风格：普通函数组件 + `PlateElement`/`PlateLeaf` + `cn`（React 19 ref-as-prop）。新组件照此写法，参考 `https://platejs.org/r/<name>.json`；不再使用 `withCn`/`withVariants` 包装。
+- 稳定组件不做无收益的机械改写；组件改动必须先补当前实现的行为测试。
 
 ## 类型、测试与 E2E
 
