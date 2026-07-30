@@ -164,7 +164,8 @@ export function ToolbarToggleItem({
 export function ToolbarGroup({
   children,
   className,
-}: React.ComponentProps<'div'>) {
+  noSeparator,
+}: React.ComponentProps<'div'> & { noSeparator?: boolean }) {
   return (
     <div
       className={cn(
@@ -175,9 +176,11 @@ export function ToolbarGroup({
     >
       <div className="flex items-center">{children}</div>
 
-      <div className="mx-1.5 py-0.5 group-last/toolbar-group:hidden!">
-        <Separator orientation="vertical" />
-      </div>
+      {!noSeparator && (
+        <div className="mx-1.5 py-0.5 group-last/toolbar-group:hidden!">
+          <Separator orientation="vertical" />
+        </div>
+      )}
     </div>
   );
 }

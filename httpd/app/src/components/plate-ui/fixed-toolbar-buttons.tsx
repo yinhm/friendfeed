@@ -34,7 +34,7 @@ export function FixedToolbarButtons() {
               <TurnIntoDropdownMenu />
             </ToolbarGroup>
 
-            <ToolbarGroup>
+            <ToolbarGroup noSeparator>
               <MarkToolbarButton tooltip="Bold (⌘+B)" nodeType={MARK_BOLD}>
                 <Icons.bold />
               </MarkToolbarButton>
@@ -63,7 +63,7 @@ export function FixedToolbarButtons() {
 
         <div className="grow" />
 
-        <ToolbarGroup>
+        <ToolbarGroup noSeparator>
           <ModeDropdownMenu />
         </ToolbarGroup>
       </div>
