@@ -5,7 +5,12 @@ import {
   BlockquotePlugin,
   BoldPlugin,
   CodePlugin,
-  HeadingPlugin,
+  H1Plugin,
+  H2Plugin,
+  H3Plugin,
+  H4Plugin,
+  H5Plugin,
+  H6Plugin,
   HighlightPlugin,
   ItalicPlugin,
   StrikethroughPlugin,
@@ -60,7 +65,14 @@ import { CodeLeaf } from 'components/plate-ui/code-leaf';
 import { CodeLineElement } from 'components/plate-ui/code-line-element';
 import { CodeSyntaxLeaf } from 'components/plate-ui/code-syntax-leaf';
 import { EmojiInputElement } from 'components/plate-ui/emoji-input-element';
-import { HeadingElement } from 'components/plate-ui/heading-element';
+import {
+  H1Element,
+  H2Element,
+  H3Element,
+  H4Element,
+  H5Element,
+  H6Element,
+} from 'components/plate-ui/heading-element';
 import { HighlightLeaf } from 'components/plate-ui/highlight-leaf';
 import { ImageElement } from 'components/plate-ui/image-element';
 import { LinkElement } from 'components/plate-ui/link-element';
@@ -82,7 +94,15 @@ const AlignPlugin = TextAlignPlugin.extend({ key: 'align' as 'textAlign' });
 
 export const plugins = [
   ParagraphPlugin.withComponent(ParagraphElement),
-  HeadingPlugin.withComponent(HeadingElement),
+  // Register each heading level by key (official basic-blocks-kit style);
+  // override.components does not reach the composite HeadingPlugin's nested
+  // sub-plugins in Plate 49, and nothing consumes the composite "heading" key.
+  H1Plugin.withComponent(H1Element),
+  H2Plugin.withComponent(H2Element),
+  H3Plugin.withComponent(H3Element),
+  H4Plugin.withComponent(H4Element),
+  H5Plugin.withComponent(H5Element),
+  H6Plugin.withComponent(H6Element),
   BlockquotePlugin.withComponent(BlockquoteElement).extend({
     rules: {
       break: { default: 'lineBreak', empty: 'reset' },

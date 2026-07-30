@@ -8,6 +8,9 @@ import {
   ELEMENT_H1,
   ELEMENT_H2,
   ELEMENT_H3,
+  ELEMENT_H4,
+  ELEMENT_H5,
+  ELEMENT_H6,
   ELEMENT_IMAGE,
   ELEMENT_MEDIA_EMBED,
   ELEMENT_PARAGRAPH,
@@ -15,6 +18,14 @@ import {
   HEADING_KEYS,
 } from 'components/plate-plugin-keys';
 import { plugins } from 'components/plate-plugins';
+import {
+  H1Element,
+  H2Element,
+  H3Element,
+  H4Element,
+  H5Element,
+  H6Element,
+} from 'components/plate-ui/heading-element';
 import { LinkElement } from 'components/plate-ui/link-element';
 import { LinkFloatingToolbar } from 'components/plate-ui/link-floating-toolbar';
 
@@ -58,7 +69,7 @@ describe('Plate plugin configuration', () => {
     ).toEqual(
       expect.arrayContaining([
         ELEMENT_PARAGRAPH,
-        'heading',
+        ...HEADING_KEYS,
         ELEMENT_BLOCKQUOTE,
         ELEMENT_CODE_BLOCK,
         ELEMENT_IMAGE,
@@ -71,6 +82,22 @@ describe('Plate plugin configuration', () => {
         'code',
       ])
     );
+  });
+
+  it('registers heading levels by key with per-level components', () => {
+    const levelComponents = {
+      [ELEMENT_H1]: H1Element,
+      [ELEMENT_H2]: H2Element,
+      [ELEMENT_H3]: H3Element,
+      [ELEMENT_H4]: H4Element,
+      [ELEMENT_H5]: H5Element,
+      [ELEMENT_H6]: H6Element,
+    } as const;
+    for (const [key, component] of Object.entries(levelComponents)) {
+      expect(plugin(key).node?.component, `component for ${key}`).toStrictEqual(
+        component
+      );
+    }
   });
 
   it('keeps break, caption and trailing-block behavior', () => {

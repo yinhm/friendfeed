@@ -103,6 +103,30 @@ test('legacy HTML fallback still deserializes into editable content', () => {
   );
 });
 
+test('renders each heading level with its per-level size variant', async () => {
+  const rawBody = JSON.stringify([
+    {type: 'h1', children: [{text: 'Title'}]},
+    {type: 'h2', children: [{text: 'Section'}]},
+    {type: 'h3', children: [{text: 'Subsection'}]},
+  ]);
+
+  const {container} = render(
+    <OnPageEditor
+      id="heading-entry"
+      feedUuid="heading-feed"
+      content={rawBody}
+      postEntry={vi.fn()}
+    />
+  );
+
+  await waitFor(() => {
+    expect(container.querySelector('h2')).toHaveTextContent('Section');
+  });
+  expect(container.querySelector('h1').className).toContain('text-4xl');
+  expect(container.querySelector('h2').className).toContain('text-2xl');
+  expect(container.querySelector('h3').className).toContain('text-xl');
+});
+
 test('HTML serialization rejects unsafe link protocols', async () => {
   const editor = createPlateEditor({plugins});
   editor.children = [

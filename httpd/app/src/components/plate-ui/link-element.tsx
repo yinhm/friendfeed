@@ -1,28 +1,28 @@
-import { useLink } from '@platejs/link/react';
+import { getLinkAttributes } from '@platejs/link';
 import type { TLinkElement } from 'platejs';
-import { type PlateElementProps, PlateElement, useElement } from 'platejs/react';
+import { type PlateElementProps, PlateElement } from 'platejs/react';
 
 import { cn } from 'components/cn';
 
-export function LinkElement({
-  className,
-  children,
-  ...props
-}: PlateElementProps) {
-  const element = useElement<TLinkElement>();
-  const { props: linkProps } = useLink({ element });
-
+export function LinkElement(props: PlateElementProps<TLinkElement>) {
   return (
     <PlateElement
-      asChild
+      {...props}
+      as="a"
       className={cn(
         'font-medium text-primary underline decoration-primary underline-offset-4',
-        className
+        props.className
       )}
-      {...(linkProps as any)}
-      {...props}
+      attributes={{
+        ...props.attributes,
+        ...getLinkAttributes(props.editor, props.element),
+        // quick fix: hovering <a> with href loses the editor focus
+        onMouseOver: (e) => {
+          e.stopPropagation();
+        },
+      }}
     >
-      <a>{children}</a>
+      {props.children}
     </PlateElement>
   );
 }
