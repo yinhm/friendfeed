@@ -1,5 +1,6 @@
-import { createStaticEditor, serializeHtml, SlateEditor } from 'platejs';
+import { SlateEditor } from 'platejs';
 import type { AnyPlatePlugin } from 'platejs/react';
+import { createStaticEditor, serializeHtml } from 'platejs/static';
 
 import { components } from './static-components';
 import { plugins } from './plate-plugins';

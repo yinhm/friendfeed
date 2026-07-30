@@ -1,210 +1,188 @@
-/* copy from plate-playground-template/lib/plate */
+/* Markdown-style input rules: the Plate 53 successor to @platejs/autoformat.
+ *
+ * v53 deprecated AutoformatPlugin into an inert compatibility shim and moved
+ * rule ownership to the feature plugins. Block rules (headings, blockquote,
+ * code block, indent lists) are attached to their owning plugins in
+ * plate-plugins.ts via the factories re-exported here. This module owns the
+ * remaining pieces: the horizontal-rule fence rules (no hr plugin is
+ * registered; the `hr` type is kept for rawBody compatibility) and the text
+ * substitution rules, mapped 1:1 from the v49 autoformatSmartQuotes /
+ * autoformatPunctuation / autoformatLegal / autoformatLegalHtml /
+ * autoformatArrow / autoformatMath data.
+ */
 
-import { AutoformatRule } from '@platejs/autoformat';
-import { insertEmptyCodeBlock } from '@platejs/code-block';
-import { ListStyleType, toggleList as toggleIndentList } from '@platejs/list';
-import { TTodoListItemElement } from '@platejs/list-classic';
-
-import { AutoformatBlockRule } from '@platejs/autoformat';
-import { SlateEditor } from 'platejs';
-import { toggleList, unwrapList } from '@platejs/list-classic';
+import { BlockquoteRules, HeadingRules } from '@platejs/basic-nodes';
+import { CodeBlockRules } from '@platejs/code-block';
+import { BulletedListRules, OrderedListRules } from '@platejs/list';
+import {
+  createBlockStartInputRule,
+  createSlatePlugin,
+  createTextSubstitutionInputRule,
+  type SlateEditor,
+  type TextSubstitutionInputRuleConfig,
+} from 'platejs';
 
 import {
-  autoformatArrow,
-  autoformatLegal,
-  autoformatLegalHtml,
-  autoformatMath,
-  autoformatPunctuation,
-  autoformatSmartQuotes,
-} from '@platejs/autoformat';
-
-import {
-  ELEMENT_BLOCKQUOTE,
   ELEMENT_CODE_BLOCK,
-  ELEMENT_CODE_LINE,
-  ELEMENT_DEFAULT,
-  ELEMENT_H1,
-  ELEMENT_H2,
-  ELEMENT_H3,
-  ELEMENT_H4,
-  ELEMENT_H5,
-  ELEMENT_H6,
   ELEMENT_HR,
-  ELEMENT_LI,
-  ELEMENT_OL,
-  ELEMENT_TODO_LI,
-  ELEMENT_UL,
+  ELEMENT_PARAGRAPH,
 } from 'components/plate-plugin-keys';
 
-export const preFormat: AutoformatBlockRule['preFormat'] = (editor) =>
-  unwrapList(editor);
+type SubstitutionPattern = TextSubstitutionInputRuleConfig['patterns'][number];
 
-export const format = (editor: SlateEditor, customFormatting: any) => {
-  if (editor.selection) {
-    const parentEntry = editor.api.parent(editor.selection);
-    if (!parentEntry) return;
-    const [node] = parentEntry;
-    if (
-      editor.api.isBlock(node) &&
-      node.type !== ELEMENT_CODE_BLOCK &&
-      node.type !== ELEMENT_CODE_LINE
-    ) {
-      customFormatting();
-    }
-  }
-};
+/**
+ * Block conversions never fire inside a code block. This is the input-rule
+ * equivalent of the v49 local `format` guard that skipped custom formatting
+ * when the parent block was a code_block/code_line.
+ */
+const notInCodeBlock = ({ editor }: { editor: SlateEditor }) =>
+  !editor.api.some({ match: { type: [ELEMENT_CODE_BLOCK] } });
 
-export const formatList = (editor: SlateEditor, elementType: string) => {
-  format(editor, () =>
-    toggleList(editor, {
-      type: elementType,
-    })
-  );
-};
+/** `# ` … `###### `; the factory derives the prefix from the owning h1-h6 key. */
+export const headingInputRule = () =>
+  HeadingRules.markdown({ enabled: notInCodeBlock });
 
-export const formatText = (editor: SlateEditor, text: string) => {
-  format(editor, () => editor.tf.insertText(text));
-};
+/** `> ` wraps the current block in a blockquote container (v53 shape). */
+export const blockquoteInputRule = BlockquoteRules.markdown();
 
-export const autoformatBlocks: AutoformatRule[] = [
-  {
-    mode: 'block',
-    type: ELEMENT_H1,
-    match: '# ',
-    preFormat,
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_H2,
-    match: '## ',
-    preFormat,
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_H3,
-    match: '### ',
-    preFormat,
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_H4,
-    match: '#### ',
-    preFormat,
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_H5,
-    match: '##### ',
-    preFormat,
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_H6,
-    match: '###### ',
-    preFormat,
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_BLOCKQUOTE,
-    match: '> ',
-    preFormat,
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_CODE_BLOCK,
-    match: '```',
-    triggerAtBlockStart: false,
-    preFormat,
-    format: (editor) => {
-      insertEmptyCodeBlock(editor, {
-        defaultType: ELEMENT_DEFAULT,
-        insertNodesOptions: { select: true },
-      });
-    },
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_HR,
-    match: ['---', '—-', '___ '],
-    format: (editor) => {
+/** ``` fence converts a paragraph into a code block. */
+export const codeBlockInputRule = CodeBlockRules.markdown({ on: 'match' });
+
+/** Indent-list triggers registered on the indent ListPlugin. */
+export const indentListInputRules = [
+  BulletedListRules.markdown(),
+  BulletedListRules.markdown({ variant: '*' }),
+  OrderedListRules.markdown(),
+  OrderedListRules.markdown({ variant: ')' }),
+];
+
+/**
+ * `---` / `—-` / `___ ` produce an `hr` node followed by an empty paragraph.
+ * Local implementation instead of HorizontalRuleRules: the upstream 53.0.0
+ * factory never deletes the matched fence text, so the dashes would remain
+ * inside the (unregistered, non-void) hr node and leak into rendered output.
+ */
+const hrInputRule = (match: RegExp | string, trigger: string) =>
+  createBlockStartInputRule({
+    enabled: notInCodeBlock,
+    match,
+    trigger,
+    apply: ({ editor }, hrMatch) => {
+      editor.tf.delete({ at: hrMatch.range });
       editor.tf.setNodes({ type: ELEMENT_HR });
       editor.tf.insertNodes({
-        type: ELEMENT_DEFAULT,
         children: [{ text: '' }],
+        type: ELEMENT_PARAGRAPH,
       });
+      return true;
     },
-  },
+  });
+
+const hrInputRules = [hrInputRule(/^(--|—)$/, '-'), hrInputRule('___', ' ')];
+
+// Order matters: patterns share triggers and the first candidate whose match
+// points resolve wins. Keep the v49 rule order: smartQuotes, punctuation,
+// legal, legalHtml, arrow, then math (comparison, equality, operation,
+// fraction, superscript/subscript symbols, superscript/subscript numbers).
+const substitutionPatterns: SubstitutionPattern[] = [
+  // autoformatSmartQuotes
+  { format: ['“', '”'], match: '"' },
+  { format: ['‘', '’'], match: "'" },
+  // autoformatPunctuation
+  { format: '—', match: '--' },
+  { format: '…', match: '...' },
+  { format: '»', match: '>>' },
+  { format: '«', match: '<<' },
+  // autoformatLegal
+  { format: '™', match: ['(tm)', '(TM)'] },
+  { format: '®', match: ['(r)', '(R)'] },
+  { format: '©', match: ['(c)', '(C)'] },
+  // autoformatLegalHtml
+  { format: '™', match: '&trade;' },
+  { format: '®', match: '&reg;' },
+  { format: '©', match: '&copy;' },
+  { format: '§', match: '&sect;' },
+  // autoformatArrow
+  { format: '→', match: '->' },
+  { format: '←', match: '<-' },
+  { format: '⇒', match: '=>' },
+  { format: '⇐', match: ['<=', '≤='] },
+  // autoformatMath: comparison
+  { format: '≯', match: '!>' },
+  { format: '≮', match: '!<' },
+  { format: '≥', match: '>=' },
+  { format: '≤', match: '<=' },
+  { format: '≱', match: '!>=' },
+  { format: '≰', match: '!<=' },
+  // autoformatMath: equality
+  { format: '≠', match: '!=' },
+  { format: '≡', match: '==' },
+  { format: '≢', match: ['!==', '≠='] },
+  { format: '≈', match: '~=' },
+  { format: '≉', match: '!~=' },
+  // autoformatMath: operation
+  { format: '±', match: '+-' },
+  { format: '‰', match: '%%' },
+  { format: '‱', match: ['%%%', '‰%'] },
+  { format: '÷', match: '//' },
+  // autoformatMath: fraction
+  { format: '½', match: '1/2' },
+  { format: '⅓', match: '1/3' },
+  { format: '¼', match: '1/4' },
+  { format: '⅕', match: '1/5' },
+  { format: '⅙', match: '1/6' },
+  { format: '⅐', match: '1/7' },
+  { format: '⅛', match: '1/8' },
+  { format: '⅑', match: '1/9' },
+  { format: '⅒', match: '1/10' },
+  { format: '⅔', match: '2/3' },
+  { format: '⅖', match: '2/5' },
+  { format: '¾', match: '3/4' },
+  { format: '⅗', match: '3/5' },
+  { format: '⅜', match: '3/8' },
+  { format: '⅘', match: '4/5' },
+  { format: '⅚', match: '5/6' },
+  { format: '⅝', match: '5/8' },
+  { format: '⅞', match: '7/8' },
+  // autoformatMath: superscript/subscript symbols
+  { format: '°', match: '^o' },
+  { format: '⁺', match: '^+' },
+  { format: '⁻', match: '^-' },
+  { format: '₊', match: '~+' },
+  { format: '₋', match: '~-' },
+  // autoformatMath: superscript numbers
+  { format: '⁰', match: '^0' },
+  { format: '¹', match: '^1' },
+  { format: '²', match: '^2' },
+  { format: '³', match: '^3' },
+  { format: '⁴', match: '^4' },
+  { format: '⁵', match: '^5' },
+  { format: '⁶', match: '^6' },
+  { format: '⁷', match: '^7' },
+  { format: '⁸', match: '^8' },
+  { format: '⁹', match: '^9' },
+  // autoformatMath: subscript numbers
+  { format: '₀', match: '~0' },
+  { format: '₁', match: '~1' },
+  { format: '₂', match: '~2' },
+  { format: '₃', match: '~3' },
+  { format: '₄', match: '~4' },
+  { format: '₅', match: '~5' },
+  { format: '₆', match: '~6' },
+  { format: '₇', match: '~7' },
+  { format: '₈', match: '~8' },
+  { format: '₉', match: '~9' },
 ];
 
-export const autoformatIndentLists: AutoformatRule[] = [
-  {
-    mode: 'block',
-    type: 'list',
-    match: ['* ', '- '],
-    format: (editor) => {
-      toggleIndentList(editor, {
-        listStyleType: ListStyleType.Disc,
-      });
-    },
-  },
-  {
-    mode: 'block',
-    type: 'list',
-    match: ['1. ', '1) '],
-    format: (editor) =>
-      toggleIndentList(editor, {
-        listStyleType: ListStyleType.Decimal,
-      }),
-  },
-];
-
-export const autoformatLists: AutoformatRule[] = [
-  {
-    mode: 'block',
-    type: ELEMENT_LI,
-    match: ['* ', '- '],
-    preFormat,
-    format: (editor) => formatList(editor, ELEMENT_UL),
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_LI,
-    match: ['1. ', '1) '],
-    preFormat,
-    format: (editor) => formatList(editor, ELEMENT_OL),
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_TODO_LI,
-    match: '[] ',
-  },
-  {
-    mode: 'block',
-    type: ELEMENT_TODO_LI,
-    match: '[x] ',
-    format: (editor) =>
-      editor.tf.setNodes<TTodoListItemElement>(
-        { type: ELEMENT_TODO_LI, checked: true },
-        {
-          match: (n) => editor.api.isBlock(n),
-        }
-      ),
-  },
-];
-
-export const autoformatRules = [
-  ...autoformatBlocks,
-  ...autoformatIndentLists,
-  // ...autoformatMarks,
-  ...autoformatSmartQuotes,
-  ...autoformatPunctuation,
-  ...autoformatLegal,
-  ...autoformatLegalHtml,
-  ...autoformatArrow,
-  ...autoformatMath,
-];
-
-export const autoformatPlugin = {
-  rules: autoformatRules,
-  enableUndoOnDelete: true,
-};
+/**
+ * Local owner for the rules that have no dedicated feature plugin: the hr
+ * fence (`---`, `—-`, `___ `) and the text substitutions. The hr rules must
+ * precede the substitution rule so `---` at block start beats `--` → em dash.
+ */
+export const MarkdownShortcutsPlugin = createSlatePlugin({
+  key: 'markdownShortcuts',
+  inputRules: [
+    ...hrInputRules,
+    createTextSubstitutionInputRule({ patterns: substitutionPatterns }),
+  ],
+});

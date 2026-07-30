@@ -142,9 +142,13 @@ describe('Plate plugin configuration', () => {
   });
 
   it('keeps per-node reset and line-break rules', () => {
+    // Plate 53 container blockquote owns its break/delete behavior through the
+    // upstream lift semantics (empty break and delete-at-start lift the inner
+    // paragraph out of the blockquote); behavior is locked in
+    // autoformat-plugin.test.ts.
     expect(plugin(ELEMENT_BLOCKQUOTE).rules).toMatchObject({
-      break: { default: 'lineBreak', empty: 'reset' },
-      delete: { start: 'reset' },
+      break: { empty: 'lift' },
+      delete: { start: 'lift' },
     });
     expect(plugin(ELEMENT_CODE_BLOCK).rules).toMatchObject({
       break: { default: 'lineBreak', empty: 'reset' },

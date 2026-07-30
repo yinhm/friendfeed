@@ -1,6 +1,5 @@
 import { withProps } from 'components/cn';
 import React from 'react';
-import { AutoformatPlugin } from '@platejs/autoformat';
 import {
   BlockquotePlugin,
   BoldPlugin,
@@ -45,7 +44,13 @@ import { TodoListPlugin } from '@platejs/list-classic/react';
 import { ImagePlugin, MediaEmbedPlugin } from '@platejs/media/react';
 import { TabbablePlugin } from '@platejs/tabbable/react';
 
-import { autoformatPlugin } from 'components/autoformat-plugin';
+import {
+  MarkdownShortcutsPlugin,
+  blockquoteInputRule,
+  codeBlockInputRule,
+  headingInputRule,
+  indentListInputRules,
+} from 'components/autoformat-plugin';
 import {
   ELEMENT_BLOCKQUOTE,
   ELEMENT_CODE_BLOCK,
@@ -96,23 +101,21 @@ export const plugins = [
   ParagraphPlugin.withComponent(ParagraphElement),
   // Register each heading level by key (official basic-blocks-kit style);
   // override.components does not reach the composite HeadingPlugin's nested
-  // sub-plugins in Plate 49, and nothing consumes the composite "heading" key.
-  H1Plugin.withComponent(H1Element),
-  H2Plugin.withComponent(H2Element),
-  H3Plugin.withComponent(H3Element),
-  H4Plugin.withComponent(H4Element),
-  H5Plugin.withComponent(H5Element),
-  H6Plugin.withComponent(H6Element),
+  // sub-plugins, and nothing consumes the composite "heading" key.
+  H1Plugin.withComponent(H1Element).extend({ inputRules: [headingInputRule()] }),
+  H2Plugin.withComponent(H2Element).extend({ inputRules: [headingInputRule()] }),
+  H3Plugin.withComponent(H3Element).extend({ inputRules: [headingInputRule()] }),
+  H4Plugin.withComponent(H4Element).extend({ inputRules: [headingInputRule()] }),
+  H5Plugin.withComponent(H5Element).extend({ inputRules: [headingInputRule()] }),
+  H6Plugin.withComponent(H6Element).extend({ inputRules: [headingInputRule()] }),
   BlockquotePlugin.withComponent(BlockquoteElement).extend({
-    rules: {
-      break: { default: 'lineBreak', empty: 'reset' },
-      delete: { start: 'reset' },
-    },
+    inputRules: [blockquoteInputRule],
   }),
   CodeBlockPlugin.withComponent(CodeBlockElement)
     .configurePlugin(CodeLinePlugin, { node: { component: CodeLineElement } })
     .configurePlugin(CodeSyntaxPlugin, { node: { component: CodeSyntaxLeaf } })
     .extend({
+      inputRules: [codeBlockInputRule],
       rules: {
         break: { default: 'lineBreak', empty: 'reset' },
         delete: { start: 'reset' },
@@ -144,7 +147,10 @@ export const plugins = [
 
   AlignPlugin.extend({ inject: { targetPlugins: textBlockTypes.slice(0, 4) } }),
   IndentPlugin.extend({ inject: { targetPlugins: textBlockTypes } }),
-  IndentListPlugin.extend({ inject: { targetPlugins: textBlockTypes } }),
+  IndentListPlugin.extend({
+    inject: { targetPlugins: textBlockTypes },
+    inputRules: indentListInputRules,
+  }),
   LineHeightPlugin.extend({
     inject: {
       nodeProps: {
@@ -156,7 +162,7 @@ export const plugins = [
     },
   }),
 
-  AutoformatPlugin.extend({ options: autoformatPlugin }),
+  MarkdownShortcutsPlugin,
   EmojiPlugin.configurePlugin({ key: ELEMENT_EMOJI_INPUT }, {
     node: { component: EmojiInputElement },
   }),
