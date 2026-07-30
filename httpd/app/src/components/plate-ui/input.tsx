@@ -1,5 +1,8 @@
-import { withVariants } from 'components/cn';
-import { cva } from 'class-variance-authority';
+import * as React from 'react';
+
+import { type VariantProps, cva } from 'class-variance-authority';
+
+import { cn } from 'components/cn';
 
 export const inputVariants = cva(
   'flex w-full rounded-md bg-transparent text-sm file:border-0 file:bg-background file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
@@ -22,4 +25,17 @@ export const inputVariants = cva(
   }
 );
 
-export const Input = withVariants('input', inputVariants, ['variant', 'h']);
+export function Input({
+  className,
+  variant,
+  h,
+  ...props
+}: React.ComponentProps<'input'> & VariantProps<typeof inputVariants>) {
+  return (
+    <input
+      data-slot="input"
+      className={cn(inputVariants({ h, variant }), className)}
+      {...props}
+    />
+  );
+}

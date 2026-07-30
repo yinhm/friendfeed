@@ -3,7 +3,6 @@ import React, {
   type ReactNode,
   type RefObject,
   createContext,
-  forwardRef,
   startTransition,
   useCallback,
   useContext,
@@ -45,7 +44,7 @@ type FilterFn = (
 interface InlineComboboxContextValue {
   filter: FilterFn | false;
   inputProps: UseComboboxInputResult['props'];
-  inputRef: RefObject<HTMLInputElement>;
+  inputRef: RefObject<HTMLInputElement | null>;
   removeInput: UseComboboxInputResult['removeInput'];
   setHasEmpty: (hasEmpty: boolean) => void;
   showTrigger: boolean;
@@ -81,7 +80,7 @@ const InlineCombobox = ({
   value: valueProp,
 }: InlineComboboxProps) => {
   const editor = useEditorRef();
-  const inputRef = React.useRef<HTMLInputElement>(null!);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const cursorState = useHTMLInputCursorState(inputRef);
   const [valueState, setValueState] = useState('');
   const hasValueProp = valueProp !== undefined;
@@ -170,10 +169,13 @@ const InlineCombobox = ({
   );
 };
 
-const InlineComboboxInput = forwardRef<
-  HTMLInputElement,
-  HTMLAttributes<HTMLInputElement>
->(({ className, ...props }, propRef) => {
+const InlineComboboxInput = ({
+  className,
+  ref: propRef,
+  ...props
+}: HTMLAttributes<HTMLInputElement> & {
+  ref?: RefObject<HTMLInputElement | null>;
+}) => {
   const {
     inputProps,
     inputRef: contextRef,
@@ -205,7 +207,7 @@ const InlineComboboxInput = forwardRef<
       </span>
     </>
   );
-});
+};
 InlineComboboxInput.displayName = 'InlineComboboxInput';
 
 const InlineComboboxContent: typeof ComboboxPopover = ({

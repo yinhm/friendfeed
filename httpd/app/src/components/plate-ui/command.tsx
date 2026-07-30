@@ -1,19 +1,31 @@
 'use client';
 
 import * as React from 'react';
+
 import { type DialogProps } from '@radix-ui/react-dialog';
-import { createPrimitiveElement, withRef } from 'platejs/react';
-import { cn, withCn } from 'components/cn';
 import { Command as CommandPrimitive } from 'cmdk';
+
+import { cn } from 'components/cn';
 
 import { Icons } from 'components/icons';
 
 import { Dialog, DialogContent } from './dialog';
 
-export const Command = withCn(
-  CommandPrimitive,
-  'flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground'
-);
+export function Command({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive>) {
+  return (
+    <CommandPrimitive
+      data-slot="command"
+      className={cn(
+        'flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground',
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
 export function CommandDialog({ children, ...props }: DialogProps) {
   return (
@@ -27,12 +39,15 @@ export function CommandDialog({ children, ...props }: DialogProps) {
   );
 }
 
-export const CommandInput = withRef<typeof CommandPrimitive.Input>(
-  ({ className, ...props }, ref) => (
+export function CommandInput({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+  return (
     <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-      <Icons.search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+      <Icons.search className="mr-2 size-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
-        ref={ref}
+        data-slot="command-input"
         className={cn(
           'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
           className
@@ -40,35 +55,92 @@ export const CommandInput = withRef<typeof CommandPrimitive.Input>(
         {...props}
       />
     </div>
-  )
-);
+  );
+}
 
-export const CommandList = withCn(
-  CommandPrimitive.List,
-  'max-h-[500px] overflow-y-auto overflow-x-hidden'
-);
+export function CommandList({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.List>) {
+  return (
+    <CommandPrimitive.List
+      data-slot="command-list"
+      className={cn('max-h-[500px] overflow-y-auto overflow-x-hidden', className)}
+      {...props}
+    />
+  );
+}
 
-export const CommandEmpty = withCn(
-  CommandPrimitive.Empty,
-  'py-6 text-center text-sm'
-);
+export function CommandEmpty({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+  return (
+    <CommandPrimitive.Empty
+      data-slot="command-empty"
+      className={cn('py-6 text-center text-sm', className)}
+      {...props}
+    />
+  );
+}
 
-export const CommandGroup = withCn(
-  CommandPrimitive.Group,
-  'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground'
-);
+export function CommandGroup({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Group>) {
+  return (
+    <CommandPrimitive.Group
+      data-slot="command-group"
+      className={cn(
+        'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground',
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
-export const CommandSeparator = withCn(
-  CommandPrimitive.Separator,
-  '-mx-1 h-px bg-border'
-);
+export function CommandSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Separator>) {
+  return (
+    <CommandPrimitive.Separator
+      data-slot="command-separator"
+      className={cn('-mx-1 h-px bg-border', className)}
+      {...props}
+    />
+  );
+}
 
-export const CommandItem = withCn(
-  CommandPrimitive.Item,
-  'relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50'
-);
+export function CommandItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Item>) {
+  return (
+    <CommandPrimitive.Item
+      data-slot="command-item"
+      className={cn(
+        'relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
-export const CommandShortcut = withCn(
-  createPrimitiveElement('span'),
-  'ml-auto text-xs tracking-widest text-muted-foreground'
-);
+export function CommandShortcut({
+  className,
+  ...props
+}: React.ComponentProps<'span'>) {
+  return (
+    <span
+      data-slot="command-shortcut"
+      className={cn(
+        'ml-auto text-xs tracking-widest text-muted-foreground',
+        className
+      )}
+      {...props}
+    />
+  );
+}

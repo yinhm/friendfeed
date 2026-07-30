@@ -1,20 +1,33 @@
 'use client';
 
-import React from 'react';
+import * as React from 'react';
+
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { withCn, withProps } from 'components/cn';
+
+import { cn } from 'components/cn';
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 export const Tooltip = TooltipPrimitive.Root;
 export const TooltipTrigger = TooltipPrimitive.Trigger;
 export const TooltipPortal = TooltipPrimitive.Portal;
 
-export const TooltipContent = withCn(
-  withProps(TooltipPrimitive.Content, {
-    sideOffset: 4,
-  }),
-  'z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md'
-);
+export function TooltipContent({
+  className,
+  sideOffset = 4,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  return (
+    <TooltipPrimitive.Content
+      data-slot="tooltip-content"
+      sideOffset={sideOffset}
+      className={cn(
+        'z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md',
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
 export function withTooltip<
   T extends React.ElementType,

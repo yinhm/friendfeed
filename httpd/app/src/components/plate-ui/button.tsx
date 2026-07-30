@@ -1,8 +1,9 @@
 import * as React from 'react';
+
 import { Slot } from '@radix-ui/react-slot';
-import { withRef } from 'platejs/react';
+import { type VariantProps, cva } from 'class-variance-authority';
+
 import { cn } from 'components/cn';
-import { cva, VariantProps } from 'class-variance-authority';
 
 export const buttonVariants = cva(
   'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
@@ -40,19 +41,24 @@ export const buttonVariants = cva(
   }
 );
 
-export const Button = withRef<
-  'button',
+export function Button({
+  className,
+  isMenu,
+  variant,
+  size,
+  asChild = false,
+  ...props
+}: React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
-  }
->(({ className, isMenu, variant, size, asChild = false, ...props }, ref) => {
+  }) {
   const Comp = asChild ? Slot : 'button';
 
   return (
     <Comp
+      data-slot="button"
       className={cn(buttonVariants({ isMenu, variant, size, className }))}
-      ref={ref}
       {...props}
     />
   );
-});
+}
