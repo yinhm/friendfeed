@@ -1,10 +1,9 @@
-import React from 'react';
-import { cn } from 'components/cn';
-import { PlateContent } from 'platejs/react';
-import { cva } from 'class-variance-authority';
+import * as React from 'react';
 
-import type { PlateContentProps } from 'platejs/react';
-import type { VariantProps } from 'class-variance-authority';
+import { type VariantProps, cva } from 'class-variance-authority';
+import { type PlateContentProps, PlateContent } from 'platejs/react';
+
+import { cn } from 'components/cn';
 
 const editorVariants = cva(
   cn(
@@ -46,42 +45,36 @@ const editorVariants = cva(
 export type EditorProps = PlateContentProps &
   VariantProps<typeof editorVariants>;
 
-const Editor = React.forwardRef<HTMLDivElement, EditorProps>(
-  (
-    {
-      className,
-      disabled,
-      focused,
-      focusRing,
-      readOnly,
-      size,
-      variant,
-      ...props
-    },
-    ref
-  ) => {
-    return (
-      <div ref={ref} className="relative w-full">
-        <PlateContent
-          className={cn(
-            editorVariants({
-              disabled,
-              focused,
-              focusRing,
-              size,
-              variant,
-            }),
-            className
-          )}
-          disableDefaultStyles
-          readOnly={disabled ?? readOnly}
-          aria-disabled={disabled}
-          {...props}
-        />
-      </div>
-    );
-  }
-);
-Editor.displayName = 'Editor';
-
-export { Editor };
+export function Editor({
+  className,
+  disabled,
+  focused,
+  focusRing,
+  readOnly,
+  size,
+  variant,
+  ref,
+  ...props
+}: EditorProps & { ref?: React.Ref<HTMLDivElement> }) {
+  return (
+    <div ref={ref} className="relative w-full" data-slot="editor-container">
+      <PlateContent
+        data-slot="editor"
+        className={cn(
+          editorVariants({
+            disabled,
+            focused,
+            focusRing,
+            size,
+            variant,
+          }),
+          className
+        )}
+        disableDefaultStyles
+        readOnly={disabled ?? readOnly}
+        aria-disabled={disabled}
+        {...props}
+      />
+    </div>
+  );
+}
