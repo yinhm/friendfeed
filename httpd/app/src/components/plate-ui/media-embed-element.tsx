@@ -1,15 +1,17 @@
-import React from 'react';
-import { withRef } from 'platejs/react';
-import { cn } from 'components/cn';
-import { PlateElement, withHOC } from 'platejs/react';
-import {
-  parseTwitterUrl,
-  parseVideoUrl,
-} from '@platejs/media';
+'use client';
+
+import * as React from 'react';
+
+import type { PlateElementProps } from 'platejs/react';
+
+import { parseTwitterUrl, parseVideoUrl } from '@platejs/media';
 import { useMediaState } from '@platejs/media/react';
 import { ResizableProvider, useResizableValue } from '@platejs/resizable';
 import LiteYouTubeEmbed from 'react-lite-youtube-embed';
 import { Tweet } from 'react-tweet';
+import { PlateElement, withHOC } from 'platejs/react';
+
+import { cn } from 'components/cn';
 
 import { Caption, CaptionTextarea } from './caption';
 import { ELEMENT_MEDIA_EMBED } from 'components/plate-plugin-keys';
@@ -37,7 +39,11 @@ export const mediaUrlParsers = [
 
 export const MediaEmbedElement = withHOC(
   ResizableProvider,
-  withRef<typeof PlateElement>(({ className, children, ...props }, ref) => {
+  function MediaEmbedElement({
+    className,
+    children,
+    ...props
+  }: PlateElementProps) {
     const {
       align = 'center',
       focused,
@@ -55,11 +61,7 @@ export const MediaEmbedElement = withHOC(
 
     return (
       <MediaPopover pluginKey={ELEMENT_MEDIA_EMBED}>
-        <PlateElement
-          ref={ref}
-          className={cn('relative py-2.5', className)}
-          {...props}
-        >
+        <PlateElement className={cn('relative py-2.5', className)} {...props}>
           <figure className="group relative m-0 w-full" contentEditable={false}>
             <Resizable
               align={align}
@@ -149,5 +151,5 @@ export const MediaEmbedElement = withHOC(
         </PlateElement>
       </MediaPopover>
     );
-  })
+  }
 );

@@ -1,9 +1,16 @@
-import { cn, withCn, withVariants } from 'components/cn';
+'use client';
+
+import * as React from 'react';
+
+import type { VariantProps } from 'class-variance-authority';
+
 import {
   Caption as CaptionPrimitive,
   CaptionTextarea as CaptionTextareaPrimitive,
 } from '@platejs/caption/react';
 import { cva } from 'class-variance-authority';
+
+import { cn } from 'components/cn';
 
 const captionVariants = cva('max-w-full', {
   variants: {
@@ -18,15 +25,33 @@ const captionVariants = cva('max-w-full', {
   },
 });
 
-export const Caption = withVariants(CaptionPrimitive, captionVariants, [
-  'align',
-]);
+export function Caption({
+  align,
+  className,
+  ...props
+}: React.ComponentProps<typeof CaptionPrimitive> &
+  VariantProps<typeof captionVariants>) {
+  return (
+    <CaptionPrimitive
+      className={cn(captionVariants({ align }), className)}
+      {...props}
+    />
+  );
+}
 
-export const CaptionTextarea = withCn(
-  CaptionTextareaPrimitive,
-  cn(
-    'mt-2 w-full resize-none border-none bg-inherit p-0 font-[inherit] text-inherit',
-    'focus:outline-none focus:[&::placeholder]:opacity-0',
-    'text-center print:placeholder:text-transparent'
-  )
-);
+export function CaptionTextarea({
+  className,
+  ...props
+}: React.ComponentProps<typeof CaptionTextareaPrimitive>) {
+  return (
+    <CaptionTextareaPrimitive
+      className={cn(
+        'mt-2 w-full resize-none border-none bg-inherit p-0 font-[inherit] text-inherit',
+        'focus:outline-none focus:[&::placeholder]:opacity-0',
+        'text-center print:placeholder:text-transparent',
+        className
+      )}
+      {...props}
+    />
+  );
+}

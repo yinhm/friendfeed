@@ -1,13 +1,18 @@
 'use client';
 
-import React from 'react';
-import { withRef } from 'platejs/react';
-import { cn, withVariants } from 'components/cn';
+import * as React from 'react';
+
+import type { VariantProps } from 'class-variance-authority';
+
 import {
+  type ResizeHandle as ResizeHandlePrimitive,
   Resizable as ResizablePrimitive,
-  ResizeHandle as ResizeHandlePrimitive,
+  useResizeHandle,
+  useResizeHandleState,
 } from '@platejs/resizable';
 import { cva } from 'class-variance-authority';
+
+import { cn } from 'components/cn';
 
 export const mediaResizeHandleVariants = cva(
   cn(
@@ -35,21 +40,29 @@ const resizeHandleVariants = cva(cn('absolute z-40'), {
   },
 });
 
-const ResizeHandleVariants = withVariants(
-  ResizeHandlePrimitive,
-  resizeHandleVariants,
-  ['direction']
-);
+export function ResizeHandle({
+  className,
+  options,
+  ...props
+}: React.ComponentProps<typeof ResizeHandlePrimitive> &
+  VariantProps<typeof resizeHandleVariants>) {
+  const state = useResizeHandleState(options ?? {});
+  const resizeHandle = useResizeHandle(state);
 
-export const ResizeHandle = withRef<typeof ResizeHandlePrimitive>(
-  (props, ref) => (
-    <ResizeHandleVariants
-      ref={ref}
-      direction={props.options?.direction}
+  if (state.readOnly) return null;
+
+  return (
+    <div
+      className={cn(
+        resizeHandleVariants({ direction: options?.direction }),
+        className
+      )}
+      data-resizing={state.isResizing}
+      {...resizeHandle.props}
       {...props}
     />
-  )
-);
+  );
+}
 
 const resizableVariants = cva('', {
   variants: {
@@ -61,6 +74,16 @@ const resizableVariants = cva('', {
   },
 });
 
-export const Resizable = withVariants(ResizablePrimitive, resizableVariants, [
-  'align',
-]);
+export function Resizable({
+  align,
+  className,
+  ...props
+}: React.ComponentProps<typeof ResizablePrimitive> &
+  VariantProps<typeof resizableVariants>) {
+  return (
+    <ResizablePrimitive
+      className={cn(resizableVariants({ align }), className)}
+      {...props}
+    />
+  );
+}

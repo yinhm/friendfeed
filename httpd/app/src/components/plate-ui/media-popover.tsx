@@ -1,10 +1,17 @@
+'use client';
+
 import React, { useEffect } from 'react';
-import { useElement, useRemoveNodeButton, useSelectionExpanded } from 'platejs/react';
+import {
+  useElement,
+  useReadOnly,
+  useRemoveNodeButton,
+  useSelected,
+  useSelectionExpanded,
+} from 'platejs/react';
 import {
   FloatingMedia as FloatingMediaPrimitive,
   useFloatingMediaState,
 } from '@platejs/media/react';
-import { useReadOnly, useSelected } from 'slate-react';
 
 import { Icons } from 'components/icons';
 
