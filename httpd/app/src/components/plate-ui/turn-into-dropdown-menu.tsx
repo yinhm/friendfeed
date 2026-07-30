@@ -100,11 +100,12 @@ export function TurnIntoDropdownMenu(props: DropdownMenuProps) {
       <DropdownMenuTrigger asChild>
         <ToolbarButton
           pressed={openState.open}
+          size="xs"
           tooltip="Turn into"
           isDropdown
           className="lg:min-w-[130px]"
         >
-          <SelectedItemIcon className="h-5 w-5 lg:hidden" />
+          <SelectedItemIcon className="h-4 w-4 lg:hidden" />
           <span className="max-lg:hidden">{selectedItemLabel}</span>
         </ToolbarButton>
       </DropdownMenuTrigger>
