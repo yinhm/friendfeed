@@ -47,6 +47,14 @@
 - 保持改动单一：功能修复、重构、依赖升级、格式化和生成文件不要混在一个提交。
 - 不凭印象判断库行为、版本或部署状态；能运行就实测，未运行要明确说明。
 
+## 并发与写入不变量
+
+- job claim 使用独立 `jobMu`，queued→running 必须在同一 Pebble batch 中提交；不要重新使用 ApiServer 大锁或拆回 delete/put 两步。
+- `ApiServer.cached` 构造后只读；若未来需要动态增删，必须新增独立 cache 锁并统一保护所有访问点。
+- `PutEntry` 的 entry 本体与 author/group 直接索引原子提交；timeline fanout 因 followers 无上限而保持独立阶段。所有 index/fanout 错误必须向上传播，普通 entry 删除也必须清理 author timeline。
+- FeedIndex rebuild 的 DB existence 检查必须在数据锁外；rebuild/load/dump 由 `rebuildMu` 串行，rebuild 期间新增 Push 留在 pending queue，不能丢失。
+- `Store.Close` 通过 `sync.Once` 并发安全且幂等。生产关停顺序是 gRPC `GracefulStop` 排干请求后再 Shutdown；不要用全路径 nil 检查掩盖生命周期误用。
+
 ## 数据迁移
 
 - 明确 old DB 与 new DB 的边界。社交图、timeline 重建及 R2 URL 改写只依赖 new DB 时，不得重新引入 old DB。

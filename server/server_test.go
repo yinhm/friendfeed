@@ -741,10 +741,10 @@ func (s *RpcTestSuite) TestFetchEntryLegacyWithoutProfileUuid() {
 	assert.Equal(s.T(), "http://example.com/legacy.jpg", got.From.Picture)
 }
 
-// TestCommentPrincipalRequirement covers Step 2 of TODO.md: comment
-// commands must carry a valid user_uuid; the server resolves the
-// canonical profile from it and rejects missing, malformed, zero, or
-// unknown principals instead of trusting client actor references.
+// TestCommentPrincipalRequirement verifies that comment commands carry a
+// valid user_uuid; the server resolves the canonical profile from it and
+// rejects missing, malformed, zero, or unknown principals instead of trusting
+// client actor references.
 func (s *RpcTestSuite) TestCommentPrincipalRequirement() {
 	ctx := context.Background()
 
@@ -822,9 +822,9 @@ func (s *RpcTestSuite) TestPrincipalFromUserUuid() {
 	assert.Equal(s.T(), codes.NotFound, status.Code(err))
 }
 
-// TestCommentEntryOverridesForgedFrom proves the server persists the
-// canonical principal as the comment author even when the caller forges
-// comment.From as someone else (Step 3 of TODO.md).
+// TestCommentEntryOverridesForgedFrom proves the server persists the canonical
+// principal as the comment author even when the caller forges comment.From as
+// someone else.
 func (s *RpcTestSuite) TestCommentEntryOverridesForgedFrom() {
 	ctx := context.Background()
 

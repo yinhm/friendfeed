@@ -47,9 +47,9 @@ async function postCleanup(
   return requireOk(await request.post(path, { form }), operation);
 }
 
-// TODO.md acceptance: after a profile rename, UUID-bearing entries,
-// comments and likes must keep working — display follows the canonical
-// profile, like state survives, and the author keeps edit/unlike.
+// After a profile rename, UUID-bearing entries, comments and likes must keep
+// working — display follows the canonical profile, like state survives, and
+// the author keeps edit/unlike.
 //
 // The spec shares the seeded database with the other specs. try starts
 // before the first mutation, every created object id is captured at

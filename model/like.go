@@ -10,8 +10,8 @@ import (
 	"github.com/yinhm/friendfeed/store"
 )
 
-// errCommentPerm rejects comment edits/deletes by anyone the target
-// rules (TODO.md Step 0) do not allow.
+// errCommentPerm rejects comment edits/deletes outside the stable-UUID
+// ownership and moderation rules.
 var errCommentPerm = errors.New("403: perm error")
 
 // returns a full key and entry if succedd

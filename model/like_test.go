@@ -9,8 +9,7 @@ import (
 	"github.com/yinhm/friendfeed/store"
 )
 
-// Target permission rules for comment/like mutations (TODO.md Step 0),
-// locked by these tests:
+// Target permission rules for comment/like mutations, locked by these tests:
 //   - edit comment: the comment author only, verified by stable UUID;
 //   - delete comment: the comment author, the entry author (resolved via
 //     entry.ProfileUuid), or a super admin;
@@ -234,9 +233,8 @@ func TestLikeNotDuplicated(t *testing.T) {
 	}
 }
 
-// Step 3 of TODO.md: new likes/comments persist the canonical actor
-// reference (stable UUID plus display snapshot), never caller-supplied
-// identity fields.
+// New likes/comments persist the canonical actor reference (stable UUID plus
+// display snapshot), never caller-supplied identity fields.
 func TestLikeStoresCanonicalActorRef(t *testing.T) {
 	db := likeTestDB(t)
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
