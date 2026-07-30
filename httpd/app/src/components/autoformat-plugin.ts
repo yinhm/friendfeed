@@ -9,21 +9,32 @@
  * substitution rules, mapped 1:1 from the v49 autoformatSmartQuotes /
  * autoformatPunctuation / autoformatLegal / autoformatLegalHtml /
  * autoformatArrow / autoformatMath data.
+ *
+ * Compatibility risks found during the migration and how they were handled:
+ * - v49 `enableUndoOnDelete` (Backspace restores the pre-substitution text)
+ *   has no input-rules equivalent and was dropped.
+ * - v49 fired the ``` fence anywhere in a block (`triggerAtBlockStart:
+ *   false`); v53 `CodeBlockRules.markdown` only matches a whole-block fence.
+ *   `codeBlockTrailingFenceInputRule` below restores the trailing-fence case.
  */
 
 import { BlockquoteRules, HeadingRules } from '@platejs/basic-nodes';
-import { CodeBlockRules } from '@platejs/code-block';
+import { CodeBlockRules, insertEmptyCodeBlock } from '@platejs/code-block';
 import { BulletedListRules, OrderedListRules } from '@platejs/list';
 import {
   createBlockStartInputRule,
   createSlatePlugin,
   createTextSubstitutionInputRule,
+  type InsertTextInputRule,
+  type InsertTextInputRuleContext,
   type SlateEditor,
+  type TRange,
   type TextSubstitutionInputRuleConfig,
 } from 'platejs';
 
 import {
   ELEMENT_CODE_BLOCK,
+  ELEMENT_DEFAULT,
   ELEMENT_HR,
   ELEMENT_PARAGRAPH,
 } from 'components/plate-plugin-keys';
@@ -47,6 +58,53 @@ export const blockquoteInputRule = BlockquoteRules.markdown();
 
 /** ``` fence converts a paragraph into a code block. */
 export const codeBlockInputRule = CodeBlockRules.markdown({ on: 'match' });
+
+/**
+ * v49 parity: a ``` fence at the END of a non-empty block also converts
+ * (the old rule set `triggerAtBlockStart: false`). `CodeBlockRules.markdown`
+ * only fires when the whole block text is the fence (`matchBlockFence`), so
+ * `notes``` would stay literal. This rule covers the trailing case: delete
+ * the fence, keep the leading text, then insert an empty code block after it
+ * and select its first code line — the v49 `insertEmptyCodeBlock(editor,
+ * { defaultType: ELEMENT_DEFAULT, insertNodesOptions: { select: true } })`
+ * behavior, against v53's identical transform.
+ */
+export const codeBlockTrailingFenceInputRule: InsertTextInputRule<{
+  range: TRange;
+}> = {
+  enabled: notInCodeBlock,
+  target: 'insertText',
+  trigger: '`',
+  resolve: ({ editor }: InsertTextInputRuleContext) => {
+    if (!editor.selection || !editor.api.isCollapsed()) return;
+    const block = editor.api.block();
+    if (!block) return;
+    const [, path] = block;
+    const anchor = editor.selection.anchor;
+    // The typed backtick must complete the fence at the end of the block.
+    if (!editor.api.isEnd(anchor, path)) return;
+    const blockStart = editor.api.start(path);
+    const text = blockStart
+      ? editor.api.string({ anchor: blockStart, focus: anchor })
+      : '';
+    // Whole-block fences are handled by CodeBlockRules.markdown.
+    if (!text.endsWith('``') || text === '``') return;
+    const fenceStart = editor.api.before(anchor, {
+      distance: 2,
+      unit: 'character',
+    });
+    if (!fenceStart) return;
+    return { range: { anchor: fenceStart, focus: anchor } };
+  },
+  apply: ({ editor }: InsertTextInputRuleContext, match) => {
+    editor.tf.delete({ at: match.range });
+    insertEmptyCodeBlock(editor, {
+      defaultType: ELEMENT_DEFAULT,
+      insertNodesOptions: { select: true },
+    });
+    return true;
+  },
+};
 
 /** Indent-list triggers registered on the indent ListPlugin. */
 export const indentListInputRules = [

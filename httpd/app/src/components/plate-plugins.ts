@@ -48,6 +48,7 @@ import {
   MarkdownShortcutsPlugin,
   blockquoteInputRule,
   codeBlockInputRule,
+  codeBlockTrailingFenceInputRule,
   headingInputRule,
   indentListInputRules,
 } from 'components/autoformat-plugin';
@@ -115,7 +116,7 @@ export const plugins = [
     .configurePlugin(CodeLinePlugin, { node: { component: CodeLineElement } })
     .configurePlugin(CodeSyntaxPlugin, { node: { component: CodeSyntaxLeaf } })
     .extend({
-      inputRules: [codeBlockInputRule],
+      inputRules: [codeBlockInputRule, codeBlockTrailingFenceInputRule],
       rules: {
         break: { default: 'lineBreak', empty: 'reset' },
         delete: { start: 'reset' },

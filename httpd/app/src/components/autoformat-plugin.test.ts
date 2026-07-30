@@ -61,6 +61,29 @@ describe('markdown block input rules', () => {
     expect(editor.selection?.anchor.path).toEqual([0, 0, 0]);
   });
 
+  it('converts a trailing ``` fence after text into a following code block', () => {
+    const editor = createEditor([paragraph('notes``')], [0, 0], 7);
+    type(editor, '`');
+    expect(editor.children[0]).toMatchObject({
+      children: [{ text: 'notes' }],
+      type: 'p',
+    });
+    expect(editor.children[1]).toMatchObject({
+      children: [{ children: [{ text: '' }], type: 'code_line' }],
+      type: 'code_block',
+    });
+    expect(editor.selection?.anchor.path).toEqual([1, 0, 0]);
+  });
+
+  it('does not fire the code block fence away from the block end', () => {
+    const editor = createEditor([paragraph('a``b')], [0, 0], 3);
+    type(editor, '`');
+    expect(editor.children[0]).toMatchObject({
+      children: [{ text: 'a```b' }],
+      type: 'p',
+    });
+  });
+
   it.each(['---', '___ '])(
     'converts %s into an hr node without leftover fence text',
     (input) => {
