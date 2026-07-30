@@ -1,5 +1,5 @@
-import React from 'react';
-import { withRef } from 'platejs/react';
+import * as React from 'react';
+
 import {
   useListToolbarButton,
   useListToolbarButtonState,
@@ -10,23 +10,22 @@ import { ELEMENT_UL } from 'components/plate-plugin-keys';
 
 import { ToolbarButton } from './toolbar';
 
-export const ListToolbarButton = withRef<
-  typeof ToolbarButton,
-  {
-    nodeType?: string;
-  }
->(({ nodeType = ELEMENT_UL, ...rest }, ref) => {
+export function ListToolbarButton({
+  nodeType = ELEMENT_UL,
+  ...props
+}: React.ComponentProps<typeof ToolbarButton> & {
+  nodeType?: string;
+}) {
   const state = useListToolbarButtonState({ nodeType });
-  const { props } = useListToolbarButton(state);
+  const { props: buttonProps } = useListToolbarButton(state);
 
   return (
     <ToolbarButton
-      ref={ref}
       tooltip={nodeType === ELEMENT_UL ? 'Bulleted List' : 'Numbered List'}
+      {...buttonProps}
       {...props}
-      {...rest}
     >
       {nodeType === ELEMENT_UL ? <Icons.ul /> : <Icons.ol />}
     </ToolbarButton>
   );
-});
+}

@@ -7,6 +7,10 @@ const manifest = JSON.parse(await readFile('build/static/manifest.json', 'utf8')
 // Raising one requires reviewing both the raw and compressed size change.
 // 2026-07-25: entry CSS raw 70,000 -> 72,000 for the React account pages
 // (profile/import); reviewed: +1,035 raw / +247 gzip over baseline.
+// 2026-07-30: entry CSS raw 72,000 -> 73,000, gzip 14,000 -> 14,200 for the
+// Plate 49 toolbar registry migration (focus ring, toolbar-group separators,
+// size-4 icon convention); reviewed: +1,315 raw / +197 gzip over the 71,135
+// baseline, after dropping the dead aria-invalid rules from the official base.
 const budgets = [
   {
     name: 'entry JS',
@@ -29,8 +33,8 @@ const budgets = [
   {
     name: 'entry CSS',
     manifestKey: 'style.css',
-    maxBytes: 72_000,
-    maxGzipBytes: 14_000,
+    maxBytes: 73_000,
+    maxGzipBytes: 14_200,
   },
 ];
 

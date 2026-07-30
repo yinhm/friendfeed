@@ -1,25 +1,34 @@
 'use client';
 
-import React from 'react';
-import { withRef } from 'platejs/react';
-import { cn } from 'components/cn';
-import { PortalBody, useComposedRef, useEventEditorValue, useEditorId } from 'platejs/react';
+import * as React from 'react';
+
 import {
+  type FloatingToolbarState,
   flip,
-  FloatingToolbarState,
   offset,
   useFloatingToolbar,
   useFloatingToolbarState,
 } from '@platejs/floating';
+import {
+  PortalBody,
+  useComposedRef,
+  useEditorId,
+  useEventEditorValue,
+} from 'platejs/react';
+
+import { cn } from 'components/cn';
 
 import { Toolbar } from './toolbar';
 
-export const FloatingToolbar = withRef<
-  typeof Toolbar,
-  {
-    state?: FloatingToolbarState;
-  }
->(({ state, children, ...props }, componentRef) => {
+export function FloatingToolbar({
+  children,
+  className,
+  state,
+  ref,
+  ...props
+}: React.ComponentProps<typeof Toolbar> & {
+  state?: FloatingToolbarState;
+}) {
   const editorId = useEditorId();
   const focusedEditorId = useEventEditorValue('focus');
   const floatingToolbarState = useFloatingToolbarState({
@@ -50,16 +59,17 @@ export const FloatingToolbar = withRef<
     hidden,
   } = useFloatingToolbar(floatingToolbarState);
 
-  const ref = useComposedRef<HTMLDivElement>(componentRef, floatingRef);
+  const composedRef = useComposedRef<HTMLDivElement>(ref, floatingRef);
 
   if (hidden) return null;
 
   return (
     <PortalBody>
       <Toolbar
-        ref={ref}
+        ref={composedRef}
         className={cn(
-          'absolute z-50 whitespace-nowrap border bg-popover px-0.5 opacity-100 shadow-md print:hidden'
+          'absolute z-50 whitespace-nowrap border bg-popover px-0.5 opacity-100 shadow-md print:hidden',
+          className
         )}
         {...rootProps}
         {...props}
@@ -68,4 +78,4 @@ export const FloatingToolbar = withRef<
       </Toolbar>
     </PortalBody>
   );
-});
+}

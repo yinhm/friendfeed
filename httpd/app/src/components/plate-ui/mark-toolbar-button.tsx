@@ -1,20 +1,21 @@
 'use client';
 
-import React from 'react';
-import { withRef } from 'platejs/react';
+import * as React from 'react';
+
 import { useMarkToolbarButton, useMarkToolbarButtonState } from 'platejs/react';
 
 import { ToolbarButton } from './toolbar';
 
-export const MarkToolbarButton = withRef<
-  typeof ToolbarButton,
-  {
-    nodeType: string;
-    clear?: string | string[];
-  }
->(({ clear, nodeType, ...rest }, ref) => {
+export function MarkToolbarButton({
+  clear,
+  nodeType,
+  ...props
+}: React.ComponentProps<typeof ToolbarButton> & {
+  nodeType: string;
+  clear?: string | string[];
+}) {
   const state = useMarkToolbarButtonState({ clear, nodeType });
-  const { props } = useMarkToolbarButton(state);
+  const { props: buttonProps } = useMarkToolbarButton(state);
 
-  return <ToolbarButton ref={ref} {...props} {...rest} />;
-});
+  return <ToolbarButton {...buttonProps} {...props} />;
+}

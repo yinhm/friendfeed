@@ -24,30 +24,28 @@ export function FloatingToolbarButtons() {
         <>
           <TurnIntoDropdownMenu />
 
-          <MarkToolbarButton size="xs" nodeType={MARK_BOLD} tooltip="Bold (⌘+B)">
+          <MarkToolbarButton nodeType={MARK_BOLD} tooltip="Bold (⌘+B)">
             <Icons.bold />
           </MarkToolbarButton>
-          <MarkToolbarButton size="xs" nodeType={MARK_ITALIC} tooltip="Italic (⌘+I)">
+          <MarkToolbarButton nodeType={MARK_ITALIC} tooltip="Italic (⌘+I)">
             <Icons.italic />
           </MarkToolbarButton>
           <MarkToolbarButton
-            size="xs"
             nodeType={MARK_UNDERLINE}
             tooltip="Underline (⌘+U)"
           >
             <Icons.underline />
           </MarkToolbarButton>
           <MarkToolbarButton
-            size="xs"
             nodeType={MARK_STRIKETHROUGH}
             tooltip="Strikethrough (⌘+⇧+M)"
           >
             <Icons.strikethrough />
           </MarkToolbarButton>
-          <MarkToolbarButton size="xs" nodeType={MARK_CODE} tooltip="Code (⌘+E)">
+          <MarkToolbarButton nodeType={MARK_CODE} tooltip="Code (⌘+E)">
             <Icons.code />
           </MarkToolbarButton>
-          <MarkToolbarButton size="xs" nodeType={MARK_HIGHLIGHT} tooltip="Highlight">
+          <MarkToolbarButton nodeType={MARK_HIGHLIGHT} tooltip="Highlight">
             <Icons.highlight />
           </MarkToolbarButton>
         </>
