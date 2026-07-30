@@ -52,6 +52,35 @@ func TestStoreOptionsShareLevelConfiguration(t *testing.T) {
 	assert.Equal(t, 3, upper)
 }
 
+func TestStoreCloseIsConcurrentAndIdempotent(t *testing.T) {
+	db := NewStore(t.TempDir())
+
+	const callers = 16
+	start := make(chan struct{})
+	panics := make(chan any, callers)
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	for range callers {
+		go func() {
+			defer wg.Done()
+			defer func() {
+				panics <- recover()
+			}()
+			<-start
+			db.Close()
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(panics)
+
+	for recovered := range panics {
+		if recovered != nil {
+			t.Fatalf("concurrent Store.Close panicked: %v", recovered)
+		}
+	}
+}
+
 func (s *DBTestSuite) SetupTest() {
 	log.Println("setup tests...")
 	dbpath := os.TempDir() + "/testffdb2"

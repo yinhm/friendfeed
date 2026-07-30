@@ -80,14 +80,15 @@
 - 不改变 `MinQueue`、队列容量或 public index 持久化格式。
 - 不顺带重写 FeedIndex 数据结构。
 
-## 4. 关闭路径 characterization
+## 4. 关闭路径 characterization（已完成，2026-07-30）
 
-- [ ] 补 Store 并发 Close 测试，确认 `closed` 数据竞争和 Pebble 重复 Close 的实际行为。
-- [ ] 补 ApiServer Shutdown 后内部直接调用路径测试，区分生产 gRPC `GracefulStop` 已保护的路径与测试/内部误用。
-- [ ] 使用 `go test -race ./store ./server` 取得证据。
-- [ ] 若要让 iterator 创建返回错误，必须新增兼容 API；不得修改现有 `Iterator()`、`NewIterator()` 签名。
+- [x] Pebble v2.1.6 明确禁止并发/重复 `DB.Close`；旧 Store 的普通 `closed bool` 有 data race，多个调用还可能同时进入 Pebble Close 后阻塞或 panic。
+- [x] Store 使用私有 `sync.Once` 保证现有 `Close()` 并发安全且幂等，不修改导出签名；关闭错误沿用既有不可返回契约并写日志。
+- [x] 并发测试覆盖 16 个 caller；`go test -race ./store ./server` 通过。
+- [x] 生产关停顺序已确认是 gRPC `GracefulStop` 排干请求后调用 `ApiServer.Shutdown`；Shutdown 后直接调用内部方法属于生命周期外误用，不增加全路径 nil 检查。
+- [x] Pebble closed DB 的 `NewIter` 自身直接 panic而非返回 error；不修改现有 `Iterator()`、`NewIterator()` 签名，也不新增无法兑现安全保证的 wrapper。
 
-在证据出现前不重构关闭状态机，不把测试误用描述成生产 RPC 普遍可达问题。
+本项只修复实际可达的 Store 重复 Close；不把测试/内部误用描述成生产 RPC 普遍路径，不重构已验证的 ApiServer shutdown 状态机。
 
 ## 延期到架构决策
 

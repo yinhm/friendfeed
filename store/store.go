@@ -29,8 +29,8 @@ type Store struct {
 	// ro      *pebble.ReadOptions
 	wo *pebble.WriteOptions
 
-	closed bool
-	idGen  *flake.Generator
+	closeOnce sync.Once
+	idGen     *flake.Generator
 
 	syncWrites atomic.Bool
 	batchMu    sync.Mutex
@@ -136,12 +136,11 @@ func (db *Store) initWriteOptions() {
 }
 
 func (db *Store) Close() {
-	if db.closed {
-		log.Print("closing unopened pebble instance")
-		return
-	}
-	db.rdb.Close()
-	db.closed = true
+	db.closeOnce.Do(func() {
+		if err := db.rdb.Close(); err != nil {
+			log.Printf("close pebble store: %v", err)
+		}
+	})
 }
 
 func (db *Store) Destroy() error {
