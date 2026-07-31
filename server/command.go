@@ -248,18 +248,28 @@ func (s *ApiServer) DBMetrics() error {
 	return nil
 }
 
+// BackupDB copies the live database to /tmp/backup-YYYYMMDD. It keeps the
+// historical production destination; tests drive the same logic through
+// BackupDBTo with an explicit destination path.
 func (s *ApiServer) BackupDB() error {
+	dt := time.Now()
+	backupFolder := fmt.Sprintf("backup-%d%d%d", dt.Year(), dt.Month(), dt.Day())
+	backupPath := filepath.Join("/tmp", backupFolder)
+	return s.BackupDBTo(backupPath)
+}
+
+// BackupDBTo copies every key of the live database into a new store at
+// destPath. The destination store is closed before returning, so destPath
+// can be reopened (e.g. as a restored database) right away.
+func (s *ApiServer) BackupDBTo(destPath string) error {
 	log.Println("BackupDB...")
 
 	iter := s.rdb.Iterator()
 	defer iter.Close()
 
-	dt := time.Now()
-	backupFolder := fmt.Sprintf("backup-%d%d%d", dt.Year(), dt.Month(), dt.Day())
-	backupPath := filepath.Join("/tmp", backupFolder)
-	logger.Warnf("db backup to: %s", backupPath)
+	logger.Warnf("db backup to: %s", destPath)
 
-	ndb := store.NewStore(backupPath)
+	ndb := store.NewStore(destPath)
 	ndb.SetSync(false)
 	defer ndb.Close()
 

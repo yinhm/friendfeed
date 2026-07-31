@@ -1,0 +1,242 @@
+package server
+
+import (
+	"context"
+	"net"
+	"path/filepath"
+	"testing"
+
+	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/yinhm/friendfeed/model"
+	"github.com/yinhm/friendfeed/pb"
+	"github.com/yinhm/friendfeed/search"
+	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/util"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
+)
+
+// TestBackupRestoreRoundTrip proves the production backup path
+// (ApiServer.BackupDBTo, shared by BackupDB) produces a database that
+// reopens standalone in a separate directory and serves the seeded data:
+// public feedinfo metadata, profile + UserMap, UserRenameMap redirects,
+// OAuth records, and entries with their author/group direct indexes.
+func TestBackupRestoreRoundTrip(t *testing.T) {
+	// model.PutEntry indexes entry bodies through the global search.Indexer;
+	// install a mock and restore the previous index to avoid cross-test bleed.
+	prevIndexer := search.Indexer
+	search.Indexer = search.NewMockIndex()
+	t.Cleanup(func() { search.Indexer = prevIndexer })
+
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	require.NoError(t, err)
+
+	sourcePath := filepath.Join(t.TempDir(), "source")
+	backupPath := filepath.Join(t.TempDir(), "backup")
+
+	srv := NewApiServer(sourcePath, cfg)
+	defer srv.Shutdown()
+
+	// --- seed the source database ---
+
+	// Public feed metadata, written through the Feedinfo table path.
+	publicUUID := uuid.Must(uuid.NewV4())
+	publicFeedinfo := &pb.Feedinfo{
+		Uuid:        publicUUID.String(),
+		Id:          "public",
+		Name:        "Everyone's feed",
+		Type:        "group",
+		Description: "public feed metadata",
+	}
+	require.NoError(t, model.PutFeedinfo(srv.rdb, publicUUID.String(), publicFeedinfo))
+
+	// A user profile (UpdateProfile also creates the UserMap id->uuid entry).
+	profileUUID := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(srv.mdb, &pb.Profile{
+		Uuid:        profileUUID.String(),
+		Id:          "backupuser",
+		Name:        "Backup User",
+		Type:        "user",
+		Description: "restore me",
+	}))
+
+	// An OAuth record for the same user.
+	seededOAuth, err := model.PutOAuthUser(srv.mdb, &pb.OAuthUser{
+		Provider:          "Twitter",
+		UserId:            "233666",
+		Name:              "backupuser",
+		NickName:          "Backup User",
+		AccessToken:       "token",
+		AccessTokenSecret: "secret",
+	})
+	require.NoError(t, err)
+
+	// A rename: moves the UserMap entry and records old id -> uuid in
+	// UserRenameMap (table 7).
+	require.NoError(t, model.RenameProfileId(srv.mdb, profileUUID, "renameduser"))
+
+	// A group feed to hold the second entry's group direct index.
+	groupUUID := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(srv.mdb, &pb.Profile{
+		Uuid: groupUUID.String(), Id: "backupgroup", Name: "Backup Group", Type: "group",
+	}))
+
+	// Entries through model.PutEntry so the entry record and the author/group
+	// direct indexes land in one atomic commit. Dates differ because the
+	// direct index key carries a reverse timestamp and same-timestamp keys
+	// dedup.
+	authorEntry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: profileUUID.String(),
+		Date:        "2012-09-07T07:40:22Z",
+		Body:        "author feed entry",
+		From:        &pb.Feed{Uuid: profileUUID.String(), Id: "backupuser", Name: "Backup User"},
+	}
+	authorEntryKey, err := model.PutEntry(srv.rdb, authorEntry)
+	require.NoError(t, err)
+
+	groupEntry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: profileUUID.String(),
+		FeedUuid:    groupUUID.String(),
+		Date:        "2012-09-08T07:40:22Z",
+		Body:        "group feed entry",
+		From:        &pb.Feed{Uuid: profileUUID.String(), Id: "backupuser", Name: "Backup User"},
+	}
+	groupEntryKey, err := model.PutEntry(srv.rdb, groupEntry)
+	require.NoError(t, err)
+
+	// --- run the production backup logic into a standalone directory ---
+	require.NoError(t, srv.BackupDBTo(backupPath))
+
+	// --- verify the restored database key by key, read-only ---
+	rodb := store.NewStoreReadOnly(backupPath)
+
+	// The backup is a full copy: the key spaces match exactly.
+	require.Equal(t, countKeys(t, srv.rdb), countKeys(t, rodb))
+
+	// Public feedinfo metadata survives verbatim.
+	gotFeedinfo, err := model.GetFeedinfo(rodb, publicUUID.String())
+	require.NoError(t, err)
+	require.True(t, proto.Equal(publicFeedinfo, gotFeedinfo),
+		"public feedinfo mismatch: got %v", gotFeedinfo)
+
+	// Profile readable by stable uuid, reflecting the rename.
+	gotProfile, err := model.GetProfileFromUuid(rodb, profileUUID)
+	require.NoError(t, err)
+	require.Equal(t, "renameduser", gotProfile.Id)
+	require.Equal(t, "Backup User", gotProfile.Name)
+
+	// Profile resolvable by current id through UserMap; the raw value is
+	// the 16-byte user UUID.
+	byID, err := model.GetProfileFromUserId(rodb, "renameduser")
+	require.NoError(t, err)
+	require.Equal(t, profileUUID.String(), byID.Uuid)
+	rawMap, err := model.UserMap.GetRaw(rodb, []byte("renameduser"))
+	require.NoError(t, err)
+	require.Len(t, rawMap, uuid.Size, "UserMap value must be a 16-byte UUID")
+	require.Equal(t, profileUUID.Bytes(), rawMap)
+
+	// The old id is gone from UserMap but resolves through UserRenameMap
+	// (old_id -> 16-byte user UUID) to the same profile.
+	_, err = model.GetProfileFromUserId(rodb, "backupuser")
+	require.Error(t, err, "old id must not resolve through UserMap after rename")
+	rawRename, err := model.UserRenameMap.GetRaw(rodb, []byte("backupuser"))
+	require.NoError(t, err)
+	require.Len(t, rawRename, uuid.Size, "UserRenameMap value must be a 16-byte UUID")
+	require.Equal(t, profileUUID.Bytes(), rawRename)
+	resolvedUUID, err := model.FindProfileRenameByOldId(rodb, "backupuser")
+	require.NoError(t, err)
+	require.Equal(t, profileUUID, resolvedUUID)
+	byRename, err := model.GetProfileFromRenameId(rodb, "backupuser")
+	require.NoError(t, err)
+	require.Equal(t, profileUUID.String(), byRename.Uuid)
+
+	// OAuth record survives verbatim.
+	_, gotOAuth, err := model.GetOAuthUser(rodb, "Twitter", "233666")
+	require.NoError(t, err)
+	require.True(t, proto.Equal(seededOAuth, gotOAuth),
+		"oauth record mismatch: got %v", gotOAuth)
+
+	// Entry bodies readable, and the author/group direct index keys exist
+	// and point at the entry records.
+	gotAuthorEntry, err := model.GetEntry(rodb, authorEntry.Id)
+	require.NoError(t, err)
+	require.Equal(t, "author feed entry", gotAuthorEntry.Body)
+	gotGroupEntry, err := model.GetEntry(rodb, groupEntry.Id)
+	require.NoError(t, err)
+	require.Equal(t, "group feed entry", gotGroupEntry.Body)
+
+	require.Contains(t, entryIndexTargets(t, rodb, profileUUID), authorEntryKey.String(),
+		"author direct index must point at the author entry")
+	require.Contains(t, entryIndexTargets(t, rodb, profileUUID), groupEntryKey.String(),
+		"author direct index must point at the group entry")
+	require.Contains(t, entryIndexTargets(t, rodb, groupUUID), groupEntryKey.String(),
+		"group direct index must point at the group entry")
+
+	// Release the read-only handle before reopening the path read-write;
+	// Pebble holds the database lock even for read-only opens.
+	rodb.Close()
+
+	// --- serve the restored database over real gRPC ---
+	restored := NewApiServer(backupPath, cfg)
+	defer restored.Shutdown()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	rpcServer := grpc.NewServer()
+	pb.RegisterApiServer(rpcServer, restored)
+	go rpcServer.Serve(ln)
+	defer rpcServer.GracefulStop()
+
+	conn, err := grpc.Dial(ln.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+	client := pb.NewApiClient(conn)
+	ctx := context.Background()
+
+	// FetchFeed by the current id: UserMap resolution, direct index scan
+	// and entry reads all come from the restored database.
+	feed, err := client.FetchFeed(ctx, &pb.FeedRequest{Id: "renameduser", PageSize: 30})
+	require.NoError(t, err)
+	require.Equal(t, profileUUID.String(), feed.Uuid)
+	require.Equal(t, "renameduser", feed.Id)
+	require.Len(t, feed.Entries, 2)
+
+	// FetchFeed by the previous id: the UserRenameMap redirect survived the
+	// backup and resolves to the same feed.
+	redirected, err := client.FetchFeed(ctx, &pb.FeedRequest{Id: "backupuser", PageSize: 30})
+	require.NoError(t, err)
+	require.Equal(t, profileUUID.String(), redirected.Uuid)
+	require.Equal(t, "renameduser", redirected.Id)
+	require.Len(t, redirected.Entries, 2)
+}
+
+// countKeys exhaustively iterates a store; the iterator is closed explicitly.
+func countKeys(t *testing.T, db *store.Store) int {
+	t.Helper()
+	iter := db.Iterator()
+	defer iter.Close()
+	n := 0
+	for iter.First(); iter.Valid(); iter.Next() {
+		n++
+	}
+	require.NoError(t, iter.Error())
+	return n
+}
+
+// entryIndexTargets lists the entry keys the direct index of indexUUID
+// points at. ForwardScan closes its iterator internally.
+func entryIndexTargets(t *testing.T, db *store.Store, indexUUID uuid.UUID) []string {
+	t.Helper()
+	prefix := store.NewUUIDKey(model.TableEntryIndex, indexUUID).Bytes()
+	var targets []string
+	_, err := db.ForwardScan(prefix, func(i int, k, v []byte) error {
+		targets = append(targets, store.Key(v).String())
+		return nil
+	})
+	require.NoError(t, err)
+	return targets
+}
