@@ -15,6 +15,10 @@ type Config struct {
 
 	ServerDomain       string `json:"server_domain"`
 	MediaPath          string `json:"media_path"`
+	// MediaURL is the base URL mirrored media objects are served from
+	// (e.g. the R2 bucket front domain). Empty means the media package
+	// default (https://m.friendfeed.me).
+	MediaURL           string `json:"media_url"`
 	GAuthKeyFile       string `json:"gauth_key_file"`
 	TwitterApiKey      string `json:"twitter_api_key"`
 	TwitterApiSecret   string `json:"twitter_api_secret"`

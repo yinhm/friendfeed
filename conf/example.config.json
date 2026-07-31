@@ -2,6 +2,7 @@
   "address": "localhost:12019",
   "db_path": "/tmp/fftestdb",
   "media_path": "/tmp/fftestdb/files",
+  "media_url": "https://m.friendfeed.me",
   "gauth_key_file": "/srv/ff/gauth.json",
   "twitter_api_key": "",
   "twitter_api_secret": "",

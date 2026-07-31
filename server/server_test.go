@@ -2,10 +2,14 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"net/url"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +17,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
@@ -1208,4 +1213,115 @@ func (s *RpcTestSuite) TestPutOAuthGoogleLoginCreatesNoService() {
 	})
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, profile2.Uuid)
+}
+
+// fakeMirrorStorage simulates media mirroring without network or disk IO:
+// FromUrl rewrites the object URL to the mirror front domain, or fails
+// outright when fail is set.
+type fakeMirrorStorage struct {
+	fail bool
+}
+
+func (f *fakeMirrorStorage) Exists(name string) (bool, error) { return false, nil }
+
+func (f *fakeMirrorStorage) Fetch(obj *media.Object) (*http.Response, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (f *fakeMirrorStorage) Post(obj *media.Object) (*media.Object, error) { return obj, nil }
+
+func (f *fakeMirrorStorage) Thumbnail(obj *media.Object) (*media.Object, error) { return obj, nil }
+
+func (f *fakeMirrorStorage) Mirror(obj *media.Object) (*media.Object, error) {
+	obj.Path = obj.Filename
+	obj.Url = "https://m.friendfeed.me/" + obj.Filename
+	return obj, nil
+}
+
+func (f *fakeMirrorStorage) FromUrl(filename, src, mimetype string) (*media.Object, error) {
+	if f.fail {
+		return nil, errors.New("fake mirror failure")
+	}
+	parsed, err := url.Parse(src)
+	if err != nil {
+		return nil, err
+	}
+	if filename == "" {
+		filename = strings.TrimLeft(parsed.Path, "/")
+	}
+	return f.Mirror(&media.Object{Filename: filename, Url: src, MimeType: mimetype})
+}
+
+func (s *RpcTestSuite) archiveOneEntry(entry *pb.Entry) *pb.FeedSummary {
+	conn, err := grpc.Dial(s.rpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	s.Require().NoError(err)
+	defer conn.Close()
+
+	stream, err := pb.NewApiClient(conn).ArchiveFeed(context.Background())
+	s.Require().NoError(err)
+	s.Require().NoError(stream.Send(entry))
+	summary, err := stream.CloseAndRecv()
+	s.Require().NoError(err)
+	return summary
+}
+
+// ArchiveFeed mirrors media synchronously before PutEntry, so the persisted
+// entry carries the rewritten mirrored URLs.
+func (s *RpcTestSuite) TestArchiveFeedMirrorsMediaBeforePutEntry() {
+	s.srv.fs = &fakeMirrorStorage{}
+
+	entry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		Date:        "2021-07-25T15:00:00Z",
+		Body:        "entry with media",
+		ProfileUuid: uuid.Must(uuid.NewV4()).String(),
+		Thumbnails: []*pb.Thumbnail{{
+			Url:  "http://origin.example/t/thumb1.jpg",
+			Link: "http://origin.example/pages/1",
+		}},
+		Files: []*pb.File{{
+			Name: "doc.pdf",
+			Url:  "http://origin.example/f/doc.pdf",
+			Type: "application/pdf",
+		}},
+	}
+
+	summary := s.archiveOneEntry(entry)
+	assert.Equal(s.T(), int32(1), summary.EntryCount)
+
+	persisted, err := model.GetEntry(s.srv.rdb, entry.Id)
+	s.Require().NoError(err)
+	assert.Equal(s.T(), "https://m.friendfeed.me/t/thumb1.jpg", persisted.Thumbnails[0].Url)
+	assert.Equal(s.T(), "https://m.friendfeed.me/doc.pdf", persisted.Files[0].Url)
+	assert.Equal(s.T(), "application/pdf", persisted.Files[0].Type)
+}
+
+// When mirroring fails, archiving still succeeds and the entry keeps the
+// original media URLs.
+func (s *RpcTestSuite) TestArchiveFeedKeepsOriginalURLWhenMirrorFails() {
+	s.srv.fs = &fakeMirrorStorage{fail: true}
+
+	entry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		Date:        "2021-07-25T15:00:00Z",
+		Body:        "entry with broken media",
+		ProfileUuid: uuid.Must(uuid.NewV4()).String(),
+		Thumbnails: []*pb.Thumbnail{{
+			Url:  "http://origin.example/t/thumb1.jpg",
+			Link: "http://origin.example/pages/1",
+		}},
+		Files: []*pb.File{{
+			Name: "doc.pdf",
+			Url:  "http://origin.example/f/doc.pdf",
+			Type: "application/pdf",
+		}},
+	}
+
+	summary := s.archiveOneEntry(entry)
+	assert.Equal(s.T(), int32(1), summary.EntryCount)
+
+	persisted, err := model.GetEntry(s.srv.rdb, entry.Id)
+	s.Require().NoError(err)
+	assert.Equal(s.T(), "http://origin.example/t/thumb1.jpg", persisted.Thumbnails[0].Url)
+	assert.Equal(s.T(), "http://origin.example/f/doc.pdf", persisted.Files[0].Url)
 }

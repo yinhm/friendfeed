@@ -33,8 +33,8 @@
 
 ## 媒体镜像
 
-- `mirrorMedia` 链路必须保留。当前 `media.Mirror` 仍是未实现 stub，且旧流程在 `PutEntry` 后改 URL，无法持久化。
-- 正确实现方向是完成 `Mirror` 的 `Fetch + Post`，在 `PutEntry` 前执行镜像和 URL 改写，并为失败策略、对象 Bucket 及 S3/R2 行为建立测试。
+- `mirrorMedia` 链路必须保留。`media.Mirror` 已实现为 `Fetch + Post`（受控 HTTP client：超时、2xx 校验、32MB 响应上限、重定向上限、SSRF 防护），`ArchiveFeed` 在 `PutEntry` 前同步完成镜像与 URL 改写并随 entry 持久化；单个媒体失败只记录日志并保留原 URL。
+- S3/R2 的 `Post` 与对象 Bucket 行为仍未实现，接入时需另行实现并建立测试。
 
 ## 公共 API 退役边界
 

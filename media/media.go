@@ -1,14 +1,17 @@
 package media
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/disintegration/imaging"
 	"github.com/yinhm/friendfeed/util"
@@ -42,17 +45,83 @@ type Storage interface {
 	FromUrl(filename, src, mimetype string) (*Object, error)
 }
 
+const (
+	// defaultMediaBaseURL is the front domain of the R2 media bucket;
+	// mirrored objects are served from <mediaBaseURL>/<sharded path>.
+	defaultMediaBaseURL = "https://m.friendfeed.me"
+
+	fetchTimeout      = 30 * time.Second
+	maxFetchBytes     = 32 << 20 // 32MB
+	maxFetchRedirects = 10
+)
+
 type LocalStorage struct {
-	path     string
-	maxWidth int
+	path         string
+	maxWidth     int
+	mediaBaseURL string
+	httpClient   *http.Client
 }
 
 func NewLocalStorage(cfg *util.Config, maxWidth int) *LocalStorage {
 	ls := &LocalStorage{
-		path:     cfg.MediaPath,
-		maxWidth: maxWidth,
+		path:         cfg.MediaPath,
+		maxWidth:     maxWidth,
+		mediaBaseURL: defaultMediaBaseURL,
+		httpClient:   newFetchClient(),
+	}
+	if cfg.MediaURL != "" {
+		ls.mediaBaseURL = strings.TrimRight(cfg.MediaURL, "/")
 	}
 	return ls
+}
+
+// newFetchClient builds the HTTP client used to mirror remote media: it has
+// an overall timeout, follows a bounded number of redirects, and refuses to
+// connect to loopback/private/link-local addresses (SSRF guard). The guard
+// lives in DialContext, so it is enforced on every redirect hop as well.
+func newFetchClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = safeDialContext
+	return &http.Client{
+		Timeout:   fetchTimeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= maxFetchRedirects {
+				return fmt.Errorf("stopped after %d redirects", maxFetchRedirects)
+			}
+			return nil
+		},
+	}
+}
+
+// safeDialContext resolves the target host and refuses to dial
+// loopback/private/link-local addresses. It dials the resolved IP directly,
+// so a hostname cannot be re-resolved to a different address afterwards
+// (DNS rebinding).
+func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no such host: %s", host)
+	}
+	for _, ipa := range ips {
+		if !isPublicIP(ipa.IP) {
+			return nil, fmt.Errorf("refusing to dial non-public address %s for host %s", ipa.IP, host)
+		}
+	}
+	dialer := &net.Dialer{Timeout: fetchTimeout}
+	return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+}
+
+func isPublicIP(ip net.IP) bool {
+	return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsUnspecified() &&
+		!ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsMulticast()
 }
 
 func (c *LocalStorage) shardFilepath(filename string) (string, string) {
@@ -77,8 +146,20 @@ func (c *LocalStorage) Exists(name string) (bool, error) {
 	return true, nil
 }
 
+// Mirror fetches the remote object and stores it locally, then rewrites
+// obj.Url to the mirrored address (<mediaBaseURL>/<sharded path>) and keeps
+// Path/Filename/MimeType in sync with the stored copy. obj.Bucket is left
+// untouched: LocalStorage has no bucket concept, the field is reserved for
+// S3/R2 backends.
 func (c *LocalStorage) Mirror(obj *Object) (*Object, error) {
-	return nil, fmt.Errorf("Mirror not implemented yet: %s", obj.Url)
+	if _, err := c.Fetch(obj); err != nil {
+		return nil, err
+	}
+	if _, err := c.Post(obj); err != nil {
+		return nil, err
+	}
+	obj.Url = c.mediaBaseURL + "/" + obj.Path
+	return obj, nil
 }
 
 func (c *LocalStorage) FromUrl(filename, src, mimetype string) (*Object, error) {
@@ -118,16 +199,27 @@ func (c *LocalStorage) Post(obj *Object) (*Object, error) {
 }
 
 // fetch file from url
+//
+// Uses the storage's controlled client (timeout, redirect limit, SSRF
+// guard). Only 2xx responses are accepted and the body is capped at
+// maxFetchBytes.
 func (c *LocalStorage) Fetch(obj *Object) (*http.Response, error) {
-	resp, err := http.Get(obj.Url)
+	resp, err := c.httpClient.Get(obj.Url)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return resp, fmt.Errorf("fetch %s: unexpected status %s", obj.Url, resp.Status)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFetchBytes+1))
 	if err != nil {
 		return resp, err
+	}
+	if len(body) > maxFetchBytes {
+		return resp, fmt.Errorf("fetch %s: body exceeds %d bytes limit", obj.Url, maxFetchBytes)
 	}
 
 	mimeType := resp.Header.Get("Content-Type")

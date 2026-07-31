@@ -276,6 +276,9 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 			return err
 		}
 		entryCount++
+		// Mirror media synchronously before PutEntry so the rewritten
+		// mirrored URLs are persisted with the entry.
+		s.mirrorMedia(s.fs, entry)
 		// key, err := store.PutEntry(s.rdb, entry, false) // always use false
 		key, err := model.PutEntry(s.rdb, entry)
 		if err == nil {
@@ -286,7 +289,6 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 			log.Println("db error:", err)
 		}
 
-		go s.mirrorMedia(s.fs, entry)
 		if lastEntry == nil {
 			dateEnd = entry.Date
 		}
@@ -334,19 +336,26 @@ func (s *ApiServer) ForceArchiveFeed(stream pb.Api_ForceArchiveFeedServer) error
 	}
 }
 
+// mirrorMedia mirrors the entry's thumbnails and files into media storage
+// and rewrites their URLs to the mirrored address. It runs before
+// model.PutEntry so the mirrored URLs persist with the entry.
+//
+// Failure policy: when a single media object fails to mirror, the error is
+// logged and the original URL is kept; archiving itself must not fail
+// because of mirroring.
 func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 	// twitpic should be fine, see: http://blog.twitpic.com/2014/10/twitpics-future/
 	for _, thumb := range entry.Thumbnails {
 		newObj, err := client.FromUrl("", thumb.Url, "")
 		if err != nil {
-			// log.Println("Mirror media failed:", err)
+			log.Println("Mirror media failed:", err)
 			continue
 		}
 		thumb.Url = newObj.Url // rewrote to mirrored
 
 		_, err = client.FromUrl("", thumb.Link, "")
 		if err != nil {
-			// log.Println("Mirror media failed:", err)
+			log.Println("Mirror media failed:", err)
 			continue
 		}
 	}
@@ -354,7 +363,7 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 	for _, file := range entry.Files {
 		newObj, err := client.FromUrl(file.Name, file.Url, file.Type)
 		if err != nil {
-			// log.Println("Mirror media failed:", err)
+			log.Println("Mirror media failed:", err)
 			continue
 		}
 		file.Url = newObj.Url // rewrote to mirrored
