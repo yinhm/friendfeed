@@ -42,7 +42,9 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
 	log.Println("rpc server stopped.")
 	apiSrv.Shutdown()
 	log.Println("api server stopped.")
-	search.Indexer.Close()
+	if err := search.CloseIndexService(); err != nil {
+		log.Printf("failed to close search index: %v", err)
+	}
 	log.Println("index server closed.")
 }
 
@@ -73,8 +75,11 @@ func main() {
 	rpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(MaxReceiveMessageSize))
 	apiServer := server.NewApiServer(cfg.DBPath, cfg)
 
-	// index service
-	search.InitIndexService(filepath.Join(cfg.DBPath, "index"))
+	// index service: main owns the exit policy on initialization
+	// failure; library code must not call log.Fatal.
+	if err := search.InitIndexServiceE(filepath.Join(cfg.DBPath, "index")); err != nil {
+		log.Fatalf("failed to initialize search index: %v", err)
+	}
 
 	apiServer.StartBackgroundJobs()
 	shutdownDone := make(chan struct{})
