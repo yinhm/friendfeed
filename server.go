@@ -30,7 +30,7 @@ func init() {
 	flag.BoolVar(&debug, "d", false, "debug mode")
 }
 
-func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
+func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer, health *healthCheck) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
@@ -38,6 +38,9 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer) {
 	signal := <-sigCh
 
 	log.Printf("Signal %s received, shutdown server...", signal)
+	// Flip health to NOT_SERVING before draining so new probes fail
+	// while in-flight requests finish.
+	health.shutdown()
 	rpcSrv.GracefulStop()
 	log.Println("rpc server stopped.")
 	apiSrv.Shutdown()
@@ -71,19 +74,23 @@ func main() {
 	log.Printf("Rpc server running at %s", cfg.Address)
 
 	rpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(MaxReceiveMessageSize))
+	health := newHealthCheck(rpcServer)
 	apiServer := server.NewApiServer(cfg.DBPath, cfg)
+	health.markServing(healthServicePebble)
 
 	// index service
 	search.InitIndexService(filepath.Join(cfg.DBPath, "index"))
+	health.markServing(healthServiceSearch)
 
 	apiServer.StartBackgroundJobs()
 	shutdownDone := make(chan struct{})
 	go func() {
-		waitShutdown(rpcServer, apiServer)
+		waitShutdown(rpcServer, apiServer, health)
 		close(shutdownDone)
 	}()
 
 	pb.RegisterApiServer(rpcServer, apiServer)
+	health.markReady()
 	// Serve returns nil once GracefulStop completes; main must not
 	// return before waitShutdown finished closing the index and db,
 	// otherwise process exit kills the cleanup mid-flight.
