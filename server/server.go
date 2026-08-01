@@ -91,7 +91,7 @@ func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 		done:   make(chan struct{}),
 	}
 
-	srv.fs = media.NewLocalStorage(cfg, 1024)
+	srv.fs = media.NewStorage(cfg, 1024)
 	return srv
 }
 
@@ -336,37 +336,54 @@ func (s *ApiServer) ForceArchiveFeed(stream pb.Api_ForceArchiveFeedServer) error
 	}
 }
 
+// Bounds for mirroring a single entry's media: mirroring runs
+// synchronously inside ArchiveFeed, so one entry must not stall archiving
+// for (#media x fetch timeout). Once the time budget or the object cap is
+// exhausted, the remaining media keep their original URLs. They are
+// package variables so tests can shrink them.
+var (
+	mirrorMediaBudget     = 90 * time.Second
+	mirrorMediaMaxObjects = 20
+)
+
 // mirrorMedia mirrors the entry's thumbnails and files into media storage
 // and rewrites their URLs to the mirrored address. It runs before
 // model.PutEntry so the mirrored URLs persist with the entry.
 //
+// thumb.Link is the navigation target of the thumbnail, not a media
+// resource: it is kept as is and never fetched.
+//
 // Failure policy: when a single media object fails to mirror, the error is
 // logged and the original URL is kept; archiving itself must not fail
-// because of mirroring.
+// because of mirroring. Media beyond the per-entry time budget or object
+// cap also keep their original URLs.
 func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 	// twitpic should be fine, see: http://blog.twitpic.com/2014/10/twitpics-future/
-	for _, thumb := range entry.Thumbnails {
-		newObj, err := client.FromUrl("", thumb.Url, "")
-		if err != nil {
-			log.Println("Mirror media failed:", err)
-			continue
+	deadline := time.Now().Add(mirrorMediaBudget)
+	attempted := 0
+	mirror := func(name, src, mimetype string) (string, bool) {
+		if attempted >= mirrorMediaMaxObjects || time.Now().After(deadline) {
+			return "", false
 		}
-		thumb.Url = newObj.Url // rewrote to mirrored
-
-		_, err = client.FromUrl("", thumb.Link, "")
+		attempted++
+		newObj, err := client.FromUrl(name, src, mimetype)
 		if err != nil {
 			log.Println("Mirror media failed:", err)
-			continue
+			return "", false
+		}
+		return newObj.Url, true
+	}
+
+	for _, thumb := range entry.Thumbnails {
+		if mirrored, ok := mirror("", thumb.Url, ""); ok {
+			thumb.Url = mirrored // rewrote to mirrored
 		}
 	}
 
 	for _, file := range entry.Files {
-		newObj, err := client.FromUrl(file.Name, file.Url, file.Type)
-		if err != nil {
-			log.Println("Mirror media failed:", err)
-			continue
+		if mirrored, ok := mirror(file.Name, file.Url, file.Type); ok {
+			file.Url = mirrored // rewrote to mirrored
 		}
-		file.Url = newObj.Url // rewrote to mirrored
 	}
 	return nil
 }

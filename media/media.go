@@ -2,6 +2,8 @@ package media
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -63,8 +65,13 @@ type LocalStorage struct {
 }
 
 func NewLocalStorage(cfg *util.Config, maxWidth int) *LocalStorage {
+	path := cfg.MediaPath
+	if path == "" {
+		// Project convention: media files live next to the database.
+		path = filepath.Join(cfg.DBPath, "files")
+	}
 	ls := &LocalStorage{
-		path:         cfg.MediaPath,
+		path:         path,
 		maxWidth:     maxWidth,
 		mediaBaseURL: defaultMediaBaseURL,
 		httpClient:   newFetchClient(),
@@ -134,6 +141,69 @@ func (c *LocalStorage) shardFilepath(filename string) (string, string) {
 	return outFile, filepath.Join(c.path, outFile)
 }
 
+// sanitizeObjectKey turns an untrusted name (a remote URL path or an
+// RPC-submitted file name) into a safe object key: backslashes are treated
+// as separators, empty and "." segments are dropped, and every remaining
+// segment is reduced to [A-Za-z0-9._-] with anything else replaced by "_".
+//
+// Absolute paths and ".." traversal segments are rejected with an error;
+// untrusted input must never become a filesystem path directly. The result
+// may be empty when the input carries no usable name; callers then fall
+// back to a content hash as the key.
+func sanitizeObjectKey(name string) (string, error) {
+	if name == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(name) || strings.HasPrefix(name, `/`) ||
+		strings.HasPrefix(name, `\`) || (len(name) > 1 && name[1] == ':') {
+		return "", fmt.Errorf("media: absolute object key %q rejected", name)
+	}
+	name = strings.ReplaceAll(name, `\`, "/")
+	segments := strings.Split(name, "/")
+	out := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		switch segment {
+		case "", ".":
+			continue
+		case "..":
+			return "", fmt.Errorf("media: object key %q contains path traversal", name)
+		}
+		if cleaned := sanitizeKeySegment(segment); cleaned != "" {
+			out = append(out, cleaned)
+		}
+	}
+	return strings.Join(out, "/"), nil
+}
+
+func sanitizeKeySegment(segment string) string {
+	var b strings.Builder
+	b.Grow(len(segment))
+	for _, r := range segment {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	return b.String()
+}
+
+// contained verifies that a resolved path stays inside the media root.
+// It is the final guard before anything is written to disk.
+func (c *LocalStorage) contained(fullPath string) error {
+	rel, err := filepath.Rel(c.path, filepath.Clean(fullPath))
+	if err != nil {
+		return err
+	}
+	if rel == ".." || filepath.IsAbs(rel) ||
+		strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("media: path %q escapes media root %q", fullPath, c.path)
+	}
+	return nil
+}
+
 func (c *LocalStorage) Exists(name string) (bool, error) {
 	_, fullPath := c.shardFilepath(name)
 	// filepath := filepath.Join(c.path, name)
@@ -163,6 +233,17 @@ func (c *LocalStorage) Mirror(obj *Object) (*Object, error) {
 }
 
 func (c *LocalStorage) FromUrl(filename, src, mimetype string) (*Object, error) {
+	obj, err := objectFromUrl(filename, src, mimetype)
+	if err != nil {
+		return nil, err
+	}
+	return c.Mirror(obj)
+}
+
+// objectFromUrl builds an Object from a remote URL. The URL path is
+// untrusted input: it only becomes an object key after the sanitization
+// and containment checks in Post.
+func objectFromUrl(filename, src, mimetype string) (*Object, error) {
 	parsed, err := url.Parse(src)
 	if err != nil {
 		return nil, fmt.Errorf("can not parse: %s", src)
@@ -180,12 +261,33 @@ func (c *LocalStorage) FromUrl(filename, src, mimetype string) (*Object, error) 
 		obj.MimeType = mimetype
 	}
 
-	return c.Mirror(obj)
+	return obj, nil
 }
 
 // write object file to disk
+//
+// obj.Filename is untrusted input: it is sanitized into a safe object key
+// first, and when nothing usable remains (e.g. an empty name) the key
+// falls back to the sha256 of the content. The resolved path is verified
+// to stay inside the media root before writing.
 func (c *LocalStorage) Post(obj *Object) (*Object, error) {
-	outFile, fullPath := c.shardFilepath(obj.Filename)
+	filename, err := sanitizeObjectKey(obj.Filename)
+	if err != nil {
+		return obj, err
+	}
+	if filename == "" {
+		if len(obj.Content) == 0 {
+			return obj, fmt.Errorf("media: no usable object key for %q", obj.Filename)
+		}
+		sum := sha256.Sum256(obj.Content)
+		filename = hex.EncodeToString(sum[:])
+	}
+	obj.Filename = filename
+
+	outFile, fullPath := c.shardFilepath(filename)
+	if err := c.contained(fullPath); err != nil {
+		return obj, err
+	}
 
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return obj, err
