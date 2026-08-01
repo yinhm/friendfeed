@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -301,8 +302,7 @@ func TestBackupDBToRequiresFreshDestination(t *testing.T) {
 // while a backup runs must not break the backup, and the result opens and
 // reads back fine (snapshot consistency itself is covered by
 // TestStoreSnapshotIsolation).
-func TestBackupDBToConcurrentWrites(t *testing.T) {
-	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+func TestBackupDBToConcurrentWrites(t *testing.T) {	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
 	require.NoError(t, err)
 
 	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
@@ -344,6 +344,54 @@ func TestBackupDBToConcurrentWrites(t *testing.T) {
 	got, err := rodb.Get([]byte("k00000"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("v"), got)
+}
+
+// TestBackupDBToAtomicPublish covers the atomic-publish contract: the backup
+// is assembled in a hidden sibling temp directory and only renamed to the
+// final path once complete, so a successful run leaves no temp residue, an
+// existing destination fails without side effects, and a failed backup
+// removes its temp directory instead of publishing a half-written copy.
+func TestBackupDBToAtomicPublish(t *testing.T) {
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	require.NoError(t, err)
+
+	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	defer srv.Shutdown()
+	require.NoError(t, srv.rdb.Put([]byte("k"), []byte("v")))
+
+	parent := t.TempDir()
+	dest := filepath.Join(parent, "backup")
+
+	// A successful backup publishes dest and leaves no temp residue.
+	require.NoError(t, srv.BackupDBTo(dest))
+	require.DirExists(t, dest)
+	leftovers, err := filepath.Glob(filepath.Join(parent, ".backup-tmp-*"))
+	require.NoError(t, err)
+	require.Empty(t, leftovers, "successful backup must not leave temp directories")
+
+	// Residue from a crashed run is unrelated: the next backup ignores it and
+	// it stays put for manual removal.
+	stale := filepath.Join(parent, ".backup-tmp-stale")
+	require.NoError(t, os.Mkdir(stale, 0755))
+	require.NoError(t, srv.BackupDBTo(filepath.Join(parent, "backup2")))
+	require.DirExists(t, stale, "backup must not touch unrelated temp residue")
+
+	// An existing destination fails up front and creates no temp residue.
+	require.Error(t, srv.BackupDBTo(dest))
+	leftovers, err = filepath.Glob(filepath.Join(parent, ".backup-tmp-*"))
+	require.NoError(t, err)
+	require.Len(t, leftovers, 1, "only the manually created stale dir may remain")
+
+	// A backup that fails at publish time (unpublishable empty destination)
+	// returns an error and cleans up its temp directory.
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	before, err := filepath.Glob(filepath.Join(cwd, ".backup-tmp-*"))
+	require.NoError(t, err)
+	require.Error(t, srv.BackupDBTo(""))
+	after, err := filepath.Glob(filepath.Join(cwd, ".backup-tmp-*"))
+	require.NoError(t, err)
+	require.Equal(t, before, after, "failed backup must clean up its temp directory")
 }
 
 // entryIndexTargets lists the entry keys the direct index of indexUUID
