@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -248,23 +249,41 @@ func (s *ApiServer) DBMetrics() error {
 	return nil
 }
 
-// BackupDB copies the live database to /tmp/backup-YYYYMMDD. It keeps the
-// historical production destination; tests drive the same logic through
-// BackupDBTo with an explicit destination path.
+// BackupDB copies a point-in-time snapshot of the live database to
+// /tmp/backup-YYYYMMDD-HHMMSS. The timestamp suffix keeps repeated backups on
+// the same day from colliding; BackupDBTo still fails if the same second is
+// reused. It keeps the historical production /tmp destination; tests drive
+// the same logic through BackupDBTo with an explicit destination path.
 func (s *ApiServer) BackupDB() error {
-	dt := time.Now()
-	backupFolder := fmt.Sprintf("backup-%d%d%d", dt.Year(), dt.Month(), dt.Day())
+	backupFolder := time.Now().Format("backup-20060102-150405")
 	backupPath := filepath.Join("/tmp", backupFolder)
 	return s.BackupDBTo(backupPath)
 }
 
-// BackupDBTo copies every key of the live database into a new store at
-// destPath. The destination store is closed before returning, so destPath
-// can be reopened (e.g. as a restored database) right away.
+// BackupDBTo copies a point-in-time snapshot of the live database into a new
+// store at destPath: the copy is read through a Pebble snapshot taken up
+// front, so concurrent writes during the copy do not leak in or tear related
+// records. The destination directory must not exist — its parent is created
+// if necessary and destPath itself is created atomically, so rerunning a
+// backup into an existing directory fails instead of merging with (and
+// resurrecting deleted keys from) an earlier copy. The destination store is
+// closed before returning, so destPath can be reopened (e.g. as a restored
+// database) right away.
 func (s *ApiServer) BackupDBTo(destPath string) error {
 	log.Println("BackupDB...")
 
-	iter := s.rdb.Iterator()
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return fmt.Errorf("create backup parent dir: %w", err)
+	}
+	if err := os.Mkdir(destPath, 0755); err != nil {
+		return fmt.Errorf("create backup dir %s: %w", destPath, err)
+	}
+
+	// Snapshot before iterating so the backup is consistent as of this point;
+	// both the iterator and the snapshot must be closed.
+	snap := s.rdb.Snapshot()
+	defer snap.Close()
+	iter := s.rdb.SnapshotIterator(snap)
 	defer iter.Close()
 
 	logger.Warnf("db backup to: %s", destPath)

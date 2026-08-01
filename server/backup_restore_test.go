@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/gofrs/uuid"
@@ -225,6 +227,123 @@ func countKeys(t *testing.T, db *store.Store) int {
 	}
 	require.NoError(t, iter.Error())
 	return n
+}
+
+// TestStoreSnapshotIsolation proves the snapshot primitive BackupDBTo relies
+// on: a snapshot observes the state as of its creation, so writes and deletes
+// that land afterwards are invisible through it. This is what makes the
+// backup point-in-time consistent under online writes.
+func TestStoreSnapshotIsolation(t *testing.T) {
+	db := store.NewStore(filepath.Join(t.TempDir(), "source"))
+	defer db.Close()
+
+	require.NoError(t, db.Put([]byte("k1"), []byte("v1")))
+
+	snap := db.Snapshot()
+
+	// Mutations after the snapshot must not leak into it.
+	require.NoError(t, db.Put([]byte("k2"), []byte("v2")))
+	require.NoError(t, db.Delete([]byte("k1")))
+
+	iter := db.SnapshotIterator(snap)
+	seen := map[string]string{}
+	for iter.First(); iter.Valid(); iter.Next() {
+		seen[string(iter.Key())] = string(iter.Value())
+	}
+	require.NoError(t, iter.Error())
+	require.NoError(t, iter.Close())
+	require.NoError(t, snap.Close())
+
+	require.Equal(t, map[string]string{"k1": "v1"}, seen,
+		"snapshot must see exactly the state at its creation")
+
+	// The live store reflects the post-snapshot mutations.
+	require.False(t, db.Exist([]byte("k1")))
+	require.True(t, db.Exist([]byte("k2")))
+}
+
+// TestBackupDBToRequiresFreshDestination covers the stale-backup regression:
+// rerunning a backup into an existing directory must fail instead of merging
+// with the earlier copy (which would resurrect keys deleted since then), and
+// a backup into a fresh directory reflects the source at backup time.
+func TestBackupDBToRequiresFreshDestination(t *testing.T) {
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	require.NoError(t, err)
+
+	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	defer srv.Shutdown()
+
+	require.NoError(t, srv.rdb.Put([]byte("stay"), []byte("1")))
+	require.NoError(t, srv.rdb.Put([]byte("deleted"), []byte("1")))
+
+	dir1 := filepath.Join(t.TempDir(), "backup1")
+	require.NoError(t, srv.BackupDBTo(dir1))
+
+	// A second backup into the same directory must fail, not merge.
+	require.Error(t, srv.BackupDBTo(dir1))
+
+	// Mutate the source after the first backup: delete one key, add another.
+	require.NoError(t, srv.rdb.Delete([]byte("deleted")))
+	require.NoError(t, srv.rdb.Put([]byte("new"), []byte("1")))
+
+	dir2 := filepath.Join(t.TempDir(), "backup2")
+	require.NoError(t, srv.BackupDBTo(dir2))
+
+	rodb := store.NewStoreReadOnly(dir2)
+	defer rodb.Close()
+	require.True(t, rodb.Exist([]byte("stay")))
+	require.True(t, rodb.Exist([]byte("new")))
+	require.False(t, rodb.Exist([]byte("deleted")),
+		"key deleted before the second backup must not reappear in a fresh backup")
+}
+
+// TestBackupDBToConcurrentWrites is a smoke test: writing the source database
+// while a backup runs must not break the backup, and the result opens and
+// reads back fine (snapshot consistency itself is covered by
+// TestStoreSnapshotIsolation).
+func TestBackupDBToConcurrentWrites(t *testing.T) {
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	require.NoError(t, err)
+
+	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	defer srv.Shutdown()
+
+	const initial = 100
+	for i := 0; i < initial; i++ {
+		require.NoError(t, srv.rdb.Put([]byte(fmt.Sprintf("k%05d", i)), []byte("v")))
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := initial; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			key := []byte(fmt.Sprintf("k%05d", i))
+			if err := srv.rdb.Put(key, []byte("v")); err != nil {
+				return
+			}
+			_ = srv.rdb.Delete(key)
+		}
+	}()
+
+	backupPath := filepath.Join(t.TempDir(), "backup")
+	require.NoError(t, srv.BackupDBTo(backupPath))
+	close(stop)
+	wg.Wait()
+
+	rodb := store.NewStoreReadOnly(backupPath)
+	defer rodb.Close()
+	require.GreaterOrEqual(t, countKeys(t, rodb), initial,
+		"backup taken after seeding must contain at least the seeded keys")
+	got, err := rodb.Get([]byte("k00000"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("v"), got)
 }
 
 // entryIndexTargets lists the entry keys the direct index of indexUUID

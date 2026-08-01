@@ -239,6 +239,19 @@ func (db *Store) Iterator() *Iterator {
 	return newIterator(db.rdb, opts)
 }
 
+// Snapshot returns a point-in-time, consistent view of the database: reads
+// through it observe the state as of its creation, unaffected by later
+// writes or deletes. The caller must Close the snapshot after use.
+func (db *Store) Snapshot() *pebble.Snapshot {
+	return db.rdb.NewSnapshot()
+}
+
+// SnapshotIterator returns a full-range iterator reading from snap. The
+// caller must Close the iterator, and Close the snapshot after the iterator.
+func (db *Store) SnapshotIterator(snap *pebble.Snapshot) *Iterator {
+	return newIterator(snap, &pebble.IterOptions{})
+}
+
 func (db *Store) NewIterator(prefix Key) *Iterator {
 	opts := PrefixIteratorOptions(prefix)
 	return newIterator(db.rdb, opts)
