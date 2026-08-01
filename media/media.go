@@ -52,7 +52,7 @@ const (
 	// from (<mediaBaseURL>/<sharded path>): both the R2 bucket and the local
 	// media directory are served under this same domain. Overridable via the
 	// media_url config key.
-	defaultMediaBaseURL = "https://m.friendfeed.com"
+	defaultMediaBaseURL = "https://m.friendfeed.me"
 
 	fetchTimeout      = 30 * time.Second
 	maxFetchBytes     = 32 << 20 // 32MB

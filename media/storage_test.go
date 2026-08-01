@@ -82,7 +82,7 @@ func TestMirrorStorageDualWrite(t *testing.T) {
 	obj, err := ms.FromUrl("", origin.URL+"/pic.jpg", "")
 	assert.NoError(t, err)
 	assert.Equal(t, "p/i/c.jpg", obj.Path)
-	assert.Equal(t, "https://m.friendfeed.com/p/i/c.jpg", obj.Url)
+	assert.Equal(t, "https://m.friendfeed.me/p/i/c.jpg", obj.Url)
 	assert.Equal(t, "media", obj.Bucket)
 
 	content := []byte("dual write image bytes")
@@ -129,7 +129,7 @@ func TestNewStorageLocalOnlyWithoutR2(t *testing.T) {
 
 	obj, err := ms.FromUrl("", origin.URL+"/pic.jpg", "")
 	assert.NoError(t, err)
-	assert.Equal(t, "https://m.friendfeed.com/p/i/c.jpg", obj.Url)
+	assert.Equal(t, "https://m.friendfeed.me/p/i/c.jpg", obj.Url)
 	assert.Empty(t, obj.Bucket)
 
 	_, err = os.Stat(filepath.Join(ms.local.path, "p/i/c.jpg"))

@@ -12,7 +12,7 @@ import (
 // the local media directory (sharded paths) and, when R2 credentials are
 // configured, also PUTs it to the R2 bucket under the same object key.
 // Url points at the public media base URL (media_url, default
-// https://m.friendfeed.com) which fronts both the bucket and the local
+// https://m.friendfeed.me) which fronts both the bucket and the local
 // media directory, and Bucket finally carries the R2 bucket name it was
 // reserved for.
 //

@@ -2,7 +2,7 @@
   "address": "localhost:12019",
   "db_path": "/tmp/fftestdb",
   "media_path": "/tmp/fftestdb/files",
-  "media_url": "https://m.friendfeed.com",
+  "media_url": "https://m.friendfeed.me",
   "r2_account_id": "",
   "r2_access_key_id": "",
   "r2_secret_access_key": "",
