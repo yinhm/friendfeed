@@ -302,7 +302,8 @@ func TestBackupDBToRequiresFreshDestination(t *testing.T) {
 // while a backup runs must not break the backup, and the result opens and
 // reads back fine (snapshot consistency itself is covered by
 // TestStoreSnapshotIsolation).
-func TestBackupDBToConcurrentWrites(t *testing.T) {	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+func TestBackupDBToConcurrentWrites(t *testing.T) {
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
 	require.NoError(t, err)
 
 	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
