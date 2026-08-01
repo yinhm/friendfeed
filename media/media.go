@@ -48,9 +48,11 @@ type Storage interface {
 }
 
 const (
-	// defaultMediaBaseURL is the front domain of the R2 media bucket;
-	// mirrored objects are served from <mediaBaseURL>/<sharded path>.
-	defaultMediaBaseURL = "https://m.friendfeed.me"
+	// defaultMediaBaseURL is the public domain mirrored objects are served
+	// from (<mediaBaseURL>/<sharded path>): both the R2 bucket and the local
+	// media directory are served under this same domain. Overridable via the
+	// media_url config key.
+	defaultMediaBaseURL = "https://m.friendfeed.com"
 
 	fetchTimeout      = 30 * time.Second
 	maxFetchBytes     = 32 << 20 // 32MB

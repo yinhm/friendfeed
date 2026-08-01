@@ -6,6 +6,7 @@ httpd/httpd
 cli/cli
 conf/*
 !conf/nginx_http.conf
+!conf/nginx_media.conf
 httpd/node_modules
 httpd/static/js/*
 httpd/static/css/*

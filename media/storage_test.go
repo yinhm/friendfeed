@@ -82,7 +82,7 @@ func TestMirrorStorageDualWrite(t *testing.T) {
 	obj, err := ms.FromUrl("", origin.URL+"/pic.jpg", "")
 	assert.NoError(t, err)
 	assert.Equal(t, "p/i/c.jpg", obj.Path)
-	assert.Equal(t, "https://m.friendfeed.me/p/i/c.jpg", obj.Url)
+	assert.Equal(t, "https://m.friendfeed.com/p/i/c.jpg", obj.Url)
 	assert.Equal(t, "media", obj.Bucket)
 
 	content := []byte("dual write image bytes")
@@ -111,23 +111,15 @@ func TestMirrorStorageR2FailureKeepsOriginalURL(t *testing.T) {
 	assert.NoError(t, err) // local copy may remain
 }
 
-// Without full R2 credentials NewStorage degrades to local-only
-// mirroring.
-func TestNewStorageDegradesWithoutR2Credentials(t *testing.T) {
-	for _, cfg := range []*util.Config{
-		{MediaPath: t.TempDir()},
-		{MediaPath: t.TempDir(), R2AccountID: "acct"}, // partial credentials
-	} {
-		s := NewStorage(cfg, 640)
-		ms, ok := s.(*MirrorStorage)
-		assert.True(t, ok)
-		assert.Nil(t, ms.r2)
-	}
+// Without any R2 credentials NewStorage runs in explicit local-only mode.
+func TestNewStorageLocalOnlyWithoutR2(t *testing.T) {
+	s := NewStorage(&util.Config{MediaPath: t.TempDir()}, 640)
+	ms, ok := s.(*MirrorStorage)
+	assert.True(t, ok)
+	assert.Nil(t, ms.r2)
+	assert.NoError(t, ms.r2Err)
 
 	// Local-only mirroring still works and leaves Bucket empty.
-	s := NewStorage(&util.Config{MediaPath: t.TempDir()}, 640)
-	ms := s.(*MirrorStorage)
-
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write([]byte("local only"))
@@ -137,11 +129,45 @@ func TestNewStorageDegradesWithoutR2Credentials(t *testing.T) {
 
 	obj, err := ms.FromUrl("", origin.URL+"/pic.jpg", "")
 	assert.NoError(t, err)
-	assert.Equal(t, "https://m.friendfeed.me/p/i/c.jpg", obj.Url)
+	assert.Equal(t, "https://m.friendfeed.com/p/i/c.jpg", obj.Url)
 	assert.Empty(t, obj.Bucket)
 
 	_, err = os.Stat(filepath.Join(ms.local.path, "p/i/c.jpg"))
 	assert.NoError(t, err)
+}
+
+// A partial R2 config (some but not all fields set) is a configuration
+// error: Mirror/Post must fail so entries keep their original URLs instead
+// of persisting public-domain URLs for objects never uploaded to R2.
+func TestNewStoragePartialR2ConfigFails(t *testing.T) {
+	partials := []*util.Config{
+		{MediaPath: t.TempDir(), R2AccountID: "acct"},
+		{MediaPath: t.TempDir(), R2AccessKeyID: "ak", R2SecretAccessKey: "sk"},
+		{MediaPath: t.TempDir(), R2AccountID: "acct", R2AccessKeyID: "ak", R2SecretAccessKey: "sk"},
+	}
+	for _, cfg := range partials {
+		s := NewStorage(cfg, 640)
+		ms, ok := s.(*MirrorStorage)
+		assert.True(t, ok)
+		assert.Nil(t, ms.r2)
+		if assert.Error(t, ms.r2Err) {
+			assert.Contains(t, ms.r2Err.Error(), "partial R2 configuration")
+		}
+
+		obj := &Object{Filename: "pic.jpg", Url: "https://example.com/pic.jpg"}
+		originalURL := obj.Url
+		_, err := ms.Mirror(obj)
+		assert.Error(t, err)
+		assert.Equal(t, originalURL, obj.Url, "failed mirror must keep the original URL")
+
+		_, err = ms.Post(&Object{Filename: "pic.jpg", Content: []byte("x")})
+		assert.Error(t, err)
+
+		// The local directory stays empty: nothing is written or rewritten.
+		entries, err := os.ReadDir(ms.local.path)
+		assert.NoError(t, err)
+		assert.Empty(t, entries)
+	}
 }
 
 // With full credentials NewStorage wires the R2 client.

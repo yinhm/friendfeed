@@ -47,8 +47,22 @@ func newR2Client(cfg *util.Config) *R2Client {
 
 // r2Configured reports whether the config carries full R2 credentials.
 func r2Configured(cfg *util.Config) bool {
-	return cfg.R2AccountID != "" && cfg.R2AccessKeyID != "" &&
-		cfg.R2SecretAccessKey != "" && cfg.R2Bucket != ""
+	return r2ConfigCount(cfg) == 4
+}
+
+// r2ConfigCount reports how many of the four R2 config fields are set: 0 is
+// an explicit local-only setup, 4 is dual-write, anything in between is a
+// configuration error.
+func r2ConfigCount(cfg *util.Config) int {
+	n := 0
+	for _, v := range []string{
+		cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket,
+	} {
+		if v != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // Put uploads content under key with a SigV4-signed S3 PUT request.

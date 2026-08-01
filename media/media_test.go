@@ -175,7 +175,7 @@ func TestMirrorEndToEnd(t *testing.T) {
 	got, err := ms.Mirror(obj)
 	assert.NoError(t, err)
 	assert.Equal(t, "a/b/c.jpg", got.Path)
-	assert.Equal(t, "https://m.friendfeed.me/a/b/c.jpg", got.Url)
+	assert.Equal(t, "https://m.friendfeed.com/a/b/c.jpg", got.Url)
 	assert.Equal(t, "image/png", got.MimeType)
 	assert.Empty(t, got.Bucket)
 
@@ -219,7 +219,7 @@ func TestFromUrlMirrorsAndRewritesURL(t *testing.T) {
 	obj, err := ms.FromUrl("", srv.URL+"/path/to/pic.jpg", "")
 	assert.NoError(t, err)
 	assert.Equal(t, "path/to/pic.jpg", obj.Path)
-	assert.Equal(t, "https://m.friendfeed.me/path/to/pic.jpg", obj.Url)
+	assert.Equal(t, "https://m.friendfeed.com/path/to/pic.jpg", obj.Url)
 	assert.Equal(t, "image/jpeg", obj.MimeType)
 
 	written, err := os.ReadFile(filepath.Join(ms.path, "path/to/pic.jpg"))
@@ -230,7 +230,7 @@ func TestFromUrlMirrorsAndRewritesURL(t *testing.T) {
 	obj, err = ms.FromUrl("wxyz", srv.URL+"/path/to/pic.jpg", "application/pdf")
 	assert.NoError(t, err)
 	assert.Equal(t, "w/x/yz", obj.Path)
-	assert.Equal(t, "https://m.friendfeed.me/w/x/yz", obj.Url)
+	assert.Equal(t, "https://m.friendfeed.com/w/x/yz", obj.Url)
 	assert.Equal(t, "application/pdf", obj.MimeType)
 }
 
