@@ -54,14 +54,14 @@ func TestHealthStartupSequence(t *testing.T) {
 	health, client := setupHealthTest(t)
 
 	// Freshly registered: nothing is ready yet, not even overall.
-	for _, service := range []string{healthServicePebble, healthServiceSearch, healthServiceAPI, healthServiceAll} {
+	for _, service := range []string{healthServiceStorage, healthServiceSearch, healthServiceAPI, healthServiceAll} {
 		assert.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, checkStatus(t, client, service),
 			"service %q should start NOT_SERVING", service)
 	}
 
 	// Pebble opened: only its own service turns SERVING.
-	health.markServing(healthServicePebble)
-	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, checkStatus(t, client, healthServicePebble))
+	health.markServing(healthServiceStorage)
+	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, checkStatus(t, client, healthServiceStorage))
 	assert.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, checkStatus(t, client, healthServiceSearch))
 	assert.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, checkStatus(t, client, healthServiceAll))
 
@@ -84,9 +84,9 @@ func TestHealthComponentNotReady(t *testing.T) {
 
 	// Pebble init succeeded, search index init failed (or never ran):
 	// no status was reported for the remaining components.
-	health.markServing(healthServicePebble)
+	health.markServing(healthServiceStorage)
 
-	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, checkStatus(t, client, healthServicePebble))
+	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, checkStatus(t, client, healthServiceStorage))
 	assert.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, checkStatus(t, client, healthServiceSearch))
 	assert.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, checkStatus(t, client, healthServiceAPI))
 	assert.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, checkStatus(t, client, healthServiceAll))
@@ -98,13 +98,13 @@ func TestHealthComponentNotReady(t *testing.T) {
 func TestHealthShutdown(t *testing.T) {
 	health, client := setupHealthTest(t)
 
-	health.markServing(healthServicePebble)
+	health.markServing(healthServiceStorage)
 	health.markServing(healthServiceSearch)
 	health.markReady()
 	require.Equal(t, healthpb.HealthCheckResponse_SERVING, checkStatus(t, client, healthServiceAll))
 
 	health.shutdown()
-	for _, service := range []string{healthServicePebble, healthServiceSearch, healthServiceAPI, healthServiceAll} {
+	for _, service := range []string{healthServiceStorage, healthServiceSearch, healthServiceAPI, healthServiceAll} {
 		assert.Equal(t, healthpb.HealthCheckResponse_NOT_SERVING, checkStatus(t, client, service),
 			"service %q should be NOT_SERVING after shutdown", service)
 	}

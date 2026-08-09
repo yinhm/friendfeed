@@ -76,7 +76,7 @@ func main() {
 	rpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(MaxReceiveMessageSize))
 	health := newHealthCheck(rpcServer)
 	apiServer := server.NewApiServer(cfg.DBPath, cfg)
-	health.markServing(healthServicePebble)
+	health.markServing(healthServiceStorage)
 
 	// index service
 	search.InitIndexService(filepath.Join(cfg.DBPath, "index"))

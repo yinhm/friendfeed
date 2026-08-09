@@ -6,7 +6,7 @@ ffdb 的 gRPC server 注册了标准健康检查服务 `grpc.health.v1.Health`�
 
 | service | 含义 |
 | --- | --- |
-| `ffdb.Pebble` | `NewApiServer` 成功打开 Pebble |
+| `ffdb.Storage` | `NewApiServer` 成功打开存储（Pebble） |
 | `ffdb.Search` | `InitIndexService` 完成 |
 | `ffdb.Api` | ApiServer 整体就绪（`Serve` 前最后置位） |
 | `""`（空） | 整体 readiness，以上全部 SERVING 后才为 SERVING |
@@ -21,7 +21,7 @@ ffdb 的 gRPC server 注册了标准健康检查服务 `grpc.health.v1.Health`�
 grpc_health_probe（退出码 0 表示 SERVING，适合脚本与监控系统）：
 
     grpc_health_probe -addr=127.0.0.1:8080
-    grpc_health_probe -addr=127.0.0.1:8080 -service=ffdb.Pebble
+    grpc_health_probe -addr=127.0.0.1:8080 -service=ffdb.Storage
 
 grpcurl（便于人工查看）：
 

@@ -11,10 +11,10 @@ import (
 // one component; the empty name reports overall readiness and flips to
 // SERVING only after every component has been marked ready.
 const (
-	healthServicePebble = "ffdb.Pebble"
-	healthServiceSearch = "ffdb.Search"
-	healthServiceAPI    = "ffdb.Api"
-	healthServiceAll    = ""
+	healthServiceStorage = "ffdb.Storage"
+	healthServiceSearch  = "ffdb.Search"
+	healthServiceAPI     = "ffdb.Api"
+	healthServiceAll     = ""
 )
 
 // healthCheck wires the standard gRPC health server into startup and
@@ -29,7 +29,7 @@ type healthCheck struct {
 // components NOT_SERVING.
 func newHealthCheck(rpcServer *grpc.Server) *healthCheck {
 	srv := health.NewServer()
-	for _, service := range []string{healthServicePebble, healthServiceSearch, healthServiceAPI, healthServiceAll} {
+	for _, service := range []string{healthServiceStorage, healthServiceSearch, healthServiceAPI, healthServiceAll} {
 		srv.SetServingStatus(service, healthpb.HealthCheckResponse_NOT_SERVING)
 	}
 	healthpb.RegisterHealthServer(rpcServer, srv)
