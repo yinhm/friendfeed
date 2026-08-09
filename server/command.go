@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -248,28 +250,82 @@ func (s *ApiServer) DBMetrics() error {
 	return nil
 }
 
+// BackupDB copies a point-in-time snapshot of the live database to
+// /tmp/backup-YYYYMMDD-HHMMSS. The timestamp suffix keeps repeated backups on
+// the same day from colliding; BackupDBTo still fails if the same second is
+// reused. It keeps the historical production /tmp destination; tests drive
+// the same logic through BackupDBTo with an explicit destination path.
 func (s *ApiServer) BackupDB() error {
+	backupFolder := time.Now().Format("backup-20060102-150405")
+	backupPath := filepath.Join("/tmp", backupFolder)
+	return s.BackupDBTo(backupPath)
+}
+
+// BackupDBTo copies a point-in-time snapshot of the live database into a new
+// store at destPath: the copy is read through a Pebble snapshot taken up
+// front, so concurrent writes during the copy do not leak in or tear related
+// records. The destination directory must not exist — rerunning a backup into
+// an existing directory fails instead of merging with (and resurrecting
+// deleted keys from) an earlier copy.
+//
+// The copy runs in a temporary sibling directory and is only renamed to
+// destPath after every key is copied and the destination store is closed
+// cleanly, so an interrupted or failed backup never publishes a half-written
+// directory at the final path. Leftover ".backup-tmp-*" directories next to
+// destPath are residue from crashed runs and are safe to remove. The
+// destination store is closed before returning, so destPath can be reopened
+// (e.g. as a restored database) right away.
+func (s *ApiServer) BackupDBTo(destPath string) error {
 	log.Println("BackupDB...")
 
-	iter := s.rdb.Iterator()
-	defer iter.Close()
-
-	dt := time.Now()
-	backupFolder := fmt.Sprintf("backup-%d%d%d", dt.Year(), dt.Month(), dt.Day())
-	backupPath := filepath.Join("/tmp", backupFolder)
-	logger.Warnf("db backup to: %s", backupPath)
-
-	ndb := store.NewStore(backupPath)
-	ndb.SetSync(false)
-	defer ndb.Close()
-
-	for iter.First(); iter.Valid(); iter.Next() {
-		if err := ndb.Set(iter.Key(), iter.Value()); err != nil {
-			return fmt.Errorf("backup key %x: %w", iter.Key(), err)
-		}
+	parent := filepath.Dir(destPath)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		return fmt.Errorf("create backup parent dir: %w", err)
 	}
-	if err := iter.Error(); err != nil {
-		return fmt.Errorf("iterate source database: %w", err)
+	if _, err := os.Stat(destPath); err == nil {
+		return fmt.Errorf("create backup dir %s: already exists", destPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("create backup dir %s: %w", destPath, err)
+	}
+
+	tmpPath, err := os.MkdirTemp(parent, ".backup-tmp-*")
+	if err != nil {
+		return fmt.Errorf("create backup temp dir: %w", err)
+	}
+
+	// Snapshot before iterating so the backup is consistent as of this point.
+	snap := s.rdb.Snapshot()
+	iter := s.rdb.SnapshotIterator(snap)
+
+	logger.Warnf("db backup to: %s", destPath)
+
+	ndb := store.NewStore(tmpPath)
+	ndb.SetSync(false)
+
+	copyErr := func() error {
+		for iter.First(); iter.Valid(); iter.Next() {
+			if err := ndb.Set(iter.Key(), iter.Value()); err != nil {
+				return fmt.Errorf("backup key %x: %w", iter.Key(), err)
+			}
+		}
+		if err := iter.Error(); err != nil {
+			return fmt.Errorf("iterate source database: %w", err)
+		}
+		return nil
+	}()
+	// Close the store, iterator and snapshot before publishing so the
+	// renamed directory is fully flushed and unlocked.
+	ndb.Close()
+	iter.Close()
+	snap.Close()
+
+	if copyErr != nil {
+		os.RemoveAll(tmpPath)
+		return copyErr
+	}
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		os.RemoveAll(tmpPath)
+		return fmt.Errorf("publish backup to %s: %w", destPath, err)
 	}
 	return nil
 }
