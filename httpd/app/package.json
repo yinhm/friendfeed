@@ -55,8 +55,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "typecheck:tsgo": "tsgo --noEmit",
+    "typecheck": "GOMEMLIMIT=512MiB tsc --noEmit",
     "test:e2e": "bash ../../scripts/e2e/run.sh"
   },
   "browserslist": {
@@ -80,7 +79,7 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "@typescript/native": "npm:typescript@7.0.2",
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "4.1.10",
     "axe-core": "^4.12.1",
@@ -90,7 +89,7 @@
     "jsdom": "^29.1.1",
     "postcss": "^8.5.25",
     "tailwindcss": "^4.3.3",
-    "typescript": "5.9.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.65.0",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"

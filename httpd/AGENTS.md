@@ -27,7 +27,7 @@
 
 ## 前端约束
 
-- `tsconfig` 不使用 `baseUrl`，保持 TypeScript 与 tsgo 双兼容。
+- `tsconfig` 不使用 `baseUrl`；类型门禁使用 TypeScript 7 原生 `tsc`。TypeScript 6 compatibility package 仅供仍依赖 programmatic API 的 ESLint 工具链使用。
 - ESLint 必须零 warning。Playwright 文件只放 `e2e/**`，Vitest 必须排除该目录。
 
 ## OAuth、配置与日志

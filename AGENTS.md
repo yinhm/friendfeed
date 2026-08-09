@@ -22,6 +22,7 @@
 
 ## 数据与并发不变量
 
+- ffdb 仅允许监听 loopback，不得绑定通配地址、网卡地址或对外暴露 gRPC；改变此边界前必须先设计可信 principal。
 - job claim 使用独立 `jobMu`，queued→running 在同一 Pebble batch 提交。
 - `ApiServer.cached` 构造后只读；若允许动态增删，须用独立锁保护全部访问。
 - `PutEntry` 的 entry 与 author/group 直接索引原子提交；无上限的 timeline fanout 独立执行。索引/fanout 错误必须返回，删除普通 entry 也要清理 author timeline。
