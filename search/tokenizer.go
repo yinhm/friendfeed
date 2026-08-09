@@ -9,14 +9,29 @@ type Tokenizer struct {
 	seg *gse.Segmenter
 }
 
+// NewTokenizer loads the gse segmenter with its default dictionary. It is
+// the compatibility entry point of NewTokenizerE and panics on any error;
+// new callers should use NewTokenizerE and decide how to handle the failure
+// themselves.
 func NewTokenizer() *Tokenizer {
-	var seg gse.Segmenter
-	// Loading the default dictionary
-	err := seg.LoadDict()
+	tokenizer, err := NewTokenizerE()
 	if err != nil {
 		panic(err)
 	}
-	return &Tokenizer{&seg}
+	return tokenizer
+}
+
+// NewTokenizerE loads the gse segmenter and returns any dictionary loading
+// failure as an error instead of panicking. With no arguments the default
+// dictionary bundled with the gse module is loaded; pass explicit dictionary
+// file paths to override it (see gse.Segmenter.LoadDict).
+func NewTokenizerE(dicts ...string) (*Tokenizer, error) {
+	var seg gse.Segmenter
+	// Loading the default dictionary
+	if err := seg.LoadDict(dicts...); err != nil {
+		return nil, err
+	}
+	return &Tokenizer{&seg}, nil
 }
 
 func (t *Tokenizer) Tokenize(textByte []byte) analysis.TokenStream {
