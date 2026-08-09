@@ -63,7 +63,10 @@ func (m *MirrorStorage) Post(obj *Object) (*Object, error) {
 		return obj, err
 	}
 	if m.r2 != nil {
-		if err := m.r2.Put(obj.Path, obj.Content, obj.MimeType); err != nil {
+		// MimeType may originate in an archived RPC payload. Derive the public
+		// object's header from its bytes instead of trusting that metadata.
+		contentType := http.DetectContentType(obj.Content)
+		if err := m.r2.Put(obj.Path, obj.Content, contentType); err != nil {
 			return obj, err
 		}
 		obj.Bucket = m.r2.bucket

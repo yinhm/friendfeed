@@ -7,7 +7,7 @@ ffdb 的 gRPC server 注册了标准健康检查服务 `grpc.health.v1.Health`�
 | service | 含义 |
 | --- | --- |
 | `ffdb.Storage` | `NewApiServer` 成功打开存储（Pebble） |
-| `ffdb.Search` | `InitIndexService` 完成 |
+| `ffdb.Search` | `InitIndexServiceE` 完成 |
 | `ffdb.Api` | ApiServer 整体就绪（`Serve` 前最后置位） |
 | `""`（空） | 整体 readiness，以上全部 SERVING 后才为 SERVING |
 

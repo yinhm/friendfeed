@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -79,6 +80,41 @@ func TestStoreCloseIsConcurrentAndIdempotent(t *testing.T) {
 			t.Fatalf("concurrent Store.Close panicked: %v", recovered)
 		}
 	}
+}
+
+func TestNewStoreWithErrorReturnsOperationalFailures(t *testing.T) {
+	t.Run("create", func(t *testing.T) {
+		parent := t.TempDir()
+		notDirectory := filepath.Join(parent, "file")
+		assert.NoError(t, os.WriteFile(notDirectory, []byte("x"), 0600))
+
+		db, err := NewStoreWithError(filepath.Join(notDirectory, "db"))
+		assert.Nil(t, db)
+		assert.Error(t, err)
+	})
+
+	t.Run("open", func(t *testing.T) {
+		path := t.TempDir()
+		first := NewStore(path)
+		defer first.Close()
+
+		second, err := NewStoreWithError(path)
+		assert.Nil(t, second)
+		assert.Error(t, err)
+	})
+}
+
+func TestCloseWithErrorReturnsPebbleCloseFailure(t *testing.T) {
+	db := NewStore(t.TempDir())
+	assert.NoError(t, db.Set([]byte("key"), []byte("value")))
+	iter, err := db.rdb.NewIter(nil)
+	assert.NoError(t, err)
+	defer iter.Close()
+
+	err = db.CloseWithError()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "leaked iterators")
+	assert.Equal(t, err, db.CloseWithError(), "repeated close must return the original result")
 }
 
 func (s *DBTestSuite) SetupTest() {

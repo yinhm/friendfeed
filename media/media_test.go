@@ -1,13 +1,17 @@
 package media
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/png"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,7 +49,8 @@ func TestMedia(t *testing.T) {
 
 	_, err = ms.Post(obj)
 	assert.Nil(t, err)
-	assert.Equal(t, "q/q/_logo_2x", obj.Path)
+	wantPath := contentObjectKey(obj.Content)
+	assert.Equal(t, wantPath, obj.Path)
 
 	found, err = ms.Exists(obj.Path)
 	assert.Nil(t, err)
@@ -53,8 +58,8 @@ func TestMedia(t *testing.T) {
 
 	tObj, err := ms.Thumbnail(obj)
 	assert.Nil(t, err)
-	assert.Equal(t, "q/q/_logo_2x-640.jpg", tObj.Filename)
-	assert.Equal(t, "q/q/_logo_2x-640.jpg", tObj.Path)
+	assert.Equal(t, wantPath+"-640.jpg", tObj.Filename)
+	assert.Equal(t, wantPath+"-640.jpg", tObj.Path)
 	assert.Equal(t, int32(640), tObj.Width)
 
 }
@@ -73,6 +78,83 @@ func TestPostWritesNonExecutableFile(t *testing.T) {
 	}
 	if got, want := info.Mode().Perm(), os.FileMode(0644); got != want {
 		t.Fatalf("media file permissions = %o, want %o", got, want)
+	}
+}
+
+func TestWriteFileAtomicNeverExposesPartialContent(t *testing.T) {
+	fullPath := filepath.Join(t.TempDir(), "media-file")
+	first := bytes.Repeat([]byte("a"), 1<<20)
+	second := bytes.Repeat([]byte("b"), 1<<20)
+	if err := writeFileAtomic(fullPath, first, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	errCh := make(chan error, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			got, err := os.ReadFile(fullPath)
+			if err != nil {
+				select {
+				case errCh <- err:
+				default:
+				}
+				return
+			}
+			if !bytes.Equal(got, first) && !bytes.Equal(got, second) {
+				select {
+				case errCh <- fmt.Errorf("read partial media file of %d bytes", len(got)):
+				default:
+				}
+				return
+			}
+		}
+	}()
+
+	for i := 0; i < 20; i++ {
+		content := first
+		if i%2 != 0 {
+			content = second
+		}
+		if err := writeFileAtomic(fullPath, content, 0644); err != nil {
+			close(done)
+			wg.Wait()
+			t.Fatal(err)
+		}
+	}
+	close(done)
+	wg.Wait()
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+}
+
+func TestWriteFileAtomicRemovesTemporaryFileOnPublishFailure(t *testing.T) {
+	dir := t.TempDir()
+	fullPath := filepath.Join(dir, "existing-directory")
+	if err := os.Mkdir(fullPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeFileAtomic(fullPath, []byte("content"), 0644); err == nil {
+		t.Fatal("writeFileAtomic succeeded with a directory as destination")
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, ".media-tmp-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("temporary media files remain after failure: %v", matches)
 	}
 }
 
@@ -153,10 +235,21 @@ func TestSafeDialContextRejectsNonPublicAddress(t *testing.T) {
 		"169.254.169.254:80",
 		"10.0.0.1:443",
 		"192.168.1.1:443",
+		"100.64.0.1:80",
+		"100.127.255.254:80",
 		"[::1]:80",
 	} {
 		_, err := safeDialContext(context.Background(), "tcp", addr)
 		assert.Error(t, err, addr)
+	}
+}
+
+func TestIsCGNATBoundaries(t *testing.T) {
+	for _, rawIP := range []string{"100.64.0.0", "100.127.255.255"} {
+		assert.True(t, isCGNAT(net.ParseIP(rawIP)), rawIP)
+	}
+	for _, rawIP := range []string{"100.63.255.255", "100.128.0.0", "2001:db8::1"} {
+		assert.False(t, isCGNAT(net.ParseIP(rawIP)), rawIP)
 	}
 }
 
@@ -174,12 +267,13 @@ func TestMirrorEndToEnd(t *testing.T) {
 	obj := &Object{Filename: "abc.jpg", Url: srv.URL + "/abc.jpg"}
 	got, err := ms.Mirror(obj)
 	assert.NoError(t, err)
-	assert.Equal(t, "a/b/c.jpg", got.Path)
-	assert.Equal(t, "https://m.friendfeed.me/a/b/c.jpg", got.Url)
+	wantPath := contentObjectKey(content)
+	assert.Equal(t, wantPath, got.Path)
+	assert.Equal(t, "https://m.friendfeed.me/"+wantPath, got.Url)
 	assert.Equal(t, "image/png", got.MimeType)
 	assert.Empty(t, got.Bucket)
 
-	written, err := os.ReadFile(filepath.Join(ms.path, "a/b/c.jpg"))
+	written, err := os.ReadFile(filepath.Join(ms.path, wantPath))
 	assert.NoError(t, err)
 	assert.Equal(t, content, written)
 }
@@ -218,19 +312,21 @@ func TestFromUrlMirrorsAndRewritesURL(t *testing.T) {
 
 	obj, err := ms.FromUrl("", srv.URL+"/path/to/pic.jpg", "")
 	assert.NoError(t, err)
-	assert.Equal(t, "path/to/pic.jpg", obj.Path)
-	assert.Equal(t, "https://m.friendfeed.me/path/to/pic.jpg", obj.Url)
+	wantPath := contentObjectKey(content)
+	assert.Equal(t, wantPath, obj.Path)
+	assert.Equal(t, "https://m.friendfeed.me/"+wantPath, obj.Url)
 	assert.Equal(t, "image/jpeg", obj.MimeType)
 
-	written, err := os.ReadFile(filepath.Join(ms.path, "path/to/pic.jpg"))
+	written, err := os.ReadFile(filepath.Join(ms.path, wantPath))
 	assert.NoError(t, err)
 	assert.Equal(t, content, written)
 
 	// An explicit filename and mimetype win over the URL path and header.
 	obj, err = ms.FromUrl("wxyz", srv.URL+"/path/to/pic.jpg", "application/pdf")
 	assert.NoError(t, err)
-	assert.Equal(t, "w/x/yz", obj.Path)
-	assert.Equal(t, "https://m.friendfeed.me/w/x/yz", obj.Url)
+	wantPath = contentObjectKey(content)
+	assert.Equal(t, wantPath, obj.Path)
+	assert.Equal(t, "https://m.friendfeed.me/"+wantPath, obj.Url)
 	assert.Equal(t, "application/pdf", obj.MimeType)
 }
 

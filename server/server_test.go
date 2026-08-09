@@ -1369,6 +1369,29 @@ func TestMirrorMediaObjectCapKeepsOriginalURLs(t *testing.T) {
 	assert.Equal(t, []string{"http://origin.example/f/a.jpg"}, fake.srcs)
 }
 
+// Empty media records are not requests and must not consume the object cap;
+// otherwise malformed legacy data can prevent a later valid object from being
+// mirrored.
+func TestMirrorMediaSkipsEmptyURLsWithoutUsingObjectCap(t *testing.T) {
+	old := mirrorMediaMaxObjects
+	mirrorMediaMaxObjects = 1
+	defer func() { mirrorMediaMaxObjects = old }()
+
+	fake := &fakeMirrorStorage{}
+	entry := &pb.Entry{
+		Thumbnails: []*pb.Thumbnail{nil, {Url: ""}},
+		Files: []*pb.File{
+			nil,
+			{Name: "valid.jpg", Url: "http://origin.example/f/valid.jpg"},
+		},
+	}
+
+	srv := &ApiServer{}
+	assert.NoError(t, srv.mirrorMedia(fake, entry))
+	assert.Equal(t, "https://m.friendfeed.me/valid.jpg", entry.Files[1].Url)
+	assert.Equal(t, []string{"http://origin.example/f/valid.jpg"}, fake.srcs)
+}
+
 // Once the per-entry time budget is exhausted, remaining media keep their
 // original URLs.
 func TestMirrorMediaBudgetExhaustedKeepsOriginalURLs(t *testing.T) {

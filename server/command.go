@@ -299,7 +299,13 @@ func (s *ApiServer) BackupDBTo(destPath string) error {
 
 	logger.Warnf("db backup to: %s", destPath)
 
-	ndb := store.NewStore(tmpPath)
+	ndb, err := store.NewStoreWithError(tmpPath)
+	if err != nil {
+		os.RemoveAll(tmpPath)
+		iter.Close()
+		snap.Close()
+		return fmt.Errorf("open backup database %s: %w", tmpPath, err)
+	}
 	ndb.SetSync(false)
 
 	copyErr := func() error {
@@ -315,7 +321,7 @@ func (s *ApiServer) BackupDBTo(destPath string) error {
 	}()
 	// Close the store, iterator and snapshot before publishing so the
 	// renamed directory is fully flushed and unlocked.
-	ndb.Close()
+	closeErr := ndb.CloseWithError()
 	iter.Close()
 	snap.Close()
 
@@ -323,8 +329,15 @@ func (s *ApiServer) BackupDBTo(destPath string) error {
 		os.RemoveAll(tmpPath)
 		return copyErr
 	}
+	if closeErr != nil {
+		os.RemoveAll(tmpPath)
+		return fmt.Errorf("close backup database %s: %w", tmpPath, closeErr)
+	}
 	if err := os.Rename(tmpPath, destPath); err != nil {
 		os.RemoveAll(tmpPath)
+		if _, statErr := os.Stat(destPath); statErr == nil {
+			return fmt.Errorf("publish backup to %s: destination already exists: %w", destPath, err)
+		}
 		return fmt.Errorf("publish backup to %s: %w", destPath, err)
 	}
 	return nil

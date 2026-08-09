@@ -30,6 +30,7 @@ type Store struct {
 	wo *pebble.WriteOptions
 
 	closeOnce sync.Once
+	closeErr  error
 	idGen     *flake.Generator
 
 	syncWrites atomic.Bool
@@ -37,10 +38,21 @@ type Store struct {
 }
 
 func NewStore(dbpath string) *Store {
-	if err := mkdir(dbpath); err != nil {
-		log.Fatalf("Can not create db: %s", err)
+	db, err := NewStoreWithError(dbpath)
+	if err != nil {
+		log.Fatalf("Can not create or open db: %s", err)
 	}
-	return openStore(dbpath, NewStoreOptions(), 512<<20)
+	return db
+}
+
+// NewStoreWithError creates or opens a Store without terminating the process.
+// Online request paths must use this variant so operational failures can be
+// returned to the caller and normal server shutdown remains possible.
+func NewStoreWithError(dbpath string) (*Store, error) {
+	if err := mkdir(dbpath); err != nil {
+		return nil, err
+	}
+	return openStoreWithError(dbpath, NewStoreOptions(), 512<<20)
 }
 
 // NewStoreReadOnly opens an existing database without creating or mutating
@@ -54,6 +66,14 @@ func NewStoreReadOnly(dbpath string) *Store {
 }
 
 func openStore(dbpath string, options *pebble.Options, cacheSize int64) *Store {
+	db, err := openStoreWithError(dbpath, options, cacheSize)
+	if err != nil {
+		log.Fatalf("Can not open db: %s", err)
+	}
+	return db
+}
+
+func openStoreWithError(dbpath string, options *pebble.Options, cacheSize int64) (*Store, error) {
 	db := &Store{
 		dbpath:  dbpath,
 		options: options,
@@ -68,12 +88,12 @@ func openStore(dbpath string, options *pebble.Options, cacheSize int64) *Store {
 
 	rdb, err := pebble.Open(dbpath, db.options)
 	if err != nil {
-		log.Fatalf("Can not open db: %s", err)
+		return nil, err
 	}
 	db.rdb = rdb
 	db.syncWrites.Store(true)
 
-	return db
+	return db, nil
 }
 
 func DestroyStore(dbpath string, options *pebble.Options) error {
@@ -136,11 +156,19 @@ func (db *Store) initWriteOptions() {
 }
 
 func (db *Store) Close() {
+	if err := db.CloseWithError(); err != nil {
+		log.Printf("close pebble store: %v", err)
+	}
+}
+
+// CloseWithError closes the store and returns Pebble's close error. Close is
+// retained for compatibility; callers that must not publish output unless all
+// writes are durable, such as backups, should use this variant.
+func (db *Store) CloseWithError() error {
 	db.closeOnce.Do(func() {
-		if err := db.rdb.Close(); err != nil {
-			log.Printf("close pebble store: %v", err)
-		}
+		db.closeErr = db.rdb.Close()
 	})
+	return db.closeErr
 }
 
 func (db *Store) Destroy() error {

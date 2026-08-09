@@ -22,15 +22,20 @@ type r2Recorder struct {
 }
 
 type recordedPut struct {
-	path string
-	body []byte
+	path        string
+	body        []byte
+	contentType string
 }
 
 func (r *r2Recorder) handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		body, _ := io.ReadAll(req.Body)
 		r.mu.Lock()
-		r.puts = append(r.puts, recordedPut{path: req.URL.Path, body: body})
+		r.puts = append(r.puts, recordedPut{
+			path:        req.URL.Path,
+			body:        body,
+			contentType: req.Header.Get("Content-Type"),
+		})
 		r.mu.Unlock()
 		w.WriteHeader(r.status)
 	})
@@ -81,19 +86,38 @@ func TestMirrorStorageDualWrite(t *testing.T) {
 
 	obj, err := ms.FromUrl("", origin.URL+"/pic.jpg", "")
 	assert.NoError(t, err)
-	assert.Equal(t, "p/i/c.jpg", obj.Path)
-	assert.Equal(t, "https://m.friendfeed.me/p/i/c.jpg", obj.Url)
+	content := []byte("dual write image bytes")
+	wantPath := contentObjectKey(content)
+	assert.Equal(t, wantPath, obj.Path)
+	assert.Equal(t, "https://m.friendfeed.me/"+wantPath, obj.Url)
 	assert.Equal(t, "media", obj.Bucket)
 
-	content := []byte("dual write image bytes")
-	written, err := os.ReadFile(filepath.Join(ms.local.path, "p/i/c.jpg"))
+	written, err := os.ReadFile(filepath.Join(ms.local.path, wantPath))
 	assert.NoError(t, err)
 	assert.Equal(t, content, written)
 
 	puts := recorder.recorded()
 	assert.Len(t, puts, 1)
-	assert.Equal(t, "/media/p/i/c.jpg", puts[0].path)
+	assert.Equal(t, "/media/"+wantPath, puts[0].path)
 	assert.Equal(t, content, puts[0].body)
+	assert.Equal(t, "text/plain; charset=utf-8", puts[0].contentType)
+}
+
+func TestMirrorStorageDoesNotTrustSubmittedContentType(t *testing.T) {
+	ms, _, recorder := newDualWriteStorage(t, http.StatusOK)
+	content := []byte("\x89PNG\r\n\x1a\n")
+	obj := &Object{
+		Filename: "image.png",
+		MimeType: "text/html",
+		Content:  content,
+	}
+
+	_, err := ms.Post(obj)
+	assert.NoError(t, err)
+	puts := recorder.recorded()
+	assert.Len(t, puts, 1)
+	assert.Equal(t, "image/png", puts[0].contentType)
+	assert.Equal(t, "text/html", obj.MimeType, "storage object contract remains unchanged")
 }
 
 // An R2 failure fails the whole mirror: the original URL is kept so the
@@ -107,7 +131,8 @@ func TestMirrorStorageR2FailureKeepsOriginalURL(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, originalURL, obj.Url)
 
-	_, err = os.Stat(filepath.Join(ms.local.path, "a/b/c.jpg"))
+	wantPath := contentObjectKey([]byte("dual write image bytes"))
+	_, err = os.Stat(filepath.Join(ms.local.path, wantPath))
 	assert.NoError(t, err) // local copy may remain
 }
 
@@ -129,10 +154,11 @@ func TestNewStorageLocalOnlyWithoutR2(t *testing.T) {
 
 	obj, err := ms.FromUrl("", origin.URL+"/pic.jpg", "")
 	assert.NoError(t, err)
-	assert.Equal(t, "https://m.friendfeed.me/p/i/c.jpg", obj.Url)
+	wantPath := contentObjectKey([]byte("local only"))
+	assert.Equal(t, "https://m.friendfeed.me/"+wantPath, obj.Url)
 	assert.Empty(t, obj.Bucket)
 
-	_, err = os.Stat(filepath.Join(ms.local.path, "p/i/c.jpg"))
+	_, err = os.Stat(filepath.Join(ms.local.path, wantPath))
 	assert.NoError(t, err)
 }
 

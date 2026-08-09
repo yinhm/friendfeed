@@ -130,7 +130,13 @@ func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error
 
 func isPublicIP(ip net.IP) bool {
 	return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsUnspecified() &&
-		!ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsMulticast()
+		!ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsMulticast() &&
+		!isCGNAT(ip)
+}
+
+func isCGNAT(ip net.IP) bool {
+	ipv4 := ip.To4()
+	return ipv4 != nil && ipv4[0] == 100 && ipv4[1] >= 64 && ipv4[1] <= 127
 }
 
 func (c *LocalStorage) shardFilepath(filename string) (string, string) {
@@ -268,10 +274,11 @@ func objectFromUrl(filename, src, mimetype string) (*Object, error) {
 
 // write object file to disk
 //
-// obj.Filename is untrusted input: it is sanitized into a safe object key
-// first, and when nothing usable remains (e.g. an empty name) the key
-// falls back to the sha256 of the content. The resolved path is verified
-// to stay inside the media root before writing.
+// obj.Filename is untrusted input and is validated for compatibility, but it
+// is not part of the stored key. Objects are addressed only by their full
+// content sha256, split across two directory levels so local storage does not
+// accumulate an unbounded number of entries in one directory. The resolved
+// path is verified to stay inside the media root before writing.
 func (c *LocalStorage) Post(obj *Object) (*Object, error) {
 	filename, err := sanitizeObjectKey(obj.Filename)
 	if err != nil {
@@ -281,9 +288,8 @@ func (c *LocalStorage) Post(obj *Object) (*Object, error) {
 		if len(obj.Content) == 0 {
 			return obj, fmt.Errorf("media: no usable object key for %q", obj.Filename)
 		}
-		sum := sha256.Sum256(obj.Content)
-		filename = hex.EncodeToString(sum[:])
 	}
+	filename = contentObjectKey(obj.Content)
 	obj.Filename = filename
 
 	outFile, fullPath := c.shardFilepath(filename)
@@ -294,12 +300,49 @@ func (c *LocalStorage) Post(obj *Object) (*Object, error) {
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return obj, err
 	}
-	if err := os.WriteFile(fullPath, obj.Content, 0644); err != nil {
+	if err := writeFileAtomic(fullPath, obj.Content, 0644); err != nil {
 		return obj, err
 	}
 
 	obj.Path = outFile
 	return obj, nil
+}
+
+// writeFileAtomic publishes a complete file in one rename. The temporary file
+// lives beside the destination so readers can observe either the previous
+// complete file or the new complete file, never an in-place partial write.
+func writeFileAtomic(fullPath string, content []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(fullPath), ".media-tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temporary media file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	defer tmp.Close()
+
+	n, err := tmp.Write(content)
+	if err != nil {
+		return fmt.Errorf("write temporary media file: %w", err)
+	}
+	if n != len(content) {
+		return fmt.Errorf("write temporary media file: %w", io.ErrShortWrite)
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		return fmt.Errorf("set media file permissions: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temporary media file: %w", err)
+	}
+	if err := os.Rename(tmpPath, fullPath); err != nil {
+		return fmt.Errorf("publish media file: %w", err)
+	}
+	return nil
+}
+
+func contentObjectKey(content []byte) string {
+	sum := sha256.Sum256(content)
+	digest := hex.EncodeToString(sum[:])
+	return digest[:1] + "/" + digest[1:2] + "/" + digest[2:]
 }
 
 // fetch file from url

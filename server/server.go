@@ -362,6 +362,9 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 	deadline := time.Now().Add(mirrorMediaBudget)
 	attempted := 0
 	mirror := func(name, src, mimetype string) (string, bool) {
+		if src == "" {
+			return "", false
+		}
 		if attempted >= mirrorMediaMaxObjects || time.Now().After(deadline) {
 			return "", false
 		}
@@ -375,12 +378,18 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 	}
 
 	for _, thumb := range entry.Thumbnails {
+		if thumb == nil {
+			continue
+		}
 		if mirrored, ok := mirror("", thumb.Url, ""); ok {
 			thumb.Url = mirrored // rewrote to mirrored
 		}
 	}
 
 	for _, file := range entry.Files {
+		if file == nil {
+			continue
+		}
 		if mirrored, ok := mirror(file.Name, file.Url, file.Type); ok {
 			file.Url = mirrored // rewrote to mirrored
 		}

@@ -94,12 +94,12 @@ func downloadBingWallpaper() error {
 		url := fmt.Sprintf("http://cn.bing.com%s_UHD.jpg", img.UrlBase)
 		log.Println(img.EndDate, url, img.CopyRight)
 
+		// Re-fetching on every run is intentional. The deterministic entry UUID
+		// makes PostEntry idempotent, while content-addressed media keys map
+		// unchanged bytes to the same object. Do not add an Exists check using
+		// outFile: it is only the original filename, not the final media key.
 		entryUUID := model.UniqueKeyFrom("bing", "wallpaper", img.UrlBase)
 		outFile := fmt.Sprintf("%x", entryUUID)
-		if found, _ := mfs.Exists(outFile); found {
-			log.Printf("File exists, skipping %s...", img.EndDate)
-			continue
-		}
 
 		obj := &media.Object{
 			Filename: outFile,

@@ -114,13 +114,48 @@ func TestPostFallsBackToContentHash(t *testing.T) {
 	assert.NoError(t, err)
 
 	sum := sha256.Sum256(content)
-	want := hex.EncodeToString(sum[:])
+	digest := hex.EncodeToString(sum[:])
+	want := digest[:1] + "/" + digest[1:2] + "/" + digest[2:]
 	assert.Equal(t, want, obj.Filename)
-	assert.Equal(t, want[:1]+"/"+want[1:2]+"/"+want[2:], obj.Path)
+	assert.Equal(t, want, obj.Path)
 
 	written, err := os.ReadFile(filepath.Join(dir, obj.Path))
 	assert.NoError(t, err)
 	assert.Equal(t, content, written)
+}
+
+func TestPostSameFilenameDifferentContentDoesNotOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	ms := NewLocalStorage(&util.Config{MediaPath: dir}, 640)
+
+	first := &Object{Filename: "photo.jpg", Content: []byte("first")}
+	second := &Object{Filename: "photo.jpg", Content: []byte("second")}
+	_, err := ms.Post(first)
+	assert.NoError(t, err)
+	_, err = ms.Post(second)
+	assert.NoError(t, err)
+
+	assert.NotEqual(t, first.Path, second.Path)
+	firstContent, err := os.ReadFile(filepath.Join(dir, first.Path))
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("first"), firstContent)
+	secondContent, err := os.ReadFile(filepath.Join(dir, second.Path))
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("second"), secondContent)
+}
+
+func TestPostSameContentIgnoresOriginalFilename(t *testing.T) {
+	ms := NewLocalStorage(&util.Config{MediaPath: t.TempDir()}, 640)
+	content := []byte("same content")
+	first := &Object{Filename: "first.jpg", Content: content}
+	second := &Object{Filename: "another/name.png", Content: content}
+
+	_, err := ms.Post(first)
+	assert.NoError(t, err)
+	_, err = ms.Post(second)
+	assert.NoError(t, err)
+	assert.Equal(t, first.Path, second.Path)
+	assert.Equal(t, contentObjectKey(content), first.Path)
 }
 
 // Without a usable name and without content there is nothing to key on.

@@ -384,13 +384,14 @@ func TestBackupDBToAtomicPublish(t *testing.T) {
 	require.Len(t, leftovers, 1, "only the manually created stale dir may remain")
 
 	// A backup that fails at publish time (unpublishable empty destination)
-	// returns an error and cleans up its temp directory.
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-	before, err := filepath.Glob(filepath.Join(cwd, ".backup-tmp-*"))
+	// returns an error and cleans up its temp directory. Run it from a test-owned
+	// directory so an interrupted test cannot leave residue in the package tree.
+	failureDir := t.TempDir()
+	t.Chdir(failureDir)
+	before, err := filepath.Glob(filepath.Join(failureDir, ".backup-tmp-*"))
 	require.NoError(t, err)
 	require.Error(t, srv.BackupDBTo(""))
-	after, err := filepath.Glob(filepath.Join(cwd, ".backup-tmp-*"))
+	after, err := filepath.Glob(filepath.Join(failureDir, ".backup-tmp-*"))
 	require.NoError(t, err)
 	require.Equal(t, before, after, "failed backup must clean up its temp directory")
 }

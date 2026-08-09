@@ -23,9 +23,9 @@ type Config struct {
 	MediaURL     string `json:"media_url"`
 	GAuthKeyFile string `json:"gauth_key_file"`
 
-	// Cloudflare R2 (S3 compatible) media bucket. Mirrored objects are
-	// written to both MediaPath and this bucket; when any of these is
-	// empty, mirroring degrades to local-only.
+	// Cloudflare R2 (S3 compatible) media bucket. Mirrored objects are written
+	// to both MediaPath and this bucket. All four fields empty selects explicit
+	// local-only mode; a partial configuration disables mirroring with an error.
 	R2AccountID        string `json:"r2_account_id"`
 	R2AccessKeyID      string `json:"r2_access_key_id"`
 	R2SecretAccessKey  string `json:"r2_secret_access_key"`
