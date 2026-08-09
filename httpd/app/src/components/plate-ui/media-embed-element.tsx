@@ -4,7 +4,7 @@ import * as React from 'react';
 
 import type { PlateElementProps } from 'platejs/react';
 
-import { parseTwitterUrl, parseVideoUrl } from '@platejs/media';
+import { parseTwitterUrl } from '@platejs/media';
 import { useMediaState } from '@platejs/media/react';
 import { ResizableProvider, useResizableValue } from '@platejs/resizable';
 import LiteYouTubeEmbed from 'react-lite-youtube-embed';
@@ -12,6 +12,7 @@ import { Tweet } from 'react-tweet';
 import { PlateElement, withHOC } from 'platejs/react';
 
 import { cn } from 'components/cn';
+import { parseVideoUrl } from 'components/video-url-parser';
 
 import { Caption, CaptionTextarea } from './caption';
 import { ELEMENT_MEDIA_EMBED } from 'components/plate-plugin-keys';
@@ -22,11 +23,8 @@ import {
   ResizeHandle,
 } from './resizable';
 
-// ReDoS mitigation for js-video-url-parser: bound the input length before
-// the third-party parser runs. The advisory's patched release (0.5.2) has
-// never been published — upstream is dormant since 0.5.1 (2021-11) — so
-// this limit is the standing fix, not a temporary workaround. Recheck the
-// registry before removing. Last verified: 2026-07-21.
+// Keep media URLs bounded before parsing or rendering. This is a general
+// input boundary shared with the dependency-free static renderer.
 const MAX_MEDIA_URL_LENGTH = 2048;
 
 const limitMediaUrl = <T,>(parser: (url: string) => T) => (url: string) =>

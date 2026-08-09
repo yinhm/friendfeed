@@ -18,7 +18,7 @@
 - `plate-plugin-keys.ts` 的节点/mark 字符串属于持久化格式，只能兼容新增；旧 rawBody 节点和 mark 必须继续 round-trip。
 - rawBody 必须递归验证并由 entry 级错误边界回退到服务端消毒 HTML；静态渲染不得加载编辑器 runtime。
 - 不把未经消毒的 `Body` 交给 `dangerouslySetInnerHTML`。服务端 feed body 使用 `util.DefaultSanitize`（保留合法富文本），标题使用严格纯文本策略。
-- 链接、图片和 embed 必须经过协议白名单；调用 `js-video-url-parser` 前保留 2048 字节限制。不得允许 `javascript:`、HTML data URL 或任意 iframe。
+- 链接、图片和 embed 必须经过协议白名单并保留 2048 字节限制；视频 URL 解析保持本地、无依赖且只允许 YouTube。不得允许 `javascript:`、HTML data URL 或任意 iframe。
 
 ## Plate
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import jsVideoUrlParser from 'js-video-url-parser';
 
 import {
   ELEMENT_BLOCKQUOTE,
@@ -29,6 +28,7 @@ import {
   MARK_SUPERSCRIPT,
   MARK_UNDERLINE,
 } from './plate-plugin-keys';
+import { parseVideoUrl } from './video-url-parser';
 
 // Static, URL-gated component map shared by HTML serialization and the
 // rawBody entry renderer. Keep this module free of editor-runtime imports:
@@ -42,24 +42,6 @@ const parseTwitterUrl = (url: string) => {
   return match ? { id: match[3], provider: 'twitter', url } : undefined;
 };
 
-const VIDEO_EMBED_PREFIXES: Record<string, string> = {
-  coub: 'https://coub.com/embed/',
-  dailymotion: 'https://www.dailymotion.com/embed/video/',
-  vimeo: 'https://player.vimeo.com/video/',
-  youku: 'https://player.youku.com/embed/',
-  youtube: 'https://www.youtube.com/embed/',
-};
-
-const parseVideoUrl = (url: string) => {
-  const videoData = jsVideoUrlParser.parse(url);
-  const prefix = videoData?.provider
-    ? VIDEO_EMBED_PREFIXES[videoData.provider]
-    : undefined;
-  if (videoData?.id && prefix) {
-    return { id: videoData.id, provider: videoData.provider, url: prefix + videoData.id };
-  }
-  return undefined;
-};
 const safeUrl = (
   value: unknown,
   protocols: readonly string[] = ['http:', 'https:', 'mailto:']
@@ -137,4 +119,3 @@ export const components: Record<string, any> = {
   [MARK_SUBSCRIPT]: leaf('sub'),
   [MARK_SUPERSCRIPT]: leaf('sup'),
 };
-

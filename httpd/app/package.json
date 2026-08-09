@@ -35,7 +35,6 @@
     "@radix-ui/react-tooltip": "^1.2.16",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
-    "js-video-url-parser": "^0.5.1",
     "lucide-react": "^1.28.0",
     "platejs": "53.2.4",
     "react": "^19.2.8",

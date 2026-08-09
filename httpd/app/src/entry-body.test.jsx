@@ -97,6 +97,40 @@ test('drops unsafe link wrappers but keeps their text', () => {
   expect(container.querySelector('a')).toBeNull();
 });
 
+test('renders only recognized media embed providers', () => {
+  const {container, rerender} = render(
+    <EntryBody
+      rawBody={rawBodyOf([
+        {
+          type: 'media_embed',
+          url: 'https://youtu.be/dQw4w9WgXcQ',
+          children: [{text: ''}],
+        },
+      ])}
+      body=""
+    />
+  );
+
+  expect(container.querySelector('iframe')).toHaveAttribute(
+    'src',
+    'https://www.youtube.com/embed/dQw4w9WgXcQ'
+  );
+
+  rerender(
+    <EntryBody
+      rawBody={rawBodyOf([
+        {
+          type: 'media_embed',
+          url: 'https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ',
+          children: [{text: ''}],
+        },
+      ])}
+      body=""
+    />
+  );
+  expect(container.querySelector('iframe')).toBeNull();
+});
+
 test('falls back to the sanitized HTML body when rawBody is missing or invalid', () => {
   const {container, rerender} = render(
     <EntryBody body="<p>legacy <strong>html</strong></p>" />
