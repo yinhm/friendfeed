@@ -33,8 +33,9 @@
 
 ## 媒体镜像
 
-- `mirrorMedia` 链路必须保留。当前 `media.Mirror` 仍是未实现 stub，且旧流程在 `PutEntry` 后改 URL，无法持久化。
-- 正确实现方向是完成 `Mirror` 的 `Fetch + Post`，在 `PutEntry` 前执行镜像和 URL 改写，并为失败策略、对象 Bucket 及 S3/R2 行为建立测试。
+- `mirrorMedia` 链路必须保留。`media.Mirror` 已实现为 `Fetch + Post`（受控 HTTP client：超时、2xx 校验、32MB 响应上限、重定向上限、SSRF 防护），`ArchiveFeed` 在 `PutEntry` 前同步完成镜像与 URL 改写并随 entry 持久化；单个媒体失败只记录日志并保留原 URL。单 entry 镜像设有总时长预算（`mirrorMediaBudget`）与媒体数量上限（`mirrorMediaMaxObjects`），超限的媒体保留原 URL；`Thumbnail.Link` 是点击导航 URL，不再抓取。
+- 对象 key 不可信输入（URL path、`file.Name`）经严格清理：拒绝绝对路径与 `..` 穿越、逐段替换不安全字符，清理后为空时回退内容 sha256 作为 key；`Post` 落盘前校验解析后的路径仍在 MediaPath 内。分片子目录方案不变。
+- R2 写入已实现：`media.NewStorage` 返回 `MirrorStorage` 组合存储，`Post` 先写本地分片路径、再用标准库实现的 SigV4 签名 S3 PUT 写 R2（region `auto`，无新依赖）；`Object.Bucket` 填 R2 bucket，`Url` 指向 `media_url`（默认 `https://m.friendfeed.me`）+ key，R2 bucket 与本地 media 目录在同一域名下对外服务。R2 失败整体算镜像失败（保留原 URL，本地副本可留）；凭据（`r2_account_id`/`r2_access_key_id`/`r2_secret_access_key`/`r2_bucket`）全部缺失时为显式仅本地模式（打一次日志），部分配置视为配置错误，`Mirror`/`Post` 直接失败并保留原 URL。`MediaPath` 为空时默认 `<db_path>/files`。
 
 ## 公共 API 退役边界
 
