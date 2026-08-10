@@ -9,7 +9,7 @@
   - `EnqueJob`、`ArchiveFeed`、`ForceArchiveFeed` 的方法与路径；纠错只能新增兼容 RPC。
   - model/store 的表前缀、错误码、key 编码与迭代顺序。
   - `TableUserRenameMap = 7`，编码为 `old_id -> 16-byte user UUID`。
-- 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/client.py` 的 `get_ohlcs/adjust`、`twitter/config.py` 的 `zh_names` 和 Fabric task。
+- 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/client.py` 的 `get_ohlcs/adjust`、`twitter/config.py` 的 `zh_names` 和 Fabric task。
 - `model/feed.go` 的旧 Feedinfo、`UserMap` 仍用于迁移，不按运行时零引用删除。所有 iterator 必须关闭。
 - Pebble 同步写入开关必须真实控制底层写入模式。
 
@@ -18,7 +18,7 @@
 - `mirrorMedia` 不可删除；ArchiveFeed 在 `PutEntry` 前同步完成 Fetch、Post、URL 改写并随 entry 持久化。
 - `ArchiveFeed`/`ForceArchiveFeed` 暂不内部重构；退役需整体确认部署、抓取与迁移依赖。
 - 注释中的迁移、排障、备用 SSR 和调试代码不能仅因注释或零引用删除。
-- 暂不机械处理 feed/search 分页协议、股票 gob schema、job 公共抽象、key API、linkify、Twitter Entry/Tweet 模型和 Python 依赖锁定。保留现有 stdlib `log` 与 `slog`，不为形式统一迁移。分页需统一覆盖 cached/profile/timeline/search 及消费方。
+- 暂不机械处理 feed/search 分页协议、股票 gob schema、job 公共抽象、key API、Twitter Entry/Tweet 模型和 Python 依赖锁定。保留现有 stdlib `log` 与 `slog`，不为形式统一迁移。分页需统一覆盖 cached/profile/timeline/search 及消费方。
 
 ## 数据与并发不变量
 

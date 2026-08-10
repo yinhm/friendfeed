@@ -5,7 +5,6 @@ go 1.26.0
 require (
 	github.com/blevesearch/bleve/v2 v2.6.0
 	github.com/blevesearch/bleve_index_api v1.3.11 // indirect
-	github.com/cupcake/text-entities-go v0.0.0-20140512000843-06c234d4d8ed
 	github.com/dghubble/go-twitter v0.0.0-20221104224141-912508c3888b // direct
 	github.com/dghubble/oauth1 v0.7.3 // direct
 	github.com/disintegration/imaging v1.6.2
@@ -133,5 +132,4 @@ require (
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	launchpad.net/goyaml v0.0.0-20140305200416-000000000051 // indirect
 )

@@ -7,17 +7,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"log"
 	"slices"
-	"strings"
 	"time"
 
-	ttext "github.com/cupcake/text-entities-go"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
 	"github.com/gofrs/uuid"
 	"github.com/spf13/cobra"
 	"github.com/yinhm/friendfeed/pb"
+	"github.com/yinhm/friendfeed/util"
 )
 
 // serveCmd represents the serve command
@@ -147,17 +147,8 @@ func (fa *FeedAgent) fetchService(job *pb.FeedJob) (int, error) {
 			}
 		}
 
-		body := tweet.Text
-		tags := ttext.ExtractHashtags(body)
-		for _, tag := range tags {
-			new := fmt.Sprintf("<a href=\"https://twitter.com/hashtag/%s\">%s</a>", tag, tag)
-			body = strings.Replace(body, tag, new, -1)
-		}
-		urls := ttext.ExtractURLs(tweet.Text)
-		for _, url := range urls {
-			new := fmt.Sprintf("<a href=\"%s\">%s</a>", url, url)
-			body = strings.Replace(body, url, new, -1)
-		}
+		body := html.EscapeString(tweet.Text)
+		body = util.UrlToLink(util.EntityToLink(body))
 
 		entry := &pb.Entry{
 			Id:      entryUUID.String(),
