@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
@@ -30,7 +31,8 @@ var (
 
 func likeTestDB(t *testing.T) *store.Store {
 	t.Helper()
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return db
 }

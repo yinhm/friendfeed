@@ -10,6 +10,7 @@ import (
 	"github.com/eapache/queue"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/store"
 )
 
@@ -105,7 +106,8 @@ func TestFeedIndexPushDoesNotBlockWhenNotificationPending(t *testing.T) {
 }
 
 func TestRebuildFeedBufferPreservesOrderDeduplicatesAndDropsMissing(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	liveKey := []byte("live-entry")

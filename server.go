@@ -77,7 +77,10 @@ func main() {
 
 	rpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(MaxReceiveMessageSize))
 	health := newHealthCheck(rpcServer)
-	apiServer := server.NewApiServer(cfg.DBPath, cfg)
+	apiServer, err := server.NewApiServer(cfg.DBPath, cfg)
+	if err != nil {
+		log.Fatalf("failed to open database: %v", err)
+	}
 	health.markServing(healthServiceStorage)
 
 	// index service: main owns the exit policy on initialization

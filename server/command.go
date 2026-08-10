@@ -299,7 +299,7 @@ func (s *ApiServer) BackupDBTo(destPath string) error {
 
 	logger.Warnf("db backup to: %s", destPath)
 
-	ndb, err := store.NewStoreWithError(tmpPath)
+	ndb, err := store.NewStore(tmpPath)
 	if err != nil {
 		os.RemoveAll(tmpPath)
 		iter.Close()

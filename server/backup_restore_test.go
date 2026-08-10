@@ -39,7 +39,8 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	sourcePath := filepath.Join(t.TempDir(), "source")
 	backupPath := filepath.Join(t.TempDir(), "backup")
 
-	srv := NewApiServer(sourcePath, cfg)
+	srv, err := NewApiServer(sourcePath, cfg)
+	require.NoError(t, err)
 	defer srv.Shutdown()
 
 	// --- seed the source database ---
@@ -115,7 +116,8 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	require.NoError(t, srv.BackupDBTo(backupPath))
 
 	// --- verify the restored database key by key, read-only ---
-	rodb := store.NewStoreReadOnly(backupPath)
+	rodb, err := store.NewStoreReadOnly(backupPath)
+	require.NoError(t, err)
 
 	// The backup is a full copy: the key spaces match exactly.
 	require.Equal(t, countKeys(t, srv.rdb), countKeys(t, rodb))
@@ -184,7 +186,8 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	rodb.Close()
 
 	// --- serve the restored database over real gRPC ---
-	restored := NewApiServer(backupPath, cfg)
+	restored, err := NewApiServer(backupPath, cfg)
+	require.NoError(t, err)
 	defer restored.Shutdown()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -235,7 +238,8 @@ func countKeys(t *testing.T, db *store.Store) int {
 // that land afterwards are invisible through it. This is what makes the
 // backup point-in-time consistent under online writes.
 func TestStoreSnapshotIsolation(t *testing.T) {
-	db := store.NewStore(filepath.Join(t.TempDir(), "source"))
+	db, err := store.NewStore(filepath.Join(t.TempDir(), "source"))
+	require.NoError(t, err)
 	defer db.Close()
 
 	require.NoError(t, db.Put([]byte("k1"), []byte("v1")))
@@ -271,7 +275,8 @@ func TestBackupDBToRequiresFreshDestination(t *testing.T) {
 	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
 	require.NoError(t, err)
 
-	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	srv, err := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	require.NoError(t, err)
 	defer srv.Shutdown()
 
 	require.NoError(t, srv.rdb.Put([]byte("stay"), []byte("1")))
@@ -290,7 +295,8 @@ func TestBackupDBToRequiresFreshDestination(t *testing.T) {
 	dir2 := filepath.Join(t.TempDir(), "backup2")
 	require.NoError(t, srv.BackupDBTo(dir2))
 
-	rodb := store.NewStoreReadOnly(dir2)
+	rodb, err := store.NewStoreReadOnly(dir2)
+	require.NoError(t, err)
 	defer rodb.Close()
 	require.True(t, rodb.Exist([]byte("stay")))
 	require.True(t, rodb.Exist([]byte("new")))
@@ -306,7 +312,8 @@ func TestBackupDBToConcurrentWrites(t *testing.T) {
 	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
 	require.NoError(t, err)
 
-	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	srv, err := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	require.NoError(t, err)
 	defer srv.Shutdown()
 
 	const initial = 100
@@ -338,7 +345,8 @@ func TestBackupDBToConcurrentWrites(t *testing.T) {
 	close(stop)
 	wg.Wait()
 
-	rodb := store.NewStoreReadOnly(backupPath)
+	rodb, err := store.NewStoreReadOnly(backupPath)
+	require.NoError(t, err)
 	defer rodb.Close()
 	require.GreaterOrEqual(t, countKeys(t, rodb), initial,
 		"backup taken after seeding must contain at least the seeded keys")
@@ -356,7 +364,8 @@ func TestBackupDBToAtomicPublish(t *testing.T) {
 	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
 	require.NoError(t, err)
 
-	srv := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	srv, err := NewApiServer(filepath.Join(t.TempDir(), "source"), cfg)
+	require.NoError(t, err)
 	defer srv.Shutdown()
 	require.NoError(t, srv.rdb.Put([]byte("k"), []byte("v")))
 

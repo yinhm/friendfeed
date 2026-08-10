@@ -74,8 +74,11 @@ func SetLogLevel(level logrus.Level) {
 	logrus.SetLevel(level)
 }
 
-func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
-	rdb := store.NewStore(dbpath)
+func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
+	rdb, err := store.NewStore(dbpath)
+	if err != nil {
+		return nil, err
+	}
 	// The legacy meta store was unified into rdb; mdb is kept as an alias.
 	mdb := rdb
 
@@ -92,7 +95,7 @@ func NewApiServer(dbpath string, cfg *util.Config) *ApiServer {
 	}
 
 	srv.fs = media.NewStorage(cfg, 1024)
-	return srv
+	return srv, nil
 }
 
 // StartBackgroundJobs starts the periodic refetch and index dump jobs.

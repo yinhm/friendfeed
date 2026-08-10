@@ -28,7 +28,9 @@ func TestTableTestSuite(t *testing.T) {
 
 func (s *TableTestSuite) SetupSuite() {
 	dbpath := os.TempDir() + "/testmcsdb"
-	s.db = store.NewStore(dbpath)
+	db, err := store.NewStore(dbpath)
+	s.Require().NoError(err)
+	s.db = db
 
 	search.InitMockIndexService(dbpath)
 	// InitTables(s.db)

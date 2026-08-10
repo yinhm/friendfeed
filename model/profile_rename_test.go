@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
@@ -63,7 +64,8 @@ func TestNormalizeProfileId(t *testing.T) {
 }
 
 func TestRenameProfileId(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -144,7 +146,8 @@ func TestRenameProfileId(t *testing.T) {
 }
 
 func TestRenameProfileIdRejectsReservedPreviousID(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	firstUUID := uuid.Must(uuid.NewV4())
@@ -179,7 +182,8 @@ func TestRenameProfileIdRejectsReservedPreviousID(t *testing.T) {
 }
 
 func TestRenameProfileIdNormalizesUppercaseInput(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -201,7 +205,8 @@ func TestRenameProfileIdNormalizesUppercaseInput(t *testing.T) {
 }
 
 func TestRenameProfileIdRejectsCorruptCollisionMapWithoutMutation(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -220,7 +225,7 @@ func TestRenameProfileIdRejectsCorruptCollisionMapWithoutMutation(t *testing.T) 
 		t.Fatalf("seed corrupt map: %v", err)
 	}
 
-	err := RenameProfileId(db, profileUUID, "newname")
+	err = RenameProfileId(db, profileUUID, "newname")
 	if err == nil || !strings.Contains(err.Error(), "decode UserMap") {
 		t.Fatalf("RenameProfileId error = %v; want decode UserMap error", err)
 	}
@@ -240,7 +245,8 @@ func TestRenameProfileIdRejectsCorruptCollisionMapWithoutMutation(t *testing.T) 
 }
 
 func TestRenameProfileIdRejectsMismatchedOldMapWithoutMutation(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -259,7 +265,7 @@ func TestRenameProfileIdRejectsMismatchedOldMapWithoutMutation(t *testing.T) {
 		t.Fatalf("corrupt old map: %v", err)
 	}
 
-	err := RenameProfileId(db, profileUUID, "newname")
+	err = RenameProfileId(db, profileUUID, "newname")
 	if err == nil || !strings.Contains(err.Error(), "belongs to another profile") {
 		t.Fatalf("RenameProfileId error = %v; want old-map ownership error", err)
 	}
@@ -278,7 +284,8 @@ func TestRenameProfileIdRejectsMismatchedOldMapWithoutMutation(t *testing.T) {
 }
 
 func TestRenameProfileIdSerializesConcurrentCollision(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	firstUUID := uuid.Must(uuid.NewV4())
@@ -342,7 +349,8 @@ func TestRenameProfileIdSerializesConcurrentCollision(t *testing.T) {
 }
 
 func TestRenameProfileIdRejectsZeroUuid(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	if err := RenameProfileId(db, uuid.Nil, "newname"); err == nil {

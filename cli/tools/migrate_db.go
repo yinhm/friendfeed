@@ -1001,15 +1001,24 @@ func main() {
 	}
 
 	var ndb *store.Store
+	var err error
 	if readOnly {
-		ndb = store.NewStoreReadOnly(toPath)
+		ndb, err = store.NewStoreReadOnly(toPath)
 	} else {
-		ndb = store.NewStore(toPath)
+		ndb, err = store.NewStore(toPath)
+	}
+	if err != nil {
+		log.Fatalf("open target database %s: %v", toPath, err)
+	}
+	if !readOnly {
 		ndb.SetSync(false)
 	}
 	var db *store.Store
 	if needsSource {
-		db = store.NewStore(fromPath)
+		db, err = store.NewStore(fromPath)
+		if err != nil {
+			log.Fatalf("open source database %s: %v", fromPath, err)
+		}
 	}
 
 	switch command {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -16,7 +17,8 @@ import (
 // the old id->uuid mapping is gone. Resolving by From.Id would fail; the
 // fix resolves by the stable ProfileUuid and refreshes From.Id.
 func TestFmtEntryProfileSurvivesRename(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -80,7 +82,8 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 // TestFmtEntryProfileLegacyFallback covers entries without a ProfileUuid
 // (older data): they must still resolve via From.Id.
 func TestFmtEntryProfileLegacyFallback(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -123,7 +126,8 @@ func TestFmtEntryProfileLegacyFallback(t *testing.T) {
 // fields may refresh for compatibility, but the identity field stays
 // untouched.
 func TestFmtEntryProfilesLegacyRecycledIdNoUuidStamp(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	registrantUUID := uuid.Must(uuid.NewV4())
@@ -153,7 +157,8 @@ func TestFmtEntryProfilesLegacyRecycledIdNoUuidStamp(t *testing.T) {
 // An entry with a nil From must gain a complete canonical reference,
 // including Uuid and Type.
 func TestFmtEntryProfilesNilFrom(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -195,7 +200,8 @@ func seedAuthorProfile(t *testing.T, db *store.Store) uuid.UUID {
 }
 
 func TestProfileResolverCachesStableUUIDLookup(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := seedAuthorProfile(t, db)
@@ -232,7 +238,8 @@ func TestProfileResolverCachesStableUUIDLookup(t *testing.T) {
 }
 
 func TestProfileResolverCachesNotFound(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -257,7 +264,9 @@ func TestProfileResolverCachesNotFound(t *testing.T) {
 }
 
 func TestProfileResolverRejectsZeroUUIDWithoutLookup(t *testing.T) {
-	resolver := newProfileResolver(store.NewStore(t.TempDir()))
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	resolver := newProfileResolver(db)
 	defer resolver.mdb.Close()
 
 	if _, err := resolver.profile(uuid.Nil); err == nil {
@@ -272,7 +281,8 @@ func TestProfileResolverRejectsZeroUUIDWithoutLookup(t *testing.T) {
 // zero UUID parses but is not an identity, even if an abnormal
 // zero-uuid profile exists in the database.
 func TestFmtEntryProfilesRejectsZeroProfileUuid(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	if err := model.UpdateProfile(db, &pb.Profile{
@@ -305,7 +315,8 @@ func newAuthorEntry(authorUUID uuid.UUID) *pb.Entry {
 // UUID-bearing comment/like refs refresh to the current profile after a
 // rename and display-name change.
 func TestFmtCommentOrLikeRefreshesUuidRefs(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 	authorUUID := seedAuthorProfile(t, db)
 
@@ -351,7 +362,8 @@ func TestFmtCommentOrLikeRefreshesUuidRefs(t *testing.T) {
 // The zero UUID parses but is not a valid identity: a zero-uuid ref
 // keeps its snapshot even if a zero-uuid profile somehow exists.
 func TestFmtCommentOrLikeRejectsZeroUuid(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 	authorUUID := seedAuthorProfile(t, db)
 
@@ -380,7 +392,8 @@ func TestFmtCommentOrLikeRejectsZeroUuid(t *testing.T) {
 // currently resolves to a real profile: the id may have been recycled,
 // so hydrating by id could misattribute the record.
 func TestFmtCommentOrLikeKeepsLegacySnapshot(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 	authorUUID := seedAuthorProfile(t, db)
 
@@ -412,7 +425,8 @@ func TestFmtCommentOrLikeKeepsLegacySnapshot(t *testing.T) {
 // Malformed uuids, unknown profiles, and nil refs are skipped quietly:
 // the snapshot survives and the feed renders.
 func TestFmtCommentOrLikeSkipsUnresolvable(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 	authorUUID := seedAuthorProfile(t, db)
 
@@ -446,7 +460,8 @@ func TestFmtCommentOrLikeSkipsUnresolvable(t *testing.T) {
 // stable UUIDs. The author error is returned for strict callers, but
 // lenient paths (public cached feed) render the hydrated rest.
 func TestFmtEntryProfilesHydratesRefsWhenAuthorMissing(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	commenterUUID := uuid.Must(uuid.NewV4())

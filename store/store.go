@@ -37,18 +37,9 @@ type Store struct {
 	batchMu    sync.Mutex
 }
 
-func NewStore(dbpath string) *Store {
-	db, err := NewStoreWithError(dbpath)
-	if err != nil {
-		log.Fatalf("Can not create or open db: %s", err)
-	}
-	return db
-}
-
-// NewStoreWithError creates or opens a Store without terminating the process.
-// Online request paths must use this variant so operational failures can be
-// returned to the caller and normal server shutdown remains possible.
-func NewStoreWithError(dbpath string) (*Store, error) {
+// NewStore creates or opens a Store. Operational failures are returned to
+// the caller; library code must not terminate the process.
+func NewStore(dbpath string) (*Store, error) {
 	if err := mkdir(dbpath); err != nil {
 		return nil, err
 	}
@@ -59,18 +50,10 @@ func NewStoreWithError(dbpath string) (*Store, error) {
 // on-disk state; writes through the returned Store fail. Pebble still requires
 // the database lock, so this cannot inspect a directory held open by another
 // process. Stop that process or inspect a consistent backup instead.
-func NewStoreReadOnly(dbpath string) *Store {
+func NewStoreReadOnly(dbpath string) (*Store, error) {
 	opts := NewStoreOptions()
 	opts.ReadOnly = true
-	return openStore(dbpath, opts, 512<<20)
-}
-
-func openStore(dbpath string, options *pebble.Options, cacheSize int64) *Store {
-	db, err := openStoreWithError(dbpath, options, cacheSize)
-	if err != nil {
-		log.Fatalf("Can not open db: %s", err)
-	}
-	return db
+	return openStoreWithError(dbpath, opts, 512<<20)
 }
 
 func openStoreWithError(dbpath string, options *pebble.Options, cacheSize int64) (*Store, error) {

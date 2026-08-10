@@ -16,6 +16,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
@@ -67,7 +68,9 @@ func (s *RpcTestSuite) SetupTest() {
 	s.rpcAddress = ln.Addr().String()
 
 	s.rpcServer = grpc.NewServer()
-	s.srv = NewApiServer(s.dbpath, cfg)
+	srv, err := NewApiServer(s.dbpath, cfg)
+	s.Require().NoError(err)
+	s.srv = srv
 
 	pb.RegisterApiServer(s.rpcServer, s.srv)
 	go s.rpcServer.Serve(ln)
@@ -319,7 +322,9 @@ func (s *RpcTestSuite) TestMdbReopen() {
 
 	// reopen to check data
 	s.srv.Shutdown()
-	s.srv = NewApiServer(s.dbpath, s.cfg)
+	srv, err := NewApiServer(s.dbpath, s.cfg)
+	s.Require().NoError(err)
+	s.srv = srv
 
 	got, err := s.srv.dequeJob()
 	assert.Nil(s.T(), err)
@@ -345,7 +350,9 @@ func (s *RpcTestSuite) TestReopenDeque() {
 	// reopen to check data
 	s.rpcServer.Stop()
 	s.srv.Shutdown()
-	s.srv = NewApiServer(s.dbpath, s.cfg)
+	srv, err := NewApiServer(s.dbpath, s.cfg)
+	s.Require().NoError(err)
+	s.srv = srv
 
 	_, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)
@@ -379,7 +386,9 @@ func (s *RpcTestSuite) TestJobQueue() {
 	// reopen to check data
 	// reopen db should got the same result: no job available
 	s.srv.Shutdown()
-	s.srv = NewApiServer(s.dbpath, s.cfg)
+	srv, err := NewApiServer(s.dbpath, s.cfg)
+	s.Require().NoError(err)
+	s.srv = srv
 
 	_, err = s.srv.dequeJob()
 	assert.NotNil(s.T(), err)
@@ -1078,7 +1087,8 @@ func TestShutdownStopsBackgroundJobs(t *testing.T) {
 	assert.Nil(t, err)
 
 	search.InitMockIndexService(filepath.Join(dbpath, "index"))
-	srv := NewApiServer(dbpath, cfg)
+	srv, err := NewApiServer(dbpath, cfg)
+	require.NoError(t, err)
 	srv.StartBackgroundJobs()
 
 	done := make(chan struct{})
@@ -1100,7 +1110,8 @@ func TestShutdownIsConcurrentAndIdempotent(t *testing.T) {
 	assert.NoError(t, err)
 
 	search.InitMockIndexService(filepath.Join(dbpath, "index"))
-	srv := NewApiServer(dbpath, cfg)
+	srv, err := NewApiServer(dbpath, cfg)
+	require.NoError(t, err)
 	srv.StartBackgroundJobs()
 	srv.StartBackgroundJobs()
 

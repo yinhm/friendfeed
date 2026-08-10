@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -42,7 +43,8 @@ func TestConfirmDestructive(t *testing.T) {
 }
 
 func TestInspectAndPurgeUserRenameMap(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileUUID := uuid.Must(uuid.NewV4())
@@ -90,7 +92,8 @@ func TestUserRenameMapPurgeRequiresConfirmation(t *testing.T) {
 }
 
 func TestFixTwitterOAuthFields(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	seed := []*pb.OAuthUser{
@@ -129,7 +132,8 @@ func TestFixTwitterOAuthFields(t *testing.T) {
 }
 
 func TestDumpTable(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	for _, userID := range []string{"dump-1", "dump-2", "dump-3"} {
@@ -175,7 +179,8 @@ func TestDumpTable(t *testing.T) {
 }
 
 func TestDumpTableProfile(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	profileID := uuid.Must(uuid.NewV4())
@@ -237,7 +242,8 @@ func TestMigrateMediaURL(t *testing.T) {
 }
 
 func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 	db.SetSync(false)
 
@@ -304,7 +310,8 @@ func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
 }
 
 func TestRebuildTimelines(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 	db.SetSync(false)
 
@@ -372,7 +379,8 @@ func TestRebuildTimelines(t *testing.T) {
 }
 
 func TestExplicitTimelineUserDoesNotRequireOAuthMetadata(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	userID := uuid.Must(uuid.NewV4())
@@ -393,7 +401,8 @@ func TestExplicitTimelineUserDoesNotRequireOAuthMetadata(t *testing.T) {
 }
 
 func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	followerID := uuid.Must(uuid.NewV4())

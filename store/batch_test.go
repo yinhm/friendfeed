@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func TestApplyBatchCommitsAtomically(t *testing.T) {
-	db := NewStore(t.TempDir())
+	db, err := NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	if err := db.Put([]byte("old"), []byte("value")); err != nil {
@@ -32,14 +34,15 @@ func TestApplyBatchCommitsAtomically(t *testing.T) {
 }
 
 func TestApplyBatchCallbackErrorDoesNotCommit(t *testing.T) {
-	db := NewStore(t.TempDir())
+	db, err := NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	if err := db.Put([]byte("old"), []byte("value")); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	wantErr := errors.New("stop")
-	err := db.ApplyBatch(func(batch *pebble.Batch) error {
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := batch.Delete([]byte("old"), nil); err != nil {
 			return err
 		}
@@ -61,7 +64,8 @@ func TestApplyBatchCallbackErrorDoesNotCommit(t *testing.T) {
 }
 
 func TestApplyBatchEmptyCallbackIsNoOp(t *testing.T) {
-	db := NewStore(t.TempDir())
+	db, err := NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	if err := db.Put([]byte("existing"), []byte("value")); err != nil {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -54,7 +55,8 @@ func TestStoreOptionsShareLevelConfiguration(t *testing.T) {
 }
 
 func TestStoreCloseIsConcurrentAndIdempotent(t *testing.T) {
-	db := NewStore(t.TempDir())
+	db, err := NewStore(t.TempDir())
+	require.NoError(t, err)
 
 	const callers = 16
 	start := make(chan struct{})
@@ -82,30 +84,32 @@ func TestStoreCloseIsConcurrentAndIdempotent(t *testing.T) {
 	}
 }
 
-func TestNewStoreWithErrorReturnsOperationalFailures(t *testing.T) {
+func TestNewStoreReturnsOperationalFailures(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		parent := t.TempDir()
 		notDirectory := filepath.Join(parent, "file")
 		assert.NoError(t, os.WriteFile(notDirectory, []byte("x"), 0600))
 
-		db, err := NewStoreWithError(filepath.Join(notDirectory, "db"))
+		db, err := NewStore(filepath.Join(notDirectory, "db"))
 		assert.Nil(t, db)
 		assert.Error(t, err)
 	})
 
 	t.Run("open", func(t *testing.T) {
 		path := t.TempDir()
-		first := NewStore(path)
+		first, err := NewStore(path)
+		require.NoError(t, err)
 		defer first.Close()
 
-		second, err := NewStoreWithError(path)
+		second, err := NewStore(path)
 		assert.Nil(t, second)
 		assert.Error(t, err)
 	})
 }
 
 func TestCloseWithErrorReturnsPebbleCloseFailure(t *testing.T) {
-	db := NewStore(t.TempDir())
+	db, err := NewStore(t.TempDir())
+	require.NoError(t, err)
 	assert.NoError(t, db.Set([]byte("key"), []byte("value")))
 	iter, err := db.rdb.NewIter(nil)
 	assert.NoError(t, err)
@@ -120,7 +124,9 @@ func TestCloseWithErrorReturnsPebbleCloseFailure(t *testing.T) {
 func (s *DBTestSuite) SetupTest() {
 	log.Println("setup tests...")
 	dbpath := os.TempDir() + "/testffdb2"
-	s.rdb = NewStore(dbpath)
+	rdb, err := NewStore(dbpath)
+	s.Require().NoError(err)
+	s.rdb = rdb
 }
 
 func (s *DBTestSuite) TearDownTest() {

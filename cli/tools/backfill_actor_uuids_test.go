@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -35,7 +36,8 @@ func seedActorEntry(t *testing.T, db *store.Store, entry *pb.Entry) uuid.UUID {
 
 func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 	dbPath := t.TempDir()
-	db := store.NewStore(dbPath)
+	db, err := store.NewStore(dbPath)
+	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
 	authorUUID := seedActorProfile(t, db, "author")
@@ -74,7 +76,8 @@ func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 	// backfillActorUUIDs does not call Flush. Closing and reopening proves the
 	// applied Set survived independently of the command wrapper's final Flush.
 	db.Close()
-	db = store.NewStore(dbPath)
+	db, err = store.NewStore(dbPath)
+	require.NoError(t, err)
 	migrated, err := model.GetEntry(db, entryUUID.String())
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +106,8 @@ func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 }
 
 func TestBackfillActorUUIDsPreservesConflictsAndSkipsUnresolved(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	authorUUID := seedActorProfile(t, db, "author")
@@ -146,7 +150,8 @@ func TestBackfillActorUUIDsPreservesConflictsAndSkipsUnresolved(t *testing.T) {
 }
 
 func TestBackfillActorUUIDsFiltersByUserAndLimit(t *testing.T) {
-	db := store.NewStore(t.TempDir())
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
 	defer db.Close()
 
 	seedActorProfile(t, db, "wanted")
