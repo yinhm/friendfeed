@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"math/rand"
 
 	"github.com/gofrs/uuid"
@@ -194,12 +195,12 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
-		logger.Debugf("RandomPictureFromWallpaper: %s", err)
+		slog.Debug("RandomPictureFromWallpaper", "err", err)
 		return ""
 	}
 	profile, err = model.GetProfileFromUuid(db, profileUUID)
 	if err != nil {
-		logger.Debugf("RandomPictureFromWallpaper, no profile: %s", err)
+		slog.Debug("RandomPictureFromWallpaper: no profile", "err", err)
 		return ""
 	}
 
@@ -210,11 +211,11 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 
 	bingUuid := model.UniqueKeyFrom("bing", "wallpaper")
 	preKey := model.NewUUIDKey(model.TableEntryIndex, bingUuid)
-	logger.Infof("RandomPictureFromWallpaper: %s", preKey.String())
+	slog.Info("RandomPictureFromWallpaper", "pre_key", preKey.String())
 
 	url := ""
 	_, _ = db.ForwardScan(preKey, func(i int, k, v []byte) error {
-		// logger.Debugf("entry key: <%x>", v)
+		// slog.Debug("entry key", "value", hex.EncodeToString(v))
 		entry := new(pb.Entry)
 		rawdata, err := db.Get(v) // index value point to entry key
 		if err != nil || len(rawdata) == 0 {
@@ -225,7 +226,7 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 		}
 
 		dice := rand.Intn(10)
-		logger.Debugf("entry key: <%x, dice: %d>", hex.EncodeToString(k), dice)
+		slog.Debug("entry key", "key", hex.EncodeToString(k), "dice", dice)
 		if dice == 5 && len(entry.Thumbnails) > 0 && entry.Thumbnails[0] != nil {
 			url = entry.Thumbnails[0].Url
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan

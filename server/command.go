@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -222,14 +223,14 @@ func (s *ApiServer) SuperAdmin(id string) (bool, error) {
 	}
 	profile.IsSuper = !profile.IsSuper
 	model.UpdateProfile(s.mdb, profile)
-	logger.Warnf("SuperAdmin toggle: <%s, is_super=%t>", profile.Id, profile.IsSuper)
+	slog.Warn("SuperAdmin toggle", "id", profile.Id, "is_super", profile.IsSuper)
 	return true, nil
 }
 
 func (s *ApiServer) PurgePrefix(prefix store.Key) error {
 	db := s.rdb
 	batch := db.NewBatch()
-	logger.Debugf("prefix range delete: %s", hex.EncodeToString(prefix))
+	slog.Debug("prefix range delete", "prefix", hex.EncodeToString(prefix))
 	err := batch.DeleteRange(prefix, store.KeyUpperBound(prefix), pebble.NoSync)
 	if err != nil {
 		return err
@@ -246,7 +247,7 @@ func (s *ApiServer) PurgePrefix(prefix store.Key) error {
 func (s *ApiServer) DBMetrics() error {
 	db := s.rdb
 	metrics := db.Metrics()
-	logger.Printf("\n%s\n", metrics.String())
+	slog.Info("db metrics", "metrics", metrics.String())
 	return nil
 }
 
@@ -297,7 +298,7 @@ func (s *ApiServer) BackupDBTo(destPath string) error {
 	snap := s.rdb.Snapshot()
 	iter := s.rdb.SnapshotIterator(snap)
 
-	logger.Warnf("db backup to: %s", destPath)
+	slog.Warn("db backup", "dest", destPath)
 
 	ndb, err := store.NewStore(tmpPath)
 	if err != nil {
@@ -359,6 +360,6 @@ func (s *ApiServer) CreateSystemProfile() error {
 	if err != nil {
 		return err
 	}
-	logger.Debugf("Profile created: <%s, %s>", "hiqt", feedinfo.Uuid)
+	slog.Debug("Profile created", "id", "hiqt", "uuid", feedinfo.Uuid)
 	return nil
 }

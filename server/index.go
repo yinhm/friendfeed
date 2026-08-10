@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/hex"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -143,7 +144,7 @@ func rebuildFeedBuffer(db *store.Store, pending, oldbuf []string) []string {
 		// skip deleted entry
 		kb, _ := hex.DecodeString(item)
 		if db != nil && !db.Exist(kb) {
-			logger.Debugf("skip key: %s", item)
+			slog.Debug("skip key", "key", item)
 			return false
 		}
 
@@ -188,7 +189,7 @@ func (f *FeedIndex) load(db *store.Store) error {
 	defer f.Unlock()
 
 	key := f.Key()
-	logger.Debugf("load local cache: %s", key.String())
+	slog.Debug("load local cache", "key", key.String())
 	rawdata, err := db.Get(key)
 	if err != nil {
 		return err
@@ -201,7 +202,7 @@ func (f *FeedIndex) load(db *store.Store) error {
 	dec := gob.NewDecoder(buf)
 	err = dec.Decode(&f.bufq)
 	if err != nil {
-		logger.Debugf("error while loading cache: %s", err)
+		slog.Debug("error while loading cache", "err", err)
 		return err
 	}
 	return nil

@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -25,7 +26,7 @@ func archiveStockStream[T any](
 	archive func(T) error,
 	sendAndClose func(*pb.ArchiveSummary) error,
 ) error {
-	logger.Debugf("Starting %s...", name)
+	slog.Debug("Starting archive stream", "name", name)
 	var count int32
 	startTime := time.Now()
 
@@ -42,13 +43,13 @@ func archiveStockStream[T any](
 			})
 		}
 		if err != nil {
-			logger.Debugf("%s error: %v", name, err)
+			slog.Debug("archive stream error", "name", name, "err", err)
 			return err
 		}
 		count++
 
 		if err := archive(req); err != nil {
-			logger.Debugf("%s error: %v", name, err)
+			slog.Debug("archive stream error", "name", name, "err", err)
 			return err
 		}
 	}
@@ -87,7 +88,7 @@ func (s *ApiServer) ArchiveKLine(stream pb.Api_ArchiveKLineServer) error {
 
 // XRXD 除权除息同步为全量更新
 func (s *ApiServer) ArchiveXRXD(stream pb.Api_ArchiveXRXDServer) error {
-	logger.Debugln("Starting ArchiveXRXD...")
+	slog.Debug("Starting ArchiveXRXD...")
 	var count int32
 	startTime := time.Now()
 
@@ -165,7 +166,7 @@ func (s *ApiServer) ArchiveStockInfo(stream pb.Api_ArchiveStockInfoServer) error
 
 // 获取证券代码列表
 func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb.Response, error) {
-	logger.Debugf("UpdateStockList, count %d", len(req.Stocks))
+	slog.Debug("UpdateStockList", "count", len(req.Stocks))
 
 	s.rdb.SetSync(false)
 	defer s.rdb.SetSync(true)
@@ -198,7 +199,7 @@ func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb
 			return nil, err
 		}
 
-		logger.Debugf("同步股票Feedinfo: %s", stock.Symbol)
+		slog.Debug("同步股票Feedinfo", "symbol", stock.Symbol)
 	}
 
 	return &pb.Response{IsSuccess: true}, nil
@@ -206,7 +207,7 @@ func (s *ApiServer) UpdateStockList(ctx context.Context, req *pb.StockList) (*pb
 
 // 获取证券代码列表
 func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb.StockList, error) {
-	logger.Debugf("GetStockList of <%s,%s>", req.Market, req.Match)
+	slog.Debug("GetStockList", "market", req.Market, "match", req.Match)
 	stockListUUID := model.UniqueKeyFrom("stock", "list")
 	key := model.NewPrefixKeyFrom(model.TableStock, stockListUUID.Bytes())
 
@@ -250,7 +251,7 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 // pb.Stock 包含最基本证券信息，进一步信息参见 StockInfo
 // TODO: optimise
 func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Stock, error) {
-	logger.Debugf("GetStock of <%s>", req.Symbol)
+	slog.Debug("GetStock", "symbol", req.Symbol)
 	stockListUUID := model.UniqueKeyFrom("stock", "list")
 	key := model.NewPrefixKeyFrom(model.TableStock, stockListUUID.Bytes())
 
@@ -276,7 +277,7 @@ func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Sto
 // 获取证券基本信息
 // 证券所属行业等
 func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb.StockInfo, error) {
-	logger.Debugf("GetStockInfo of <%s>", req.Symbol)
+	slog.Debug("GetStockInfo", "symbol", req.Symbol)
 
 	key := model.KeyFromString(req.Symbol, "StockInfo")
 	msg := new(pb.StockInfo)
@@ -291,7 +292,7 @@ func (s *ApiServer) GetStockInfo(ctx context.Context, req *pb.StockRequest) (*pb
 
 // 获取 XRXD 除权除息
 func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXDResponse, error) {
-	logger.Debugf("GetXRXD of <%s>", req.Symbol)
+	slog.Debug("GetXRXD", "symbol", req.Symbol)
 	kb := model.KeyFromString(req.Symbol, "xdxr")
 	key := model.NewPrefixKeyFrom(model.TableStock, kb)
 
@@ -322,7 +323,7 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 
 // 获取 KLine bars 高开低收数据
 func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KLineResponse, error) {
-	logger.Debugf("GetKLines of <%s, %d>", req.Symbol, req.Bars)
+	slog.Debug("GetKLines", "symbol", req.Symbol, "bars", req.Bars)
 	symbolUUID := model.UniqueKeyFrom(req.Symbol)
 	prefix := model.NewPrefixKeyFrom(model.TableKLine, symbolUUID.Bytes())
 	// fmt.Printf("scan key, %s\n", prefix.String())
@@ -351,7 +352,7 @@ func (s *ApiServer) GetKLines(ctx context.Context, req *pb.StockRequest) (*pb.KL
 
 // 获取证券财务信息
 func (s *ApiServer) GetFundamental(ctx context.Context, req *pb.StockRequest) (*pb.Fundamental, error) {
-	logger.Debugf("GetFundamental of <%s>", req.Symbol)
+	slog.Debug("GetFundamental", "symbol", req.Symbol)
 
 	fundamentalUUID := model.UniqueKeyFrom(req.Symbol, "Fundamental")
 	msg := new(pb.Fundamental)
@@ -366,7 +367,7 @@ func (s *ApiServer) GetFundamental(ctx context.Context, req *pb.StockRequest) (*
 
 // 获取证券 req.DataType 获取 Rawdata
 func (s *ApiServer) GetRawdata(ctx context.Context, req *pb.StockRequest) (*pb.Rawdata, error) {
-	logger.Debugf("GetRawdata of <%s, %s>", req.Symbol, req.DataType)
+	slog.Debug("GetRawdata", "symbol", req.Symbol, "data_type", req.DataType)
 
 	key := model.KeyFromString(req.Symbol, req.DataType)
 	msg := new(pb.Rawdata)
@@ -381,7 +382,7 @@ func (s *ApiServer) GetRawdata(ctx context.Context, req *pb.StockRequest) (*pb.R
 
 // 更新 Rawdata
 func (s *ApiServer) UpdateRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Response, error) {
-	logger.Debugf("UpdateRawdata of <%s, %s>", req.Symbol, req.DataType)
+	slog.Debug("UpdateRawdata", "symbol", req.Symbol, "data_type", req.DataType)
 
 	key := model.KeyFromString(req.Symbol, req.DataType)
 	_, err := model.Stock.Put(s.rdb, key, req)
@@ -395,7 +396,7 @@ func (s *ApiServer) UpdateRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Res
 
 // 删除 Rawdata
 func (s *ApiServer) DeleteRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Response, error) {
-	logger.Debugf("DeleteRawdata of <%s, %s>", req.Symbol, req.DataType)
+	slog.Debug("DeleteRawdata", "symbol", req.Symbol, "data_type", req.DataType)
 
 	key := model.KeyFromString(req.Symbol, req.DataType)
 	err := model.Stock.Delete(s.rdb, key)
@@ -409,7 +410,7 @@ func (s *ApiServer) DeleteRawdata(ctx context.Context, req *pb.Rawdata) (*pb.Res
 
 // 发布报告到 Symbol 对应 Feed
 func (s *ApiServer) SendReport(ctx context.Context, req *pb.Report) (*pb.Response, error) {
-	logger.Debugf("SendReport: <%s, %s>", req.Symbol, req.Type)
+	slog.Debug("SendReport", "symbol", req.Symbol, "type", req.Type)
 
 	profile, err := model.GetProfileFromUserId(s.rdb, req.Symbol)
 	if err != nil {

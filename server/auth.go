@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -12,14 +13,14 @@ import (
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	logger.Debugf("auth info: provider=%s user_id=%s uuid=%s", authinfo.Provider, authinfo.UserId, authinfo.Uuid)
+	slog.Debug("auth info", "provider", authinfo.Provider, "user_id", authinfo.UserId, "uuid", authinfo.Uuid)
 	_, msg, err := model.GetOAuthUser(s.mdb, authinfo.Provider, authinfo.UserId)
 	if err != nil && !errors.Is(err, model.ErrNotFound) {
-		logger.Debugf("oauth user not found: %s", err)
+		slog.Debug("oauth user not found", "err", err)
 		return nil, err
 	}
 	if msg != nil {
-		logger.Debugf("oauth user found: provider=%s user_id=%s uuid=%s", msg.Provider, msg.UserId, msg.Uuid)
+		slog.Debug("oauth user found", "provider", msg.Provider, "user_id", msg.UserId, "uuid", msg.Uuid)
 	}
 
 	// exist oauth
@@ -33,7 +34,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	if err != nil {
 		return nil, err
 	}
-	logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, authinfo.Provider, authinfo.UserId)
+	slog.Debug("PutOAuth", "uuid", authinfo.Uuid, "provider", authinfo.Provider, "user_id", authinfo.UserId)
 
 	// exists profile
 	profileUUID, _ := uuid.FromString(authinfo.Uuid)
@@ -44,7 +45,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			if err != nil {
 				return nil, err
 			}
-			logger.Debugf("New profile: <%s>", profile.Uuid)
+			slog.Debug("New profile", "uuid", profile.Uuid)
 		} else {
 			return nil, err
 		}
@@ -68,7 +69,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		if err != nil {
 			return nil, err
 		}
-		logger.Debugf("PutService: %s \n %v>", profile.Uuid, service)
+		slog.Debug("PutService", "uuid", profile.Uuid, "service", service)
 	}
 	return profile, nil
 }
@@ -78,21 +79,21 @@ func (s *ApiServer) BindUserFeed(ctx context.Context, user *pb.OAuthUser) (*pb.O
 }
 
 func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*pb.Profile, error) {
-	logger.Debugf("FetchProfile: %s", req.Uuid)
+	slog.Debug("FetchProfile", "uuid", req.Uuid)
 	profileUUID, err := uuid.FromString(req.Uuid)
 	if err != nil {
 		return nil, err
 	}
 	profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
 	if err != nil {
-		logger.Debugf("FetchProfile: %s", err)
+		slog.Debug("FetchProfile", "err", err)
 		return nil, err
 	}
 	return profile, nil
 }
 
 func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {
-	logger.Debugf("DeleteService: <%s, %s>", req.User, req.Service)
+	slog.Debug("DeleteService", "user", req.User, "service", req.Service)
 	userUUID, err := uuid.FromString(req.User)
 	if err != nil {
 		return nil, err

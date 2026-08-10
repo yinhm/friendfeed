@@ -7,13 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/gofrs/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
@@ -25,8 +24,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
-
-var logger *logrus.Logger
 
 // server implementation.
 type ApiServer struct {
@@ -56,22 +53,34 @@ type ApiServer struct {
 	shutdownOnce          sync.Once
 }
 
-func init() {
-	logger = logrus.StandardLogger()
-	logrus.SetLevel(logrus.InfoLevel)
-	logrus.SetOutput(os.Stdout)
-	logrus.SetFormatter(&logrus.TextFormatter{
-		DisableColors:   true,
-		FullTimestamp:   true,
-		TimestampFormat: time.RFC3339,
-		DisableSorting:  true,
-	})
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(logger.Out, logger.Out, logger.Out))
+// grpcSlogLogger routes gRPC internal logs into slog. gRPC fatal-level
+// messages are logged as errors: library code must not terminate the process.
+type grpcSlogLogger struct{}
+
+func (grpcSlogLogger) Info(args ...any)                 { slog.Info(fmt.Sprint(args...)) }
+func (grpcSlogLogger) Infoln(args ...any)               { slog.Info(fmt.Sprintln(args...)) }
+func (grpcSlogLogger) Infof(format string, args ...any) { slog.Info(fmt.Sprintf(format, args...)) }
+
+func (grpcSlogLogger) Warning(args ...any)                 { slog.Warn(fmt.Sprint(args...)) }
+func (grpcSlogLogger) Warningln(args ...any)               { slog.Warn(fmt.Sprintln(args...)) }
+func (grpcSlogLogger) Warningf(format string, args ...any) { slog.Warn(fmt.Sprintf(format, args...)) }
+
+func (grpcSlogLogger) Error(args ...any)                 { slog.Error(fmt.Sprint(args...)) }
+func (grpcSlogLogger) Errorln(args ...any)               { slog.Error(fmt.Sprintln(args...)) }
+func (grpcSlogLogger) Errorf(format string, args ...any) { slog.Error(fmt.Sprintf(format, args...)) }
+
+func (grpcSlogLogger) Fatal(args ...any)                 { slog.Error(fmt.Sprint(args...)) }
+func (grpcSlogLogger) Fatalln(args ...any)               { slog.Error(fmt.Sprintln(args...)) }
+func (grpcSlogLogger) Fatalf(format string, args ...any) { slog.Error(fmt.Sprintf(format, args...)) }
+
+// V maps gRPC verbosity onto slog levels: level 0 always logs, higher
+// verbosity requires the default logger to have debug enabled.
+func (grpcSlogLogger) V(l int) bool {
+	return l <= 0 || slog.Default().Enabled(context.Background(), slog.LevelDebug)
 }
 
-// SetLevel sets the standard logger level.
-func SetLogLevel(level logrus.Level) {
-	logrus.SetLevel(level)
+func init() {
+	grpclog.SetLoggerV2(grpcSlogLogger{})
 }
 
 func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
@@ -133,7 +142,7 @@ func (s *ApiServer) Shutdown() {
 
 		idx := s.cached["public"]
 		idx.Stop()
-		logger.Debug("dump index to db...")
+		slog.Debug("dump index to db...")
 		idx.dump(s.mdb)
 
 		s.rdb.Close()
@@ -144,7 +153,7 @@ func (s *ApiServer) Shutdown() {
 }
 
 func (s *ApiServer) Destroy() {
-	logger.Warn("Destroy db...")
+	slog.Warn("Destroy db...")
 	s.rdb.Destroy()
 	s.mdb.Destroy()
 }
@@ -193,7 +202,7 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	if profile.Picture == "" {
 		profile.Picture = RandomPictureFromWallpaper(s.rdb, profile)
 	}
-	logger.Debugf("profile pic: <%s, %s>", profile.Id, profile.Picture)
+	slog.Debug("profile pic", "id", profile.Id, "picture", profile.Picture)
 
 	if currentProfile != nil {
 		// Update: patch editable fields onto the stored profile so
@@ -403,11 +412,11 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 // FetchFeed returns builded feed which populated data
 // from user profile and entries scaned from EntryIndex.
 func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
-	logger.Infof("FetchFeed: %s", req.Id)
+	slog.Info("FetchFeed", "id", req.Id)
 	s.RLock()
 	if _, ok := s.cached[req.Id]; ok {
 		s.RUnlock()
-		logger.Debugf("cachedFeed: %s", req.Id)
+		slog.Debug("cachedFeed", "id", req.Id)
 		return s.cachedFeed(req)
 	}
 	s.RUnlock()
@@ -438,18 +447,18 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		}
 
 		kb, _ := hex.DecodeString(key)
-		// logger.Debugf("index.key: <%s>", key)
+		// slog.Debug("index.key", "key", key)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
 		if err != nil || len(rawdata) == 0 {
-			logger.Warnf("index cached: data missing: <%s, %s>", req.Id, key)
+			slog.Warn("index cached: data missing", "id", req.Id, "key", key)
 			s.cached[req.Id].markDirty()
 			continue
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
 		}
-		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
+		// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
 		_ = formatFeedEntryWithResolver(resolver, req, entry)
 		entries = append(entries, entry)
 		found++
@@ -473,7 +482,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	if req.PageSize <= 0 || req.PageSize >= 100 {
 		req.PageSize = 50
 	}
-	logger.Debugf("ForwardFetchFeed: request <%s>", req)
+	slog.Debug("ForwardFetchFeed: request", "req", req)
 
 	var profile *pb.Profile
 	var err error
@@ -483,7 +492,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		profileUuid, _ := uuid.FromString(req.ProfileUuid)
 		profile, err = model.GetProfileFromUuid(s.mdb, profileUuid)
 		if err != nil {
-			logger.Debugf("ForwardFetchFeed: profile <%s> not found for <%v>", req.Id, req.ProfileUuid)
+			slog.Debug("ForwardFetchFeed: profile not found", "id", req.Id, "profile_uuid", req.ProfileUuid)
 			return nil, status.Errorf(codes.NotFound, "profile not found")
 		}
 		fanoutUuid := model.TimelineUUID(profileUuid)
@@ -493,16 +502,16 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		if err != nil {
 			profile, err = model.GetProfileFromRenameId(s.mdb, req.Id)
 			if err != nil {
-				logger.Debugf("ForwardFetchFeed: profile %s not found, err: %s", req.Id, err)
+				slog.Debug("ForwardFetchFeed: profile not found", "id", req.Id, "err", err)
 				return nil, status.Errorf(codes.NotFound, "profile not found")
 			}
-			logger.Debugf("ForwardFetchFeed: resolved previous profile ID <%s> to <%s>", req.Id, profile.Id)
+			slog.Debug("ForwardFetchFeed: resolved previous profile ID", "from", req.Id, "to", profile.Id)
 		}
-		logger.Debugf("ForwardFetchFeed: profile <%s>", profile)
+		slog.Debug("ForwardFetchFeed: profile", "profile", profile)
 		profileUuid, _ := uuid.FromString(profile.Uuid)
 		prefix = store.NewUUIDKey(model.TableEntryIndex, profileUuid).Bytes()
 	}
-	logger.Infof("ForwardFetchFeed: %s", hex.EncodeToString(prefix))
+	slog.Info("ForwardFetchFeed", "prefix", hex.EncodeToString(prefix))
 
 	start := req.Start
 	var entries []*pb.Entry
@@ -513,20 +522,20 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 			return nil // continue
 		}
 
-		// logger.Debugf("k: <%x>, entry.key: <%x>", k, v)
+		// slog.Debug("entry key", "index_key", hex.EncodeToString(k), "entry_key", hex.EncodeToString(v))
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
 		if err != nil || len(rawdata) == 0 {
-			logger.Debugf("user feed: entry missing %s", fmt.Sprintf("<%x, %x>", k, v))
+			slog.Debug("user feed: entry missing", "index_key", hex.EncodeToString(k), "entry_key", hex.EncodeToString(v))
 			// slient delete the key from index
 			s.rdb.Delete(k)
-			logger.Debugf("deleting %s", k)
+			slog.Debug("deleting", "key", hex.EncodeToString(k))
 			return nil
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
 		}
-		// logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
+		// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
 		if err = formatFeedEntryWithResolver(resolver, req, entry); err != nil {
 			return err
 		}
@@ -539,7 +548,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	})
 
 	if err != nil {
-		logger.Debugf("feed <%v>", err)
+		slog.Debug("feed", "err", err)
 		return nil, status.Errorf(codes.NotFound, "feeds not found")
 	}
 
@@ -557,13 +566,13 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 }
 
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {
-	logger.Infof("FetchEntry: %s", req.Uuid)
+	slog.Info("FetchEntry", "uuid", req.Uuid)
 	entry, err := model.GetEntry(s.rdb, req.Uuid)
 	if err != nil {
-		logger.Debug(err)
+		slog.Debug("FetchEntry error", "err", err)
 		return nil, status.Errorf(codes.NotFound, "entry not found")
 	}
-	// logger.Debugf("entry: %s", entry.RawBody)
+	// slog.Debug("entry", "raw_body", entry.RawBody)
 	// fmtEntryProfiles resolves the author by stable ProfileUuid, falling back
 	// to From.Id for legacy entries without one, and refreshes entry.From.
 	profile, err := fmtEntryProfiles(s.mdb, entry)
@@ -768,12 +777,12 @@ func (s *ApiServer) spread(key string) {
 }
 
 func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {
-	logger.Debugf("Search: %s", req.Query)
+	slog.Debug("Search", "query", req.Query)
 	bReq := bleve.NewSearchRequest(bleve.NewQueryStringQuery(req.Query))
 	bReq.Highlight = bleve.NewHighlight()
 	res, err := search.Indexer.Search(bReq)
 	if err != nil {
-		logger.Debug(err)
+		slog.Debug("Search error", "err", err)
 		return nil, err
 	}
 
@@ -790,7 +799,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 
 		// res.Request.From cause error in bleve v2.4
 		// rv := fmt.Sprintf("%d. %s, (%f)\n", i+res.Request.From+1, hit.ID, hit.Score)
-		// logger.Debugf("i <%d>, <%v>, <%d>", i, hit, start)
+		// slog.Debug("search hit", "i", i, "hit", hit, "start", start)
 		// for fragmentField, fragments := range hit.Fragments {
 		// 	rv += fmt.Sprintf("%s: ", fragmentField)
 		// 	for _, fragment := range fragments {
@@ -799,15 +808,15 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 		// }
 		// fmt.Printf("%s\n", rv)
 
-		// logger.Debugf("search.index.key: <%s>", hit.ID)
+		// slog.Debug("search.index.key", "id", hit.ID)
 		entry, err := model.GetEntry(s.rdb, hit.ID)
 		if err != nil {
-			logger.Warnf("search: entry data missing: %s", hit.ID)
+			slog.Warn("search: entry data missing", "id", hit.ID)
 			continue
 		}
-		logger.Debugf("entry.rawBody: <%s, %s>", entry.Id, entry.RawBody)
+		slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
 		if _, err := fmtEntryProfilesWithResolver(resolver, entry); err != nil {
-			logger.Warnf("search: entry format error: %s", hit.ID)
+			slog.Warn("search: entry format error", "id", hit.ID)
 			continue
 		}
 		entries = append(entries, entry)

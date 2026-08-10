@@ -2,13 +2,15 @@ package server
 
 import (
 	"context"
+	"log/slog"
+
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 )
 
 func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb.FollowResponse, error) {
-	logger.Debugf("GraphFollow, <%s, %s>", req.ProfileUuid, req.FeedUuid)
+	slog.Debug("GraphFollow", "profile_uuid", req.ProfileUuid, "feed_uuid", req.FeedUuid)
 
 	profileUUID, err := uuid.FromString(req.ProfileUuid)
 	if err != nil {

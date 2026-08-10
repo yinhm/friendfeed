@@ -4,13 +4,13 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	server "github.com/yinhm/friendfeed/server"
@@ -62,11 +62,13 @@ func main() {
 		cfg.Debug = debug
 	}
 
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
+	slogLevel := slog.LevelInfo
 	if cfg.Debug {
-		server.SetLogLevel(logrus.DebugLevel)
-		log.Printf("verbose log mode enabled\n")
+		slogLevel = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slogLevel})))
+	if cfg.Debug {
+		slog.Debug("verbose log mode enabled")
 	}
 
 	lis, err := net.Listen("tcp", cfg.Address)
