@@ -157,6 +157,14 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		return err
 	}
 
+	// Keep the search index in sync; a leftover document goes stale and
+	// Search then has to drop it lazily on a later query.
+	if search.Indexer != nil {
+		if err := search.Indexer.Delete(uuidStr); err != nil {
+			return fmt.Errorf("delete entry from search index: %w", err)
+		}
+	}
+
 	// delete entry from public index??
 	return nil
 }
