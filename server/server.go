@@ -926,11 +926,6 @@ func (s *ApiServer) spread(key string) {
 	// TODO: spread to friends?
 }
 
-// searchMaxRestarts bounds the delete-and-retry loop in Search; each round
-// removes at least one unusable document, so a healthy index never comes
-// close.
-const searchMaxRestarts = 5
-
 func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {
 	slog.Debug("Search", "query", req.Query)
 	if req.Start < 0 {
@@ -944,10 +939,16 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 	// identity) break the fixed start+PageSize alignment of later pages.
 	// Rather than skipping them mid-page, delete them and restart from the
 	// same Start: after deletion the raw bleve positions compact, so the
-	// retried page and every following page line up again. A deletion
-	// failure or a transient lookup error aborts the request instead of
-	// emitting a page that pretends offsets are aligned.
-	for restart := 0; ; restart++ {
+	// retried page and every following page line up again. The loop makes
+	// strict progress — every round either returns, fails, or deletes at
+	// least one document — so it needs no artificial round cap; request
+	// cancellation is the escape hatch. A deletion failure or a transient
+	// lookup error aborts the request instead of emitting a page that
+	// pretends offsets are aligned.
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, status.FromContextError(err).Err()
+		}
 		entries, unusable, err := s.searchPage(req)
 		if err != nil {
 			return nil, err
@@ -961,9 +962,6 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 				Private: false,
 				Entries: entries,
 			}, nil
-		}
-		if restart >= searchMaxRestarts {
-			return nil, status.Errorf(codes.Internal, "search index holds too many unusable documents")
 		}
 		for _, id := range unusable {
 			if err := search.Indexer.Delete(id); err != nil {
