@@ -124,6 +124,11 @@ inspect 只读；purge 会释放全部保留的旧 ID，并允许相关用户再
 ```
 
 注意：只读打开仍需取得 Pebble 数据库锁，且 bleve 索引不允许多进程同时写。执行前停止使用该目录的 `ffdb`/`httpd`，或对一致性备份副本执行。
+写入索引时必须使用 `ffdb.service` 的 `User=` 身份，不能以 root 或其他部署用户执行；Bleve segment 是 owner-only 文件，错误用户生成的索引会导致 ffdb 启动时报 `permission denied`。例如：
+
+```bash
+sudo -u <ffdb-user> ./tools -to new_db -c rebuild_search_index
+```
 
 # Pebble v2 / FMV 升级（2026-07，dev 与 production 已完成）
 
