@@ -72,17 +72,23 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 
 func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {
 	prevStart := max(start-pageSize, 0)
-	showPaging := len(feed.Entries) > int(pageSize)
-	if showPaging {
+	// The lookahead entry (one more than pageSize) signals a following page;
+	// the previous page depends only on the current offset. Splitting the two
+	// keeps Prev reachable on a short last page.
+	showNext := len(feed.Entries) > int(pageSize)
+	if showNext {
 		feed.Entries = feed.Entries[:pageSize]
 	}
+	showPrev := start > 0
 	return pongo2.Context{
 		"title":       feed.Id,
 		"name":        feed.Id,
 		"feed":        feed,
 		"prev_start":  prevStart,
 		"next_start":  start + pageSize,
-		"show_paging": showPaging,
+		"show_prev":   showPrev,
+		"show_next":   showNext,
+		"show_paging": showPrev || showNext,
 		"show_share":  false,
 	}
 }

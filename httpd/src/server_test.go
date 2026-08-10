@@ -161,6 +161,12 @@ func TestFeedContext(t *testing.T) {
 	if got := data["show_paging"]; got != true {
 		t.Fatalf("show_paging = %#v; want true", got)
 	}
+	if got := data["show_prev"]; got != true {
+		t.Fatalf("show_prev = %#v; want true", got)
+	}
+	if got := data["show_next"]; got != true {
+		t.Fatalf("show_next = %#v; want true", got)
+	}
 	if got := len(feed.Entries); got != 30 {
 		t.Fatalf("rendered entries = %d; want 30", got)
 	}
@@ -168,12 +174,28 @@ func TestFeedContext(t *testing.T) {
 		t.Fatalf("show_share = %#v; want false", got)
 	}
 
+	// A short last page has no lookahead, but Prev must stay reachable.
 	data = feedContext(&pb.Feed{Entries: make([]*pb.Entry, 30)}, 60, 30)
 	if got := data["prev_start"]; got != int32(30) {
 		t.Fatalf("prev_start = %#v; want 30", got)
 	}
-	if got := data["show_paging"]; got != false {
-		t.Fatalf("show_paging = %#v; want false", got)
+	if got := data["show_prev"]; got != true {
+		t.Fatalf("show_prev = %#v; want true", got)
+	}
+	if got := data["show_next"]; got != false {
+		t.Fatalf("show_next = %#v; want false", got)
+	}
+	if got := data["show_paging"]; got != true {
+		t.Fatalf("show_paging = %#v; want true", got)
+	}
+
+	// The first page never shows Prev, even when more pages follow.
+	data = feedContext(&pb.Feed{Entries: make([]*pb.Entry, 31)}, 0, 30)
+	if got := data["show_prev"]; got != false {
+		t.Fatalf("show_prev = %#v; want false", got)
+	}
+	if got := data["show_next"]; got != true {
+		t.Fatalf("show_next = %#v; want true", got)
 	}
 }
 

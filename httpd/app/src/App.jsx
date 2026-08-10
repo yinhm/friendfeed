@@ -34,6 +34,8 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {boolean} show_share
  * @property {number} prev_start
  * @property {number} next_start
+ * @property {boolean} [show_prev]
+ * @property {boolean} [show_next]
  * @property {boolean} [cursor_paging]
  * @property {string} [next_cursor]
  * @property {string} query
@@ -45,7 +47,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @typedef {Omit<FeedProps, 'url'>} AppData
  */
 
-/** @param {{query: string, show: boolean, prev: number, next: number, cursorPaging?: boolean, nextCursor?: string}} props */
+/** @param {{query: string, show: boolean, prev: number, next: number, showPrev?: boolean, showNext?: boolean, cursorPaging?: boolean, nextCursor?: string}} props */
 function FeedPagin(props) {
   /** @type {React.ReactNode} */
   var prev = null;
@@ -55,7 +57,7 @@ function FeedPagin(props) {
   var sep = null;
   var url = "?"
   if (props.query && props.query !== "") {
-    url = '?q=' + props.query + '&';
+    url = '?q=' + encodeURIComponent(props.query) + '&';
   }
   if (props.show) {
     if (props.cursorPaging) {
@@ -63,11 +65,15 @@ function FeedPagin(props) {
         next = <a href={'?cursor='+encodeURIComponent(props.nextCursor)}>Next &raquo;</a>;
       }
     } else {
-      if (props.next > 30) {
+      if (props.showPrev) {
         prev = <a href={url+'start='+props.prev}>&laquo; Prev</a>;
+      }
+      if (props.showPrev && props.showNext) {
         sep = " ";
       }
-      next = <a href={url+'start='+props.next}>Next &raquo;</a>;
+      if (props.showNext) {
+        next = <a href={url+'start='+props.next}>Next &raquo;</a>;
+      }
     }
   }
   return (
@@ -244,6 +250,7 @@ export function Feed(props) {
     feedPaginNodes = (
       <FeedPagin show={state.show_paging} prev={state.prev_start}
                  next={state.next_start} query={state.query}
+                 showPrev={state.show_prev} showNext={state.show_next}
                  cursorPaging={state.cursor_paging}
                  nextCursor={state.next_cursor} />
     )
@@ -285,6 +292,8 @@ export function App() {
       show_share={appData.show_share}
       prev_start={appData.prev_start}
       next_start={appData.next_start}
+      show_prev={appData.show_prev}
+      show_next={appData.show_next}
       cursor_paging={appData.cursor_paging}
       next_cursor={appData.next_cursor}
       query={appData.query}

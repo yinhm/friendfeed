@@ -928,51 +928,59 @@ func (s *ApiServer) spread(key string) {
 
 func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {
 	slog.Debug("Search", "query", req.Query)
-	bReq := bleve.NewSearchRequest(bleve.NewQueryStringQuery(req.Query))
-	bReq.Highlight = bleve.NewHighlight()
-	res, err := search.Indexer.Search(bReq)
-	if err != nil {
-		slog.Debug("Search error", "err", err)
-		return nil, err
+	if req.Start < 0 {
+		req.Start = 0
+	}
+	if req.PageSize <= 0 || req.PageSize >= 100 {
+		req.PageSize = 50
 	}
 
-	start := req.Start
-
+	// Fetch windows by raw bleve offset until PageSize+1 valid entries are
+	// collected or the result set is exhausted. Stale documents (hits whose
+	// entry record is gone) are dropped from the index after the loop, which
+	// compacts raw positions so the next page's fixed start+PageSize offset
+	// stays aligned. Entries failing to format are skipped but never deleted:
+	// their record is intact and they must stay searchable.
 	var entries []*pb.Entry
-	found := 0
+	var stale []string
 	resolver := newProfileResolver(s.mdb)
-	for _, hit := range res.Hits {
-		if start > 0 {
-			start--
-			continue
-		}
-
-		// res.Request.From cause error in bleve v2.4
-		// rv := fmt.Sprintf("%d. %s, (%f)\n", i+res.Request.From+1, hit.ID, hit.Score)
-		// slog.Debug("search hit", "i", i, "hit", hit, "start", start)
-		// for fragmentField, fragments := range hit.Fragments {
-		// 	rv += fmt.Sprintf("%s: ", fragmentField)
-		// 	for _, fragment := range fragments {
-		// 		rv += fmt.Sprintf("%s", fragment)
-		// 	}
-		// }
-		// fmt.Printf("%s\n", rv)
-
-		// slog.Debug("search.index.key", "id", hit.ID)
-		entry, err := model.GetEntry(s.rdb, hit.ID)
+	from := int(req.Start)
+	for len(entries) <= int(req.PageSize) {
+		bReq := bleve.NewSearchRequest(bleve.NewQueryStringQuery(req.Query))
+		bReq.From = from
+		bReq.Size = int(req.PageSize) + 1 - len(entries)
+		bReq.Highlight = bleve.NewHighlight()
+		res, err := search.Indexer.Search(bReq)
 		if err != nil {
-			slog.Warn("search: entry data missing", "id", hit.ID)
-			continue
+			slog.Debug("Search error", "err", err)
+			return nil, err
 		}
-		slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
-		if _, err := fmtEntryProfilesWithResolver(resolver, entry); err != nil {
-			slog.Warn("search: entry format error", "id", hit.ID)
-			continue
-		}
-		entries = append(entries, entry)
-		found++
-		if found > int(req.PageSize) {
+		if len(res.Hits) == 0 {
 			break
+		}
+		// NOTE: res.Request is nil under bleve v2; never dereference it.
+		from += len(res.Hits)
+		for _, hit := range res.Hits {
+			entry, err := model.GetEntry(s.rdb, hit.ID)
+			if err != nil {
+				slog.Warn("search: entry data missing", "id", hit.ID)
+				stale = append(stale, hit.ID)
+				continue
+			}
+			slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
+			if _, err := fmtEntryProfilesWithResolver(resolver, entry); err != nil {
+				slog.Warn("search: entry format error", "id", hit.ID)
+				continue
+			}
+			entries = append(entries, entry)
+		}
+		if len(res.Hits) < bReq.Size {
+			break
+		}
+	}
+	for _, id := range stale {
+		if err := search.Indexer.Delete(id); err != nil {
+			slog.Warn("search: drop stale document failed", "id", id, "err", err)
 		}
 	}
 

@@ -65,3 +65,43 @@ test('Cursor-paged feeds render only the opaque next link', () => {
   expect(getByText('Next »')).toHaveAttribute(
     'href', '?cursor=older%2Bcursor');
 });
+
+test('Offset-paged search feeds render prev/next with an encoded query', () => {
+  window.appData = {
+    feed: {id: 'Search', uuid: 'Search', entries: []},
+    show_header: false,
+    show_paging: true,
+    show_share: false,
+    prev_start: 0,
+    next_start: 60,
+    show_prev: true,
+    show_next: true,
+    query: 'a&b',
+    onpage: false,
+    onpage_edit: false,
+  };
+
+  const {getByText} = render(<App />);
+  expect(getByText('« Prev')).toHaveAttribute('href', '?q=a%26b&start=0');
+  expect(getByText('Next »')).toHaveAttribute('href', '?q=a%26b&start=60');
+});
+
+test('Offset last page keeps only the prev link', () => {
+  window.appData = {
+    feed: {id: 'Search', uuid: 'Search', entries: []},
+    show_header: false,
+    show_paging: true,
+    show_share: false,
+    prev_start: 30,
+    next_start: 90,
+    show_prev: true,
+    show_next: false,
+    query: '',
+    onpage: false,
+    onpage_edit: false,
+  };
+
+  const {getByText, queryByText} = render(<App />);
+  expect(getByText('« Prev')).toHaveAttribute('href', '?start=30');
+  expect(queryByText('Next »')).not.toBeInTheDocument();
+});

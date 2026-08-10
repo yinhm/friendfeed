@@ -141,6 +141,80 @@ func (s *RpcTestSuite) TestFetchFeedResolvesPreviousProfileID() {
 	assert.Equal(s.T(), profileUUID.String(), feed.Uuid)
 }
 
+func (s *RpcTestSuite) TestSearchPaginationUsesBleveFromAndSize() {
+	// Swap the suite's mock index for a real bleve index; PutEntry indexes
+	// through the same global.
+	idx, err := search.OpenIndex(s.T().TempDir())
+	s.Require().NoError(err)
+	defer idx.Close()
+	search.Indexer = idx
+	defer search.InitMockIndexService(filepath.Join(s.dbpath, "index"))
+
+	profileUUID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileUUID.String(), Id: "search-user", Name: "Search User", Type: "user"}
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, profile))
+
+	entryIDs := make(map[string]bool, 5)
+	base := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		entryID := uuid.NewV5(uuid.NamespaceURL, fmt.Sprintf("search-entry-%d", i)).String()
+		entryIDs[entryID] = true
+		_, err := model.PutEntry(s.srv.rdb, &pb.Entry{
+			Id:          entryID,
+			Date:        base.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			Body:        fmt.Sprintf("probe entry %d", i),
+			RawBody:     fmt.Sprintf("probe entry %d", i),
+			ProfileUuid: profileUUID.String(),
+			From:        &pb.Feed{Uuid: profileUUID.String(), Id: profile.Id, Name: profile.Name, Type: profile.Type},
+		})
+		s.Require().NoError(err)
+	}
+
+	// A stale document whose entry record never existed must not shorten the
+	// page: the fetch loop advances past it and drops it from the index.
+	ghostID := uuid.NewV5(uuid.NamespaceURL, "search-ghost").String()
+	s.Require().NoError(idx.Index(ghostID, "probe ghost body"))
+
+	cleanup, err := s.srv.Search(context.Background(), &pb.SearchRequest{Query: "probe", PageSize: 50})
+	s.Require().NoError(err)
+	s.Len(cleanup.Entries, 5)
+	count, err := idx.DocCount()
+	s.Require().NoError(err)
+	s.Equal(uint64(5), count, "stale document was not dropped")
+
+	// Page 1 fetches PageSize+1 entries so httpd can see there is a next page.
+	first, err := s.srv.Search(context.Background(), &pb.SearchRequest{Query: "probe", PageSize: 2})
+	s.Require().NoError(err)
+	s.Len(first.Entries, 3)
+	for _, entry := range first.Entries {
+		s.True(entryIDs[entry.Id], "unexpected entry %s", entry.Id)
+	}
+
+	// Page 2 resumes inside the result set instead of skipping within the
+	// default 10-hit window; its first PageSize entries must not repeat
+	// page 1's.
+	second, err := s.srv.Search(context.Background(), &pb.SearchRequest{Query: "probe", Start: 2, PageSize: 2})
+	s.Require().NoError(err)
+	s.Len(second.Entries, 3)
+	pageOneIDs := map[string]bool{first.Entries[0].Id: true, first.Entries[1].Id: true}
+	for _, entry := range second.Entries[:2] {
+		s.False(pageOneIDs[entry.Id], "entry %s repeated across pages", entry.Id)
+	}
+
+	// The tail page returns only what is left.
+	last, err := s.srv.Search(context.Background(), &pb.SearchRequest{Query: "probe", Start: 4, PageSize: 2})
+	s.Require().NoError(err)
+	s.Len(last.Entries, 1)
+	s.True(entryIDs[last.Entries[0].Id])
+	s.False(pageOneIDs[last.Entries[0].Id])
+	s.NotEqual(second.Entries[0].Id, last.Entries[0].Id)
+
+	// No more hits past the end.
+	past, err := s.srv.Search(context.Background(), &pb.SearchRequest{Query: "probe", Start: 5, PageSize: 2})
+	s.Require().NoError(err)
+	s.Empty(past.Entries)
+}
+
 func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
 	profileUUID := uuid.Must(uuid.NewV4())
 	profile := &pb.Profile{Uuid: profileUUID.String(), Id: "cursor-user", Name: "Cursor User", Type: "user"}

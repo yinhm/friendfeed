@@ -85,8 +85,9 @@
       {% if cursor_paging %}
         {% if next_cursor %}<a href="?cursor={{ next_cursor|escape }}">Next &raquo;</a>{% endif %}
       {% else %}
-        <a href="?start={{ prev_start }}">&laquo; Prev</a>
-        <a href="?start={{ next_start }}">Next &raquo;</a>
+        {% if show_prev %}<a href="?{% if query %}q={{ query|urlencode }}&amp;{% endif %}start={{ prev_start }}">&laquo; Prev</a>{% endif %}
+        {% if show_prev and show_next %} {% endif %}
+        {% if show_next %}<a href="?{% if query %}q={{ query|urlencode }}&amp;{% endif %}start={{ next_start }}">Next &raquo;</a>{% endif %}
       {% endif %}
     </div>
     {% endif %}
