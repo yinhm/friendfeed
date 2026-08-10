@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -26,6 +27,7 @@ var timelineUser string
 var timelineMaxLimit int
 var debugTable string
 var inspectID string
+var indexPath string
 var dryRun bool
 
 func init() {
@@ -36,6 +38,7 @@ func init() {
 	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump (0 is unlimited)")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
 	flag.StringVar(&inspectID, "id", "", "profile or previous profile ID to inspect")
+	flag.StringVar(&indexPath, "index-path", "", "search index directory (defaults to <to>/index, matching the server layout)")
 	flag.BoolVar(&dryRun, "dry-run", false, "report supported migrations without writing changes")
 }
 
@@ -348,9 +351,11 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	return selectedFollows, entries, existing, nil
 }
 
-func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timelineRebuildStats, error) {
-	stats := timelineRebuildStats{}
-	var profiles []*pb.Profile
+// oauthActiveProfiles lists non-deleted profiles and the set of profile UUIDs
+// that carry OAuth login information. Older OAuth rows were sometimes stored
+// before their profile UUID was bound; their login name still matches
+// Profile.Id.
+func oauthActiveProfiles(db *store.Store) (profiles []*pb.Profile, activeProfiles map[uuid.UUID]struct{}, err error) {
 	profilesByID := make(map[string]uuid.UUID)
 	if err := model.Profile.Iter(db, func(key, raw []byte) error {
 		profile := new(pb.Profile)
@@ -368,10 +373,10 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 		profilesByID[profile.Id] = profileID
 		return nil
 	}); err != nil {
-		return stats, err
+		return nil, nil, err
 	}
 
-	activeProfiles := make(map[uuid.UUID]struct{})
+	activeProfiles = make(map[uuid.UUID]struct{})
 	if err := model.OAuth.Iter(db, func(key, raw []byte) error {
 		oauth := new(pb.OAuthUser)
 		if err := proto.Unmarshal(raw, oauth); err != nil {
@@ -382,13 +387,20 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 			activeProfiles[profileID] = struct{}{}
 			return nil
 		}
-		// Older OAuth rows were sometimes stored before their profile UUID
-		// was bound. Their login name still matches Profile.Id.
 		if profileID, exists := profilesByID[oauth.Name]; exists {
 			activeProfiles[profileID] = struct{}{}
 		}
 		return nil
 	}); err != nil {
+		return nil, nil, err
+	}
+	return profiles, activeProfiles, nil
+}
+
+func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timelineRebuildStats, error) {
+	stats := timelineRebuildStats{}
+	profiles, activeProfiles, err := oauthActiveProfiles(db)
+	if err != nil {
 		return stats, err
 	}
 	if len(activeProfiles) == 0 && options.user == "" {
@@ -402,7 +414,10 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 		if options.user != "" {
 			log.Printf("explicit user %s selected; OAuth metadata check bypassed", profile.Id)
 		} else {
-			profileID := profilesByID[profile.Id]
+			profileID, err := uuid.FromString(profile.Uuid)
+			if err != nil {
+				return stats, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+			}
 			if _, active := activeProfiles[profileID]; !active {
 				continue
 			}
@@ -987,6 +1002,7 @@ func main() {
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
 		command == "audit_profiles" ||
+		command == "rebuild_search_index" ||
 		(command == "debug" && debugTable != "") ||
 		(command == "backfill_actor_uuids" && dryRun)
 	if needsSource && fromPath == "" {
@@ -1032,6 +1048,11 @@ func main() {
 		runMigrateMediaURLsCommand(ndb)
 	case "backfill_actor_uuids":
 		runBackfillActorUUIDsCommand(ndb)
+	case "rebuild_search_index":
+		if indexPath == "" {
+			indexPath = filepath.Join(toPath, "index")
+		}
+		runRebuildSearchIndexCommand(ndb, indexPath)
 	case "sync":
 		runSyncCommand(db, ndb)
 	case "purge_profile":
