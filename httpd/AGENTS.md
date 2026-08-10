@@ -34,4 +34,4 @@
 
 - OAuth identity 必须按稳定的 `provider:user-id` key 查找；不能以“找不到”作为自动创建重复 profile 的理由。
 - 配置中的 `~` 必须显式展开并保留原始 OS error。
-- OAuth secret 只允许 debug 模式输出；生产日志写 stdout/stderr，由 journald 管理。
+- OAuth token、Cookie、session、密码和 secret 在任何日志级别均不得输出；生产日志只写 stdout/stderr，由 journald 管理。

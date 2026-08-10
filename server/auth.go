@@ -12,13 +12,15 @@ import (
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	logger.Debugf("auth info: <%s>", authinfo)
+	logger.Debugf("auth info: provider=%s user_id=%s uuid=%s", authinfo.Provider, authinfo.UserId, authinfo.Uuid)
 	_, msg, err := model.GetOAuthUser(s.mdb, authinfo.Provider, authinfo.UserId)
 	if err != nil && !errors.Is(err, model.ErrNotFound) {
 		logger.Debugf("oauth user not found: %s", err)
 		return nil, err
 	}
-	logger.Debugf("oauth user: <%s>", msg)
+	if msg != nil {
+		logger.Debugf("oauth user found: provider=%s user_id=%s uuid=%s", msg.Provider, msg.UserId, msg.Uuid)
+	}
 
 	// exist oauth
 	// WARN: do not gen uuid, old uuid may from ff
@@ -31,7 +33,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	if err != nil {
 		return nil, err
 	}
-	logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, "twitter", authinfo.UserId)
+	logger.Debugf("PutOAuth: <%s, %s:%s>", authinfo.Uuid, authinfo.Provider, authinfo.UserId)
 
 	// exists profile
 	profileUUID, _ := uuid.FromString(authinfo.Uuid)

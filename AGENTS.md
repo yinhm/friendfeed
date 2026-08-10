@@ -41,5 +41,5 @@
 - Go：`go build ./... && go vet ./... && go test ./...`
 - 前端：`pnpm lint && pnpm run typecheck && CI=true pnpm test && pnpm run build`；需要时执行 `pnpm run test:e2e`。
 - 前端先于 Go 构建；Go 二进制嵌入 `httpd/static/`。不提交生成的 JS、CSS、manifest；保留手写 `style.css`。
-- 测试只清理本次创建的进程，不影响 systemd 服务。生产日志写 stdout/stderr 交给 journald。
+- 测试只清理本次创建的进程，不影响 systemd 服务。生产服务只写 stdout/stderr，由 journald 管理，禁止 ANSI 颜色和应用内日志文件；库代码与请求处理不得调用 `Fatal`；任何日志级别均不得记录 token、Cookie、session、密码、secret 或完整正文。不为统一框架机械迁移现有 stdlib log/logrus。
 - 提交保持单一、可回退，并使用实际改动者的 `Co-authored-by`；不得冒用其他助手身份。

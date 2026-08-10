@@ -61,7 +61,7 @@ func init() {
 	logrus.SetLevel(logrus.InfoLevel)
 	logrus.SetOutput(os.Stdout)
 	logrus.SetFormatter(&logrus.TextFormatter{
-		ForceColors:     true,
+		DisableColors:   true,
 		FullTimestamp:   true,
 		TimestampFormat: time.RFC3339,
 		DisableSorting:  true,

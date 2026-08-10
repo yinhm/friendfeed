@@ -2,13 +2,13 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
-	"github.com/golang/glog"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/protobuf/proto"
@@ -111,7 +111,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
-		glog.Errorf("fetch feed error: %s", err)
+		log.Printf("fetch feed error: %v", err)
 		return
 	}
 

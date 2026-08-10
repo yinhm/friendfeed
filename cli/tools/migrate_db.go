@@ -933,7 +933,9 @@ func runDebugCommand(db, ndb *store.Store) {
 	if err != nil && !errors.Is(err, model.ErrNotFound) {
 		log.Printf("oauth user not found: %s", err)
 	}
-	log.Printf("oauth user: <%s>", msg)
+	if msg != nil {
+		log.Printf("oauth user: provider=%s user_id=%s uuid=%s", msg.Provider, msg.UserId, msg.Uuid)
+	}
 
 	model.OAuth.Iter(ndb, func(k, v []byte) error {
 		log.Println(model.Entry.ToStringKey(k))

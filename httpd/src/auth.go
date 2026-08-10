@@ -92,7 +92,7 @@ func AuthProvider(c *gin.Context) {
 			c.String(http.StatusBadRequest, err.Error())
 			return
 		}
-		log.Printf("OAuth request-token attempt failed for %s; retrying once: %v", provider, err)
+		log.Printf("OAuth request-token attempt failed for %s; retrying once", provider)
 	}
 }
 
