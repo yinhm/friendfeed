@@ -600,12 +600,11 @@ class EntryCommandDelete extends React.Component{
   render() {
     if (this.state.isClicked) {
       return (
-        <>
-        Confirm Delete 
-        <button type="button" className="inline-action item deletecommand" onClick={this.handleCancel}> 取消 </button>
-         / 
-        <button type="button" className="inline-action action-link deletecommand" onClick={this.handleDelete}> 确定 </button>
-        </>
+        <span className="confirm-delete">
+          Confirm Delete
+          <button type="button" className="cancel" onClick={this.handleCancel}>取消</button>
+          <button type="button" className="yes" onClick={this.handleDelete}>确定</button>
+        </span>
       );
     }
     return (
@@ -750,7 +749,6 @@ class EntryComment extends React.Component{
     if (canEdit || canDelete) {
       cmds = (
         <span className="commands">
-          {" ( "}
           {canEdit &&
             <button type="button" className="inline-action action-link" onClick={this.editComment}>Edit</button>
           }
@@ -758,7 +756,6 @@ class EntryComment extends React.Component{
           {canDelete &&
             <EntryCommandDelete onDelete={this.deleteComment} />
           }
-          {" )"}
         </span>
       );
     }

@@ -376,9 +376,42 @@ th {
     background: none;
 }
 
+/* Two-step delete confirmation: a compact widget with real buttons,
+   not loose links. */
+.confirm-delete {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.confirm-delete button {
+    border-radius: 3px;
+    padding: 0 8px;
+    font: inherit;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.confirm-delete .yes {
+    border: 1px solid #8f2727;
+    background: #b03030;
+    color: #fff;
+}
+
+.confirm-delete .cancel {
+    border: 1px solid #bdbdbb;
+    background: #eee;
+    color: #333;
+}
+
 /* own-comment Edit/Delete: hidden until hover, space reserved to avoid reflow */
 .entry .comment .commands {
     visibility: hidden;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-left: 10px;
+    font-size: 12px;
 }
 
 .entry .comment:hover .commands,
