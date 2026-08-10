@@ -82,8 +82,12 @@
 
     {% if show_paging %}
     <div class="pager bottom">
-      <a href="?start={{ prev_start }}">&laquo; Prev</a> 
-      <a href="?start={{ next_start }}">Next &raquo;</a>
+      {% if cursor_paging %}
+        {% if next_cursor %}<a href="?cursor={{ next_cursor|escape }}">Next &raquo;</a>{% endif %}
+      {% else %}
+        <a href="?start={{ prev_start }}">&laquo; Prev</a>
+        <a href="?start={{ next_start }}">Next &raquo;</a>
+      {% endif %}
     </div>
     {% endif %}
 

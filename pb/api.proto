@@ -163,6 +163,10 @@ message FeedRequest {
   int32 max_comments = 5;
   int32 max_likes = 6;
   string profile_uuid = 7;
+  // Cursor pagination is opt-in so existing Start/PageSize callers keep their
+  // historical behavior. Cursor values are opaque to clients.
+  string cursor = 8;
+  bool cursor_paging = 9;
 }
 
 message EntryRequest {

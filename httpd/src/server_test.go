@@ -174,6 +174,60 @@ func TestFeedContext(t *testing.T) {
 	}
 }
 
+func TestCursorFeedContext(t *testing.T) {
+	feed := &pb.Feed{Id: "profile", NextCursor: "older"}
+	data := cursorFeedContext(feed)
+
+	if got := data["cursor_paging"]; got != true {
+		t.Fatalf("cursor_paging = %#v; want true", got)
+	}
+	if got := data["next_cursor"]; got != "older" {
+		t.Fatalf("next_cursor = %#v; want older", got)
+	}
+	if got := data["show_paging"]; got != true {
+		t.Fatalf("show_paging = %#v; want true", got)
+	}
+
+	data = cursorFeedContext(&pb.Feed{Id: "profile"})
+	if got := data["show_paging"]; got != false {
+		t.Fatalf("show_paging = %#v; want false", got)
+	}
+}
+
+func TestConfigureFeedPaginationPreservesLegacyStartLinks(t *testing.T) {
+	tests := []struct {
+		name       string
+		rawQuery   string
+		wantCursor bool
+		wantStart  int32
+		wantValue  string
+	}{
+		{name: "new request defaults to cursor", wantCursor: true},
+		{name: "legacy start", rawQuery: "start=60", wantStart: 60},
+		{name: "explicit zero start", rawQuery: "start=0"},
+		{name: "cursor wins over start", rawQuery: "start=60&cursor=opaque", wantCursor: true, wantValue: "opaque"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/feed/user?"+test.rawQuery, nil)
+			req := &pb.FeedRequest{PageSize: 30}
+			if got := configureFeedPagination(r, req); got != test.wantCursor {
+				t.Fatalf("configureFeedPagination() = %v; want %v", got, test.wantCursor)
+			}
+			if req.CursorPaging != test.wantCursor {
+				t.Fatalf("CursorPaging = %v; want %v", req.CursorPaging, test.wantCursor)
+			}
+			if req.Start != test.wantStart {
+				t.Fatalf("Start = %d; want %d", req.Start, test.wantStart)
+			}
+			if req.Cursor != test.wantValue {
+				t.Fatalf("Cursor = %q; want %q", req.Cursor, test.wantValue)
+			}
+		})
+	}
+}
+
 func TestCommentDeleteHandlerRejectsInvalidForm(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

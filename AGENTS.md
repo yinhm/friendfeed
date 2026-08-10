@@ -18,7 +18,7 @@
 - `mirrorMedia` 不可删除；ArchiveFeed 在 `PutEntry` 前同步完成 Fetch、Post、URL 改写并随 entry 持久化。
 - `ArchiveFeed`/`ForceArchiveFeed` 暂不内部重构；退役需整体确认部署、抓取与迁移依赖。
 - 注释中的迁移、排障、备用 SSR 和调试代码不能仅因注释或零引用删除。
-- 暂不机械处理 feed/search 分页协议、股票 gob schema、job 公共抽象、key API、Twitter Entry/Tweet 模型和 Python 依赖锁定。保留现有 stdlib `log` 与 `slog`，不为形式统一迁移。分页需统一覆盖 cached/profile/timeline/search 及消费方。
+- 暂不机械处理股票 gob schema、job 公共抽象、key API、Twitter Entry/Tweet 模型和 Python 依赖锁定。保留现有 stdlib `log` 与 `slog`，不为形式统一迁移。
 
 ## 数据与并发不变量
 
@@ -27,6 +27,7 @@
 - `ApiServer.cached` 构造后只读；若允许动态增删，须用独立锁保护全部访问。
 - `PutEntry` 的 entry 与 author/group 直接索引原子提交；无上限的 timeline fanout 独立执行。索引/fanout 错误必须返回，删除普通 entry 也要清理 author timeline。
 - FeedIndex 的 DB 检查在数据锁外；rebuild/load/dump 由 `rebuildMu` 串行，rebuild 期间的 Push 必须保留。
+- profile/timeline 通过 `FetchFeed` 的显式 cursor 模式分页；旧客户端、public cache 和 search 继续使用 `Start/PageSize`。cursor 只编码索引位置，解码后按当前 feed 前缀重建 key，不得解释为 entry UUID。
 - `Store.Close` 并发安全且幂等。生产关停先用 gRPC `GracefulStop` 排干请求，再关闭服务和数据库。
 
 ## 迁移边界

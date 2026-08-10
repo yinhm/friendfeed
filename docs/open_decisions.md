@@ -14,7 +14,6 @@
 
 ## 协议、数据与服务模型
 
-- **feed/search 分页**：`cachedFeed`、profile feed、timeline、search 及 httpd 消费方必须统一审计和迁移。在方案确定前，不局部修改 `Start/PageSize`、`PageSize+1`、缺失 entry 处理或 protobuf 分页字段。
 - **股票存储**：`GetStockList`/`GetStock` 当前读取整表 gob。按 symbol 建索引会改变 schema，需先确定新数据模型和迁移方式。
 - **Twitter 写入模型**：先决定 `fetch_user` 是否继续维护 legacy Entry feed，还是迁往 Tweet/PostTweet，再考虑复用转换代码。
 - **Group comment moderation**：当前仅评论作者、entry 作者和 super 可删除评论。是否允许 group admin 审核 cross-post comment，需要先定义 graph 缺失、缓存过期和跨 feed 的授权语义。

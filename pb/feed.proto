@@ -112,6 +112,8 @@ message Feed {
   bool private = 7;
   repeated string commands = 8;
   repeated Entry entries = 9;
+  // Opaque positions used only by cursor-paged profile and timeline feeds.
+  string next_cursor = 10;
 }
 
 // /feedinfo - Feed information

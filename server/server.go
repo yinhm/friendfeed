@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/store/flake"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -420,6 +423,9 @@ func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Fee
 		return s.cachedFeed(req)
 	}
 	s.RUnlock()
+	if req.CursorPaging {
+		return s.ForwardFetchFeedWithCursor(ctx, req)
+	}
 	return s.ForwardFetchFeed(ctx, req)
 }
 
@@ -563,6 +569,148 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		Entries:     entries,
 	}
 	return feed, nil
+}
+
+type cursorFeedEntry struct {
+	entry    *pb.Entry
+	indexKey store.Key
+}
+
+// ForwardFetchFeedWithCursor pages profile feeds and user timelines from an
+// opaque EntryIndex position. FetchFeed selects this path only when callers
+// explicitly opt in; legacy Start/PageSize behavior remains in
+// ForwardFetchFeed, while cached public feeds never reach this method.
+func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
+	if req.PageSize <= 0 || req.PageSize >= 100 {
+		req.PageSize = 50
+	}
+
+	profile, prefix, err := s.cursorFeedTarget(req)
+	if err != nil {
+		return nil, err
+	}
+	cursorKey, err := decodeFeedCursor(req.Cursor, prefix)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid feed cursor: %v", err)
+	}
+
+	iter := s.rdb.NewIterator(prefix)
+	defer iter.Close()
+	if len(cursorKey) > 0 {
+		iter.SeekGE(cursorKey)
+		if iter.Valid() && bytes.Equal(iter.UnsafeRawKey(), cursorKey) {
+			iter.Next()
+		}
+	} else {
+		iter.First()
+	}
+
+	resolver := newProfileResolver(s.mdb)
+	items := make([]cursorFeedEntry, 0, req.PageSize+1)
+	for iter.Valid() && len(items) <= int(req.PageSize) {
+		indexKey := iter.Key()
+		entryKey := iter.Value()
+		entry := new(pb.Entry)
+		rawdata, getErr := s.rdb.Get(entryKey)
+		if getErr != nil {
+			return nil, getErr
+		}
+		if len(rawdata) == 0 {
+			if deleteErr := s.rdb.Delete(indexKey); deleteErr != nil {
+				return nil, deleteErr
+			}
+		} else {
+			if err := proto.Unmarshal(rawdata, entry); err != nil {
+				return nil, err
+			}
+			if err := formatFeedEntryWithResolver(resolver, req, entry); err != nil {
+				return nil, err
+			}
+			items = append(items, cursorFeedEntry{entry: entry, indexKey: indexKey})
+		}
+
+		iter.Next()
+	}
+	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+
+	hasExtra := len(items) > int(req.PageSize)
+	if hasExtra {
+		items = items[:req.PageSize]
+	}
+	feed := &pb.Feed{
+		Uuid:        profile.Uuid,
+		Id:          profile.Id,
+		Name:        profile.Name,
+		Picture:     profile.Picture,
+		Type:        profile.Type,
+		Private:     profile.Private,
+		Description: profile.Description,
+		Entries:     make([]*pb.Entry, len(items)),
+	}
+	for i := range items {
+		feed.Entries[i] = items[i].entry
+	}
+	if len(items) > 0 {
+		if hasExtra {
+			feed.NextCursor = encodeFeedCursor(items[len(items)-1].indexKey, prefix)
+		}
+	}
+	return feed, nil
+}
+
+func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Key, error) {
+	if req.ProfileUuid != "" {
+		profileUUID, err := uuid.FromString(req.ProfileUuid)
+		if err != nil {
+			return nil, nil, status.Error(codes.InvalidArgument, "invalid profile UUID")
+		}
+		profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
+		if err != nil {
+			return nil, nil, status.Error(codes.NotFound, "profile not found")
+		}
+		return profile, store.NewUUIDKey(model.TableEntryIndex, model.TimelineUUID(profileUUID)).Bytes(), nil
+	}
+
+	profile, err := model.GetProfileFromUserId(s.mdb, req.Id)
+	if err != nil {
+		profile, err = model.GetProfileFromRenameId(s.mdb, req.Id)
+		if err != nil {
+			return nil, nil, status.Error(codes.NotFound, "profile not found")
+		}
+	}
+	profileUUID, err := uuid.FromString(profile.Uuid)
+	if err != nil {
+		return nil, nil, status.Error(codes.Internal, "profile has invalid UUID")
+	}
+	return profile, store.NewUUIDKey(model.TableEntryIndex, profileUUID).Bytes(), nil
+}
+
+func encodeFeedCursor(key, prefix store.Key) string {
+	var flakeID flake.Id
+	if len(key) != len(prefix)+len(flakeID) || !bytes.HasPrefix(key, prefix) {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString(key[len(prefix):])
+}
+
+func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
+	if cursor == "" {
+		return nil, nil
+	}
+	position, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return nil, err
+	}
+	var flakeID flake.Id
+	if len(position) != len(flakeID) {
+		return nil, errors.New("invalid cursor position")
+	}
+	key := make(store.Key, 0, len(prefix)+len(position))
+	key = append(key, prefix...)
+	key = append(key, position...)
+	return key, nil
 }
 
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {

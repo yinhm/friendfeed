@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -23,6 +24,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/store/flake"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -137,6 +139,81 @@ func (s *RpcTestSuite) TestFetchFeedResolvesPreviousProfileID() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), "after-rename", feed.Id)
 	assert.Equal(s.T(), profileUUID.String(), feed.Uuid)
+}
+
+func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
+	profileUUID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileUUID.String(), Id: "cursor-user", Name: "Cursor User", Type: "user"}
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, profile))
+
+	entryIDs := make([]string, 5)
+	base := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	for i := range entryIDs {
+		entryID := uuid.NewV5(uuid.NamespaceURL, fmt.Sprintf("cursor-entry-%d", i)).String()
+		entryIDs[i] = entryID
+		_, err := model.PutEntry(s.srv.rdb, &pb.Entry{
+			Id:          entryID,
+			Date:        base.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			Body:        fmt.Sprintf("entry %d", i),
+			RawBody:     fmt.Sprintf("entry %d", i),
+			ProfileUuid: profileUUID.String(),
+			From:        &pb.Feed{Uuid: profileUUID.String(), Id: profile.Id, Name: profile.Name, Type: profile.Type},
+		})
+		s.Require().NoError(err)
+	}
+
+	first, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id: profile.Id, PageSize: 2, CursorPaging: true,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[4], entryIDs[3]}, feedEntryIDs(first))
+	s.NotEmpty(first.NextCursor)
+
+	// A raw index cursor remains usable even when its anchor entry and index
+	// row disappear between requests.
+	s.Require().NoError(model.DeleteEntry(s.srv.rdb, entryIDs[3]))
+	second, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id: profile.Id, PageSize: 2, CursorPaging: true, Cursor: first.NextCursor,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(second))
+	s.NotEmpty(second.NextCursor)
+
+	third, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id: profile.Id, PageSize: 2, CursorPaging: true, Cursor: second.NextCursor,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[0]}, feedEntryIDs(third))
+	s.Empty(third.NextCursor)
+}
+
+func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
+	prefix := store.NewUUIDKey(model.TableEntryIndex, uuid.Must(uuid.NewV4())).Bytes()
+	var position flake.Id
+	for i := range position {
+		position[i] = byte(i + 1)
+	}
+	key := append(append(store.Key(nil), prefix...), position[:]...)
+
+	cursor := encodeFeedCursor(key, prefix)
+	encoded, err := base64.RawURLEncoding.DecodeString(cursor)
+	s.Require().NoError(err)
+	s.Equal(position[:], encoded)
+
+	decoded, err := decodeFeedCursor(cursor, prefix)
+	s.Require().NoError(err)
+	s.Equal(key, decoded)
+
+	_, err = decodeFeedCursor(base64.RawURLEncoding.EncodeToString(position[:len(position)-1]), prefix)
+	s.Error(err)
+}
+
+func feedEntryIDs(feed *pb.Feed) []string {
+	ids := make([]string, len(feed.Entries))
+	for i := range feed.Entries {
+		ids[i] = feed.Entries[i].Id
+	}
+	return ids
 }
 
 func (s *RpcTestSuite) TestRedoFailedJob() {

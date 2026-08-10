@@ -34,6 +34,8 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {boolean} show_share
  * @property {number} prev_start
  * @property {number} next_start
+ * @property {boolean} [cursor_paging]
+ * @property {string} [next_cursor]
  * @property {string} query
  * @property {boolean} onpage
  * @property {boolean} onpage_edit
@@ -43,7 +45,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @typedef {Omit<FeedProps, 'url'>} AppData
  */
 
-/** @param {{query: string, show: boolean, prev: number, next: number}} props */
+/** @param {{query: string, show: boolean, prev: number, next: number, cursorPaging?: boolean, nextCursor?: string}} props */
 function FeedPagin(props) {
   /** @type {React.ReactNode} */
   var prev = null;
@@ -56,11 +58,17 @@ function FeedPagin(props) {
     url = '?q=' + props.query + '&';
   }
   if (props.show) {
-    if (props.next > 30) {
-      prev = <a href={url+'start='+props.prev}>&laquo; Prev</a>;
-      sep = " ";
+    if (props.cursorPaging) {
+      if (props.nextCursor) {
+        next = <a href={'?cursor='+encodeURIComponent(props.nextCursor)}>Next &raquo;</a>;
+      }
+    } else {
+      if (props.next > 30) {
+        prev = <a href={url+'start='+props.prev}>&laquo; Prev</a>;
+        sep = " ";
+      }
+      next = <a href={url+'start='+props.next}>Next &raquo;</a>;
     }
-    next = <a href={url+'start='+props.next}>Next &raquo;</a>;
   }
   return (
     <div className="pager bottom">
@@ -235,7 +243,9 @@ export function Feed(props) {
   if (state.show_paging === true) {
     feedPaginNodes = (
       <FeedPagin show={state.show_paging} prev={state.prev_start}
-                 next={state.next_start} query={state.query} />
+                 next={state.next_start} query={state.query}
+                 cursorPaging={state.cursor_paging}
+                 nextCursor={state.next_cursor} />
     )
   }
 
@@ -275,6 +285,8 @@ export function App() {
       show_share={appData.show_share}
       prev_start={appData.prev_start}
       next_start={appData.next_start}
+      cursor_paging={appData.cursor_paging}
+      next_cursor={appData.next_cursor}
       query={appData.query}
       onpage={appData.onpage}
       onpage_edit={appData.onpage_edit} />

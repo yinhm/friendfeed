@@ -83,6 +83,35 @@ func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {
 	}
 }
 
+func cursorFeedContext(feed *pb.Feed) pongo2.Context {
+	return pongo2.Context{
+		"title":         feed.Id,
+		"name":          feed.Id,
+		"feed":          feed,
+		"prev_start":    int32(0),
+		"next_start":    int32(0),
+		"next_cursor":   feed.NextCursor,
+		"cursor_paging": true,
+		"show_paging":   feed.NextCursor != "",
+		"show_share":    false,
+	}
+}
+
+// configureFeedPagination preserves explicit legacy ?start=N links. Cursor
+// pagination is the default for new profile/timeline requests, and wins when
+// both styles are present.
+func configureFeedPagination(r *http.Request, req *pb.FeedRequest) bool {
+	query := r.URL.Query()
+	cursor := query.Get("cursor")
+	if cursor != "" || !query.Has("start") {
+		req.Cursor = cursor
+		req.CursorPaging = true
+		return true
+	}
+	req.Start = int32(ParseStart(r))
+	return false
+}
+
 func renamedFeedLocation(requestedID string, feed *pb.Feed, rawQuery string) (string, bool) {
 	if feed == nil || feed.Id == "" || feed.Id == requestedID {
 		return "", false
@@ -101,13 +130,12 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		return
 	}
 
-	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
 		Id:          "home",
 		ProfileUuid: userUuid,
-		Start:       int32(start),
 		PageSize:    30,
 	}
+	cursorPaging := configureFeedPagination(c.Request, req)
 
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
@@ -116,18 +144,20 @@ func (s *Server) HomeHandler(c *gin.Context) {
 	}
 
 	data := feedContext(feed, req.Start, req.PageSize)
+	if cursorPaging {
+		data = cursorFeedContext(feed)
+	}
 	data["show_share"] = s.feedWritable(c, feed.Uuid)
 	s.renderFeed(c, data)
 }
 
 func (s *Server) FeedHandler(c *gin.Context) {
 	feedname := c.Params.ByName("name")
-	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
 		Id:       feedname,
-		Start:    int32(start),
 		PageSize: 30,
 	}
+	cursorPaging := configureFeedPagination(c.Request, req)
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
@@ -144,6 +174,9 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	}
 
 	data := feedContext(feed, req.Start, req.PageSize)
+	if cursorPaging {
+		data = cursorFeedContext(feed)
+	}
 	data["show_header"] = true
 	s.renderFeed(c, data)
 }

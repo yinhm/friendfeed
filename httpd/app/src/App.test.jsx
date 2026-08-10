@@ -44,3 +44,24 @@ test('Home page renders the post editor input and submit control', async () => {
   }, {timeout: 10000});
   expect(container.querySelector('button.submit[type="button"]')).toHaveTextContent('发布');
 }, 10000);
+
+test('Cursor-paged feeds render only the opaque next link', () => {
+  window.appData = {
+    feed: {id: 'friend-feed', uuid: 'feed-uuid', entries: []},
+    show_header: false,
+    show_paging: true,
+    show_share: false,
+    prev_start: 0,
+    next_start: 0,
+    cursor_paging: true,
+    next_cursor: 'older+cursor',
+    query: '',
+    onpage: false,
+    onpage_edit: false,
+  };
+
+  const {getByText, queryByText} = render(<App />);
+  expect(queryByText('« Prev')).not.toBeInTheDocument();
+  expect(getByText('Next »')).toHaveAttribute(
+    'href', '?cursor=older%2Bcursor');
+});
