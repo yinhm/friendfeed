@@ -1011,7 +1011,7 @@ func (s *ApiServer) searchPage(req *pb.SearchRequest) (entries []*pb.Entry, unus
 				unusable = append(unusable, hit.ID)
 				continue
 			}
-			slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
+			// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
 			if _, fmtErr := fmtEntryProfilesWithResolver(resolver, entry); fmtErr != nil {
 				if !unusableSearchDoc(fmtErr) {
 					return nil, nil, status.Errorf(codes.Internal, "format entry %s: %v", hit.ID, fmtErr)
