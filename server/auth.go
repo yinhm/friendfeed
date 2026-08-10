@@ -69,7 +69,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		if err != nil {
 			return nil, err
 		}
-		slog.Debug("PutService", "uuid", profile.Uuid, "service", service)
+		slog.Debug("PutService", "uuid", profile.Uuid, "username", service.Username)
 	}
 	return profile, nil
 }
