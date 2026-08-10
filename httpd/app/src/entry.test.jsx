@@ -1,5 +1,5 @@
 import React from 'react';
-import {fireEvent, render, screen} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {Entry} from './entry';
 import {EntryLike} from './entry-like';
 
@@ -40,4 +40,48 @@ test('renders only the comment commands authorized by the server', () => {
 
   expect(screen.getByRole('button', {name: 'Delete'})).toBeInTheDocument();
   expect(screen.queryByRole('button', {name: 'Edit'})).not.toBeInTheDocument();
+});
+
+test('requires confirmation before deleting a comment', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({json: () => Promise.resolve({})});
+  vi.stubGlobal('fetch', fetchMock);
+
+  try {
+    render(
+      <Entry
+        entry={{
+          id: 'entry-id',
+          from: {id: 'entry-author', name: 'Entry Author'},
+          body: 'Entry body',
+          commands: [],
+          comments: [{
+            id: 'comment-id',
+            body: 'Moderated comment',
+            from: {id: 'comment-author', name: 'Comment Author'},
+            commands: ['delete'],
+          }],
+        }}
+        onpage_edit={false}
+      />
+    );
+
+    // First click only asks for confirmation.
+    fireEvent.click(screen.getByRole('button', {name: 'Delete'}));
+    expect(screen.getByRole('button', {name: '确定'})).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // Cancel restores the plain Delete button.
+    fireEvent.click(screen.getByRole('button', {name: '取消'}));
+    expect(screen.queryByRole('button', {name: '确定'})).not.toBeInTheDocument();
+
+    // Confirm issues the delete request and removes the comment.
+    fireEvent.click(screen.getByRole('button', {name: 'Delete'}));
+    fireEvent.click(screen.getByRole('button', {name: '确定'}));
+    expect(fetchMock).toHaveBeenCalledWith('/a/comment/delete', expect.anything());
+    await waitFor(() => expect(
+      screen.queryByText(/Moderated comment/, {selector: 'span'})
+    ).not.toBeInTheDocument());
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

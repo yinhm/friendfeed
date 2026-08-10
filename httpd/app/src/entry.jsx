@@ -728,9 +728,7 @@ class EntryComment extends React.Component{
     // this.setState({comment: this.state.comment});
   }
 
-  /** @param {React.MouseEvent<HTMLButtonElement>} event */
-  deleteComment = (event) => {
-    event.preventDefault();
+  deleteComment = () => {
     var comment = this.props.deleteComment(this.state.comment);
     this.setState({comment: comment});
   }
@@ -758,7 +756,7 @@ class EntryComment extends React.Component{
           }
           {canEdit && canDelete && " | "}
           {canDelete &&
-            <button type="button" className="inline-action action-link" onClick={this.deleteComment}>Delete</button>
+            <EntryCommandDelete onDelete={this.deleteComment} />
           }
           {" )"}
         </span>
