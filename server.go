@@ -62,6 +62,8 @@ func main() {
 		cfg.Debug = debug
 	}
 
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	slogLevel := slog.LevelInfo
 	if cfg.Debug {
 		slogLevel = slog.LevelDebug
