@@ -521,6 +521,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 	start := req.Start
 	var entries []*pb.Entry
+	found := 0
 	resolver := newProfileResolver(s.mdb)
 	_, err = s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		if start > 0 {
@@ -547,7 +548,8 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		}
 
 		entries = append(entries, entry)
-		if i > int(req.PageSize+req.Start) { // so we know when to paging
+		found++
+		if found > int(req.PageSize) { // retain one lookahead entry for legacy paging
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
 		}
 		return nil

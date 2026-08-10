@@ -161,6 +161,11 @@ func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
 		})
 		s.Require().NoError(err)
 	}
+	legacy, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id: profile.Id, PageSize: 2,
+	})
+	s.Require().NoError(err)
+	s.Len(legacy.Entries, 3, "legacy pagination should return one lookahead entry")
 
 	first, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		Id: profile.Id, PageSize: 2, CursorPaging: true,
