@@ -18,7 +18,7 @@
 - `mirrorMedia` 不可删除；ArchiveFeed 在 `PutEntry` 前同步完成 Fetch、Post、URL 改写并随 entry 持久化。
 - `ArchiveFeed`/`ForceArchiveFeed` 暂不内部重构；退役需整体确认部署、抓取与迁移依赖。
 - 注释中的迁移、排障、备用 SSR 和调试代码不能仅因注释或零引用删除。
-- 暂不机械处理 feed/search 分页协议、股票 gob schema、job 公共抽象、key API、linkify、Twitter Entry/Tweet 模型、日志框架、Fabric 1 和 Python 依赖锁定。分页需统一覆盖 cached/profile/timeline/search 及消费方。
+- 暂不机械处理 feed/search 分页协议、股票 gob schema、job 公共抽象、key API、linkify、Twitter Entry/Tweet 模型、日志框架和 Python 依赖锁定。分页需统一覆盖 cached/profile/timeline/search 及消费方。
 
 ## 数据与并发不变量
 

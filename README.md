@@ -73,18 +73,17 @@ migrate
 Deploy FriendFeed
 =================
 
-Install Fabric 1 locally:
+Install Fabric 3 locally:
 ``` 
-  python3 -m venv .venv
-  . .venv/bin/activate
-  pip install 'fabric<2'
-  fab --version
+  uv venv .venv
+  uv pip install -r requirements.txt
+  uv run --no-project fab --version
 ```
 
 Verify SSH access:
 ```
   ssh YourServer
-  fab production --list
+  uv run --no-project fab --list
 ```
 
 Generate the cookie secret:
@@ -95,21 +94,21 @@ Generate the cookie secret:
 
 First deployment：
 ```
-    fab production bootstrap
-    fab production deploy_env
-    fab production deploy_config
+    uv run --no-project fab production bootstrap
+    uv run --no-project fab production deploy_env
+    uv run --no-project fab production deploy_config
 ```
 
 SSL && Nginx
 
-    // fab production deploy_ssl
-    fab production deploy_nginx
+    # uv run --no-project fab production deploy_ssl
+    uv run --no-project fab production deploy_nginx
 
 Routine update
 
-    fab production deploy_db
-    // fab production deploy_client
-    fab production deploy_web
+    uv run --no-project fab production deploy_db
+    # uv run --no-project fab production deploy_client
+    uv run --no-project fab production deploy_web
 
 Systemd logs
 ============

@@ -1,307 +1,273 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-import os
-import sys
+"""FriendFeed deployment tasks for Fabric 3."""
 
-from copy import copy
-from os.path import dirname, expanduser, join
-from fabric.api import *
-from fabric.contrib.files import upload_template, append, exists
-from fabric.context_managers import cd, shell_env
+from io import StringIO
+from pathlib import Path
+from shlex import quote
+from types import SimpleNamespace
+from uuid import uuid4
 
-from fabric.colors import _wrap_with, green
+from fabric import Config, Connection, task
+from invoke import Exit
 
-green_bg = _wrap_with('42')
-red_bg = _wrap_with('41')
+env = SimpleNamespace()
+_connection = None
 
 
-# env.key_filename = expanduser('~/.ssh/google_compute_engine')
-env.use_ssh_config = True
+@task(name="production")
+def production(_ctx):
+    """Select the production deployment target."""
+    global _connection
 
-@task
-def production():
-    env.hostname = 'ff1'
-    env.user = 'root'
-
-    #  name of your project - no spaces, no special chars
-    env.project = 'ffdb'
-    #  hg repository of your project
-    env.repository = 'git@github.com:yinhm/ffdb.git'
-    #  type of repository (git or hg)
-    env.repository_type = 'git'
-    #  hosts to deploy your project, users must be sudoers
-    env.hosts = ['linode', ]
-    # additional packages to be installed on the server
-    env.additional_packages = [
-        #'mercurial',
-    ]
-
-    #  system user, owner of the processes and code on your server
-    #  the user and it's home dir will be created if not present
-    env.runner_user = 'www-data'
-    # user group
+    env.hostname = "ff1"
+    env.user = "root"
+    env.project = "ffdb"
+    env.repository = "git@github.com:yinhm/ffdb.git"
+    env.repository_type = "git"
+    env.hosts = ["linode"]
+    env.additional_packages = []
+    env.runner_user = "www-data"
     env.runner_group = env.runner_user
-    #  the code of your project will be located here
-    env.deploy_root = '/srv'
-    #  project path
-    env.project_path = join(env.deploy_root, env.project)
-    env.go_path = '/srv/gopath'
-    #  project source under go_path
-    env.code_root = join(env.go_path, 'src/github.com/yinhm/friendfeed')
-    env.httpcache_path = join(env.project_path, 'httpcache')
-
-    env.ffclient_logfile = join(env.deploy_root, 'logs', 'ffclient.log')
+    env.deploy_root = "/srv"
+    env.project_path = f"{env.deploy_root}/{env.project}"
+    env.go_path = "/srv/gopath"
+    env.code_root = f"{env.go_path}/src/github.com/yinhm/friendfeed"
+    env.httpcache_path = f"{env.project_path}/httpcache"
+    env.ffclient_logfile = f"{env.deploy_root}/logs/ffclient.log"
     env.ffweb_bind = "127.0.0.1:8080"
-
     env.nginx_https = True
-    env.nginx_server_name = 'friendfeed.me'
+    env.nginx_server_name = "friendfeed.me"
     env.nginx_client_max_body_size = 200
-    
-def test_if(func, *args, **kwargs):
-    """
-    Run a function and return True if it succeeds,
-    False if it fails. This is good for testing the
-    environment on remote hosts.
-    """
-    condition = False
-    with settings(hide('everything'), warn_only=True):
-        output = func(*args, **kwargs)
-        if not output.return_code: condition = True
-    return condition
 
-@task
-def line_in_file(line, filename):
-    """Use a remote grep to see if a particular line is in a file.
-    Return True or False.
-    """
-    grep_in_file = lambda: run('grep "%s" "%s"' % (line, filename))
-    result = test_if(grep_in_file)
-    if result:
-        puts('Value already in file:\n{}'.format(line))
-    return result
-
-@task
-def locale():
-    sudo("echo 'LANG=\"en_US.UTF-8\"' > /etc/default/locale")
-    sudo("echo 'LANGUAGE=\"en_US:en\"' >> /etc/default/locale")
-    sudo("locale-gen en_US.UTF-8")
-    sudo("update-locale en_US.UTF-8")
-    sudo("locale-gen zh_CN.UTF-8")
+    config = Config(overrides={"load_ssh_configs": True})
+    _connection = Connection(env.hosts[0], user=env.user, config=config)
 
 
-@task
-def bootstrap():
-    sudo("apt-get update")
-    sudo("apt-get -y install git-core")
-    sudo("apt-get -y install imagemagick")
-    sudo("apt-get -y install unzip")
-    sudo("apt-get -y install tmux")
-    sudo("apt-get -y install nginx")
-    sudo("apt-get -y install nodejs")
-
-    # sudo ("apt-get -y install debhelper libsnappy-dev libgflags-dev libjemalloc-dev libbz2-dev zlib1g-dev")
-    # sudo("sudo apt-get -y install devscripts")
-    # sudo('git config --global url."git@github.com:".insteadOf "https://github.com/"')
+def _conn():
+    if _connection is None:
+        raise Exit("select an environment first, for example: fab production deploy_db")
+    return _connection
 
 
-@task
-def deploy_env():
+def _exists(path):
+    return _conn().run(f"test -e {quote(path)}", hide=True, warn=True).ok
+
+
+def _template_context(**values):
+    context = vars(env).copy()
+    context.update(values)
+    return context
+
+
+def _upload_template(template_path, remote_path, context):
+    """Render a percent-format template and install it through sudo."""
+    rendered = Path(template_path).read_text(encoding="utf-8") % context
+    temporary = f"/tmp/ffdb-deploy-{uuid4().hex}"
+    conn = _conn()
+    try:
+        conn.put(StringIO(rendered), remote=temporary)
+        conn.sudo(f"install -m 0644 {quote(temporary)} {quote(remote_path)}")
+    finally:
+        conn.run(f"rm -f {quote(temporary)}", hide=True, warn=True)
+
+
+@task(name="line_in_file")
+def line_in_file(_ctx, line, filename):
+    """Return whether a remote file contains a fixed string."""
+    result = _conn().run(
+        f"grep -F -- {quote(line)} {quote(filename)}", hide=True, warn=True
+    )
+    if result.ok:
+        print(f"Value already in file:\n{line}")
+    return result.ok
+
+
+@task(name="locale")
+def locale(_ctx):
+    conn = _conn()
+    conn.sudo("sh -c 'echo LANG=\\\"en_US.UTF-8\\\" > /etc/default/locale'")
+    conn.sudo("sh -c 'echo LANGUAGE=\\\"en_US:en\\\" >> /etc/default/locale'")
+    conn.sudo("locale-gen en_US.UTF-8")
+    conn.sudo("update-locale LANG=en_US.UTF-8 LANGUAGE=en_US:en")
+    conn.sudo("locale-gen zh_CN.UTF-8")
+
+
+@task(name="bootstrap")
+def bootstrap(_ctx):
+    conn = _conn()
+    conn.sudo("apt-get update")
+    conn.sudo("apt-get -y install git-core imagemagick unzip tmux nginx nodejs")
+
+
+@task(name="deploy_env")
+def deploy_env(_ctx):
+    conn = _conn()
     build_path = "/srv/build"
-    sudo('mkdir -p %s' % build_path)
-    
-    with cd(build_path):
-        sudo("curl -L https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz | tar zx")
-        sudo("./godeb install 1.26.4")
+    conn.sudo(f"mkdir -p {quote(build_path)}")
+    with conn.cd(build_path):
+        conn.sudo("curl -L https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz | tar zx")
+        conn.sudo("./godeb install 1.26.4")
 
 
-@task
-def deploy_config():
-    if not exists(env.project_path):
-        sudo('mkdir -p %s' % env.project_path)
+@task(name="deploy_config")
+def deploy_config(_ctx):
+    conn = _conn()
+    if not _exists(env.project_path):
+        conn.sudo(f"mkdir -p {quote(env.project_path)}")
 
-    context = copy(env)
-    template = 'conf/config.json'
-    key_path = join(env.project_path, "config.json")
-    upload_template(template, key_path,
-                    context=context, backup=False, use_sudo=True)
-    sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))
-    sudo('chmod 600 %s' % (key_path))
+    key_path = f"{env.project_path}/config.json"
+    _upload_template("conf/config.json", key_path, _template_context())
+    conn.sudo(f"chown {env.runner_user}:{env.runner_group} {quote(key_path)}")
+    conn.sudo(f"chmod 600 {quote(key_path)}")
+
 
 def _update_and_build(commands, clean=False):
-    with shell_env(GOPATH=env.go_path):
-        if not exists(env.code_root):
-            run('git clone %s %s' % (env.repository, env.code_root))
+    conn = _conn()
+    with conn.prefix(f"export GOPATH={quote(env.go_path)}"):
+        if not _exists(env.code_root):
+            conn.run(f"git clone {quote(env.repository)} {quote(env.code_root)}")
 
-        with cd(env.code_root):
+        with conn.cd(env.code_root):
             if clean:
-                run('git reset --hard && git checkout master && git pull')
+                conn.run("git reset --hard && git checkout master && git pull")
             else:
-                run('git checkout master && git pull')
+                conn.run("git checkout master && git pull")
             for command in commands:
-                run(command)
+                conn.run(command)
 
-@task
-def deploy_db():
-    go_path = env.go_path
-    db_path = join(env.project_path, "db")
-    code_root = env.code_root
-    
-    if not exists(code_root):
-        sudo('mkdir -p %s' % env.project_path)
-        sudo('mkdir -p %s/bin' % go_path)
-        sudo('mkdir -p %s' % dirname(code_root))
-        sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_user, go_path))
 
-    if not exists(db_path):
-        sudo('mkdir -p %s' % db_path)
-        sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, db_path))
+@task(name="deploy_db")
+def deploy_db(_ctx):
+    conn = _conn()
+    db_path = f"{env.project_path}/db"
 
-    template = 'conf/ffdb.service'
-    context = copy(env)
-    upload_template(template, '/etc/systemd/system/ffdb.service',
-                    context=context, backup=False, use_sudo=True)
+    if not _exists(env.code_root):
+        conn.sudo(f"mkdir -p {quote(env.project_path)}")
+        conn.sudo(f"mkdir -p {quote(env.go_path + '/bin')}")
+        conn.sudo(f"mkdir -p {quote(str(Path(env.code_root).parent))}")
+        conn.sudo(f"chown {env.runner_user}:{env.runner_user} {quote(env.go_path)} -R")
 
-    # run("go get -u -f")
+    if not _exists(db_path):
+        conn.sudo(f"mkdir -p {quote(db_path)}")
+        conn.sudo(f"chown {env.runner_user}:{env.runner_group} {quote(db_path)}")
+
+    _upload_template(
+        "conf/ffdb.service", "/etc/systemd/system/ffdb.service", _template_context()
+    )
     _update_and_build(("go get .", "go install"))
+    conn.sudo(
+        f"chown {env.runner_user}:{env.runner_group} {quote(env.go_path + '/bin/ffdb')}"
+    )
+    conn.sudo("systemctl daemon-reload")
+    conn.sudo("systemctl enable ffdb.service")
+    conn.sudo("systemctl restart ffdb.service")
 
-    sudo('chown %s:%s %s/bin/ffdb' % (env.runner_user, env.runner_group, go_path))
 
-    sudo("systemctl daemon-reload")
-    sudo("systemctl enable ffdb.service")
-    sudo("systemctl restart ffdb.service")
-
-
-@task
-def deploy_client():
-    go_path = env.go_path
+@task(name="deploy_client")
+def deploy_client(_ctx):
+    conn = _conn()
     db_path = env.httpcache_path
-    code_root = env.code_root
 
-    if not exists(code_root):
-        sudo('mkdir -p %s' % env.project_path)
-        sudo('mkdir -p %s/bin' % go_path)
-        sudo('mkdir -p %s' % dirname(code_root))
-        sudo('mkdir -p %s' % dirname(env.ffclient_logfile))
+    if not _exists(env.code_root):
+        conn.sudo(f"mkdir -p {quote(env.project_path)}")
+        conn.sudo(f"mkdir -p {quote(env.go_path + '/bin')}")
+        conn.sudo(f"mkdir -p {quote(str(Path(env.code_root).parent))}")
+        conn.sudo(f"mkdir -p {quote(str(Path(env.ffclient_logfile).parent))}")
+        conn.sudo(f"chown {env.runner_user}:{env.runner_user} {quote(env.go_path)} -R")
 
-        sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_user, go_path))
+    if not _exists(db_path):
+        conn.sudo(f"mkdir -p {quote(db_path)}")
+        conn.sudo(f"chown {env.runner_user}:{env.runner_group} {quote(db_path)}")
 
-    if not exists(db_path):
-        sudo('mkdir -p %s' % db_path)
-        sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, db_path))
+    log_dir = str(Path(env.ffclient_logfile).parent)
+    conn.sudo(f"chown {env.runner_user} {quote(log_dir)}")
+    conn.sudo(f"chmod -R 775 {quote(log_dir)}")
+    _upload_template("conf/ffclient.conf", "/etc/init/ffclient.conf", _template_context())
 
-    sudo('chown %s %s' % (env.runner_user, dirname(env.ffclient_logfile)))
-    sudo('chmod -R 775 %s' % dirname(env.ffclient_logfile))
-
-    template = 'conf/ffclient.conf'
-    context = copy(env)
-    upload_template(template, '/etc/init/ffclient.conf',
-                    context=context, backup=False, use_sudo=True)
-
-    # run("go get -u -f")
-    _update_and_build((
-        "cd client && go get .",
-        "cd client && go build && mv client %s/bin/ffclient" % go_path,
-    ))
-
-    with settings(warn_only=True):
-        sudo("stop ffclient")
-
-    sudo("start ffclient")
+    _update_and_build(
+        (
+            "cd client && go get .",
+            f"cd client && go build && mv client {quote(env.go_path + '/bin/ffclient')}",
+        )
+    )
+    conn.sudo("stop ffclient", warn=True)
+    conn.sudo("start ffclient")
 
 
+@task(name="deploy_web")
+def deploy_web(_ctx):
+    conn = _conn()
+    web_path = f"{env.project_path}/www"
+    if not _exists(web_path):
+        conn.sudo(f"mkdir -p {quote(web_path)}")
+        conn.sudo(f"chown {env.runner_user}:{env.runner_group} {quote(web_path)}")
 
-@task
-def deploy_web():
-    go_path = env.go_path
-    db_path = env.httpcache_path
-    code_root = env.code_root
+    key_path = f"{env.project_path}/gauth.json"
+    _upload_template("conf/gauth.json", key_path, _template_context())
+    conn.sudo(f"chown {env.runner_user}:{env.runner_group} {quote(key_path)}")
+    conn.sudo(f"chmod 600 {quote(key_path)}")
 
-    web_path = join(env.project_path, "www")
-    if not exists(web_path):
-        sudo('mkdir -p %s' % web_path)
-        sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, web_path))
+    context = _template_context(
+        salt=Path("conf/salt.conf").read_text(encoding="utf-8").strip(),
+        config_file=f"{env.project_path}/config.json",
+        web_path=web_path,
+        www_public_path=web_path,
+    )
+    _upload_template("conf/ffweb.service", "/etc/systemd/system/ffweb.service", context)
 
+    _update_and_build(
+        (
+            "cd httpd/app && corepack enable pnpm && pnpm install --frozen-lockfile && pnpm run build",
+            "cd httpd && go get .",
+            "cd httpd && go build",
+        ),
+        clean=True,
+    )
 
-    # key file
-    template = 'conf/gauth.json'
-    context = copy(env)
-    key_path = join(env.project_path, "gauth.json")
-    upload_template(template, key_path,
-                    context=context, backup=False, use_sudo=True)
-    sudo('chown %s:%s %s' % (env.runner_user, env.runner_group, key_path))
-    sudo('chmod 600 %s' % (key_path))
-    
-
-    template = 'conf/ffweb.service'
-    context = copy(env)
-    context.salt = open('conf/salt.conf').read().strip()
-    context.config_file = join(env.project_path, "config.json")
-    context.web_path = web_path
-    context.www_public_path = web_path
-    upload_template(template, '/etc/systemd/system/ffweb.service',
-                    context=context, backup=False, use_sudo=True)
-
-    _update_and_build((
-        "cd httpd/app && corepack enable pnpm && pnpm install --frozen-lockfile && pnpm run build",
-        "cd httpd && go get .",
-        "cd httpd && go build",
-    ), clean=True)
-
-    bin_path = join(code_root, 'httpd', 'httpd')
-    web_bin_path = join(go_path, "bin/ffweb")
-    sudo("mv %s %s" % (bin_path, web_bin_path))
-    sudo('chown %s:%s %s -R' % (env.runner_user, env.runner_group, web_bin_path))
-    
-    sudo("systemctl daemon-reload")
-    sudo("systemctl enable ffweb.service")
-    sudo("systemctl restart ffweb.service")
+    web_bin_path = f"{env.go_path}/bin/ffweb"
+    conn.sudo(f"mv {quote(env.code_root + '/httpd/httpd')} {quote(web_bin_path)}")
+    conn.sudo(f"chown {env.runner_user}:{env.runner_group} {quote(web_bin_path)} -R")
+    conn.sudo("systemctl daemon-reload")
+    conn.sudo("systemctl enable ffweb.service")
+    conn.sudo("systemctl restart ffweb.service")
 
 
-# friendfeed.me
-@task
-def deploy_ssl():
-    """Two-step ssl deploy
-    First gen server csr, then regen keys.
-    """
+@task(name="deploy_ssl")
+def deploy_ssl(_ctx):
+    """Create the production SSL key and certificate request."""
+    conn = _conn()
     domain = env.nginx_server_name
     ssl_path = "/srv/ssl"
-    sudo('mkdir -p %s' % ssl_path)
+    conn.sudo(f"mkdir -p {quote(ssl_path)}")
 
-    key_file = '/srv/ssl/%s.key' % domain
-    csr_file = '/srv/ssl/%s.csr' % domain
-    crt_file = '/srv/ssl/%s.crt' % domain
+    key_file = f"{ssl_path}/{domain}.key"
+    csr_file = f"{ssl_path}/{domain}.csr"
+    crt_file = f"{ssl_path}/{domain}.crt"
+    if not _exists(csr_file):
+        conn.sudo(
+            f"openssl req -nodes -newkey rsa:2048 -keyout {quote(key_file)} "
+            f"-out {quote(csr_file)}"
+        )
+        raise Exit("put keys in dir when run this again")
 
-    # Organization and Organization Unit: NA
-    # FQDN must equal to domain name
-
-    if not exists(csr_file):
-        sudo("openssl req -nodes -newkey rsa:2048 -keyout %s -out %s" % (key_file, csr_file))
-        exit("put keys in dir when run this again")
+    conn.sudo(f"chmod 400 {quote(key_file)}")
+    conn.sudo(f"chmod 400 {quote(crt_file)}")
 
 
-    # after
-    # cat friendfeed_me.crt COMODORSADomainValidationSecureServerCA.crt COMODORSAAddTrustCA.crt AddTrustExternalCARoot.crt > /srv/ssl/friendfeed.me.crt
+@task(name="deploy_nginx")
+def deploy_nginx(_ctx):
+    """Deploy the HTTP nginx origin configuration."""
+    conn = _conn()
+    web_path = f"{env.project_path}/www"
+    nginx_conf_file = "/etc/nginx/sites-enabled/friendfeed.conf"
+    _upload_template(
+        "conf/nginx_http.conf",
+        nginx_conf_file,
+        _template_context(www_public_path=web_path),
+    )
 
-    sudo('chmod 400 %s' % key_file)
-    sudo('chmod 400 %s' % crt_file)
-    
-@task
-def deploy_nginx():
-    '''deploy nginx '''
-    web_path = join(env.project_path, "www")
-
-    # https handled by cloudflare
-    template = 'conf/nginx_http.conf'
-    nginx_conf_file = '/etc/nginx/sites-enabled/friendfeed.conf'
-
-    context = copy(env)
-    context.www_public_path = web_path
-    upload_template(template, nginx_conf_file,
-                    context=context, backup=False, use_sudo=True)
-
-    with settings(hide('running', 'stdout', 'stderr', 'warnings'), warn_only=True):
-        res = sudo('nginx -t -c /etc/nginx/nginx.conf')
-    if 'test failed' in res:
-        abort(red_bg('NGINX configuration test failed! Please review your parameters.'))
-
-    sudo('nginx -s reload')
+    result = conn.sudo(
+        "nginx -t -c /etc/nginx/nginx.conf", hide=True, warn=True
+    )
+    if result.failed:
+        raise Exit("NGINX configuration test failed; configuration was not reloaded")
+    conn.sudo("nginx -s reload")
