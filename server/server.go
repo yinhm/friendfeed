@@ -926,6 +926,11 @@ func (s *ApiServer) spread(key string) {
 	// TODO: spread to friends?
 }
 
+// searchMaxRestarts bounds the delete-and-retry loop in Search; each round
+// removes at least one unusable document, so a healthy index never comes
+// close.
+const searchMaxRestarts = 5
+
 func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {
 	slog.Debug("Search", "query", req.Query)
 	if req.Start < 0 {
@@ -935,14 +940,52 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 		req.PageSize = 50
 	}
 
-	// Fetch windows by raw bleve offset until PageSize+1 valid entries are
-	// collected or the result set is exhausted. Stale documents (hits whose
-	// entry record is gone) are dropped from the index after the loop, which
-	// compacts raw positions so the next page's fixed start+PageSize offset
-	// stays aligned. Entries failing to format are skipped but never deleted:
-	// their record is intact and they must stay searchable.
-	var entries []*pb.Entry
-	var stale []string
+	// Unusable documents (entry gone, author profile gone, no stable
+	// identity) break the fixed start+PageSize alignment of later pages.
+	// Rather than skipping them mid-page, delete them and restart from the
+	// same Start: after deletion the raw bleve positions compact, so the
+	// retried page and every following page line up again. A deletion
+	// failure or a transient lookup error aborts the request instead of
+	// emitting a page that pretends offsets are aligned.
+	for restart := 0; ; restart++ {
+		entries, unusable, err := s.searchPage(req)
+		if err != nil {
+			return nil, err
+		}
+		if len(unusable) == 0 {
+			return &pb.Feed{
+				Uuid:    "Search",
+				Id:      "Search",
+				Name:    "Search result",
+				Type:    "group",
+				Private: false,
+				Entries: entries,
+			}, nil
+		}
+		if restart >= searchMaxRestarts {
+			return nil, status.Errorf(codes.Internal, "search index holds too many unusable documents")
+		}
+		for _, id := range unusable {
+			if err := search.Indexer.Delete(id); err != nil {
+				return nil, status.Errorf(codes.Internal, "drop unusable search document %s: %v", id, err)
+			}
+		}
+	}
+}
+
+// unusableSearchDoc reports whether err marks a search document that can
+// never produce a displayable result, as opposed to a transient lookup
+// failure.
+func unusableSearchDoc(err error) bool {
+	return errors.Is(err, model.ErrNotFound) ||
+		errors.Is(err, model.ErrProfileDeleted) ||
+		errors.Is(err, ErrInvalidEntryIdentity)
+}
+
+// searchPage fetches one page of valid entries starting at req.Start. It
+// returns the IDs of unusable documents instead of skipping them; the caller
+// decides whether to delete them and retry.
+func (s *ApiServer) searchPage(req *pb.SearchRequest) (entries []*pb.Entry, unusable []string, err error) {
 	resolver := newProfileResolver(s.mdb)
 	from := int(req.Start)
 	for len(entries) <= int(req.PageSize) {
@@ -953,7 +996,7 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 		res, err := search.Indexer.Search(bReq)
 		if err != nil {
 			slog.Debug("Search error", "err", err)
-			return nil, err
+			return nil, nil, err
 		}
 		if len(res.Hits) == 0 {
 			break
@@ -961,15 +1004,22 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 		// NOTE: res.Request is nil under bleve v2; never dereference it.
 		from += len(res.Hits)
 		for _, hit := range res.Hits {
-			entry, err := model.GetEntry(s.rdb, hit.ID)
-			if err != nil {
+			entry, getErr := model.GetEntry(s.rdb, hit.ID)
+			if getErr != nil {
+				if !errors.Is(getErr, model.ErrNotFound) {
+					return nil, nil, status.Errorf(codes.Internal, "read entry %s: %v", hit.ID, getErr)
+				}
 				slog.Warn("search: entry data missing", "id", hit.ID)
-				stale = append(stale, hit.ID)
+				unusable = append(unusable, hit.ID)
 				continue
 			}
 			slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
-			if _, err := fmtEntryProfilesWithResolver(resolver, entry); err != nil {
-				slog.Warn("search: entry format error", "id", hit.ID)
+			if _, fmtErr := fmtEntryProfilesWithResolver(resolver, entry); fmtErr != nil {
+				if !unusableSearchDoc(fmtErr) {
+					return nil, nil, status.Errorf(codes.Internal, "format entry %s: %v", hit.ID, fmtErr)
+				}
+				slog.Warn("search: entry can never be displayed", "id", hit.ID, "err", fmtErr)
+				unusable = append(unusable, hit.ID)
 				continue
 			}
 			entries = append(entries, entry)
@@ -978,19 +1028,5 @@ func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed
 			break
 		}
 	}
-	for _, id := range stale {
-		if err := search.Indexer.Delete(id); err != nil {
-			slog.Warn("search: drop stale document failed", "id", id, "err", err)
-		}
-	}
-
-	feed := &pb.Feed{
-		Uuid:    "Search",
-		Id:      "Search",
-		Name:    "Search result",
-		Type:    "group",
-		Private: false,
-		Entries: entries,
-	}
-	return feed, nil
+	return entries, unusable, nil
 }

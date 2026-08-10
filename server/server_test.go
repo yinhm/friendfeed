@@ -171,16 +171,24 @@ func (s *RpcTestSuite) TestSearchPaginationUsesBleveFromAndSize() {
 	}
 
 	// A stale document whose entry record never existed must not shorten the
-	// page: the fetch loop advances past it and drops it from the index.
+	// page, and a document whose entry can never be formatted (no stable
+	// author identity) is removed too: both are deleted and the page is
+	// refetched from the same Start with compacted positions.
 	ghostID := uuid.NewV5(uuid.NamespaceURL, "search-ghost").String()
 	s.Require().NoError(idx.Index(ghostID, "probe ghost body"))
+	brokenID := uuid.NewV5(uuid.NamespaceURL, "search-broken").String()
+	_, err = model.Entry.Put(s.srv.rdb, uuid.Must(uuid.FromString(brokenID)).Bytes(), &pb.Entry{
+		Id: brokenID, Body: "probe broken entry",
+	})
+	s.Require().NoError(err)
+	s.Require().NoError(idx.Index(brokenID, "probe broken entry"))
 
 	cleanup, err := s.srv.Search(context.Background(), &pb.SearchRequest{Query: "probe", PageSize: 50})
 	s.Require().NoError(err)
 	s.Len(cleanup.Entries, 5)
 	count, err := idx.DocCount()
 	s.Require().NoError(err)
-	s.Equal(uint64(5), count, "stale document was not dropped")
+	s.Equal(uint64(5), count, "unusable documents were not dropped")
 
 	// Page 1 fetches PageSize+1 entries so httpd can see there is a next page.
 	first, err := s.srv.Search(context.Background(), &pb.SearchRequest{Query: "probe", PageSize: 2})

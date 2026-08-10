@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand"
 
@@ -65,6 +66,11 @@ func fmtEntryProfiles(mdb *store.Store, entry *pb.Entry) (*pb.Profile, error) {
 	return fmtEntryProfilesWithResolver(newProfileResolver(mdb), entry)
 }
 
+// ErrInvalidEntryIdentity marks entries that can never be rendered because
+// they carry no usable stable author identity. Unlike a transient lookup
+// failure, this condition is permanent.
+var ErrInvalidEntryIdentity = errors.New("entry has no stable author identity")
+
 func fmtEntryProfilesWithResolver(resolver *profileResolver, entry *pb.Entry) (*pb.Profile, error) {
 	// Refetch the author profile. Resolve by the stable ProfileUuid, NOT by
 	// the denormalized From.Id: From.Id is a snapshot taken when the entry
@@ -78,7 +84,7 @@ func fmtEntryProfilesWithResolver(resolver *profileResolver, entry *pb.Entry) (*
 		if uerr != nil || profileUUID == uuid.Nil {
 			// The zero UUID parses but is not a valid identity (same
 			// contract as feedFromProfile/permOwnedBy/fmtCommentOrLike).
-			return nil, errors.New("entry ProfileUuid is invalid")
+			return nil, fmt.Errorf("%w: entry ProfileUuid is invalid", ErrInvalidEntryIdentity)
 		}
 		profile, err = resolver.profile(profileUUID)
 		stableAuthor = true
@@ -86,7 +92,7 @@ func fmtEntryProfilesWithResolver(resolver *profileResolver, entry *pb.Entry) (*
 		// Legacy entries without ProfileUuid fall back to id lookup.
 		profile, err = model.GetProfileFromUserId(resolver.mdb, entry.From.Id)
 	} else {
-		return nil, errors.New("entry has neither ProfileUuid nor From")
+		return nil, fmt.Errorf("%w: entry has neither ProfileUuid nor From", ErrInvalidEntryIdentity)
 	}
 	if err != nil {
 		// The author profile is gone (deleted, or never existed — e.g.

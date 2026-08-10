@@ -12,6 +12,9 @@ func ParseStart(req *http.Request) int {
 		startS = "0"
 	}
 	start, _ := strconv.Atoi(startS)
+	if start < 0 {
+		start = 0
+	}
 	if start > 20000 {
 		start = 20000
 	}
