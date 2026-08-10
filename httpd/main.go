@@ -99,7 +99,10 @@ func embeddedAssetHandler(assets fs.FS) gin.HandlerFunc {
 }
 
 func Serve(s *server.Server, config *util.Config) error {
-	gauthConfig := server.GoogleAuthConfig(config.GAuthKeyFile)
+	gauthConfig, err := server.GoogleAuthConfig(config.GAuthKeyFile)
+	if err != nil {
+		return err
+	}
 	if options.Debug {
 		gauthConfig.RedirectURL, _ = url.JoinPath(config.ServerDomain, "/auth/google/callback")
 	}
@@ -120,7 +123,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	r := gin.Default()
 	templateFS, err := fs.Sub(assetsFS, "templates")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	friendRender, err := NewFriendRender(templateFS, options.Debug)
 	if err != nil {

@@ -148,13 +148,12 @@ func (s *Server) AuthCallback(c *gin.Context) {
 	http.Redirect(c.Writer, c.Request, next, http.StatusFound)
 }
 
-func GoogleAuthConfig(keyPath string) *oauth2.Config {
+func GoogleAuthConfig(keyPath string) (*oauth2.Config, error) {
 	jsonKey, err := os.ReadFile(keyPath)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	conf, _ := google.ConfigFromJSON(jsonKey, "profile")
-	return conf
+	return google.ConfigFromJSON(jsonKey, "profile")
 }
 
 func CurrentUserId(c *gin.Context) string {
