@@ -18,7 +18,7 @@
 - `mirrorMedia` 不可删除；ArchiveFeed 在 `PutEntry` 前同步完成 Fetch、Post、URL 改写并随 entry 持久化。
 - `ArchiveFeed`/`ForceArchiveFeed` 暂不内部重构；退役需整体确认部署、抓取与迁移依赖。
 - 注释中的迁移、排障、备用 SSR 和调试代码不能仅因注释或零引用删除。
-- 暂不机械处理 feed/search 分页协议、股票 gob schema、job 公共抽象、key API、linkify、Twitter Entry/Tweet 模型、日志框架和 Python 依赖锁定。分页需统一覆盖 cached/profile/timeline/search 及消费方。
+- 暂不机械处理 feed/search 分页协议、股票 gob schema、job 公共抽象、key API、linkify、Twitter Entry/Tweet 模型和 Python 依赖锁定。保留现有 stdlib `log` 与 `slog`，不为形式统一迁移。分页需统一覆盖 cached/profile/timeline/search 及消费方。
 
 ## 数据与并发不变量
 
@@ -31,6 +31,7 @@
 
 ## 迁移边界
 
+- 仅支持 Pebble v2 和已由 v1.0 工具迁移完成的新库，不兼容旧库、Pebble v1 或降级运行。
 - 社交图、timeline 重建和 R2 URL 改写只依赖 new DB，不重新引入 old DB。
 - timeline 只处理同时具有 profile 与 OAuth 身份的活跃用户；先针对指定用户和小 feed 上限 dry-run。
 - PublicFeed 的 `public` metadata/UUID 不得由普通 feed 初始化覆盖。
@@ -41,5 +42,5 @@
 - Go：`go build ./... && go vet ./... && go test ./...`
 - 前端：`pnpm lint && pnpm run typecheck && CI=true pnpm test && pnpm run build`；需要时执行 `pnpm run test:e2e`。
 - 前端先于 Go 构建；Go 二进制嵌入 `httpd/static/`。不提交生成的 JS、CSS、manifest；保留手写 `style.css`。
-- 测试只清理本次创建的进程，不影响 systemd 服务。生产服务只写 stdout/stderr，由 journald 管理，禁止 ANSI 颜色和应用内日志文件；库代码与请求处理不得调用 `Fatal`；任何日志级别均不得记录 token、Cookie、session、密码、secret 或完整正文。不为统一框架机械迁移现有 stdlib log/logrus。
+- 测试只清理本次创建的进程，不影响 systemd 服务。生产服务只写 stdout/stderr，由 journald 管理，禁止 ANSI 颜色和应用内日志文件；库代码与请求处理不得调用 `Fatal`；任何日志级别均不得记录 token、Cookie、session、密码、secret 或完整正文。
 - 提交保持单一、可回退，并使用实际改动者的 `Co-authored-by`；不得冒用其他助手身份。
