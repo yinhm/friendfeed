@@ -296,7 +296,12 @@ func (s *ApiServer) BackupDBTo(destPath string) error {
 
 	// Snapshot before iterating so the backup is consistent as of this point.
 	snap := s.rdb.Snapshot()
-	iter := s.rdb.SnapshotIterator(snap)
+	iter, err := s.rdb.SnapshotIterator(snap)
+	if err != nil {
+		snap.Close()
+		os.RemoveAll(tmpPath)
+		return fmt.Errorf("create backup iterator: %w", err)
+	}
 
 	slog.Warn("db backup", "dest", destPath)
 

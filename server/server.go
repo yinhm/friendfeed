@@ -602,7 +602,10 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		return nil, status.Errorf(codes.InvalidArgument, "invalid feed cursor: %v", err)
 	}
 
-	iter := s.rdb.NewIterator(prefix)
+	iter, err := s.rdb.NewIterator(prefix)
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	if len(cursorKey) > 0 {
 		iter.SeekGE(cursorKey)

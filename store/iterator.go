@@ -31,16 +31,12 @@ func PrefixIteratorOptions(prefix []byte) *pebble.IterOptions {
 }
 
 // Instantiates a new Pebble iterator wrapper
-func newIterator(db pebble.Reader, opts *pebble.IterOptions) *Iterator {
-	p := &Iterator{}
-
-	// old version pebble.Reader.NewIter does not return err
+func newIterator(db pebble.Reader, opts *pebble.IterOptions) (*Iterator, error) {
 	iter, err := db.NewIter(opts)
-	if iter == nil || err != nil {
-		panic("unable to create iterator")
+	if err != nil {
+		return nil, err
 	}
-	p.iter = iter
-	return p
+	return &Iterator{iter: iter}, nil
 }
 
 func (p *Iterator) Next() {

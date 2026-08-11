@@ -244,7 +244,7 @@ func (db *Store) Metrics() *pebble.Metrics {
 	return db.rdb.Metrics()
 }
 
-func (db *Store) Iterator() *Iterator {
+func (db *Store) Iterator() (*Iterator, error) {
 	opts := &pebble.IterOptions{}
 	return newIterator(db.rdb, opts)
 }
@@ -258,11 +258,11 @@ func (db *Store) Snapshot() *pebble.Snapshot {
 
 // SnapshotIterator returns a full-range iterator reading from snap. The
 // caller must Close the iterator, and Close the snapshot after the iterator.
-func (db *Store) SnapshotIterator(snap *pebble.Snapshot) *Iterator {
+func (db *Store) SnapshotIterator(snap *pebble.Snapshot) (*Iterator, error) {
 	return newIterator(snap, &pebble.IterOptions{})
 }
 
-func (db *Store) NewIterator(prefix Key) *Iterator {
+func (db *Store) NewIterator(prefix Key) (*Iterator, error) {
 	opts := PrefixIteratorOptions(prefix)
 	return newIterator(db.rdb, opts)
 }
@@ -296,7 +296,10 @@ func (db *Store) TimeTravelReverseId(t time.Time) flake.Id {
 
 func (db *Store) ForwardScan(prefix Key, fn ScanCallback) (n int, err error) {
 	opts := PrefixIteratorOptions(prefix)
-	iter := newIterator(db.rdb, opts)
+	iter, err := newIterator(db.rdb, opts)
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		key := iter.Key()

@@ -22,6 +22,13 @@ type DBTestSuite struct {
 	dbpath string
 }
 
+func (s *DBTestSuite) iterator() *Iterator {
+	s.T().Helper()
+	iter, err := s.rdb.Iterator()
+	s.Require().NoError(err)
+	return iter
+}
+
 func TestDBTestSuite(t *testing.T) {
 	suite.Run(t, new(DBTestSuite))
 }
@@ -174,6 +181,16 @@ func TestExistsReturnsReadErrors(t *testing.T) {
 	assert.False(t, exists)
 }
 
+func TestIteratorCreationReturnsErrors(t *testing.T) {
+	db, err := NewStore(t.TempDir())
+	assert.NoError(t, err)
+	assert.NoError(t, db.CloseWithError())
+
+	iter, err := db.Iterator()
+	assert.Error(t, err)
+	assert.Nil(t, iter)
+}
+
 func (s *DBTestSuite) TestSetSyncConcurrentWrites() {
 	const writes = 100
 	errs := make(chan error, writes)
@@ -235,7 +252,8 @@ func (s *DBTestSuite) TestIteration() {
 	assert.Nil(s.T(), err)
 
 	opts := PrefixIteratorOptions(prefix)
-	iter := newIterator(s.rdb.rdb, opts)
+	iter, err := newIterator(s.rdb.rdb, opts)
+	assert.NoError(s.T(), err)
 	defer iter.Close()
 
 	iter.First()
@@ -271,7 +289,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 	s.rdb.Put(key.Bytes(), []byte("value3"))
 
 	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it := s.rdb.Iterator()
+	it := s.iterator()
 	it.SeekGE(key.Prefix().Bytes())
 	numFound := 0
 	for ; it.Valid(); it.Next() {
@@ -290,7 +308,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 
 	// iter to key>=prefix
 	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 	for ; it.Valid(); it.Next() {
@@ -303,7 +321,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 
 	// inconsistent occur
 	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 	for ; it.Valid(); it.Next() {
@@ -318,7 +336,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 
 	// iter to key>=prefix
 	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -332,7 +350,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 
 	// inconsistent occur
 	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 	for ; it.Valid(); it.Next() {
@@ -368,7 +386,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	batch.Close()
 
 	key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it := s.rdb.Iterator()
+	it := s.iterator()
 	it.SeekGE(key.Prefix().Bytes())
 	numFound := 0
 	for ; it.Valid(); it.Next() {
@@ -386,7 +404,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 
 	// iter to key>=prefix
 	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -399,7 +417,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	it.Close()
 
 	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -413,7 +431,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 
 	// iter to key>=prefix
 	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -426,7 +444,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	it.Close()
 
 	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	defer it.Close()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -469,7 +487,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	batch.Close()
 
 	key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it := s.rdb.Iterator()
+	it := s.iterator()
 	it.SeekGE(key.Prefix().Bytes())
 
 	numFound := 0
@@ -489,7 +507,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 
 	// iter to key>=prefix
 	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -503,7 +521,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 
 	// again
 	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -517,7 +535,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 
 	// iter to key>=prefix
 	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -531,7 +549,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 
 	// again
 	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
-	it = s.rdb.Iterator()
+	it = s.iterator()
 	defer it.Close()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())

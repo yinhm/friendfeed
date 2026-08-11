@@ -449,11 +449,19 @@ func runDBCommand(db, ndb *store.Store) {
 	log.Println("iter db now...")
 
 	// iter here
-	iter := db.NewIterator(prefix)
-	for iter.First(); iter.Valid(); iter.Next() {
-		ndb.Set(iter.Key(), iter.Value())
+	iter, err := db.NewIterator(prefix)
+	if err != nil {
+		log.Fatalf("create database iterator: %v", err)
 	}
-	iter.Close()
+	defer iter.Close()
+	for iter.First(); iter.Valid(); iter.Next() {
+		if err := ndb.Set(iter.Key(), iter.Value()); err != nil {
+			log.Fatalf("copy database key %x: %v", iter.UnsafeRawKey(), err)
+		}
+	}
+	if err := iter.Error(); err != nil {
+		log.Fatalf("iterate database: %v", err)
+	}
 	ndb.Flush()
 	log.Println("iter done...")
 }

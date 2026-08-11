@@ -154,7 +154,10 @@ func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	buf.Write(SeekZero())
 	start := buf.Bytes()
 
-	iter := db.NewIterator(start)
+	iter, err := db.NewIterator(start)
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		keys = append(keys, t.ToStringKey(iter.Key()))
@@ -163,7 +166,10 @@ func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 }
 
 func (t *Table) Iter(db *store.Store, fn func(key, raw []byte) error) error {
-	iter := db.NewIterator(t.Prefix)
+	iter, err := db.NewIterator(t.Prefix)
+	if err != nil {
+		return err
+	}
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		key := iter.Key()
@@ -176,7 +182,10 @@ func (t *Table) Iter(db *store.Store, fn func(key, raw []byte) error) error {
 }
 
 func (t *Table) IterValue(db *store.Store, fn func(raw []byte) error) error {
-	iter := db.NewIterator(t.Prefix)
+	iter, err := db.NewIterator(t.Prefix)
+	if err != nil {
+		return err
+	}
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()
@@ -194,7 +203,10 @@ func (t *Table) Find(db *store.Store, fHash string, fn func(raw []byte) error) e
 	buf.Write(store.KeyFromString(fHash))
 	kp := buf.Bytes()
 
-	iter := db.NewIterator(kp)
+	iter, err := db.NewIterator(kp)
+	if err != nil {
+		return err
+	}
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()

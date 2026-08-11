@@ -223,7 +223,8 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 // countKeys exhaustively iterates a store; the iterator is closed explicitly.
 func countKeys(t *testing.T, db *store.Store) int {
 	t.Helper()
-	iter := db.Iterator()
+	iter, err := db.Iterator()
+	require.NoError(t, err)
 	defer iter.Close()
 	n := 0
 	for iter.First(); iter.Valid(); iter.Next() {
@@ -250,7 +251,8 @@ func TestStoreSnapshotIsolation(t *testing.T) {
 	require.NoError(t, db.Put([]byte("k2"), []byte("v2")))
 	require.NoError(t, db.Delete([]byte("k1")))
 
-	iter := db.SnapshotIterator(snap)
+	iter, err := db.SnapshotIterator(snap)
+	require.NoError(t, err)
 	seen := map[string]string{}
 	for iter.First(); iter.Valid(); iter.Next() {
 		seen[string(iter.Key())] = string(iter.Value())
