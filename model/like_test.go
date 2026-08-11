@@ -74,6 +74,31 @@ func editBy(profile *pb.Profile, body string) *pb.Comment {
 	}
 }
 
+func TestLikeUpdatesOnlyEntryRecord(t *testing.T) {
+	db := likeTestDB(t)
+	author := likeTestProfileFor("author", likeTestEntryUUID)
+	entry := newLikeTestEntry()
+	_, err := PutEntry(db, entry)
+	require.NoError(t, err)
+
+	entryTime, err := time.Parse(time.RFC3339, entry.Date)
+	require.NoError(t, err)
+	timelineUUID := TimelineUUID(likeTestEntryUUID)
+	require.NoError(t, EntryIndex.RemoveIndex(db, timelineUUID, entryTime))
+
+	_, _, err = Like(db, author, entry)
+	require.NoError(t, err)
+	n, err := db.ForwardScan(store.NewUUIDKey(TableEntryIndex, timelineUUID).Bytes(), func(int, []byte, []byte) error {
+		return nil
+	})
+	require.NoError(t, err)
+	require.Zero(t, n, "like must not recreate timeline indexes")
+
+	stored, err := GetEntry(db, entry.Id)
+	require.NoError(t, err)
+	require.Len(t, stored.Likes, 1)
+}
+
 func mustNotPanic(t *testing.T, what string, f func()) {
 	t.Helper()
 	defer func() {

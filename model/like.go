@@ -34,7 +34,7 @@ func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb
 			From: from,
 		}
 		entry.Likes = append(entry.Likes, like)
-		key, err = PutEntry(db, entry)
+		key, err = putEntryRecord(db, entry)
 	}
 	return key, entry, err
 }
@@ -49,7 +49,7 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 	})
 	if index >= 0 {
 		entry.Likes = append(entry.Likes[:index], entry.Likes[index+1:]...)
-		_, err = PutEntry(db, entry)
+		_, err = putEntryRecord(db, entry)
 	}
 	return entry, err
 }
@@ -87,7 +87,7 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 		comment.From = from
 		entry.Comments = append(entry.Comments, comment)
 	}
-	key, err := PutEntry(db, entry)
+	key, err := putEntryRecord(db, entry)
 	return key, entry, err
 }
 
@@ -105,7 +105,7 @@ func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commen
 		return entry, errCommentPerm
 	}
 	entry.Comments = append(entry.Comments[:index], entry.Comments[index+1:]...)
-	_, err := PutEntry(db, entry)
+	_, err := putEntryRecord(db, entry)
 	return entry, err
 }
 

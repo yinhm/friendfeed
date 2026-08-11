@@ -76,6 +76,28 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	return key, nil
 }
 
+// putEntryRecord updates only the canonical Entry value. It is for mutations
+// of data embedded in an existing entry that do not change feed membership,
+// ordering or searchable body content.
+func putEntryRecord(db *store.Store, entry *pb.Entry) (store.Key, error) {
+	if entry == nil {
+		return nil, errors.New("entry is nil")
+	}
+	entryUUID, err := uuid.FromString(entry.Id)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := proto.Marshal(entry)
+	if err != nil {
+		return nil, err
+	}
+	key := Entry.PrefixAppend(entryUUID.Bytes())
+	if err := db.Put(key, encoded); err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
 func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time, entryKey store.Key) (n int, err error) {
 	fanOutToTimeline := TimelineUUID(userUuid)
