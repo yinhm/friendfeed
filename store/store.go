@@ -176,8 +176,8 @@ func (db *Store) writeOptions() *pebble.WriteOptions {
 	return pebble.NoSync
 }
 
-func (db *Store) Flush() {
-	db.rdb.Flush()
+func (db *Store) Flush() error {
+	return db.rdb.Flush()
 }
 
 func (db *Store) Get(key []byte) ([]byte, error) {

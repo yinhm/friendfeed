@@ -462,7 +462,9 @@ func runDBCommand(db, ndb *store.Store) {
 	if err := iter.Error(); err != nil {
 		log.Fatalf("iterate database: %v", err)
 	}
-	ndb.Flush()
+	if err := ndb.Flush(); err != nil {
+		log.Fatalf("flush database: %v", err)
+	}
 	log.Println("iter done...")
 }
 
@@ -473,7 +475,9 @@ func runRebuildTimelineCommand(ndb *store.Store) {
 		log.Fatal(err)
 	}
 	if !dryRun {
-		ndb.Flush()
+		if err := ndb.Flush(); err != nil {
+			log.Fatalf("flush database: %v", err)
+		}
 	}
 	log.Printf("timeline summary: %d profiles, %d existing entries, %d follows, %d source entries, dry-run=%t", stats.profiles, stats.existing, stats.follows, stats.entries, dryRun)
 }
@@ -484,7 +488,9 @@ func runRebuildSocialGraphCommand(ndb *store.Store) {
 		log.Fatal(err)
 	}
 	if !dryRun {
-		ndb.Flush()
+		if err := ndb.Flush(); err != nil {
+			log.Fatalf("flush database: %v", err)
+		}
 	}
 	log.Printf("social graph summary: %d feedinfos, %d edges, %d skipped references, dry-run=%t", stats.feedinfos, stats.edges, stats.skipped, dryRun)
 }
@@ -495,7 +501,9 @@ func runMigrateMediaURLsCommand(ndb *store.Store) {
 		log.Fatal(err)
 	}
 	if !dryRun {
-		ndb.Flush()
+		if err := ndb.Flush(); err != nil {
+			log.Fatalf("flush database: %v", err)
+		}
 	}
 	log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, dry-run=%t", stats.profiles, stats.entries, stats.thumbnails, dryRun)
 }
@@ -513,7 +521,9 @@ func runBackfillActorUUIDsCommand(ndb *store.Store) {
 	if !dryRun {
 		// Writes have already committed to Pebble's WAL/memtable. Flush only
 		// forces the memtable to stable storage; it is not the dry-run switch.
-		ndb.Flush()
+		if err := ndb.Flush(); err != nil {
+			log.Fatalf("flush database: %v", err)
+		}
 	}
 	log.Printf(
 		"actor UUID backfill summary: %d entries scanned, %d entries changed, %d entry authors, %d comments, %d likes, %d already set, %d unresolved, %d conflicts, dry-run=%t",
@@ -534,7 +544,9 @@ func runSyncCommand(db, ndb *store.Store) {
 	model.EntryIndex.Iter(db, func(k, v []byte) error {
 		return ndb.Set(k, v)
 	})
-	ndb.Flush()
+	if err := ndb.Flush(); err != nil {
+		log.Fatalf("flush database: %v", err)
+	}
 	log.Println("iter done...")
 
 	// Entry
@@ -547,7 +559,9 @@ func runSyncCommand(db, ndb *store.Store) {
 		log.Println(err)
 	}
 	log.Println("synced entry count: ", i)
-	ndb.Flush()
+	if err := ndb.Flush(); err != nil {
+		log.Fatalf("flush database: %v", err)
+	}
 	log.Println("entry iter done...")
 }
 
@@ -557,7 +571,9 @@ func runPurgeProfileCommand(ndb *store.Store) {
 		fmt.Println("Error on scanning user profiles:", err)
 	}
 	fmt.Printf("Profiles: %d has been removed.\n", n)
-	ndb.Flush()
+	if err := ndb.Flush(); err != nil {
+		log.Fatalf("flush database: %v", err)
+	}
 }
 
 func runPurgeOAuthCommand(ndb *store.Store) {
@@ -566,7 +582,9 @@ func runPurgeOAuthCommand(ndb *store.Store) {
 		fmt.Println("Error on scanning oauth:", err)
 	}
 	fmt.Printf("oauth: %d has been removed.\n", n)
-	ndb.Flush()
+	if err := ndb.Flush(); err != nil {
+		log.Fatalf("flush database: %v", err)
+	}
 }
 
 func inspectUserRenameMap(db *store.Store, oldID string, maxLimit int, out io.Writer) (int, error) {
@@ -655,7 +673,9 @@ func runFixTwitterOAuthFieldsCommand(ndb *store.Store) {
 	if err != nil {
 		log.Fatalf("fix twitter oauth fields: %v", err)
 	}
-	ndb.Flush()
+	if err := ndb.Flush(); err != nil {
+		log.Fatalf("flush database: %v", err)
+	}
 	fmt.Printf("swapped Name/NickName on %d twitter oauth rows\n", n)
 }
 
