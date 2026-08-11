@@ -1043,6 +1043,7 @@ func main() {
 		(command == "debug" && debugTable != "") ||
 		(command == "migrate_entry_index" && dryRun) ||
 		(command == "migrate_interactions" && dryRun) ||
+		(command == "rebuild_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun)
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
@@ -1129,6 +1130,15 @@ func main() {
 		log.Printf("interaction migration: scanned=%d migrated=%d likes=%d comments=%d invalid_actors=%d invalid_comments=%d duplicates=%d dry-run=%t",
 			stats.entriesScanned, stats.entriesMigrated, stats.likes, stats.comments,
 			stats.invalidActors, stats.invalidComments, stats.duplicates, dryRun)
+	case "rebuild_entry_index":
+		stats, err := rebuildEntryIndexes(ndb, entryIndexRebuildOptions{
+			user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("entry index rebuild: entries=%d direct=%d timeline=%d removed=%d dry-run=%t",
+			stats.entries, stats.direct, stats.timeline, stats.removed, dryRun)
 	case "fix_twitter_oauth_fields":
 		runFixTwitterOAuthFieldsCommand(ndb)
 	case "debug":

@@ -95,13 +95,13 @@ Flake ID 是现有的分布式、k-ordered 身份与排序设计，即使当前�
 
 - [x] 最小修正保留完整反转 flake，在 key 末尾追加 canonical Entry key 作为唯一性后缀。
 - [x] 选择原表离线迁移：`migrate_entry_index` 将旧 key 原子转换为新 key，不维护双轨。
-- [ ] 从 Entry 源数据重建 author/feed direct index。
-- [ ] 重建 timeline index。
+- [x] `rebuild_entry_index` 从 Entry 源数据重建 author/feed direct index。
+- [x] 同一命令按 Follower 源数据重建 author/follower timeline index。
 - [ ] dry-run 对比每个 feed 的数量、顺序、首尾和重复项。
 - [ ] 先针对指定用户和小 feed 验证 cursor 分页。
-- [ ] 全量重建并切换读写路径。
+- [x] 全量模式先清理派生 EntryIndex，再从源数据重建；指定用户模式只做有界 upsert。
 - [ ] 完成备份、恢复和重启验证。
-- [ ] 切换并验证完成后清理旧 index 或临时表，不保留永久兼容路径；升级后不支持降级。
+- [x] 全量重建清理旧格式和 orphan index，不保留永久兼容路径；升级后不支持降级。
 
 ## 阶段 D：Comment/Like 独立表
 
