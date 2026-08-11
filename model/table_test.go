@@ -256,6 +256,35 @@ func (s *TableTestSuite) TestPutEntryValidationFailureDoesNotPersistEntry() {
 	assert.Equal(s.T(), 0, s.countEntryIndex(TimelineUUID(authorUUID)))
 }
 
+func TestEntryIndexCollidesForDistinctEntriesInSameSecond(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	assert.NoError(t, err)
+	t.Cleanup(db.Close)
+
+	authorUUID := uuid.Must(uuid.NewV4())
+	entryTime := time.Now().UTC().Truncate(time.Second).Format(time.RFC3339)
+	for range 2 {
+		entryUUID := uuid.Must(uuid.NewV4())
+		_, err := PutEntry(db, &pb.Entry{
+			Id:          entryUUID.String(),
+			Date:        entryTime,
+			ProfileUuid: authorUUID.String(),
+			From:        &pb.Feed{Uuid: authorUUID.String(), Id: "author"},
+		})
+		assert.NoError(t, err)
+	}
+
+	var indexedEntryKeys []string
+	_, err = db.ForwardScan(store.NewUUIDKey(TableEntryIndex, authorUUID).Bytes(), func(_ int, _ []byte, value []byte) error {
+		indexedEntryKeys = append(indexedEntryKeys, store.Key(value).String())
+		return nil
+	})
+	assert.NoError(t, err)
+	// This characterizes the current data-loss bug: TimeTravelReverseId
+	// truncates to seconds, so indexing the second entry removes the first.
+	assert.Len(t, indexedEntryKeys, 1)
+}
+
 func (s *TableTestSuite) TestPutDeleteGroupEntryMaintainsAllIndexes() {
 	authorUUID := uuid.Must(uuid.NewV4())
 	groupUUID := uuid.Must(uuid.NewV4())
