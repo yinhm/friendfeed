@@ -158,8 +158,7 @@ func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	for iter.First(); iter.Valid(); iter.Next() {
 		keys = append(keys, t.ToStringKey(iter.Key()))
 	}
-
-	return keys, err
+	return keys, iter.Error()
 }
 
 func (t *Table) Iter(db *store.Store, fn func(key, raw []byte) error) error {
@@ -172,7 +171,7 @@ func (t *Table) Iter(db *store.Store, fn func(key, raw []byte) error) error {
 			return err
 		}
 	}
-	return nil
+	return iter.Error()
 }
 
 func (t *Table) IterValue(db *store.Store, fn func(raw []byte) error) error {
@@ -184,7 +183,7 @@ func (t *Table) IterValue(db *store.Store, fn func(raw []byte) error) error {
 			return err
 		}
 	}
-	return nil
+	return iter.Error()
 }
 
 // find agents etc in farm
@@ -202,5 +201,5 @@ func (t *Table) Find(db *store.Store, fHash string, fn func(raw []byte) error) e
 			return err
 		}
 	}
-	return nil
+	return iter.Error()
 }
