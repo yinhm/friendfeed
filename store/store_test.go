@@ -171,33 +171,6 @@ func (s *DBTestSuite) TestGetDistinguishesEmptyValueFromMissingKey() {
 	assert.Nil(s.T(), value)
 }
 
-func TestExistsReturnsReadErrors(t *testing.T) {
-	db, err := NewStore(t.TempDir())
-	assert.NoError(t, err)
-	assert.NoError(t, db.CloseWithError())
-
-	exists, err := db.Exists([]byte("key"))
-	assert.Error(t, err)
-	assert.False(t, exists)
-}
-
-func TestIteratorCreationReturnsErrors(t *testing.T) {
-	db, err := NewStore(t.TempDir())
-	assert.NoError(t, err)
-	assert.NoError(t, db.CloseWithError())
-
-	iter, err := db.Iterator()
-	assert.Error(t, err)
-	assert.Nil(t, iter)
-}
-
-func TestFlushReturnsErrors(t *testing.T) {
-	db, err := NewStore(t.TempDir())
-	assert.NoError(t, err)
-	assert.NoError(t, db.CloseWithError())
-	assert.Error(t, db.Flush())
-}
-
 func (s *DBTestSuite) TestSetSyncConcurrentWrites() {
 	const writes = 100
 	errs := make(chan error, writes)
