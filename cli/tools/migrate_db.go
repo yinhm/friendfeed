@@ -1137,8 +1137,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("entry index rebuild: entries=%d direct=%d timeline=%d removed=%d dry-run=%t",
-			stats.entries, stats.direct, stats.timeline, stats.removed, dryRun)
+		log.Printf("entry index rebuild: entries=%d direct=%d timeline=%d removed=%d feeds_checked=%d feeds_mismatched=%d duplicate_indexes=%d dry-run=%t",
+			stats.entries, stats.direct, stats.timeline, stats.removed, stats.feedsChecked,
+			stats.feedsMismatched, stats.duplicateIndexes, dryRun)
 	case "fix_twitter_oauth_fields":
 		runFixTwitterOAuthFieldsCommand(ndb)
 	case "debug":

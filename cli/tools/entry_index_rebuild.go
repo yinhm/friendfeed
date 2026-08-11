@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -19,10 +21,13 @@ type entryIndexRebuildOptions struct {
 }
 
 type entryIndexRebuildStats struct {
-	entries  int
-	direct   int
-	timeline int
-	removed  int
+	entries          int
+	direct           int
+	timeline         int
+	removed          int
+	feedsChecked     int
+	feedsMismatched  int
+	duplicateIndexes int
 }
 
 type entryIndexRebuildRecord struct {
@@ -116,6 +121,9 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 		return nil
 	})
 	if err != nil || options.dryRun {
+		if err == nil && selected == uuid.Nil {
+			err = compareEntryIndexes(db, records, &stats)
+		}
 		return stats, err
 	}
 
@@ -156,4 +164,54 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 		}
 	}
 	return stats, nil
+}
+
+func compareEntryIndexes(db *store.Store, records []entryIndexRebuildRecord, stats *entryIndexRebuildStats) error {
+	type expectedIndex struct {
+		key   store.Key
+		value store.Key
+	}
+	expected := make(map[uuid.UUID][]expectedIndex)
+	for _, record := range records {
+		for _, target := range append(append([]uuid.UUID(nil), record.direct...), record.timeline...) {
+			flakeID := db.TimeTravelReverseId(record.date)
+			base := store.NewUUIDFlakeKey(model.TableEntryIndex, target, flakeID)
+			key := model.NewKeyFrom(base.Bytes(), record.key)
+			expected[target] = append(expected[target], expectedIndex{key: key, value: record.key})
+		}
+	}
+	for target, indexes := range expected {
+		sort.Slice(indexes, func(i, j int) bool { return bytes.Compare(indexes[i].key, indexes[j].key) < 0 })
+		want := make([][]byte, len(indexes))
+		for i, index := range indexes {
+			want[i] = index.value
+		}
+
+		actual := make([][]byte, 0, len(want))
+		seen := make(map[string]struct{})
+		prefix := store.NewUUIDKey(model.TableEntryIndex, target).Bytes()
+		if _, err := db.ForwardScan(prefix, func(_ int, _, value []byte) error {
+			value = append([]byte(nil), value...)
+			if _, ok := seen[string(value)]; ok {
+				stats.duplicateIndexes++
+			}
+			seen[string(value)] = struct{}{}
+			actual = append(actual, value)
+			return nil
+		}); err != nil {
+			return fmt.Errorf("compare EntryIndex for %s: %w", target, err)
+		}
+		stats.feedsChecked++
+		if len(actual) != len(want) {
+			stats.feedsMismatched++
+			continue
+		}
+		for i := range want {
+			if !bytes.Equal(actual[i], want[i]) {
+				stats.feedsMismatched++
+				break
+			}
+		}
+	}
+	return nil
 }

@@ -42,6 +42,8 @@ func TestRebuildEntryIndexesRestoresSourceDerivedRows(t *testing.T) {
 	require.Equal(t, 2, dry.direct)
 	require.Equal(t, 4, dry.timeline)
 	require.Zero(t, dry.removed)
+	require.Equal(t, 3, dry.feedsChecked)
+	require.NotZero(t, dry.feedsMismatched)
 
 	stats, err := rebuildEntryIndexes(db, entryIndexRebuildOptions{})
 	require.NoError(t, err)
@@ -52,6 +54,12 @@ func TestRebuildEntryIndexesRestoresSourceDerivedRows(t *testing.T) {
 	require.Zero(t, audit.missingTimeline)
 	require.Zero(t, audit.orphanIndexes)
 	require.Equal(t, 6, audit.entryIndexes)
+
+	verified, err := rebuildEntryIndexes(db, entryIndexRebuildOptions{dryRun: true})
+	require.NoError(t, err)
+	require.Equal(t, 3, verified.feedsChecked)
+	require.Zero(t, verified.feedsMismatched)
+	require.Zero(t, verified.duplicateIndexes)
 }
 
 func TestRebuildEntryIndexesForOneUserIsBounded(t *testing.T) {
