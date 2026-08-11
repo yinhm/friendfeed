@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -100,6 +101,11 @@ func putEntryRecord(db *store.Store, entry *pb.Entry) (store.Key, error) {
 
 func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time, entryKey store.Key) (n int, err error) {
+	started := time.Now()
+	defer func() {
+		slog.Info("entry fanout", "feed_uuid", feedUuid.String(), "followers", n,
+			"elapsed", time.Since(started), "error", err)
+	}()
 	fanOutToTimeline := TimelineUUID(userUuid)
 	// fmt.Println(hex.EncodeToString(fanOutToTimeline.Bytes()))
 	if err := EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey); err != nil {
