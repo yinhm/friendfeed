@@ -1041,6 +1041,7 @@ func main() {
 		command == "audit_profiles" || command == "audit_store" ||
 		command == "rebuild_search_index" ||
 		(command == "debug" && debugTable != "") ||
+		(command == "migrate_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun)
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
@@ -1110,6 +1111,13 @@ func main() {
 			log.Fatal(err)
 		}
 		writeStoreAudit(os.Stdout, stats)
+	case "migrate_entry_index":
+		stats, err := migrateEntryIndex(ndb, dryRun, timelineMaxLimit)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("entry index migration: scanned=%d migrated=%d current=%d dry-run=%t",
+			stats.scanned, stats.migrated, stats.current, dryRun)
 	case "fix_twitter_oauth_fields":
 		runFixTwitterOAuthFieldsCommand(ndb)
 	case "debug":

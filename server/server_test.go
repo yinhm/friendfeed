@@ -276,16 +276,17 @@ func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
 
 func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
 	prefix := store.NewUUIDKey(model.TableEntryIndex, uuid.Must(uuid.NewV4())).Bytes()
-	var position flake.Id
+	var flakeID flake.Id
+	position := make([]byte, len(flakeID)+model.Entry.Prefix.Len()+uuid.Size)
 	for i := range position {
 		position[i] = byte(i + 1)
 	}
-	key := append(append(store.Key(nil), prefix...), position[:]...)
+	key := append(append(store.Key(nil), prefix...), position...)
 
 	cursor := encodeFeedCursor(key, prefix)
 	encoded, err := base64.RawURLEncoding.DecodeString(cursor)
 	s.Require().NoError(err)
-	s.Equal(position[:], encoded)
+	s.Equal(position, encoded)
 
 	decoded, err := decodeFeedCursor(cursor, prefix)
 	s.Require().NoError(err)

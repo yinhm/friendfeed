@@ -128,7 +128,7 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 
 	actualIndexes := make(map[string]struct{})
 	if err := model.EntryIndex.Iter(db, func(key, value []byte) error {
-		if len(key) != 4+uuid.Size+16 {
+		if len(key) < 4+uuid.Size+16 {
 			return fmt.Errorf("invalid EntryIndex key length %d", len(key))
 		}
 		owner, _ := uuid.FromBytes(key[4 : 4+uuid.Size])

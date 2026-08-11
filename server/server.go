@@ -705,7 +705,8 @@ func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Ke
 
 func encodeFeedCursor(key, prefix store.Key) string {
 	var flakeID flake.Id
-	if len(key) != len(prefix)+len(flakeID) || !bytes.HasPrefix(key, prefix) {
+	positionSize := len(flakeID) + model.Entry.Prefix.Len() + uuid.Size
+	if len(key) != len(prefix)+positionSize || !bytes.HasPrefix(key, prefix) {
 		return ""
 	}
 	return base64.RawURLEncoding.EncodeToString(key[len(prefix):])
@@ -720,7 +721,8 @@ func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
 		return nil, err
 	}
 	var flakeID flake.Id
-	if len(position) != len(flakeID) {
+	positionSize := len(flakeID) + model.Entry.Prefix.Len() + uuid.Size
+	if len(position) != positionSize {
 		return nil, errors.New("invalid cursor position")
 	}
 	key := make(store.Key, 0, len(prefix)+len(position))

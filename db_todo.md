@@ -43,34 +43,34 @@ store API 及其仓库内调用方；若旧 API 的语义不合理，应替换�
 
 按顺序逐项实施，每项独立提交。
 
-- [ ] 用 characterization test 验证同一 feed、同一秒、不同 Entry UUID 是否发生 EntryIndex 覆盖。测试只记录现状，不修改编码。
-- [ ] `Store.ForwardScan` 在循环结束后返回 `iter.Error()`。
-- [ ] `Table.Keys/Iter/IterValue/Find` 在循环结束后返回 iterator 错误。
-- [ ] 重定 `Store.Get` 的契约，使“不存在”“合法空 value”“读取失败”可区分；直接迁移仓库内调用方，不保留语义含混的旧入口。具体返回形式先在阶段 A 未决项确定。
-- [ ] 重定存在性查询，使底层读取错误不能伪装成“不存在”；评估是否还需要独立 `Exist`，不为兼容而同时保留两套重叠 API。
-- [ ] iterator 创建直接返回 error，移除库内 panic；同步调整 `NewIterator`、snapshot iterator 和全部调用方，不新增并行兼容构造函数。
-- [ ] `Flush` 直接返回底层错误并调整调用方，不新增 `FlushWithError`/旧 `Flush` 双轨 API。
-- [ ] 统一扫描实现的关闭和最终错误处理；`Table` 方法可复用该实现，但不得为了复用引入泛型 repository 或改变持久化行为。
-- [ ] `GraphFollow` 使用一个 `ApplyBatch` 同时更新 Follow/Follower，避免半边关系。
-- [ ] `DeleteEntry` 将 Entry、author direct index、target feed direct index 放入同一个 batch；无上限 timeline 清理仍独立执行。
-- [ ] 新增内部 `putEntryRecord`，只更新 Entry value，不触发 direct index、timeline fanout 或 Bleve。
-- [ ] Like、Unlike、Comment、DeleteComment 改用 `putEntryRecord`。
-- [ ] 为 Entry read-modify-write 增加简单串行锁，覆盖互动、编辑和删除，先保证不丢更新；没有锁竞争证据前不实现复杂 per-entry lock cache。
+- [x] 用 characterization test 验证同一 feed、同一秒、不同 Entry UUID 会发生 EntryIndex 覆盖。
+- [x] `Store.ForwardScan` 在循环结束后返回 `iter.Error()`。
+- [x] `Table.Keys/Iter/IterValue/Find` 在循环结束后返回 iterator 错误。
+- [x] `Store.Get` 以明确 `ErrNotFound` 区分缺失、合法空 value 和读取失败；仓库内调用方已迁移。
+- [x] 存在性查询改为 `Exists(key) (bool, error)`，底层读取错误不再伪装成“不存在”。
+- [x] iterator 创建直接返回 error，移除库内 panic；全部调用方已迁移。
+- [x] `Flush` 直接返回底层错误并调整调用方。
+- [x] 扫描实现均关闭 iterator 并检查最终错误；未为形式复用引入新抽象。
+- [x] `GraphFollow` 使用一个 `ApplyBatch` 同时更新 Follow/Follower。
+- [x] `DeleteEntry` 原子删除 Entry、author direct index、target feed direct index；timeline 清理保持独立。
+- [x] 新增内部 `putEntryRecord`，只更新 Entry value。
+- [x] Like、Unlike、Comment、DeleteComment 改用 `putEntryRecord`。
+- [x] `ApiServer` 以简单串行锁覆盖 Entry 写入、互动、编辑和删除，避免 RMW 丢更新。
 
 ## 阶段 B：数据审计
 
-- [ ] 对比每个 feed 的源 Entry 数和 direct EntryIndex 数。
-- [ ] 统计同 feed 同秒 Entry 数及可能的索引覆盖量。
-- [ ] 审计 Follow/Follower 是否完全对称。
-- [ ] 审计 timeline 中的 orphan index 和缺失 index。
-- [ ] 记录发帖 fanout 数量与耗时，不记录正文或敏感信息。
-- [ ] 根据审计结果决定是否启动 EntryIndex V2；不得凭理论直接迁移。
+- [x] `audit_store` 对比源 Entry、direct EntryIndex 和 timeline index。
+- [x] `audit_store` 统计同 feed 同秒 Entry 数及潜在覆盖量。
+- [x] `audit_store` 审计 Follow/Follower 是否完全对称。
+- [x] `audit_store` 统计 orphan index 和缺失 timeline index。
+- [x] 记录发帖 fanout 数量与耗时，不记录正文或敏感信息。
+- [x] 复现测试确认同秒覆盖，已获授权进入 EntryIndex 修正。
 
 ## 阶段 A 未决项
 
 以下事项方向可讨论，但没有测量或完整契约前不直接实施：
 
-- [ ] `Get` 最终采用 `(value, found, error)`，还是以明确的 `ErrNotFound` 表示缺失。选择标准是调用方是否容易正确处理，而不是保留旧签名。
+- [x] `Get` 采用明确的 `ErrNotFound`；不增加第三个布尔返回值。
 - [ ] 扫描 callback 是否改为借用 iterator buffer。这样可消除当前每条 key/value 的两次复制，但传入切片只能在 callback 返回前有效，属于明确的 API 契约变化。先 benchmark 当前 feed、迁移和 rebuild 路径；确认分配有实际占比后再决定。若采用，直接重定 `ForwardScan` 契约，不同时维护 safe/unsafe 两套公共 API。
 - [ ] feed 的“索引扫描 + N 次 Entry Get”是否是主要瓶颈。先分别测量冷/热 block cache 下的 iterator、Get、protobuf unmarshal、profile hydration 和格式化耗时；没有数据前不把 Entry 本体或摘要冗余进 fanout index。
 - [ ] 是否配置 `Comparer.Split` 并使用 `SeekPrefixGE`/prefix bloom。当前 keyspace 含多种表布局，Split 必须覆盖所有格式；旧 SSTable filter 也需要重写/全量 compaction 验证。它属于数据库格式升级，不是可顺手开启的 iterator 优化。
@@ -93,8 +93,8 @@ Flake ID 是现有的分布式、k-ordered 身份与排序设计，即使当前�
 
 迁移步骤：
 
-- [ ] 根据复现测试确定最小修正，明确保持 flake 的时间、worker 和 sequence 语义。
-- [ ] 在“原表离线重建”和“临时新表切换”之间选择迁移方案；临时表只是迁移手段，不是永久双轨目标。
+- [x] 最小修正保留完整反转 flake，在 key 末尾追加 canonical Entry key 作为唯一性后缀。
+- [x] 选择原表离线迁移：`migrate_entry_index` 将旧 key 原子转换为新 key，不维护双轨。
 - [ ] 从 Entry 源数据重建 author/feed direct index。
 - [ ] 重建 timeline index。
 - [ ] dry-run 对比每个 feed 的数量、顺序、首尾和重复项。

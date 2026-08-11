@@ -199,7 +199,7 @@ func (s *TableTestSuite) TestFanoutEntryAndDeleteFanoutEntry() {
 	assert.Equal(s.T(), 1, s.countEntryIndex(userTimeline))
 	assert.Equal(s.T(), 1, s.countEntryIndex(followerTimeline))
 
-	n, err = DeleteFanoutEntry(s.db, userUUID, feedUUID, entryTime)
+	n, err = DeleteFanoutEntry(s.db, userUUID, feedUUID, entryTime, entryKey)
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), 1, n)
 	assert.Equal(s.T(), 0, s.countEntryIndex(userTimeline))
@@ -256,7 +256,7 @@ func (s *TableTestSuite) TestPutEntryValidationFailureDoesNotPersistEntry() {
 	assert.Equal(s.T(), 0, s.countEntryIndex(TimelineUUID(authorUUID)))
 }
 
-func TestEntryIndexCollidesForDistinctEntriesInSameSecond(t *testing.T) {
+func TestEntryIndexKeepsDistinctEntriesInSameSecond(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	assert.NoError(t, err)
 	t.Cleanup(db.Close)
@@ -280,9 +280,7 @@ func TestEntryIndexCollidesForDistinctEntriesInSameSecond(t *testing.T) {
 		return nil
 	})
 	assert.NoError(t, err)
-	// This characterizes the current data-loss bug: TimeTravelReverseId
-	// truncates to seconds, so indexing the second entry removes the first.
-	assert.Len(t, indexedEntryKeys, 1)
+	assert.Len(t, indexedEntryKeys, 2)
 }
 
 func (s *TableTestSuite) TestPutDeleteGroupEntryMaintainsAllIndexes() {

@@ -84,7 +84,8 @@ func TestLikeUpdatesOnlyEntryRecord(t *testing.T) {
 	entryTime, err := time.Parse(time.RFC3339, entry.Date)
 	require.NoError(t, err)
 	timelineUUID := TimelineUUID(likeTestEntryUUID)
-	require.NoError(t, EntryIndex.RemoveIndex(db, timelineUUID, entryTime))
+	entryUUID := uuid.Must(uuid.FromString(entry.Id))
+	require.NoError(t, EntryIndex.RemoveIndex(db, timelineUUID, entryTime, Entry.PrefixAppend(entryUUID.Bytes())))
 
 	_, _, err = Like(db, author, entry)
 	require.NoError(t, err)
