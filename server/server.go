@@ -742,6 +742,38 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 	return feed, nil
 }
 
+// canonicalizeEntryTo derives the denormalized To snapshot from FeedUuid, the
+// field PutEntry actually indexes by, so the rendered "to" link can never
+// disagree with the feed the entry landed in. Posting to the author's own
+// feed clears To; any other canonical target (user, group or special)
+// yields exactly one snapshot. Client-supplied To is never trusted;
+// FriendFeed's multi-recipient To is not supported.
+func canonicalizeEntryTo(mdb *store.Store, entry *pb.Entry, authorUUID uuid.UUID) error {
+	if entry.FeedUuid == "" {
+		entry.FeedUuid = entry.ProfileUuid // same default as model.PutEntry
+	}
+	feedUUID, err := uuid.FromString(entry.FeedUuid)
+	if err != nil {
+		return fmt.Errorf("entry FeedUuid is invalid: %w", err)
+	}
+	if feedUUID == authorUUID {
+		entry.To = nil
+		return nil
+	}
+	target, err := model.GetProfileFromUuid(mdb, feedUUID)
+	if err != nil {
+		return fmt.Errorf("entry target feed %s: %w", entry.FeedUuid, err)
+	}
+	entry.To = []*pb.Feed{{
+		Uuid:    target.Uuid,
+		Id:      target.Id,
+		Name:    target.Name,
+		Type:    target.Type,
+		Picture: target.Picture,
+	}}
+	return nil
+}
+
 func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, error) {
 	profileUuid, err := uuid.FromString(entry.ProfileUuid)
 	if err != nil {
@@ -757,6 +789,9 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 			Name: profile.Name,
 			Type: profile.Type,
 		}
+	}
+	if err := canonicalizeEntryTo(s.mdb, entry, profileUuid); err != nil {
+		return nil, err
 	}
 	// key, err := store.PutEntry(s.rdb, entry, false) // always use false
 	key, err := model.PutEntry(s.rdb, entry) // always use false

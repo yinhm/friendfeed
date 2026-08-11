@@ -1135,6 +1135,124 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	assert.Nil(s.T(), err)
 }
 
+func (s *RpcTestSuite) TestPostEntryCanonicalizesTo() {
+	ctx := context.Background()
+
+	profile, err := s.srv.PutOAuth(ctx, &pb.OAuthUser{
+		Name:     "touser",
+		NickName: "touser",
+		UserId:   "7777777",
+		Provider: "Twitter",
+	})
+	assert.Nil(s.T(), err)
+
+	other, err := s.srv.PutOAuth(ctx, &pb.OAuthUser{
+		Name:     "otheruser",
+		NickName: "otheruser",
+		UserId:   "8888888",
+		Provider: "Twitter",
+	})
+	assert.Nil(s.T(), err)
+
+	newGroup := func(id string) *pb.Profile {
+		p, err := s.srv.PostFeedinfo(ctx, &pb.Feedinfo{
+			Uuid: uuid.Must(uuid.NewV4()).String(),
+			Id:   id,
+			Name: "Group " + id,
+			Type: "group",
+		})
+		assert.Nil(s.T(), err)
+		return p
+	}
+	groupA := newGroup("groupa")
+	groupB := newGroup("groupb")
+
+	newEntry := func(feedUuid string, to []*pb.Feed) *pb.Entry {
+		name := profile.Uuid + "/" + time.Now().UTC().Format(time.RFC3339Nano)
+		return &pb.Entry{
+			Id:          uuid.NewV5(uuid.NamespaceURL, name).String(),
+			Date:        time.Now().UTC().Format(time.RFC3339),
+			Body:        "to canonicalize",
+			ProfileUuid: profile.Uuid,
+			FeedUuid:    feedUuid,
+			To:          to,
+		}
+	}
+
+	// group post without client To: canonical snapshot generated
+	entry, err := s.srv.PostEntry(ctx, newEntry(groupA.Uuid, nil))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(entry.To))
+	assert.Equal(s.T(), groupA.Uuid, entry.To[0].Uuid)
+	assert.Equal(s.T(), "groupa", entry.To[0].Id)
+	assert.Equal(s.T(), "Group groupa", entry.To[0].Name)
+	assert.Equal(s.T(), "group", entry.To[0].Type)
+
+	// group post with a wrong client To: overwritten by canonical snapshot
+	entry, err = s.srv.PostEntry(ctx, newEntry(groupA.Uuid, []*pb.Feed{{
+		Uuid: groupA.Uuid,
+		Id:   "stale-id",
+		Name: "stale name",
+		Type: "user",
+	}}))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "groupa", entry.To[0].Id)
+	assert.Equal(s.T(), "group", entry.To[0].Type)
+
+	// FeedUuid=group-A but To=group-B: FeedUuid wins
+	entry, err = s.srv.PostEntry(ctx, newEntry(groupA.Uuid, []*pb.Feed{{
+		Uuid: groupB.Uuid,
+		Id:   "groupb",
+		Type: "group",
+	}}))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(entry.To))
+	assert.Equal(s.T(), groupA.Uuid, entry.To[0].Uuid)
+
+	// multiple recipients collapse to the single canonical target
+	entry, err = s.srv.PostEntry(ctx, newEntry(groupA.Uuid, []*pb.Feed{
+		{Uuid: groupA.Uuid, Id: "groupa", Type: "group"},
+		{Uuid: groupB.Uuid, Id: "groupb", Type: "group"},
+	}))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(entry.To))
+
+	// self post: To cleared even when the client sent one
+	entry, err = s.srv.PostEntry(ctx, newEntry("", []*pb.Feed{{
+		Uuid: groupA.Uuid,
+		Id:   "groupa",
+		Type: "group",
+	}}))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 0, len(entry.To))
+
+	// unresolvable target feed
+	_, err = s.srv.PostEntry(ctx, newEntry(uuid.Must(uuid.NewV4()).String(), nil))
+	assert.NotNil(s.T(), err)
+
+	// user target: any canonical feed type yields a canonical snapshot
+	entry, err = s.srv.PostEntry(ctx, newEntry(other.Uuid, nil))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(entry.To))
+	assert.Equal(s.T(), other.Uuid, entry.To[0].Uuid)
+	assert.Equal(s.T(), other.Id, entry.To[0].Id)
+	assert.Equal(s.T(), "user", entry.To[0].Type)
+
+	// special target
+	special, err := s.srv.PostFeedinfo(ctx, &pb.Feedinfo{
+		Uuid: uuid.Must(uuid.NewV4()).String(),
+		Id:   "specialfeed",
+		Name: "Special Feed",
+		Type: "special",
+	})
+	assert.Nil(s.T(), err)
+	entry, err = s.srv.PostEntry(ctx, newEntry(special.Uuid, nil))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), 1, len(entry.To))
+	assert.Equal(s.T(), "specialfeed", entry.To[0].Id)
+	assert.Equal(s.T(), "special", entry.To[0].Type)
+}
+
 func (s *RpcTestSuite) TestKLines() {
 	conn, err := grpc.Dial(s.rpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(s.T(), err)
