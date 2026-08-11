@@ -1038,7 +1038,7 @@ func main() {
 	// readOnly commands only inspect the target db; open it read-only so we
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
-		command == "audit_profiles" ||
+		command == "audit_profiles" || command == "audit_store" ||
 		command == "rebuild_search_index" ||
 		(command == "debug" && debugTable != "") ||
 		(command == "backfill_actor_uuids" && dryRun)
@@ -1104,6 +1104,12 @@ func main() {
 		runInspectUserRenameMapCommand(ndb)
 	case "audit_profiles":
 		runAuditProfilesCommand(ndb)
+	case "audit_store":
+		stats, err := auditStore(ndb)
+		if err != nil {
+			log.Fatal(err)
+		}
+		writeStoreAudit(os.Stdout, stats)
 	case "fix_twitter_oauth_fields":
 		runFixTwitterOAuthFieldsCommand(ndb)
 	case "debug":
