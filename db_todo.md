@@ -1,5 +1,7 @@
 # Store / 数据库改进计划
 
+当前表结构与 key 设计说明见 [docs/database_design.md](docs/database_design.md)。
+
 ## 结论与边界
 
 当前的 Pebble 单机 KV 架构与项目规模匹配，继续保留：
