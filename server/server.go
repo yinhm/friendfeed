@@ -33,7 +33,9 @@ type ApiServer struct {
 	sync.RWMutex
 	profileUpdateMu sync.Mutex
 	jobMu           sync.Mutex
-	entryMutationMu sync.Mutex
+	// entryLifecycleMu lets independent interaction rows mutate concurrently,
+	// while keeping them mutually exclusive with Entry create/edit/delete.
+	entryLifecycleMu sync.RWMutex
 
 	// meta database
 	mdb *store.Store
@@ -296,9 +298,9 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 		// mirrored URLs are persisted with the entry.
 		s.mirrorMedia(s.fs, entry)
 		// key, err := store.PutEntry(s.rdb, entry, false) // always use false
-		s.entryMutationMu.Lock()
+		s.entryLifecycleMu.Lock()
 		key, err := model.PutEntry(s.rdb, entry)
-		s.entryMutationMu.Unlock()
+		s.entryLifecycleMu.Unlock()
 		if err == nil {
 			// no error or new key
 			s.spread(key.String())
@@ -338,9 +340,9 @@ func (s *ApiServer) ForceArchiveFeed(stream pb.Api_ForceArchiveFeedServer) error
 		}
 		entryCount++
 		// save db
-		s.entryMutationMu.Lock()
+		s.entryLifecycleMu.Lock()
 		key, err := model.PutEntry(s.rdb, entry)
-		s.entryMutationMu.Unlock()
+		s.entryLifecycleMu.Unlock()
 		if err != nil {
 			log.Println("db error:", err)
 		} else {
@@ -800,8 +802,8 @@ func canonicalizeEntryTo(mdb *store.Store, entry *pb.Entry, authorUUID uuid.UUID
 }
 
 func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, error) {
-	s.entryMutationMu.Lock()
-	defer s.entryMutationMu.Unlock()
+	s.entryLifecycleMu.Lock()
+	defer s.entryLifecycleMu.Unlock()
 
 	profileUuid, err := uuid.FromString(entry.ProfileUuid)
 	if err != nil {
@@ -873,8 +875,8 @@ func (s *ApiServer) PostTweet(ctx context.Context, tweet *pb.Tweet) (*pb.Entry, 
 }
 
 func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.EntryRequest, error) {
-	s.entryMutationMu.Lock()
-	defer s.entryMutationMu.Unlock()
+	s.entryLifecycleMu.Lock()
+	defer s.entryLifecycleMu.Unlock()
 
 	entry, err := model.GetEntry(s.rdb, req.Uuid)
 	if err != nil {
@@ -900,8 +902,8 @@ func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.
 }
 
 func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Entry, error) {
-	s.entryMutationMu.Lock()
-	defer s.entryMutationMu.Unlock()
+	s.entryLifecycleMu.RLock()
+	defer s.entryLifecycleMu.RUnlock()
 
 	entry, err := model.GetEntry(s.rdb, req.Entry)
 	if err != nil {
@@ -956,8 +958,8 @@ func (s *ApiServer) principalFromUserUuid(userUuid string) (*pb.Profile, error) 
 }
 
 func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*pb.Entry, error) {
-	s.entryMutationMu.Lock()
-	defer s.entryMutationMu.Unlock()
+	s.entryLifecycleMu.RLock()
+	defer s.entryLifecycleMu.RUnlock()
 
 	entry, err := model.GetEntry(s.rdb, req.Entry)
 	if err != nil {
@@ -978,8 +980,8 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 }
 
 func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequest) (*pb.Entry, error) {
-	s.entryMutationMu.Lock()
-	defer s.entryMutationMu.Unlock()
+	s.entryLifecycleMu.RLock()
+	defer s.entryLifecycleMu.RUnlock()
 
 	entry, err := model.GetEntry(s.rdb, req.Entry)
 	if err != nil {

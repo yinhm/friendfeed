@@ -131,7 +131,7 @@ Like 以 `(entry UUID, actor UUID)` 天然幂等；Comment 以稳定 comment UUI
 - [x] 针对指定用户和 `max-limit` 小规模迁移，校验数量、顺序、权限、重复 like 和 rename 后身份。
 - [x] 测试覆盖迁移后关闭、重开和 hydration；运行时不双写 Entry 内嵌字段。
 - [x] protobuf 中既有 Like/Comment 字段保持不变，RPC 返回时继续填充。
-- [ ] 独立表稳定后移除 Entry mutation 串行锁中仅为互动 RMW 设置的部分，保留 Entry 编辑/删除真正需要的并发保护。
+- [x] Entry 生命周期使用写锁，独立互动 mutation 使用读锁；互动不再彼此串行，仍阻止删除与互动并发产生 orphan 行。
 
 ## 阶段 E：有实际需求后再决定
 
