@@ -92,3 +92,59 @@ func TestMigrateInteractionsValidatesAllEntriesBeforeWriting(t *testing.T) {
 	_, err = db.Get(model.LikeDataKey(validEntryUUID, actorUUID))
 	require.ErrorIs(t, err, store.ErrNotFound)
 }
+
+func TestMigrateInteractionsForOneUserPreservesIdentityAndPermissions(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	authorUUID := seedActorProfile(t, db, "migration-author")
+	actorUUID := seedActorProfile(t, db, "renamed-actor")
+	otherAuthorUUID := seedActorProfile(t, db, "other-author")
+	commentOne := uuid.Must(uuid.NewV4())
+	commentTwo := uuid.Must(uuid.NewV4())
+	entryUUID := seedActorEntry(t, db, &pb.Entry{
+		ProfileUuid: authorUUID.String(),
+		Likes: []*pb.Like{{
+			Date: "2026-01-01T00:00:00Z",
+			From: &pb.Feed{Uuid: actorUUID.String(), Id: "actor-before-rename"},
+		}},
+		Comments: []*pb.Comment{
+			{Id: commentTwo.String(), Date: "2026-01-02T00:00:00Z", Body: "second", From: &pb.Feed{Uuid: actorUUID.String(), Id: "actor-before-rename"}},
+			{Id: commentOne.String(), Date: "2026-01-01T00:00:00Z", Body: "first", From: &pb.Feed{Uuid: actorUUID.String(), Id: "actor-before-rename"}},
+		},
+	})
+	otherEntryUUID := seedActorEntry(t, db, &pb.Entry{
+		ProfileUuid: otherAuthorUUID.String(),
+		Likes:       []*pb.Like{{From: &pb.Feed{Uuid: actorUUID.String()}}},
+	})
+
+	stats, err := migrateInteractions(db, interactionMigrationOptions{user: "migration-author", maxLimit: 1})
+	require.NoError(t, err)
+	require.Equal(t, interactionMigrationStats{
+		entriesScanned: 1, entriesMigrated: 1, likes: 1, comments: 2,
+	}, stats)
+
+	entry, err := model.GetEntry(db, entryUUID.String())
+	require.NoError(t, err)
+	require.Len(t, entry.Likes, 1)
+	require.Len(t, entry.Comments, 2)
+	require.Equal(t, commentOne.String(), entry.Comments[0].Id)
+	require.Equal(t, commentTwo.String(), entry.Comments[1].Id)
+
+	actor, err := model.GetProfileFromUuid(db, actorUUID)
+	require.NoError(t, err)
+	_, entry, err = model.Like(db, actor, entry)
+	require.NoError(t, err)
+	require.Len(t, entry.Likes, 1, "stable UUID must deduplicate a like after rename")
+	_, entry, err = model.Comment(db, actor, entry, &pb.Comment{Id: commentOne.String(), Body: "edited"})
+	require.NoError(t, err)
+	require.Equal(t, "edited", entry.Comments[0].Body)
+	entry, err = model.DeleteLike(db, actor, entry)
+	require.NoError(t, err)
+	require.Empty(t, entry.Likes)
+
+	otherRaw := new(pb.Entry)
+	require.NoError(t, model.Entry.Get(db, otherEntryUUID.Bytes(), otherRaw))
+	require.Len(t, otherRaw.Likes, 1, "user-scoped migration must not touch other authors")
+}

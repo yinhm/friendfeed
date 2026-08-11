@@ -128,7 +128,7 @@ Like 以 `(entry UUID, actor UUID)` 天然幂等；Comment 以稳定 comment UUI
 - [x] 搜索仍只消费 Entry 正文；互动 mutation 不重建搜索文档。
 - [x] `migrate_interactions` 支持 dry-run/apply，检测重复、非法 UUID、缺失 actor 和 comment UUID 冲突。
 - [x] apply 在写入前完成全量预检；发现非法或重复数据时不留下部分迁移结果。
-- [ ] 针对指定 Entry/用户小规模迁移并校验数量、顺序、权限、重复 like 和 rename 后身份。
+- [x] 针对指定用户和 `max-limit` 小规模迁移，校验数量、顺序、权限、重复 like 和 rename 后身份。
 - [x] 测试覆盖迁移后关闭、重开和 hydration；运行时不双写 Entry 内嵌字段。
 - [x] protobuf 中既有 Like/Comment 字段保持不变，RPC 返回时继续填充。
 - [ ] 独立表稳定后移除 Entry mutation 串行锁中仅为互动 RMW 设置的部分，保留 Entry 编辑/删除真正需要的并发保护。
