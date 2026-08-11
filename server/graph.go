@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
@@ -26,23 +28,33 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 	followerkey := model.NewKeyFrom(model.Follower.Prefix, feedUUID.Bytes(), profileUUID.Bytes())
 	switch req.Action {
 	case "follow":
-		// follow
-		err = s.rdb.Put(followkey, []byte("1"))
-		if err != nil {
-			return nil, err
-		}
-		// follower
-		err = s.rdb.Put(followerkey, []byte("1"))
+		err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+			if err := batch.Set(followkey, []byte("1"), nil); err != nil {
+				return fmt.Errorf("write follow edge: %w", err)
+			}
+			if err := batch.Set(followerkey, []byte("1"), nil); err != nil {
+				return fmt.Errorf("write follower edge: %w", err)
+			}
+			return nil
+		})
 		if err != nil {
 			return nil, err
 		}
 
 		followed = true
 	case "unfollow":
-		// follow
-		s.rdb.Delete(followkey)
-		// follower
-		s.rdb.Delete(followerkey)
+		err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+			if err := batch.Delete(followkey, nil); err != nil {
+				return fmt.Errorf("delete follow edge: %w", err)
+			}
+			if err := batch.Delete(followerkey, nil); err != nil {
+				return fmt.Errorf("delete follower edge: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 		followed = false
 	default:
 		// follow
