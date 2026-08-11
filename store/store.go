@@ -313,5 +313,5 @@ func (db *Store) ForwardScan(prefix Key, fn ScanCallback) (n int, err error) {
 		}
 		n++
 	}
-	return n, nil
+	return n, iter.Error()
 }
