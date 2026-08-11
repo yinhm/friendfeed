@@ -224,8 +224,11 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 		// slog.Debug("entry key", "value", hex.EncodeToString(v))
 		entry := new(pb.Entry)
 		rawdata, err := db.Get(v) // index value point to entry key
-		if err != nil || len(rawdata) == 0 {
+		if errors.Is(err, store.ErrNotFound) {
 			return nil
+		}
+		if err != nil {
+			return err
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err

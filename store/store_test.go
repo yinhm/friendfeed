@@ -147,7 +147,21 @@ func (s *DBTestSuite) TestDBGetPut() {
 	assert.Equal(s.T(), "value1", string(value))
 
 	value, err = s.rdb.Get([]byte("key2"))
-	assert.Nil(s.T(), err)
+	assert.ErrorIs(s.T(), err, ErrNotFound)
+	assert.Nil(s.T(), value)
+}
+
+func (s *DBTestSuite) TestGetDistinguishesEmptyValueFromMissingKey() {
+	assert.NoError(s.T(), s.rdb.Put([]byte("empty"), nil))
+
+	value, err := s.rdb.Get([]byte("empty"))
+	assert.NoError(s.T(), err)
+	assert.NotNil(s.T(), value)
+	assert.Empty(s.T(), value)
+
+	value, err = s.rdb.Get([]byte("missing"))
+	assert.ErrorIs(s.T(), err, ErrNotFound)
+	assert.Nil(s.T(), value)
 }
 
 func (s *DBTestSuite) TestSetSyncConcurrentWrites() {

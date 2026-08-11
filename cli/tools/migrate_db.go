@@ -716,11 +716,10 @@ func runInspectProfileCommand(ndb *store.Store, id string) {
 
 	mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(id))
 	raw, err := ndb.Get(mapKey)
-	if err != nil {
-		log.Fatalf("UserMap get %q: %v", id, err)
-	}
-	if len(raw) == 0 {
+	if errors.Is(err, store.ErrNotFound) {
 		fmt.Printf("  UserMap: MISSING (no %q -> uuid mapping)\n", id)
+	} else if err != nil {
+		log.Fatalf("UserMap get %q: %v", id, err)
 	} else {
 		fmt.Printf("  UserMap: %q -> uuid bytes %x (len=%d)\n", id, raw, len(raw))
 		profileUUID, err := uuid.FromBytes(raw)
@@ -812,9 +811,13 @@ func runAuditProfilesCommand(ndb *store.Store) {
 		}
 		// Does the Twitter handle resolve to a feed directly?
 		mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(handle))
-		if v, err := ndb.Get(mapKey); err == nil && len(v) > 0 {
+		_, err := ndb.Get(mapKey)
+		if err == nil {
 			resolvable++
 			return nil
+		}
+		if !errors.Is(err, store.ErrNotFound) {
+			return fmt.Errorf("read UserMap[%s]: %w", handle, err)
 		}
 		// Handle does not resolve. Look up the profile via the OAuth uuid to
 		// see what Id it actually carries.
@@ -865,10 +868,13 @@ func runAuditProfilesCommand(ndb *store.Store) {
 		}
 		mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(p.Id))
 		v, err := ndb.Get(mapKey)
-		if err != nil || len(v) == 0 {
+		if errors.Is(err, store.ErrNotFound) {
 			mapMissing++
 			fmt.Printf("usermap MISSING: id=%q uuid=%q\n", p.Id, p.Uuid)
 			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read UserMap[%s]: %w", p.Id, err)
 		}
 		mapped, err := uuid.FromBytes(v)
 		if err != nil || mapped != pu {
@@ -901,9 +907,12 @@ func runAuditProfilesCommand(ndb *store.Store) {
 		}
 		mapKey := model.NewKeyFrom(model.TableUserMap.Bytes(), []byte(handle))
 		v, err := ndb.Get(mapKey)
-		if err != nil || len(v) == 0 {
+		if errors.Is(err, store.ErrNotFound) {
 			aliasable++ // handle is free; safe to alias to this uuid
 			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read UserMap[%s]: %w", handle, err)
 		}
 		if mapped, err := uuid.FromBytes(v); err == nil && mapped == pu {
 			aliasSameOwner++ // already points at the same owner (no-op)

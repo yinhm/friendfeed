@@ -456,10 +456,13 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		// slog.Debug("index.key", "key", key)
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(kb)
-		if err != nil || len(rawdata) == 0 {
+		if errors.Is(err, store.ErrNotFound) {
 			slog.Warn("index cached: data missing", "id", req.Id, "key", key)
 			s.cached[req.Id].markDirty()
 			continue
+		}
+		if err != nil {
+			return nil, err
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
@@ -532,12 +535,15 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		// slog.Debug("entry key", "index_key", hex.EncodeToString(k), "entry_key", hex.EncodeToString(v))
 		entry := new(pb.Entry)
 		rawdata, err := s.rdb.Get(v) // index value point to entry key
-		if err != nil || len(rawdata) == 0 {
+		if errors.Is(err, store.ErrNotFound) {
 			slog.Debug("user feed: entry missing", "index_key", hex.EncodeToString(k), "entry_key", hex.EncodeToString(v))
 			// slient delete the key from index
 			s.rdb.Delete(k)
 			slog.Debug("deleting", "key", hex.EncodeToString(k))
 			return nil
+		}
+		if err != nil {
+			return err
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
@@ -614,10 +620,10 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		entryKey := iter.Value()
 		entry := new(pb.Entry)
 		rawdata, getErr := s.rdb.Get(entryKey)
-		if getErr != nil {
+		if getErr != nil && !errors.Is(getErr, store.ErrNotFound) {
 			return nil, getErr
 		}
-		if len(rawdata) == 0 {
+		if errors.Is(getErr, store.ErrNotFound) {
 			if deleteErr := s.rdb.Delete(indexKey); deleteErr != nil {
 				return nil, deleteErr
 			}

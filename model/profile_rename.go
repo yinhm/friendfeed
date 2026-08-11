@@ -113,7 +113,7 @@ func RenameProfileId(db *store.Store, profileUUID uuid.UUID, newId string) error
 
 		newMapKey := NewKeyFrom(TableUserMap.Bytes(), []byte(newId))
 		existingUUID, err := db.Get(newMapKey)
-		if err != nil {
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return fmt.Errorf("read UserMap[%s]: %w", newId, err)
 		}
 		if len(existingUUID) > 0 {
@@ -155,10 +155,10 @@ func RenameProfileId(db *store.Store, profileUUID uuid.UUID, newId string) error
 func FindProfileRenameByOldId(db *store.Store, oldID string) (uuid.UUID, error) {
 	raw, err := UserRenameMap.GetRaw(db, []byte(oldID))
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return uuid.Nil, ErrNotFound
+		}
 		return uuid.Nil, err
-	}
-	if len(raw) == 0 {
-		return uuid.Nil, ErrNotFound
 	}
 	profileUUID, err := uuid.FromBytes(raw)
 	if err != nil {

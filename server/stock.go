@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -215,7 +216,10 @@ func (s *ApiServer) GetStockList(ctx context.Context, req *pb.StockRequest) (*pb
 
 	var stocks []*pb.Stock
 	rawdata, err := s.rdb.Get(key)
-	if err != nil || len(rawdata) == 0 {
+	if errors.Is(err, store.ErrNotFound) {
+		return resp, nil
+	}
+	if err != nil {
 		return resp, err
 	}
 	buf := bytes.NewBuffer(rawdata)
@@ -257,7 +261,10 @@ func (s *ApiServer) GetStock(ctx context.Context, req *pb.StockRequest) (*pb.Sto
 
 	var stocks []*pb.Stock
 	rawdata, err := s.rdb.Get(key)
-	if err != nil || len(rawdata) == 0 {
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, status.Error(codes.NotFound, "stock list not found")
+	}
+	if err != nil {
 		return nil, err
 	}
 	buf := bytes.NewBuffer(rawdata)
@@ -301,6 +308,9 @@ func (s *ApiServer) GetXRXD(ctx context.Context, req *pb.StockRequest) (*pb.XRXD
 	var xrxds []*pb.XRXD
 
 	rawdata, err := s.rdb.Get(key)
+	if errors.Is(err, store.ErrNotFound) {
+		return &pb.XRXDResponse{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}

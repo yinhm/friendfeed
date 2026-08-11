@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -70,10 +71,10 @@ func (t *Table) Get(db *store.Store, key store.Key, msg proto.Message) error {
 	raw, err := db.Get(k)
 	// log.Printf("db.Get(%s,...), %v", k.String(), raw)
 	if err != nil {
+		if errors.Is(err, pebble.ErrNotFound) {
+			return ErrNotFound
+		}
 		return fmt.Errorf("Get key <%s> error: %w", key, err)
-	}
-	if raw == nil {
-		return ErrNotFound
 	}
 	return proto.Unmarshal(raw, msg)
 }

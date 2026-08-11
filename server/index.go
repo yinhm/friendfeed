@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -191,11 +192,11 @@ func (f *FeedIndex) load(db *store.Store) error {
 	key := f.Key()
 	slog.Debug("load local cache", "key", key.String())
 	rawdata, err := db.Get(key)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil
+	}
 	if err != nil {
 		return err
-	}
-	if len(rawdata) == 0 {
-		return nil
 	}
 
 	buf := bytes.NewBuffer(rawdata)

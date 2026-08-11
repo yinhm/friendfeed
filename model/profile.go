@@ -57,10 +57,10 @@ func GetProfileFromUserId(db *store.Store, id string) (*pb.Profile, error) {
 	k := NewKeyFrom(TableUserMap.Bytes(), []byte(id))
 	rawdata, err := db.Get(k)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, fmt.Errorf("GetProfile error: missing id->uuid map: %w", ErrNotFound)
+		}
 		return nil, fmt.Errorf("GetProfile error: read id->uuid map: %w", err)
-	}
-	if string(rawdata) == "" {
-		return nil, fmt.Errorf("GetProfile error: missing id->uuid map: %w", ErrNotFound)
 	}
 	profileUUID, err := uuid.FromBytes(rawdata)
 	if err != nil {

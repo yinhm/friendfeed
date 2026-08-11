@@ -2,6 +2,7 @@ package model
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -278,7 +279,7 @@ func TestRenameProfileIdRejectsMismatchedOldMapWithoutMutation(t *testing.T) {
 		t.Fatalf("old map = %x, %v; want other UUID untouched", got, err)
 	}
 	newMapKey := NewKeyFrom(TableUserMap.Bytes(), []byte("newname"))
-	if got, err := db.Get(newMapKey); err != nil || got != nil {
+	if got, err := db.Get(newMapKey); !errors.Is(err, store.ErrNotFound) || got != nil {
 		t.Fatalf("new map = %x, %v; want missing", got, err)
 	}
 }

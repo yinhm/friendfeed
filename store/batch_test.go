@@ -25,7 +25,7 @@ func TestApplyBatchCommitsAtomically(t *testing.T) {
 		t.Fatalf("ApplyBatch: %v", err)
 	}
 
-	if got, err := db.Get([]byte("old")); err != nil || got != nil {
+	if got, err := db.Get([]byte("old")); !errors.Is(err, ErrNotFound) || got != nil {
 		t.Fatalf("old = %q, %v; want missing", got, err)
 	}
 	if got, err := db.Get([]byte("new")); err != nil || string(got) != "value" {
@@ -58,7 +58,7 @@ func TestApplyBatchCallbackErrorDoesNotCommit(t *testing.T) {
 	if got, err := db.Get([]byte("old")); err != nil || string(got) != "value" {
 		t.Fatalf("old = %q, %v; want original value", got, err)
 	}
-	if got, err := db.Get([]byte("new")); err != nil || got != nil {
+	if got, err := db.Get([]byte("new")); !errors.Is(err, ErrNotFound) || got != nil {
 		t.Fatalf("new = %q, %v; want missing", got, err)
 	}
 }

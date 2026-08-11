@@ -81,12 +81,12 @@ func rebuildSearchIndex(db *store.Store, idx bleve.Index, options searchIndexOpt
 		authorPrefix := model.NewUUIDKey(model.TableEntryIndex, profileID)
 		if _, err := db.ForwardScan(authorPrefix, func(i int, key, value []byte) error {
 			raw, err := db.Get(value)
-			if err != nil {
-				return fmt.Errorf("read entry at %x: %w", value, err)
-			}
-			if len(raw) == 0 {
+			if errors.Is(err, store.ErrNotFound) {
 				stats.missing++
 				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("read entry at %x: %w", value, err)
 			}
 			entry := new(pb.Entry)
 			if err := proto.Unmarshal(raw, entry); err != nil {

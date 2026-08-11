@@ -15,6 +15,8 @@ import (
 
 type ScanCallback func(int, []byte, []byte) error
 
+var ErrNotFound = pebble.ErrNotFound
+
 type Error struct {
 	Msg  string
 	Code ErrorCode
@@ -180,16 +182,13 @@ func (db *Store) Flush() {
 
 func (db *Store) Get(key []byte) ([]byte, error) {
 	value, closer, err := db.rdb.Get(key)
-	if closer != nil {
-		valueCopy := make([]byte, len(value))
-		copy(valueCopy, value)
-		value = valueCopy
-		closer.Close()
+	if err != nil {
+		return nil, err
 	}
-	if errors.Is(err, pebble.ErrNotFound) || len(value) == 0 {
-		return nil, nil
-	}
-	return value, err
+	defer closer.Close()
+	valueCopy := make([]byte, len(value))
+	copy(valueCopy, value)
+	return valueCopy, nil
 }
 
 func (db *Store) Put(key, value []byte) error {
