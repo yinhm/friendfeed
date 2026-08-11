@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 // Target permission rules for comment/like mutations, locked by these tests:
@@ -44,6 +46,46 @@ func newLikeTestEntry() *pb.Entry {
 		ProfileUuid: likeTestEntryUUID.String(),
 		Date:        time.Now().UTC().Format(time.RFC3339),
 	}
+}
+
+func seedLikeTestInteractions(t *testing.T, db *store.Store, entry *pb.Entry) {
+	t.Helper()
+	entryUUID := uuid.Must(uuid.FromString(entry.Id))
+	for i, like := range entry.Likes {
+		actorUUID, err := uuid.FromString(like.GetFrom().GetUuid())
+		if err != nil || actorUUID == uuid.Nil {
+			actorUUID = uuid.NewV5(uuid.NamespaceURL, fmt.Sprintf("test-like/%s/%d", entry.Id, i))
+		}
+		raw, err := proto.Marshal(like)
+		require.NoError(t, err)
+		require.NoError(t, db.Put(LikeDataKey(entryUUID, actorUUID), raw))
+	}
+	for _, comment := range entry.Comments {
+		commentUUID := uuid.Must(uuid.FromString(comment.Id))
+		raw, err := proto.Marshal(comment)
+		require.NoError(t, err)
+		require.NoError(t, db.Put(CommentDataKey(entryUUID, commentUUID), raw))
+	}
+}
+
+func testLike(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
+	seedLikeTestInteractions(t, db, entry)
+	return Like(db, profile, entry)
+}
+
+func testDeleteLike(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
+	seedLikeTestInteractions(t, db, entry)
+	return DeleteLike(db, profile, entry)
+}
+
+func testComment(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
+	seedLikeTestInteractions(t, db, entry)
+	return Comment(db, profile, entry, comment)
+}
+
+func testDeleteComment(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry, commentID string) (*pb.Entry, error) {
+	seedLikeTestInteractions(t, db, entry)
+	return DeleteComment(db, profile, entry, commentID)
 }
 
 // ownerComment returns the target-shape comment: stable UUID plus the
@@ -87,7 +129,7 @@ func TestLikeUpdatesOnlyEntryRecord(t *testing.T) {
 	entryUUID := uuid.Must(uuid.FromString(entry.Id))
 	require.NoError(t, EntryIndex.RemoveIndex(db, timelineUUID, entryTime, Entry.PrefixAppend(entryUUID.Bytes())))
 
-	_, _, err = Like(db, author, entry)
+	_, _, err = testLike(t, db, author, entry)
 	require.NoError(t, err)
 	n, err := db.ForwardScan(store.NewUUIDKey(TableEntryIndex, timelineUUID).Bytes(), func(int, []byte, []byte) error {
 		return nil
@@ -117,7 +159,7 @@ func TestCommentOwnerCanEdit(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	_, entry, err := Comment(db, owner, entry, editBy(owner, "edited body"))
+	_, entry, err := testComment(t, db, owner, entry, editBy(owner, "edited body"))
 	if err != nil {
 		t.Fatalf("owner edit: %v", err)
 	}
@@ -135,7 +177,7 @@ func TestCommentOwnerCanEditAfterRename(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	if _, _, err := Comment(db, renamed, entry, editBy(renamed, "edited body")); err != nil {
+	if _, _, err := testComment(t, db, renamed, entry, editBy(renamed, "edited body")); err != nil {
 		t.Fatalf("renamed owner edit: %v", err)
 	}
 }
@@ -147,7 +189,7 @@ func TestCommentEditForbiddenForOthers(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	if _, _, err := Comment(db, other, entry, editBy(other, "hijack")); err == nil {
+	if _, _, err := testComment(t, db, other, entry, editBy(other, "hijack")); err == nil {
 		t.Fatal("other user edit must be rejected")
 	}
 }
@@ -169,7 +211,7 @@ func TestPrivilegedUsersCannotEditOthersComment(t *testing.T) {
 			entry := newLikeTestEntry()
 			entry.Comments = []*pb.Comment{ownerComment()}
 
-			if _, _, err := Comment(db, caller, entry, editBy(caller, "hijack")); err == nil {
+			if _, _, err := testComment(t, db, caller, entry, editBy(caller, "hijack")); err == nil {
 				t.Errorf("%s must not edit another user's comment", name)
 			}
 		})
@@ -183,7 +225,7 @@ func TestCommentOwnerCanDelete(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	entry, err := DeleteComment(db, owner, entry, likeTestCommentID)
+	entry, err := testDeleteComment(t, db, owner, entry, likeTestCommentID)
 	if err != nil {
 		t.Fatalf("owner delete: %v", err)
 	}
@@ -201,7 +243,7 @@ func TestEntryAuthorCanDeleteComment(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	entry, err := DeleteComment(db, entryAuthor, entry, likeTestCommentID)
+	entry, err := testDeleteComment(t, db, entryAuthor, entry, likeTestCommentID)
 	if err != nil {
 		t.Fatalf("entry author delete: %v", err)
 	}
@@ -218,7 +260,7 @@ func TestSuperCanDeleteComment(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	entry, err := DeleteComment(db, super, entry, likeTestCommentID)
+	entry, err := testDeleteComment(t, db, super, entry, likeTestCommentID)
 	if err != nil {
 		t.Fatalf("super delete: %v", err)
 	}
@@ -236,7 +278,7 @@ func TestOtherUserCannotDeleteComment(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	entry, err := DeleteComment(db, other, entry, likeTestCommentID)
+	entry, err := testDeleteComment(t, db, other, entry, likeTestCommentID)
 	if err == nil {
 		t.Error("other user delete must be rejected")
 	}
@@ -252,7 +294,7 @@ func TestLikeNotDuplicated(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Likes = []*pb.Like{ownerLike()}
 
-	_, entry, err := Like(db, owner, entry)
+	_, entry, err := testLike(t, db, owner, entry)
 	if err != nil {
 		t.Fatalf("Like: %v", err)
 	}
@@ -268,7 +310,7 @@ func TestLikeStoresCanonicalActorRef(t *testing.T) {
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
 	owner.Picture = "http://example.com/o.jpg"
 
-	_, entry, err := Like(db, owner, newLikeTestEntry())
+	_, entry, err := testLike(t, db, owner, newLikeTestEntry())
 	if err != nil {
 		t.Fatalf("Like: %v", err)
 	}
@@ -286,7 +328,7 @@ func TestLikeStoresCanonicalActorRef(t *testing.T) {
 
 func TestLikeRejectsProfileWithoutIdentity(t *testing.T) {
 	db := likeTestDB(t)
-	if _, _, err := Like(db, &pb.Profile{Id: "nouuid"}, newLikeTestEntry()); err == nil {
+	if _, _, err := testLike(t, db, &pb.Profile{Id: "nouuid"}, newLikeTestEntry()); err == nil {
 		t.Fatal("Like with uuid-less profile must fail")
 	}
 }
@@ -306,7 +348,7 @@ func TestLikeValidatesProfileBeforeDedupe(t *testing.T) {
 	}
 	for name, profile := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, _, err := Like(db, profile, entry); err == nil {
+			if _, _, err := testLike(t, db, profile, entry); err == nil {
 				t.Error("Like must reject the profile even on a dedupe hit")
 			}
 		})
@@ -314,7 +356,7 @@ func TestLikeValidatesProfileBeforeDedupe(t *testing.T) {
 
 	t.Run("nil profile", func(t *testing.T) {
 		var err error
-		mustNotPanic(t, "Like", func() { _, _, err = Like(db, nil, entry) })
+		mustNotPanic(t, "Like", func() { _, _, err = testLike(t, db, nil, entry) })
 		if err == nil {
 			t.Error("Like with nil profile must fail")
 		}
@@ -329,7 +371,7 @@ func TestCommentValidatesProfileFirst(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	if _, _, err := Comment(db, &pb.Profile{Id: "owner"}, entry, &pb.Comment{
+	if _, _, err := testComment(t, db, &pb.Profile{Id: "owner"}, entry, &pb.Comment{
 		Id:   uuid.Must(uuid.NewV4()).String(),
 		Body: "hi",
 	}); err == nil {
@@ -338,7 +380,7 @@ func TestCommentValidatesProfileFirst(t *testing.T) {
 
 	var err error
 	mustNotPanic(t, "Comment", func() {
-		_, _, err = Comment(db, nil, entry, &pb.Comment{Id: uuid.Must(uuid.NewV4()).String(), Body: "hi"})
+		_, _, err = testComment(t, db, nil, entry, &pb.Comment{Id: uuid.Must(uuid.NewV4()).String(), Body: "hi"})
 	})
 	if err == nil {
 		t.Fatal("Comment with nil profile must fail")
@@ -356,7 +398,7 @@ func TestCommentStoresCanonicalActorRef(t *testing.T) {
 		Body: "hello",
 		From: &pb.Feed{Uuid: likeTestOtherUUID.String(), Id: "other", Name: "Other"},
 	}
-	_, entry, err := Comment(db, owner, newLikeTestEntry(), forged)
+	_, entry, err := testComment(t, db, owner, newLikeTestEntry(), forged)
 	if err != nil {
 		t.Fatalf("Comment: %v", err)
 	}
@@ -378,7 +420,7 @@ func TestLikeNotDuplicatedAfterRename(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Likes = []*pb.Like{ownerLike()}
 
-	_, entry, err := Like(db, renamed, entry)
+	_, entry, err := testLike(t, db, renamed, entry)
 	if err != nil {
 		t.Fatalf("Like: %v", err)
 	}
@@ -394,7 +436,7 @@ func TestUnlikeKeepsOthersLikes(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Likes = []*pb.Like{ownerLike()}
 
-	entry, err := DeleteLike(db, other, entry)
+	entry, err := testDeleteLike(t, db, other, entry)
 	if err != nil {
 		t.Fatalf("DeleteLike: %v", err)
 	}
@@ -412,7 +454,7 @@ func TestUnlikeAfterRename(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Likes = []*pb.Like{ownerLike()}
 
-	entry, err := DeleteLike(db, renamed, entry)
+	entry, err := testDeleteLike(t, db, renamed, entry)
 	if err != nil {
 		t.Fatalf("DeleteLike: %v", err)
 	}
@@ -436,7 +478,7 @@ func TestSameIdDifferentUuidNeverAuthorizes(t *testing.T) {
 		entry.Comments = []*pb.Comment{ownerComment()}
 
 		entry, err := func() (*pb.Entry, error) {
-			_, e, err := Comment(db, impostor, entry, editBy(impostor, "hijack"))
+			_, e, err := testComment(t, db, impostor, entry, editBy(impostor, "hijack"))
 			return e, err
 		}()
 		if err == nil {
@@ -452,7 +494,7 @@ func TestSameIdDifferentUuidNeverAuthorizes(t *testing.T) {
 		entry := newLikeTestEntry()
 		entry.Comments = []*pb.Comment{ownerComment()}
 
-		entry, err := DeleteComment(db, impostor, entry, likeTestCommentID)
+		entry, err := testDeleteComment(t, db, impostor, entry, likeTestCommentID)
 		if err == nil {
 			t.Error("same-id different-uuid delete must be rejected")
 		}
@@ -466,7 +508,7 @@ func TestSameIdDifferentUuidNeverAuthorizes(t *testing.T) {
 		entry := newLikeTestEntry()
 		entry.Likes = []*pb.Like{ownerLike()}
 
-		entry, err := DeleteLike(db, impostor, entry)
+		entry, err := testDeleteLike(t, db, impostor, entry)
 		if err != nil {
 			t.Fatalf("DeleteLike: %v", err)
 		}
@@ -480,7 +522,7 @@ func TestSameIdDifferentUuidNeverAuthorizes(t *testing.T) {
 		entry := newLikeTestEntry()
 		entry.Likes = []*pb.Like{ownerLike()}
 
-		_, entry, err := Like(db, impostor, entry)
+		_, entry, err := testLike(t, db, impostor, entry)
 		if err != nil {
 			t.Fatalf("Like: %v", err)
 		}
@@ -511,7 +553,7 @@ func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
 				From: ref,
 			}}
 
-			if _, _, err := Comment(db, owner, entry, editBy(owner, "hijack")); err == nil {
+			if _, _, err := testComment(t, db, owner, entry, editBy(owner, "hijack")); err == nil {
 				t.Error("uuid-less/malformed ref must not authorize edit via matching id")
 			}
 		})
@@ -525,7 +567,7 @@ func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
 				From: ref,
 			}}
 
-			entry, err := DeleteComment(db, owner, entry, likeTestCommentID)
+			entry, err := testDeleteComment(t, db, owner, entry, likeTestCommentID)
 			if err == nil {
 				t.Error("uuid-less/malformed ref must not authorize delete via matching id")
 			}
@@ -539,7 +581,7 @@ func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
 			entry := newLikeTestEntry()
 			entry.Likes = []*pb.Like{{From: ref}}
 
-			entry, err := DeleteLike(db, owner, entry)
+			entry, err := testDeleteLike(t, db, owner, entry)
 			if err != nil {
 				t.Fatalf("DeleteLike: %v", err)
 			}
@@ -553,7 +595,7 @@ func TestUuidLessAndMalformedRefsNeverAuthorize(t *testing.T) {
 			entry := newLikeTestEntry()
 			entry.Likes = []*pb.Like{{From: ref}}
 
-			_, entry, err := Like(db, owner, entry)
+			_, entry, err := testLike(t, db, owner, entry)
 			if err != nil {
 				t.Fatalf("Like: %v", err)
 			}
@@ -579,7 +621,7 @@ func TestNilFromNeverAuthorizes(t *testing.T) {
 
 		var err error
 		mustNotPanic(t, "Comment", func() {
-			_, _, err = Comment(db, owner, entry, &pb.Comment{
+			_, _, err = testComment(t, db, owner, entry, &pb.Comment{
 				Id:   commentID,
 				Body: "hijack",
 				From: &pb.Feed{Uuid: owner.Uuid, Id: owner.Id},
@@ -596,7 +638,7 @@ func TestNilFromNeverAuthorizes(t *testing.T) {
 
 		var err error
 		mustNotPanic(t, "DeleteComment", func() {
-			entry, err = DeleteComment(db, owner, entry, commentID)
+			entry, err = testDeleteComment(t, db, owner, entry, commentID)
 		})
 		if err == nil {
 			t.Error("nil From must not authorize delete")
@@ -611,7 +653,7 @@ func TestNilFromNeverAuthorizes(t *testing.T) {
 		entry.Likes = []*pb.Like{{From: nil}}
 
 		mustNotPanic(t, "DeleteLike", func() {
-			entry, _ = DeleteLike(db, owner, entry)
+			entry, _ = testDeleteLike(t, db, owner, entry)
 		})
 		if len(entry.Likes) != 1 {
 			t.Errorf("likes = %d; want 1 (nil From must not match the caller)", len(entry.Likes))
@@ -623,7 +665,7 @@ func TestNilFromNeverAuthorizes(t *testing.T) {
 		entry.Likes = []*pb.Like{{From: nil}}
 
 		mustNotPanic(t, "Like", func() {
-			_, entry, _ = Like(db, owner, entry)
+			_, entry, _ = testLike(t, db, owner, entry)
 		})
 		if len(entry.Likes) != 2 {
 			t.Errorf("likes = %d; want 2 (nil From must not dedupe against the caller)", len(entry.Likes))
@@ -653,18 +695,18 @@ func TestMalformedActorRefsDoNotPanic(t *testing.T) {
 		t.Run(tc.name+"/Like", func(t *testing.T) {
 			entry := newLikeTestEntry()
 			entry.Likes = []*pb.Like{{From: tc.ref}}
-			mustNotPanic(t, "Like", func() { _, _, _ = Like(db, owner, entry) })
+			mustNotPanic(t, "Like", func() { _, _, _ = testLike(t, db, owner, entry) })
 		})
 		t.Run(tc.name+"/DeleteLike", func(t *testing.T) {
 			entry := newLikeTestEntry()
 			entry.Likes = []*pb.Like{{From: tc.ref}}
-			mustNotPanic(t, "DeleteLike", func() { _, _ = DeleteLike(db, owner, entry) })
+			mustNotPanic(t, "DeleteLike", func() { _, _ = testDeleteLike(t, db, owner, entry) })
 		})
 		t.Run(tc.name+"/Comment update", func(t *testing.T) {
 			entry := newLikeTestEntry()
 			entry.Comments = []*pb.Comment{{Id: commentID, From: tc.ref}}
 			mustNotPanic(t, "Comment", func() {
-				_, _, _ = Comment(db, owner, entry, &pb.Comment{
+				_, _, _ = testComment(t, db, owner, entry, &pb.Comment{
 					Id:   commentID,
 					Body: "edited",
 					From: &pb.Feed{Uuid: owner.Uuid, Id: owner.Id},
@@ -675,7 +717,7 @@ func TestMalformedActorRefsDoNotPanic(t *testing.T) {
 			entry := newLikeTestEntry()
 			entry.Comments = []*pb.Comment{{Id: commentID, From: tc.ref}}
 			mustNotPanic(t, "DeleteComment", func() {
-				_, _ = DeleteComment(db, owner, entry, commentID)
+				_, _ = testDeleteComment(t, db, owner, entry, commentID)
 			})
 		})
 	}
@@ -694,7 +736,7 @@ func TestCommentEditPreservesAuthorDateAndId(t *testing.T) {
 
 	forged := editBy(owner, "edited body")
 	forged.Date = "2030-01-01T00:00:00Z" // client tries to rewrite history
-	_, entry, err := Comment(db, owner, entry, forged)
+	_, entry, err := testComment(t, db, owner, entry, forged)
 	if err != nil {
 		t.Fatalf("owner edit: %v", err)
 	}
@@ -724,7 +766,7 @@ func TestDeleteCommentNoModerationViaEntryFromId(t *testing.T) {
 	entry.From = &pb.Feed{Id: "entry"}
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	entry, err := DeleteComment(db, entryAuthor, entry, likeTestCommentID)
+	entry, err := testDeleteComment(t, db, entryAuthor, entry, likeTestCommentID)
 	if err == nil {
 		t.Error("entry.From.Id must not grant moderation")
 	}
@@ -742,7 +784,7 @@ func TestDeleteCommentBlindDeleteKeepsSemantics(t *testing.T) {
 	entry := newLikeTestEntry()
 	entry.Comments = []*pb.Comment{ownerComment()}
 
-	entry, err := DeleteComment(db, owner, entry, uuid.Must(uuid.NewV4()).String())
+	entry, err := testDeleteComment(t, db, owner, entry, uuid.Must(uuid.NewV4()).String())
 	if err != nil {
 		t.Fatalf("blind delete: %v", err)
 	}

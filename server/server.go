@@ -472,6 +472,9 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
 		}
+		if err := model.HydrateEntryInteractions(s.rdb, entry); err != nil {
+			return nil, err
+		}
 		// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
 		_ = formatFeedEntryWithResolver(resolver, req, entry)
 		entries = append(entries, entry)
@@ -551,6 +554,9 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 			return err
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
+			return err
+		}
+		if err := model.HydrateEntryInteractions(s.rdb, entry); err != nil {
 			return err
 		}
 		// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
@@ -637,6 +643,9 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			}
 		} else {
 			if err := proto.Unmarshal(rawdata, entry); err != nil {
+				return nil, err
+			}
+			if err := model.HydrateEntryInteractions(s.rdb, entry); err != nil {
 				return nil, err
 			}
 			if err := formatFeedEntryWithResolver(resolver, req, entry); err != nil {

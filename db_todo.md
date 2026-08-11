@@ -53,8 +53,8 @@ store API 及其仓库内调用方；若旧 API 的语义不合理，应替换�
 - [x] 扫描实现均关闭 iterator 并检查最终错误；未为形式复用引入新抽象。
 - [x] `GraphFollow` 使用一个 `ApplyBatch` 同时更新 Follow/Follower。
 - [x] `DeleteEntry` 原子删除 Entry、author direct index、target feed direct index；timeline 清理保持独立。
-- [x] 新增内部 `putEntryRecord`，只更新 Entry value。
-- [x] Like、Unlike、Comment、DeleteComment 改用 `putEntryRecord`。
+- [x] 互动写入曾以 `putEntryRecord` 过渡，独立表落地后已删除该临时方法。
+- [x] Like、Unlike、Comment、DeleteComment 不再触发 Entry reindex/fanout/search。
 - [x] `ApiServer` 以简单串行锁覆盖 Entry 写入、互动、编辑和删除，避免 RMW 丢更新。
 
 ## 阶段 B：数据审计
@@ -121,15 +121,15 @@ Like 以 `(entry UUID, actor UUID)` 天然幂等；Comment 以稳定 comment UUI
 
 实施步骤：
 
-- [ ] 分配新的表前缀并固定 key/value 编码；不复用现有表号。
-- [ ] 明确 Comment 的稳定排序键及同时间值的 tie-break，不能依赖 Pebble 偶然遍历顺序。
-- [ ] 将 Like/Unlike、Comment/Edit/DeleteComment 改为独立表的点写或小 batch，并保留现有 UUID 授权语义。
-- [ ] 修改 Entry 读取与 feed hydration，在返回 protobuf 前聚合 Like/Comment；避免聚合过程再次触发逐 actor 的无界 N+1 查询。
-- [ ] 确认搜索索引只消费 Entry 正文和必要摘要，互动 mutation 不再重建搜索文档。
-- [ ] 在 `migrate_db` 增加 dry-run 和 apply 迁移：从 Entry 内嵌数据写入新表，检测重复、非法 UUID、缺失 actor 和 comment UUID 冲突。
+- [x] 分配 `TableLike=106`、`TableComment=107`，固定 key/value 编码。
+- [x] Comment 读取按 Date、Id 排序，同时间值以稳定 comment UUID 打破平局。
+- [x] Like/Unlike、Comment/Edit/DeleteComment 使用独立表点写，并保留 UUID 授权语义。
+- [x] Entry 读取与 feed hydration 以两次前缀扫描聚合互动，不做逐 actor 查询。
+- [x] 搜索仍只消费 Entry 正文；互动 mutation 不重建搜索文档。
+- [x] `migrate_interactions` 支持 dry-run/apply，检测重复、非法 UUID、缺失 actor 和 comment UUID 冲突。
 - [ ] 针对指定 Entry/用户小规模迁移并校验数量、顺序、权限、重复 like 和 rename 后身份。
-- [ ] 全量迁移后重新打开数据库验证；升级采用一次性切换，不长期双写新旧存储。
-- [ ] protobuf 中既有 Like/Comment 字段属于外部契约，不在本阶段删除；运行时是否继续填充由 RPC 兼容需求决定。
+- [x] 测试覆盖迁移后关闭、重开和 hydration；运行时不双写 Entry 内嵌字段。
+- [x] protobuf 中既有 Like/Comment 字段保持不变，RPC 返回时继续填充。
 - [ ] 独立表稳定后移除 Entry mutation 串行锁中仅为互动 RMW 设置的部分，保留 Entry 编辑/删除真正需要的并发保护。
 
 ## 阶段 E：有实际需求后再决定

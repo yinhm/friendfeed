@@ -2,12 +2,12 @@ package model
 
 import (
 	"errors"
-	"slices"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 // errCommentPerm rejects comment edits/deletes outside the stable-UUID
@@ -24,34 +24,46 @@ func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb
 		return nil, nil, err
 	}
 
-	var key store.Key
-	index := slices.IndexFunc(entry.Likes, func(like *pb.Like) bool {
-		return permOwnedBy(like.From, profile)
-	})
-	if index == -1 {
+	entryUUID, err := uuid.FromString(entry.Id)
+	if err != nil {
+		return nil, nil, err
+	}
+	actorUUID, _ := uuid.FromString(profile.Uuid)
+	dataKey := LikeDataKey(entryUUID, actorUUID)
+	if _, err := db.Get(dataKey); errors.Is(err, store.ErrNotFound) {
 		like := &pb.Like{
 			Date: time.Now().Format(time.RFC3339),
 			From: from,
 		}
-		entry.Likes = append(entry.Likes, like)
-		key, err = putEntryRecord(db, entry)
+		raw, err := proto.Marshal(like)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := db.Put(dataKey, raw); err != nil {
+			return nil, nil, err
+		}
+	} else if err != nil {
+		return nil, nil, err
 	}
-	return key, entry, err
+	if err := HydrateEntryInteractions(db, entry); err != nil {
+		return nil, nil, err
+	}
+	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
 }
 
 func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
-	var err error
-	if _, err = feedFromProfile(profile); err != nil {
+	if _, err := feedFromProfile(profile); err != nil {
 		return nil, err
 	}
-	index := slices.IndexFunc(entry.Likes, func(like *pb.Like) bool {
-		return permOwnedBy(like.From, profile)
-	})
-	if index >= 0 {
-		entry.Likes = append(entry.Likes[:index], entry.Likes[index+1:]...)
-		_, err = putEntryRecord(db, entry)
+	entryUUID, err := uuid.FromString(entry.Id)
+	if err != nil {
+		return nil, err
 	}
-	return entry, err
+	actorUUID, _ := uuid.FromString(profile.Uuid)
+	if err := db.Delete(LikeDataKey(entryUUID, actorUUID)); err != nil {
+		return nil, err
+	}
+	return entry, HydrateEntryInteractions(db, entry)
 }
 
 func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
@@ -63,50 +75,79 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 		return nil, nil, err
 	}
 
-	// is update?
-	idx := -1
-	for i, cmt := range entry.Comments {
-		if cmt == nil || cmt.Id != comment.Id {
-			continue
+	entryUUID, err := uuid.FromString(entry.Id)
+	if err != nil {
+		return nil, nil, err
+	}
+	commentUUID, err := uuid.FromString(comment.Id)
+	if err != nil {
+		return nil, nil, err
+	}
+	dataKey := CommentDataKey(entryUUID, commentUUID)
+	storedRaw, getErr := db.Get(dataKey)
+	if getErr == nil {
+		stored := new(pb.Comment)
+		if err := proto.Unmarshal(storedRaw, stored); err != nil {
+			return nil, nil, err
 		}
 		// Only the comment author may edit, verified by stable UUID.
-		if !permOwnedBy(cmt.From, profile) {
+		if !permOwnedBy(stored.From, profile) {
 			return nil, entry, errCommentPerm
 		}
-		idx = i
-		break
-	}
-
-	if idx >= 0 {
 		// Edit in place: only the body is editable; author, date, id and
 		// every other stored field are preserved from client overwrites.
-		stored := entry.Comments[idx]
 		stored.Body = comment.Body
 		stored.RawBody = comment.RawBody
-	} else {
+		comment = stored
+	} else if errors.Is(getErr, store.ErrNotFound) {
 		comment.From = from
-		entry.Comments = append(entry.Comments, comment)
+	} else {
+		return nil, nil, getErr
 	}
-	key, err := putEntryRecord(db, entry)
-	return key, entry, err
+	raw, err := proto.Marshal(comment)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := db.Put(dataKey, raw); err != nil {
+		return nil, nil, err
+	}
+	if err := HydrateEntryInteractions(db, entry); err != nil {
+		return nil, nil, err
+	}
+	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
 }
 
 func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commentId string) (*pb.Entry, error) {
 	if _, err := feedFromProfile(profile); err != nil {
 		return nil, err
 	}
-	index := slices.IndexFunc(entry.Comments, func(cmt *pb.Comment) bool {
-		return cmt != nil && cmt.Id == commentId
-	})
-	if index < 0 {
+	entryUUID, err := uuid.FromString(entry.Id)
+	if err != nil {
+		return nil, err
+	}
+	commentUUID, err := uuid.FromString(commentId)
+	if err != nil {
+		return nil, err
+	}
+	dataKey := CommentDataKey(entryUUID, commentUUID)
+	raw, err := db.Get(dataKey)
+	if errors.Is(err, store.ErrNotFound) {
 		return entry, nil // blind delete, keep current semantics
 	}
-	if !canModerateComment(profile, entry, entry.Comments[index]) {
+	if err != nil {
+		return nil, err
+	}
+	comment := new(pb.Comment)
+	if err := proto.Unmarshal(raw, comment); err != nil {
+		return nil, err
+	}
+	if !canModerateComment(profile, entry, comment) {
 		return entry, errCommentPerm
 	}
-	entry.Comments = append(entry.Comments[:index], entry.Comments[index+1:]...)
-	_, err := putEntryRecord(db, entry)
-	return entry, err
+	if err := db.Delete(dataKey); err != nil {
+		return nil, err
+	}
+	return entry, HydrateEntryInteractions(db, entry)
 }
 
 // canModerateComment reports whether profile may delete cmt: the comment

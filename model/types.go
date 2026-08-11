@@ -37,6 +37,8 @@ const (
 	TableFollower store.KeyPrefix = 103
 	TableOAuth    store.KeyPrefix = 104
 	TableFile     store.KeyPrefix = 105
+	TableLike     store.KeyPrefix = 106
+	TableComment  store.KeyPrefix = 107
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -65,11 +67,13 @@ var (
 	UserRenameMap = NewTable(KeyPrefixToBytes(TableUserRenameMap))
 	Profile       = NewTable(KeyPrefixToBytes(TableProfile))
 
-	Service  = NewTable(KeyPrefixToBytes(TableService))
-	Follow   = NewTable(KeyPrefixToBytes(TableFollow))
-	Follower = NewTable(KeyPrefixToBytes(TableFollower))
-	OAuth    = NewTable(KeyPrefixToBytes(TableOAuth))
-	File     = NewTable(KeyPrefixToBytes(TableFile))
+	Service     = NewTable(KeyPrefixToBytes(TableService))
+	Follow      = NewTable(KeyPrefixToBytes(TableFollow))
+	Follower    = NewTable(KeyPrefixToBytes(TableFollower))
+	OAuth       = NewTable(KeyPrefixToBytes(TableOAuth))
+	File        = NewTable(KeyPrefixToBytes(TableFile))
+	LikeData    = NewTable(KeyPrefixToBytes(TableLike))
+	CommentData = NewTable(KeyPrefixToBytes(TableComment))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))

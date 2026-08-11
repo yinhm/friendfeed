@@ -34,6 +34,13 @@ func seedActorEntry(t *testing.T, db *store.Store, entry *pb.Entry) uuid.UUID {
 	return entryUUID
 }
 
+func getActorEntryRaw(t *testing.T, db *store.Store, entryUUID uuid.UUID) *pb.Entry {
+	t.Helper()
+	entry := new(pb.Entry)
+	require.NoError(t, model.Entry.Get(db, entryUUID.Bytes(), entry))
+	return entry
+}
+
 func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 	dbPath := t.TempDir()
 	db, err := store.NewStore(dbPath)
@@ -57,10 +64,7 @@ func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 		dryStats.entryAuthors != 1 || dryStats.comments != 1 || dryStats.likes != 1 {
 		t.Fatalf("unexpected dry-run stats: %+v", dryStats)
 	}
-	unchanged, err := model.GetEntry(db, entryUUID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	unchanged := getActorEntryRaw(t, db, entryUUID)
 	if unchanged.ProfileUuid != "" || unchanged.From.Uuid != "" ||
 		unchanged.Comments[0].From.Uuid != "" || unchanged.Likes[0].From.Uuid != "" {
 		t.Fatalf("dry-run mutated entry: %+v", unchanged)
@@ -78,10 +82,7 @@ func TestBackfillActorUUIDsDryRunApplyAndIdempotence(t *testing.T) {
 	db.Close()
 	db, err = store.NewStore(dbPath)
 	require.NoError(t, err)
-	migrated, err := model.GetEntry(db, entryUUID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	migrated := getActorEntryRaw(t, db, entryUUID)
 	if migrated.ProfileUuid != authorUUID.String() || migrated.From.Uuid != authorUUID.String() {
 		t.Fatalf("entry author UUIDs = (%q, %q); want %q",
 			migrated.ProfileUuid, migrated.From.Uuid, authorUUID)
@@ -133,10 +134,7 @@ func TestBackfillActorUUIDsPreservesConflictsAndSkipsUnresolved(t *testing.T) {
 	if stats.entriesChanged != 0 || stats.conflicts != 3 || stats.unresolved != 3 {
 		t.Fatalf("unexpected conflict stats: %+v", stats)
 	}
-	got, err := model.GetEntry(db, entryUUID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := getActorEntryRaw(t, db, entryUUID)
 	if got.ProfileUuid != otherUUID.String() || got.From.Uuid != "" {
 		t.Fatalf("conflicting entry author was overwritten: %+v", got.From)
 	}

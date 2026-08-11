@@ -38,7 +38,10 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	encodedEntry, err := proto.Marshal(entry)
+	storedEntry := proto.Clone(entry).(*pb.Entry)
+	storedEntry.Likes = nil
+	storedEntry.Comments = nil
+	encodedEntry, err := proto.Marshal(storedEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +62,9 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 				return fmt.Errorf("index entry for feed: %w", err)
 			}
 		}
+		if err := writeEntryInteractionsBatch(batch, entryUuid, entry.Comments, entry.Likes); err != nil {
+			return fmt.Errorf("write entry interactions: %w", err)
+		}
 		return nil
 	}); err != nil {
 		return nil, err
@@ -74,28 +80,6 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 		search.Indexer.Index(entry.Id, entry.Body)
 	}
 
-	return key, nil
-}
-
-// putEntryRecord updates only the canonical Entry value. It is for mutations
-// of data embedded in an existing entry that do not change feed membership,
-// ordering or searchable body content.
-func putEntryRecord(db *store.Store, entry *pb.Entry) (store.Key, error) {
-	if entry == nil {
-		return nil, errors.New("entry is nil")
-	}
-	entryUUID, err := uuid.FromString(entry.Id)
-	if err != nil {
-		return nil, err
-	}
-	encoded, err := proto.Marshal(entry)
-	if err != nil {
-		return nil, err
-	}
-	key := Entry.PrefixAppend(entryUUID.Bytes())
-	if err := db.Put(key, encoded); err != nil {
-		return nil, err
-	}
 	return key, nil
 }
 
@@ -131,6 +115,9 @@ func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
 	err = Entry.Get(db, entryUUID.Bytes(), entry)
 	if err != nil {
 		return nil, fmt.Errorf("entry %s: %w", uuidStr, err)
+	}
+	if err := HydrateEntryInteractions(db, entry); err != nil {
+		return nil, fmt.Errorf("entry %s interactions: %w", uuidStr, err)
 	}
 	return entry, nil
 }
@@ -184,6 +171,9 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		}
 		if err := batch.Delete(entryKey, nil); err != nil {
 			return fmt.Errorf("delete entry: %w", err)
+		}
+		if err := deleteEntryInteractionsBatch(db, batch, entryUUID); err != nil {
+			return fmt.Errorf("delete entry interactions: %w", err)
 		}
 		return nil
 	}); err != nil {
