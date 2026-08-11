@@ -143,6 +143,12 @@ func (t *Table) RemoveIndex(db *store.Store, indexUUID uuid.UUID, oldtime time.T
 	return db.Delete(k.Bytes())
 }
 
+func (t *Table) removeIndexBatch(db *store.Store, batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time) error {
+	flakeid := db.TimeTravelReverseId(oldtime)
+	k := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeid)
+	return batch.Delete(k.Bytes(), nil)
+}
+
 func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {
 	var buf bytes.Buffer
 	buf.Write(t.Prefix)

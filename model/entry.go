@@ -131,20 +131,11 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 	if err != nil {
 		return err
 	}
-	if err := EntryIndex.RemoveIndex(db, profileUuid, oldtime); err != nil {
-		return fmt.Errorf("remove author entry index: %w", err)
-	}
-
 	feedUuid := profileUuid
 	if entry.FeedUuid != "" {
 		feedUuid, err = uuid.FromString(entry.FeedUuid)
 		if err != nil {
 			return err
-		}
-	}
-	if feedUuid != profileUuid {
-		if err := EntryIndex.RemoveIndex(db, feedUuid, oldtime); err != nil {
-			return fmt.Errorf("remove feed entry index: %w", err)
 		}
 	}
 	// PutEntry always writes the author timeline and fans out to the target
@@ -153,7 +144,21 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		return fmt.Errorf("delete entry fanout: %w", err)
 	}
 
-	if err = Entry.Delete(db, entryUUID.Bytes()); err != nil {
+	entryKey := Entry.PrefixAppend(entryUUID.Bytes())
+	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := EntryIndex.removeIndexBatch(db, batch, profileUuid, oldtime); err != nil {
+			return fmt.Errorf("remove author entry index: %w", err)
+		}
+		if feedUuid != profileUuid {
+			if err := EntryIndex.removeIndexBatch(db, batch, feedUuid, oldtime); err != nil {
+				return fmt.Errorf("remove feed entry index: %w", err)
+			}
+		}
+		if err := batch.Delete(entryKey, nil); err != nil {
+			return fmt.Errorf("delete entry: %w", err)
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 
