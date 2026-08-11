@@ -209,12 +209,12 @@ func (db *Store) Delete(key []byte) error {
 	return db.rdb.Delete(key, db.writeOptions())
 }
 
-func (db *Store) Exist(key []byte) bool {
-	data, err := db.Get(key)
-	if err != nil || len(data) == 0 {
-		return false
+func (db *Store) Exists(key []byte) (bool, error) {
+	_, err := db.Get(key)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
 	}
-	return true
+	return err == nil, err
 }
 
 func (db *Store) NewBatch() *pebble.Batch {

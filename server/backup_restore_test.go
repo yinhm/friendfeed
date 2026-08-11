@@ -263,8 +263,12 @@ func TestStoreSnapshotIsolation(t *testing.T) {
 		"snapshot must see exactly the state at its creation")
 
 	// The live store reflects the post-snapshot mutations.
-	require.False(t, db.Exist([]byte("k1")))
-	require.True(t, db.Exist([]byte("k2")))
+	exists, err := db.Exists([]byte("k1"))
+	require.NoError(t, err)
+	require.False(t, exists)
+	exists, err = db.Exists([]byte("k2"))
+	require.NoError(t, err)
+	require.True(t, exists)
 }
 
 // TestBackupDBToRequiresFreshDestination covers the stale-backup regression:
@@ -298,9 +302,15 @@ func TestBackupDBToRequiresFreshDestination(t *testing.T) {
 	rodb, err := store.NewStoreReadOnly(dir2)
 	require.NoError(t, err)
 	defer rodb.Close()
-	require.True(t, rodb.Exist([]byte("stay")))
-	require.True(t, rodb.Exist([]byte("new")))
-	require.False(t, rodb.Exist([]byte("deleted")),
+	exists, err := rodb.Exists([]byte("stay"))
+	require.NoError(t, err)
+	require.True(t, exists)
+	exists, err = rodb.Exists([]byte("new"))
+	require.NoError(t, err)
+	require.True(t, exists)
+	exists, err = rodb.Exists([]byte("deleted"))
+	require.NoError(t, err)
+	require.False(t, exists,
 		"key deleted before the second backup must not reappear in a fresh backup")
 }
 

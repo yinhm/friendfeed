@@ -46,7 +46,10 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		followed = false
 	default:
 		// follow
-		followed = s.rdb.Exist(followkey)
+		followed, err = s.rdb.Exists(followkey)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &pb.FollowResponse{Followed: followed}, nil
 }

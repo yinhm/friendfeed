@@ -434,7 +434,11 @@ func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dryStats.edges != 1 || db.Exist(model.NewKeyFrom(model.Follow.Prefix, followerID.Bytes(), feedID.Bytes())) {
+	followExists, err := db.Exists(model.NewKeyFrom(model.Follow.Prefix, followerID.Bytes(), feedID.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dryStats.edges != 1 || followExists {
 		t.Fatalf("unexpected social graph dry run: %+v", dryStats)
 	}
 
@@ -447,7 +451,15 @@ func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {
 	}
 	followKey := model.NewKeyFrom(model.Follow.Prefix, followerID.Bytes(), feedID.Bytes())
 	followerKey := model.NewKeyFrom(model.Follower.Prefix, feedID.Bytes(), followerID.Bytes())
-	if !db.Exist(followKey) || !db.Exist(followerKey) {
+	followExists, err = db.Exists(followKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	followerExists, err := db.Exists(followerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !followExists || !followerExists {
 		t.Fatal("rebuild did not create both Follow and Follower keys")
 	}
 }

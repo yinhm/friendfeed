@@ -144,9 +144,14 @@ func rebuildFeedBuffer(db *store.Store, pending, oldbuf []string) []string {
 
 		// skip deleted entry
 		kb, _ := hex.DecodeString(item)
-		if db != nil && !db.Exist(kb) {
-			slog.Debug("skip key", "key", item)
-			return false
+		if db != nil {
+			exists, err := db.Exists(kb)
+			if err != nil {
+				slog.Warn("check cached entry", "key", item, "err", err)
+			} else if !exists {
+				slog.Debug("skip key", "key", item)
+				return false
+			}
 		}
 
 		bufq[i] = item
