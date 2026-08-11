@@ -68,9 +68,6 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 	}
 
 	err := model.Entry.Iter(db, func(key, raw []byte) error {
-		if options.maxLimit > 0 && stats.entries >= options.maxLimit {
-			return &store.Error{Msg: "entry index rebuild limit reached", Code: store.StopIteration}
-		}
 		entry := new(pb.Entry)
 		if err := proto.Unmarshal(raw, entry); err != nil {
 			return fmt.Errorf("decode Entry[%x]: %w", key, err)
@@ -87,6 +84,9 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 			}
 		}
 		if selected != uuid.Nil && author != selected && feed != selected {
+			return nil
+		}
+		if options.maxLimit > 0 && stats.entries >= options.maxLimit {
 			return nil
 		}
 		date, err := time.Parse(time.RFC3339, entry.Date)

@@ -62,14 +62,14 @@ func scanInteractions(db *store.Store, options interactionMigrationOptions, writ
 	}
 
 	err := model.Entry.Iter(db, func(key, raw []byte) error {
-		if options.maxLimit > 0 && stats.entriesScanned >= options.maxLimit {
-			return &store.Error{Msg: "interaction migration limit reached", Code: store.StopIteration}
-		}
 		entry := new(pb.Entry)
 		if err := proto.Unmarshal(raw, entry); err != nil {
 			return fmt.Errorf("decode Entry[%x]: %w", key, err)
 		}
 		if onlyProfile != uuid.Nil && entry.ProfileUuid != onlyProfile.String() {
+			return nil
+		}
+		if options.maxLimit > 0 && stats.entriesScanned >= options.maxLimit {
 			return nil
 		}
 		stats.entriesScanned++

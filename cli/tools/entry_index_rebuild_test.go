@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -51,4 +52,48 @@ func TestRebuildEntryIndexesRestoresSourceDerivedRows(t *testing.T) {
 	require.Zero(t, audit.missingTimeline)
 	require.Zero(t, audit.orphanIndexes)
 	require.Equal(t, 6, audit.entryIndexes)
+}
+
+func TestRebuildEntryIndexesForOneUserIsBounded(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	selected := seedActorProfile(t, db, "rebuild-selected")
+	other := seedActorProfile(t, db, "rebuild-other")
+	date := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
+	selectedEntry, err := model.PutEntry(db, &pb.Entry{
+		Id: uuid.Must(uuid.NewV4()).String(), Date: date.Format(time.RFC3339),
+		ProfileUuid: selected.String(), From: &pb.Feed{Uuid: selected.String()},
+	})
+	require.NoError(t, err)
+	otherEntry, err := model.PutEntry(db, &pb.Entry{
+		Id: uuid.Must(uuid.NewV4()).String(), Date: date.Add(time.Minute).Format(time.RFC3339),
+		ProfileUuid: other.String(), From: &pb.Feed{Uuid: other.String()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.EntryIndex.RemoveIndex(db, selected, date, selectedEntry))
+
+	stats, err := rebuildEntryIndexes(db, entryIndexRebuildOptions{
+		user: "rebuild-selected", maxLimit: 1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.entries)
+	require.Equal(t, 1, stats.direct)
+	require.Equal(t, 1, stats.timeline)
+	require.Zero(t, stats.removed, "a scoped rebuild must not clear the shared index table")
+
+	assertIndexed := func(owner uuid.UUID, entryKey store.Key) {
+		t.Helper()
+		found := false
+		prefix := store.NewUUIDKey(model.TableEntryIndex, owner).Bytes()
+		_, err := db.ForwardScan(prefix, func(_ int, _, value []byte) error {
+			found = found || bytes.Equal(value, entryKey)
+			return nil
+		})
+		require.NoError(t, err)
+		require.True(t, found)
+	}
+	assertIndexed(selected, selectedEntry)
+	assertIndexed(other, otherEntry)
 }

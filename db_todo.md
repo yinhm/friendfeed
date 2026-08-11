@@ -98,7 +98,7 @@ Flake ID 是现有的分布式、k-ordered 身份与排序设计，即使当前�
 - [x] `rebuild_entry_index` 从 Entry 源数据重建 author/feed direct index。
 - [x] 同一命令按 Follower 源数据重建 author/follower timeline index。
 - [ ] dry-run 对比每个 feed 的数量、顺序、首尾和重复项。
-- [ ] 先针对指定用户和小 feed 验证 cursor 分页。
+- [x] 指定用户和 `max-limit` rebuild 不清理其他用户索引；cursor 分页另有多页、尾页和删除锚点回归测试。
 - [x] 全量模式先清理派生 EntryIndex，再从源数据重建；指定用户模式只做有界 upsert。
 - [ ] 完成备份、恢复和重启验证。
 - [x] 全量重建清理旧格式和 orphan index，不保留永久兼容路径；升级后不支持降级。
