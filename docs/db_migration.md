@@ -113,6 +113,48 @@ inspect 只读；purge 会释放全部保留的旧 ID，并允许相关用户再
 
 迁移不依赖 old DB，不修改 ID/Name/Picture 等展示快照，不修改 `FeedUuid`；可重复执行，第二次应报告零 changed。dry-run 的安全边界是核心迁移函数在所有 mutation API 之前返回；末尾是否调用 Pebble `Flush` 不决定数据是否已经写入。
 
+## EntryIndex 与互动表离线升级
+
+当前版本把 EntryIndex 升级为同秒不碰撞的 key，并把 Like/Comment 从 Entry value
+拆到独立表。升级不维护旧格式双轨，完成后不得用旧程序打开或降级写入数据库。
+
+推荐使用全量 `rebuild_entry_index`，因为它从 Entry 与 Follower 源数据重建 direct
+index 和 timeline，能同时恢复历史碰撞造成的缺失行并清除 orphan/旧格式行。
+`migrate_entry_index` 只转换现存旧 key，不能恢复已经丢失的索引；执行全量 rebuild
+时不需要先运行它。
+
+按以下顺序操作，每个数据库目录单独完成：
+
+1. 停止所有使用该 Pebble 目录的进程并确认释放 `LOCK`；保存升级前二进制。
+2. 使用 `cp -a <db-dir> <db-dir>.bak-entry-index` 创建离线备份，并在副本上确认
+   `audit_store` 能打开。备份只用于升级验收失败时整体恢复，不能与已升级库混合。
+3. 若历史 actor UUID 尚未回填，先按上一节完成 `backfill_actor_uuids`；互动迁移不按
+   可回收的 `From.Id` 猜测身份。
+4. 先对一个用户、小上限执行 dry-run，再执行全库 dry-run：
+
+```bash
+./tools -to <db-dir> -c migrate_interactions -user yinhm -max-limit 20 -dry-run
+./tools -to <db-dir> -c rebuild_entry_index -user yinhm -max-limit 20 -dry-run
+./tools -to <db-dir> -c migrate_interactions -dry-run
+./tools -to <db-dir> -c rebuild_entry_index -dry-run
+```
+
+`migrate_interactions` 全量 apply 前会再次完整预检；`invalid_actors`、
+`invalid_comments` 或 `duplicates` 非零时拒绝开始写入。
+
+5. 确认 dry-run 后执行写入。命令默认会写库，`-dry-run` 才是不写开关：
+
+```bash
+./tools -to <db-dir> -c migrate_interactions
+./tools -to <db-dir> -c rebuild_entry_index
+```
+
+6. 执行 `./tools -to <db-dir> -c audit_store`。必须确认 `missing_direct=0`、
+   `orphan_indexes=0`、`missing_timeline=0`；抽查目标用户的 cursor 多页顺序、首尾、
+   无重复项，以及 Like/Comment 数量、顺序、编辑/删除权限和 rename 后身份。
+7. 用新二进制冷启动，验证 feed 与互动后正常停止并再次启动。若验收失败，应在没有
+   新写入的前提下整体恢复步骤 2 的目录并中止升级；不要让旧程序打开已升级目录。
+
 ## rebuild_search_index
 
 把所有带有 OAuth 登录信息的用户（含按登录名绑定的旧 OAuth 行）的历史 entry 收录进 bleve 搜索索引；`-user` 可指定单个登录名并绕过 OAuth 检查。扫描 author 索引（`EntryIndex | profile UUID`），每条 entry 只收录一次；entry 记录缺失或 `Body` 为空的行只计数（对齐 `PutEntry` 只索引非空 Body 的行为）。索引路径默认 `<to>/index`，与服务端布局一致，可用 `-index-path` 覆盖。本命令以只读方式打开 DB、不写 DB，只写搜索索引；可重复执行（bleve 按 entry ID upsert）。

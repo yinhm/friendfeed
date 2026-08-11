@@ -102,6 +102,7 @@ Flake ID 是现有的分布式、k-ordered 身份与排序设计，即使当前�
 - [x] 全量模式先清理派生 EntryIndex，再从源数据重建；指定用户模式只做有界 upsert。
 - [x] 生产备份路径覆盖 EntryIndex 与独立互动表；备份库可只读打开并作为 ApiServer 重启后读取。
 - [x] 全量重建清理旧格式和 orphan index，不保留永久兼容路径；升级后不支持降级。
+- [x] 离线运行手册明确备份、actor UUID 前置、目标用户 dry-run、全量迁移、audit 与重启顺序。
 
 ## 阶段 D：Comment/Like 独立表
 
