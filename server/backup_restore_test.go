@@ -25,7 +25,8 @@ import (
 // (ApiServer.BackupDBTo, shared by BackupDB) produces a database that
 // reopens standalone in a separate directory and serves the seeded data:
 // public feedinfo metadata, profile + UserMap, UserRenameMap redirects,
-// OAuth records, and entries with their author/group direct indexes.
+// OAuth records, entries with their author/group direct indexes, and the
+// independent Like/Comment tables introduced by the store migration.
 func TestBackupRestoreRoundTrip(t *testing.T) {
 	// model.PutEntry indexes entry bodies through the global search.Indexer;
 	// install a mock and restore the previous index to avoid cross-test bleed.
@@ -97,6 +98,14 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 		Date:        "2012-09-07T07:40:22Z",
 		Body:        "author feed entry",
 		From:        &pb.Feed{Uuid: profileUUID.String(), Id: "backupuser", Name: "Backup User"},
+		Likes: []*pb.Like{{
+			Date: "2012-09-07T08:00:00Z",
+			From: &pb.Feed{Uuid: profileUUID.String(), Id: "backupuser", Name: "Backup User"},
+		}},
+		Comments: []*pb.Comment{{
+			Id: uuid.Must(uuid.NewV4()).String(), Date: "2012-09-07T08:01:00Z", Body: "backup comment",
+			From: &pb.Feed{Uuid: profileUUID.String(), Id: "backupuser", Name: "Backup User"},
+		}},
 	}
 	authorEntryKey, err := model.PutEntry(srv.rdb, authorEntry)
 	require.NoError(t, err)
@@ -170,6 +179,9 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	gotAuthorEntry, err := model.GetEntry(rodb, authorEntry.Id)
 	require.NoError(t, err)
 	require.Equal(t, "author feed entry", gotAuthorEntry.Body)
+	require.Len(t, gotAuthorEntry.Likes, 1)
+	require.Len(t, gotAuthorEntry.Comments, 1)
+	require.Equal(t, "backup comment", gotAuthorEntry.Comments[0].Body)
 	gotGroupEntry, err := model.GetEntry(rodb, groupEntry.Id)
 	require.NoError(t, err)
 	require.Equal(t, "group feed entry", gotGroupEntry.Body)
@@ -210,6 +222,16 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	require.Equal(t, profileUUID.String(), feed.Uuid)
 	require.Equal(t, "renameduser", feed.Id)
 	require.Len(t, feed.Entries, 2)
+	var restoredAuthorEntry *pb.Entry
+	for _, entry := range feed.Entries {
+		if entry.Id == authorEntry.Id {
+			restoredAuthorEntry = entry
+			break
+		}
+	}
+	require.NotNil(t, restoredAuthorEntry)
+	require.Len(t, restoredAuthorEntry.Likes, 1)
+	require.Len(t, restoredAuthorEntry.Comments, 1)
 
 	// FetchFeed by the previous id: the UserRenameMap redirect survived the
 	// backup and resolves to the same feed.
