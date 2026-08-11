@@ -59,3 +59,36 @@ func TestMigrateInteractionsDryRunApplyAndReopen(t *testing.T) {
 	require.Equal(t, commentOne.String(), hydrated.Comments[0].Id)
 	require.Equal(t, commentTwo.String(), hydrated.Comments[1].Id)
 }
+
+func TestMigrateInteractionsValidatesAllEntriesBeforeWriting(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	actorUUID := seedActorProfile(t, db, "interaction-validation-actor")
+	validEntryUUID := uuid.Must(uuid.NewV4())
+	invalidEntryUUID := uuid.Must(uuid.NewV4())
+	valid := &pb.Entry{
+		Id:    validEntryUUID.String(),
+		Likes: []*pb.Like{{From: &pb.Feed{Uuid: actorUUID.String()}}},
+	}
+	invalid := &pb.Entry{
+		Id:    invalidEntryUUID.String(),
+		Likes: []*pb.Like{{From: &pb.Feed{Uuid: "invalid"}}},
+	}
+	_, err = model.Entry.Put(db, validEntryUUID.Bytes(), valid)
+	require.NoError(t, err)
+	_, err = model.Entry.Put(db, invalidEntryUUID.Bytes(), invalid)
+	require.NoError(t, err)
+
+	stats, err := migrateInteractions(db, interactionMigrationOptions{})
+	require.ErrorContains(t, err, "interaction migration validation failed")
+	require.Equal(t, 2, stats.entriesScanned)
+	require.Equal(t, 1, stats.invalidActors)
+
+	raw := new(pb.Entry)
+	require.NoError(t, model.Entry.Get(db, validEntryUUID.Bytes(), raw))
+	require.Len(t, raw.Likes, 1)
+	_, err = db.Get(model.LikeDataKey(validEntryUUID, actorUUID))
+	require.ErrorIs(t, err, store.ErrNotFound)
+}

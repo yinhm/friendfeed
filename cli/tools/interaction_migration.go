@@ -28,6 +28,26 @@ type interactionMigrationStats struct {
 }
 
 func migrateInteractions(db *store.Store, options interactionMigrationOptions) (interactionMigrationStats, error) {
+	stats, err := scanInteractions(db, options, false)
+	if err != nil || options.dryRun {
+		return stats, err
+	}
+	if stats.invalidActors > 0 || stats.invalidComments > 0 || stats.duplicates > 0 {
+		return stats, fmt.Errorf(
+			"interaction migration validation failed: invalid actors=%d invalid comments=%d duplicates=%d",
+			stats.invalidActors, stats.invalidComments, stats.duplicates,
+		)
+	}
+	if _, err := scanInteractions(db, options, true); err != nil {
+		return stats, err
+	}
+	return stats, nil
+}
+
+// scanInteractions performs a complete validation pass before migrateInteractions
+// starts writing. The migration is run offline, so the source data cannot change
+// between validation and the subsequent bounded per-entry batches.
+func scanInteractions(db *store.Store, options interactionMigrationOptions, write bool) (interactionMigrationStats, error) {
 	stats := interactionMigrationStats{}
 	var onlyProfile uuid.UUID
 	if options.user != "" {
@@ -112,7 +132,7 @@ func migrateInteractions(db *store.Store, options interactionMigrationOptions) (
 		stats.entriesMigrated++
 		stats.likes += len(entry.Likes)
 		stats.comments += len(entry.Comments)
-		if options.dryRun {
+		if !write {
 			return nil
 		}
 		stored := proto.Clone(entry).(*pb.Entry)
