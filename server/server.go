@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
@@ -430,7 +431,8 @@ func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Fee
 		return s.cachedFeed(req)
 	}
 	s.RUnlock()
-	if req.CursorPaging {
+	if req.CursorPaging || req.ProfileUuid != "" {
+		req.CursorPaging = true
 		return s.ForwardFetchFeedWithCursor(ctx, req)
 	}
 	return s.ForwardFetchFeed(ctx, req)
@@ -598,15 +600,15 @@ type cursorFeedEntry struct {
 }
 
 // ForwardFetchFeedWithCursor pages profile feeds and user timelines from an
-// opaque EntryIndex position. FetchFeed selects this path only when callers
-// explicitly opt in; legacy Start/PageSize behavior remains in
-// ForwardFetchFeed, while cached public feeds never reach this method.
+// opaque index position. Home timelines use TimelineIndex; profile feeds keep
+// using direct EntryIndex. Legacy Start/PageSize behavior remains available to
+// old callers, while cached public feeds never reach this method.
 func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
 	if req.PageSize <= 0 || req.PageSize >= 100 {
 		req.PageSize = 50
 	}
 
-	profile, prefix, err := s.cursorFeedTarget(req)
+	profile, prefix, activityTimeline, err := s.cursorFeedTarget(req)
 	if err != nil {
 		return nil, err
 	}
@@ -634,13 +636,31 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	for iter.Valid() && len(items) <= int(req.PageSize) {
 		indexKey := iter.Key()
 		entryKey := iter.Value()
+		var timelineEntryUUID uuid.UUID
+		if activityTimeline {
+			_, timelineEntryUUID, _, err = model.ParseTimelineIndexKey(indexKey)
+			if err != nil {
+				return nil, err
+			}
+			entryKey = model.Entry.PrefixAppend(timelineEntryUUID.Bytes())
+		}
 		entry := new(pb.Entry)
 		rawdata, getErr := s.rdb.Get(entryKey)
 		if getErr != nil && !errors.Is(getErr, store.ErrNotFound) {
 			return nil, getErr
 		}
 		if errors.Is(getErr, store.ErrNotFound) {
-			if deleteErr := s.rdb.Delete(indexKey); deleteErr != nil {
+			if activityTimeline {
+				_, _, activity, parseErr := model.ParseTimelineIndexKey(indexKey)
+				if parseErr != nil {
+					return nil, parseErr
+				}
+				if deleteErr := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+					return model.DeleteTimelinePositionBatch(batch, profileUUID(profile), timelineEntryUUID, activity)
+				}); deleteErr != nil {
+					return nil, deleteErr
+				}
+			} else if deleteErr := s.rdb.Delete(indexKey); deleteErr != nil {
 				return nil, deleteErr
 			}
 		} else {
@@ -687,36 +707,40 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	return feed, nil
 }
 
-func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Key, error) {
+func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Key, bool, error) {
 	if req.ProfileUuid != "" {
 		profileUUID, err := uuid.FromString(req.ProfileUuid)
 		if err != nil {
-			return nil, nil, status.Error(codes.InvalidArgument, "invalid profile UUID")
+			return nil, nil, false, status.Error(codes.InvalidArgument, "invalid profile UUID")
 		}
 		profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
 		if err != nil {
-			return nil, nil, status.Error(codes.NotFound, "profile not found")
+			return nil, nil, false, status.Error(codes.NotFound, "profile not found")
 		}
-		return profile, store.NewUUIDKey(model.TableEntryIndex, model.TimelineUUID(profileUUID)).Bytes(), nil
+		return profile, model.TimelineIndexPrefix(profileUUID), true, nil
 	}
 
 	profile, err := model.GetProfileFromUserId(s.mdb, req.Id)
 	if err != nil {
 		profile, err = model.GetProfileFromRenameId(s.mdb, req.Id)
 		if err != nil {
-			return nil, nil, status.Error(codes.NotFound, "profile not found")
+			return nil, nil, false, status.Error(codes.NotFound, "profile not found")
 		}
 	}
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
-		return nil, nil, status.Error(codes.Internal, "profile has invalid UUID")
+		return nil, nil, false, status.Error(codes.Internal, "profile has invalid UUID")
 	}
-	return profile, store.NewUUIDKey(model.TableEntryIndex, profileUUID).Bytes(), nil
+	return profile, store.NewUUIDKey(model.TableEntryIndex, profileUUID).Bytes(), false, nil
+}
+
+func profileUUID(profile *pb.Profile) uuid.UUID {
+	parsed, _ := uuid.FromString(profile.Uuid)
+	return parsed
 }
 
 func encodeFeedCursor(key, prefix store.Key) string {
-	var flakeID flake.Id
-	positionSize := len(flakeID) + model.Entry.Prefix.Len() + uuid.Size
+	positionSize := feedCursorPositionSize(prefix)
 	if len(key) != len(prefix)+positionSize || !bytes.HasPrefix(key, prefix) {
 		return ""
 	}
@@ -731,8 +755,7 @@ func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	var flakeID flake.Id
-	positionSize := len(flakeID) + model.Entry.Prefix.Len() + uuid.Size
+	positionSize := feedCursorPositionSize(prefix)
 	if len(position) != positionSize {
 		return nil, errors.New("invalid cursor position")
 	}
@@ -740,6 +763,14 @@ func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
 	key = append(key, prefix...)
 	key = append(key, position...)
 	return key, nil
+}
+
+func feedCursorPositionSize(prefix store.Key) int {
+	if bytes.Equal(prefix[:model.TimelineIndex.Prefix.Len()], model.TimelineIndex.Prefix) {
+		return 8 + uuid.Size
+	}
+	var flakeID flake.Id
+	return len(flakeID) + model.Entry.Prefix.Len() + uuid.Size
 }
 
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {

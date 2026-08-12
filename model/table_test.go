@@ -233,11 +233,11 @@ func (s *TableTestSuite) TestPutDeleteEntryMaintainsAuthorTimeline() {
 	_, err := PutEntry(s.db, entry)
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), 1, s.countEntryIndex(authorUUID))
-	assert.Equal(s.T(), 1, s.countEntryIndex(TimelineUUID(authorUUID)))
+	assert.Equal(s.T(), 1, s.countTimelineIndex(authorUUID))
 
 	assert.NoError(s.T(), DeleteEntry(s.db, entryUUID.String()))
 	assert.Equal(s.T(), 0, s.countEntryIndex(authorUUID))
-	assert.Equal(s.T(), 0, s.countEntryIndex(TimelineUUID(authorUUID)))
+	assert.Equal(s.T(), 1, s.countTimelineIndex(authorUUID), "timeline deletion is lazy")
 }
 
 func (s *TableTestSuite) TestPutEntryValidationFailureDoesNotPersistEntry() {
@@ -253,7 +253,7 @@ func (s *TableTestSuite) TestPutEntryValidationFailureDoesNotPersistEntry() {
 	_, err = GetEntry(s.db, entryUUID.String())
 	assert.ErrorIs(s.T(), err, ErrNotFound)
 	assert.Equal(s.T(), 0, s.countEntryIndex(authorUUID))
-	assert.Equal(s.T(), 0, s.countEntryIndex(TimelineUUID(authorUUID)))
+	assert.Equal(s.T(), 0, s.countTimelineIndex(authorUUID))
 }
 
 func TestEntryIndexKeepsDistinctEntriesInSameSecond(t *testing.T) {
@@ -298,35 +298,38 @@ func (s *TableTestSuite) TestPutDeleteGroupEntryMaintainsAllIndexes() {
 		FeedUuid:    groupUUID.String(),
 		From:        &pb.Feed{Uuid: authorUUID.String(), Id: "author"},
 	}
-	authorTimeline := TimelineUUID(authorUUID)
-	followerTimeline := TimelineUUID(followerUUID)
-
 	_, err := PutEntry(s.db, entry)
 	assert.NoError(s.T(), err)
 	for name, indexUUID := range map[string]uuid.UUID{
-		"author":            authorUUID,
-		"group":             groupUUID,
-		"author timeline":   authorTimeline,
-		"follower timeline": followerTimeline,
+		"author": authorUUID,
+		"group":  groupUUID,
 	} {
 		assert.Equal(s.T(), 1, s.countEntryIndex(indexUUID), name)
 	}
+	assert.Equal(s.T(), 1, s.countTimelineIndex(authorUUID), "author timeline")
+	assert.Equal(s.T(), 1, s.countTimelineIndex(followerUUID), "follower timeline")
 
 	assert.NoError(s.T(), DeleteEntry(s.db, entryUUID.String()))
 	for name, indexUUID := range map[string]uuid.UUID{
-		"author":            authorUUID,
-		"group":             groupUUID,
-		"author timeline":   authorTimeline,
-		"follower timeline": followerTimeline,
+		"author": authorUUID,
+		"group":  groupUUID,
 	} {
 		assert.Equal(s.T(), 0, s.countEntryIndex(indexUUID), name)
 	}
+	assert.Equal(s.T(), 1, s.countTimelineIndex(authorUUID), "author timeline lazy cleanup")
+	assert.Equal(s.T(), 1, s.countTimelineIndex(followerUUID), "follower timeline lazy cleanup")
 }
 
 func (s *TableTestSuite) countEntryIndex(timelineUUID uuid.UUID) int {
 	n, err := s.db.ForwardScan(store.NewUUIDKey(TableEntryIndex, timelineUUID).Bytes(), func(i int, k, v []byte) error {
 		return nil
 	})
+	assert.NoError(s.T(), err)
+	return n
+}
+
+func (s *TableTestSuite) countTimelineIndex(viewerUUID uuid.UUID) int {
+	n, err := s.db.ForwardScan(TimelineIndexPrefix(viewerUUID), func(int, []byte, []byte) error { return nil })
 	assert.NoError(s.T(), err)
 	return n
 }

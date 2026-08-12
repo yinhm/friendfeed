@@ -70,8 +70,9 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 		return nil, err
 	}
 
-	// fanout to feed followers(user timeline)
-	if _, err := FanoutEntry(db, userUuid, feedUuid, oldtime, key); err != nil {
+	// Initialize activity-ranked Home timelines after the canonical Entry and
+	// direct indexes commit. Follower count is unbounded.
+	if _, err := FanoutTimelineActivity(db, entry, oldtime, TimelineActivityPublish); err != nil {
 		return nil, fmt.Errorf("fanout entry: %w", err)
 	}
 
@@ -153,13 +154,9 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 			return err
 		}
 	}
-	// PutEntry always writes the author timeline and fans out to the target
-	// feed's followers, including ordinary entries where both UUIDs match.
 	entryKey := Entry.PrefixAppend(entryUUID.Bytes())
-	if _, err := DeleteFanoutEntry(db, profileUuid, feedUuid, oldtime, entryKey); err != nil {
-		return fmt.Errorf("delete entry fanout: %w", err)
-	}
-
+	// Activity timeline rows are derived, unbounded fanout state. Readers
+	// remove stale rows lazily; audit/rebuild handles rows never read again.
 	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := EntryIndex.removeIndexBatch(db, batch, profileUuid, oldtime, entryKey); err != nil {
 			return fmt.Errorf("remove author entry index: %w", err)

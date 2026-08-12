@@ -30,9 +30,12 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 	}
 	actorUUID, _ := uuid.FromString(profile.Uuid)
 	dataKey := LikeKey(entryUUID, actorUUID)
+	created := false
+	var activity time.Time
 	if _, err := db.Get(dataKey); errors.Is(err, store.ErrNotFound) {
+		activity = time.Now().UTC()
 		like := &pb.Like{
-			Date: time.Now().Format(time.RFC3339),
+			Date: activity.Format(time.RFC3339),
 			From: from,
 		}
 		raw, err := proto.Marshal(like)
@@ -42,11 +45,17 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 		if err := db.Put(dataKey, raw); err != nil {
 			return nil, nil, err
 		}
+		created = true
 	} else if err != nil {
 		return nil, nil, err
 	}
 	if err := LoadEntryInteractions(db, entry); err != nil {
 		return nil, nil, err
+	}
+	if created {
+		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityLike); err != nil {
+			return nil, nil, err
+		}
 	}
 	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
 }
@@ -84,6 +93,8 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 		return nil, nil, err
 	}
 	dataKey := CommentKey(entryUUID, commentUUID)
+	created := false
+	var activity time.Time
 	storedRaw, getErr := db.Get(dataKey)
 	if getErr == nil {
 		stored := new(pb.Comment)
@@ -101,7 +112,9 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 		comment = stored
 	} else if errors.Is(getErr, store.ErrNotFound) {
 		comment.From = from
-		comment.Date = time.Now().UTC().Format(time.RFC3339)
+		activity = time.Now().UTC()
+		comment.Date = activity.Format(time.RFC3339)
+		created = true
 	} else {
 		return nil, nil, getErr
 	}
@@ -114,6 +127,11 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 	}
 	if err := LoadEntryInteractions(db, entry); err != nil {
 		return nil, nil, err
+	}
+	if created {
+		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityComment); err != nil {
+			return nil, nil, err
+		}
 	}
 	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
 }

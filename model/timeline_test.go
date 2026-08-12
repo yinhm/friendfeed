@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
 
@@ -62,4 +63,33 @@ func TestMoveTimelineEntryAppliesPerEntryCooldown(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.True(t, moved)
+}
+
+func TestFanoutTimelineActivityBumpsFollowersButNotDirectFeed(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	author := uuid.Must(uuid.NewV4())
+	follower := uuid.Must(uuid.NewV4())
+	entryID := uuid.Must(uuid.NewV4())
+	require.NoError(t, db.Put(NewKeyFrom(Follower.Prefix, author.Bytes(), follower.Bytes()), []byte("1")))
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	entry := &pb.Entry{Id: entryID.String(), ProfileUuid: author.String(), Date: base.Format(time.RFC3339)}
+	_, err = PutEntry(db, entry)
+	require.NoError(t, err)
+
+	commentAt := base.Add(30 * time.Minute)
+	_, err = FanoutTimelineActivity(db, entry, commentAt, TimelineActivityComment)
+	require.NoError(t, err)
+	for _, viewer := range []uuid.UUID{author, follower} {
+		position, err := TimelinePositionTime(db, viewer, entryID)
+		require.NoError(t, err)
+		require.Equal(t, commentAt, position)
+	}
+
+	// The author's direct feed remains keyed by the publish time and contains
+	// exactly one row after the activity bump.
+	n, err := db.ForwardScan(store.NewUUIDKey(TableEntryIndex, author).Bytes(), func(int, []byte, []byte) error { return nil })
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
 }

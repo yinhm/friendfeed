@@ -8,6 +8,7 @@ import (
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
 
@@ -129,4 +130,72 @@ func DeleteTimelinePositionBatch(batch *pebble.Batch, viewer, entry uuid.UUID, a
 		return err
 	}
 	return batch.Delete(TimelinePositionKey(viewer, entry), nil)
+}
+
+type TimelineActivityKind uint8
+
+const (
+	TimelineActivityPublish TimelineActivityKind = iota
+	TimelineActivityLike
+	TimelineActivityComment
+)
+
+// FanoutTimelineActivity updates the author's Home timeline and every current
+// follower of the target feed. Source mutations are committed before this
+// unbounded derived-data fanout.
+func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time, kind TimelineActivityKind) (int, error) {
+	entryUUID, err := uuid.FromString(entry.Id)
+	if err != nil {
+		return 0, err
+	}
+	author, err := uuid.FromString(entry.ProfileUuid)
+	if err != nil {
+		return 0, err
+	}
+	feed := author
+	if entry.FeedUuid != "" {
+		feed, err = uuid.FromString(entry.FeedUuid)
+		if err != nil {
+			return 0, err
+		}
+	}
+	now := time.Now().UTC()
+	if kind == TimelineActivityPublish && activity.After(now) {
+		activity = now
+	}
+	if kind == TimelineActivityLike {
+		published, err := time.Parse(time.RFC3339, entry.Date)
+		if err != nil {
+			return 0, err
+		}
+		age := activity.Sub(published)
+		if age < 0 || age > LikeBumpMaxEntryAge {
+			return 0, nil
+		}
+	}
+	update := func(viewer uuid.UUID) error {
+		qualify := func(old time.Time, exists bool) bool { return true }
+		if kind == TimelineActivityLike {
+			qualify = func(old time.Time, exists bool) bool {
+				return !exists || activity.Sub(old) >= LikeBumpCooldown
+			}
+		}
+		_, err := MoveTimelineEntry(db, viewer, entryUUID, activity, qualify)
+		return err
+	}
+	if err := update(author); err != nil {
+		return 0, fmt.Errorf("update author timeline: %w", err)
+	}
+	prefix := NewPrefixKeyFrom(TableFollower, feed.Bytes())
+	n, err := db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
+		follower, err := uuid.FromBytes(ParseFollowerKey(key))
+		if err != nil {
+			return err
+		}
+		return update(follower)
+	})
+	if err != nil {
+		return n, fmt.Errorf("update follower timelines: %w", err)
+	}
+	return n, nil
 }
