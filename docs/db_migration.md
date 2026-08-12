@@ -121,6 +121,12 @@ inspect 只读；purge 会释放全部保留的旧 ID，并允许相关用户再
 当前版本把 EntryIndex 升级为同秒不碰撞的 key，并把 Like/Comment 从 Entry value
 拆到独立表。升级不维护旧格式双轨，完成后不得用旧程序打开或降级写入数据库。
 
+大库命令必须保持流式、内存有界。`rebuild_entry_index` 会先流式预检 Entry，再用
+Pebble range tombstone 清理 EntryIndex，最后第二遍流式重建；dry-run 也不保留全量
+Entry 或 index。不要把“每 500 条提交一次”误当成内存上限：如果提交前已经把全部
+key/record 收进 slice/map，内存仍会随全库数据线性增长。需要先验证后写入时，应接受
+多遍扫描，而不是缓存全库中间结果。
+
 推荐依次使用全量 `rebuild_entry_index` 和 `rebuild_timeline`。前者从 Entry 重建
 Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；后者从 Entry、
 当前 Like/Comment 与当前 Follow 关系重建 Home activity timeline。
@@ -162,6 +168,10 @@ Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；�
 profile 授予编辑、删除或 unlike 权限。非 UUID 的历史 comment ID 同样会确定性转换为
 UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，不阻断迁移；只有
 会覆盖同一独立表 key 的 `duplicates` 非零时拒绝开始写入。
+
+全量 dry-run 和 apply 都应观察进程 RSS；内存应主要由 Pebble cache 和少量按 feed 的
+校验状态构成，不应随已扫描 Entry 数持续线性增长。`rebuild_timeline` 按 profile 逐个
+处理，内存上限与单个用户的 Home timeline 规模相关，而非全库 Entry 总数。
 
 6. 确认 dry-run 后执行写入。命令默认会写库，`-dry-run` 才是不写开关：
 

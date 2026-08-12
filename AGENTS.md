@@ -35,6 +35,7 @@
 ## 迁移边界
 
 - 仅支持 Pebble v2 和已由 v1.0 工具迁移完成的新库，不兼容旧库、Pebble v1 或降级运行。
+- 全库迁移/重建必须流式且内存有界；不得把全部 record、key 或 value 收集进 slice/map。小 batch 只限制单次写入，不代表内存有界；需要全量预检时使用多遍扫描，整段清理优先使用范围删除。
 - 社交图、timeline 重建和 R2 URL 改写只依赖 new DB，不重新引入 old DB。
 - timeline 只处理同时具有 profile 与 OAuth 身份的活跃用户；先针对指定用户和小 feed 上限 dry-run。
 - PublicFeed 的 `public` metadata/UUID 不得由普通 feed 初始化覆盖。
