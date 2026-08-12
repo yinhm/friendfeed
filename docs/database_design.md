@@ -18,7 +18,7 @@ Pebble
 ├── 必须随源数据原子维护的直接索引
 │   └── author feed / target feed EntryIndex
 └── 可重建派生数据
-    ├── follower timeline EntryIndex
+    ├── TimelineIndex / TimelinePosition
     ├── public FeedIndex cache
     └── Bleve search index
 ```
@@ -49,7 +49,7 @@ family；表前缀承担逻辑分区作用。
 | 2 | Feedinfo | `T + feed UUID` | `pb.Feedinfo` | 历史/迁移 metadata |
 | 3 | Entry | `T + entry UUID` | `pb.Entry`，不再内嵌 canonical Like/Comment | 源数据 |
 | 4 | UserMap | `T + current profile id` | 16 B profile UUID | 源映射 |
-| 5 | EntryIndex | 见下一节 | canonical Entry key | direct 或 timeline 索引 |
+| 5 | EntryIndex | 见下一节 | canonical Entry key | Profile/target feed direct 索引 |
 | 6 | Tweet | `T + tweet key` | `pb.Tweet` | 导入数据 |
 | 7 | UserRenameMap | `T + old profile id` | 16 B profile UUID | soft rename metadata |
 | 100 | Profile | `T + profile UUID` | `pb.Profile` | 源数据 |
@@ -60,6 +60,8 @@ family；表前缀承担逻辑分区作用。
 | 105 | File | 保留，当前无运行时读写 | — | 预留前缀 |
 | 106 | Like | `T + entry UUID + actor UUID` | `pb.Like` | 源数据、天然幂等 |
 | 107 | Comment | `T + entry UUID + comment UUID` | `pb.Comment` | 源数据 |
+| 108 | TimelineIndex | `T + viewer UUID + reverse Unix ms + entry UUID` | 空 | Home 排序派生数据 |
+| 109 | TimelinePosition | `T + viewer UUID + entry UUID` | Unix ms（8 B big-endian） | Home 位置派生数据 |
 | 200 | JobFeed | `T + Flake ID` | job protobuf | queued job |
 | 201 | JobRunning | `T + Flake ID` | job protobuf | claimed job |
 | 202 | JobHistory | `T + target id` | `pb.FeedJob` | 历史记录 |
@@ -175,12 +177,12 @@ PostEntry
   │   ├── author direct EntryIndex
   │   ├── target feed direct EntryIndex（若不同）
   │   └── 请求携带的 Like/Comment 独立行
-  ├── follower timeline fanout（batch 外，无上限）
+  ├── Home activity timeline 初始化（batch 外，无上限）
   └── Bleve body index
 ```
 
 fanout 不进入 Entry 主 batch，避免 follower 数量无限扩大一次同步 commit；错误必须返回，
-可用 `audit_store` 和 `rebuild_entry_index` 修复派生 timeline。
+可用 `audit_store` 和 `rebuild_timeline` 修复派生 timeline。
 
 ```text
 FetchFeed(cursor mode)
@@ -195,7 +197,7 @@ FetchFeed(cursor mode)
 profile/timeline 使用 cursor；旧客户端、public cache 和 search 保持 Start/PageSize。cursor
 不是 Entry UUID，不得脱离当前 feed prefix 解释。
 
-## Home activity timeline（目标设计，尚未实施）
+## Home activity timeline
 
 FriendFeed 风格的 Home timeline 按“最近有效活动”重新浮起讨论；Profile/feed 页面仍按
 原帖发布时间稳定排序。两者不能共用同一个排序时间：
@@ -206,7 +208,7 @@ FriendFeed 风格的 Home timeline 按“最近有效活动”重新浮起讨论
 | Home timeline | viewer 对该 Entry 的 `activity_at` | 按以下规则有限 bump |
 | Public / Search | 保持各自当前规则 | 否 |
 
-目标结构使用独立的 timeline 派生表，具体 table prefix 在实现时分配：
+Home 使用独立的 timeline 派生表：
 
 ```text
 TimelineIndex
@@ -306,7 +308,7 @@ O(followers) 初始化，Comment/Like bump 还会增加互动 fanout；独立表
 ## 原子性与并发边界
 
 - Entry record 与 author/target direct index 同 batch；timeline fanout 独立。
-- DeleteEntry 先处理无上限 timeline，再原子删除 Entry、direct index、Like、Comment。
+- DeleteEntry 原子删除 Entry、direct index、Like、Comment；不枚举 timeline viewer。
 - activity timeline 对已删除 Entry 采用读路径懒删，不在 DeleteEntry 中增加无上限 fanout。
 - Entry 创建/编辑/删除持 `entryLifecycleMu` 写锁；Like/Comment 持读锁，互动可彼此并发，
   但不能与 Entry 删除并发产生 orphan 行。
@@ -316,8 +318,8 @@ O(followers) 初始化，Comment/Like bump 还会增加互动 fanout；独立表
 ## 运维与迁移原则
 
 - schema 升级必须停服、备份、先按用户和小上限 dry-run，再全量执行及 audit。
-- `rebuild_entry_index` 从 Entry/Follower 源数据恢复 direct 与 timeline；它比只转换现存旧
-  key 的 `migrate_entry_index` 更完整，因为后者无法恢复历史覆盖造成的缺失行。
+- `rebuild_entry_index` 从 Entry 恢复 direct index；`rebuild_timeline` 从 Entry、互动和当前
+  社交图恢复 Home。全量重建还会清除旧 timeline 与 orphan EntryIndex 行。
 - 升级后不支持旧程序打开、Pebble v1 或降级写入。
 - Public FeedIndex、TimelineIndex/TimelinePosition 和 Bleve 是派生数据；Profile、OAuth、Entry、互动和社交边
   才是恢复时不可丢失的源数据。

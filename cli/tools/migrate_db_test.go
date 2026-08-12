@@ -333,15 +333,15 @@ func TestRebuildTimelines(t *testing.T) {
 	if err := db.Set(followKey, []byte("1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := model.EntryIndex.Index(db, userID, time.Unix(100, 0), []byte("own-entry")); err != nil {
-		t.Fatal(err)
-	}
-	if err := model.EntryIndex.Index(db, followedID, time.Unix(200, 0), []byte("followed-entry")); err != nil {
-		t.Fatal(err)
-	}
-	timelineID := model.UniqueKeyFrom(fmt.Sprintf("%x", userID), "user", "timeline")
-	if err := model.EntryIndex.Index(db, timelineID, time.Unix(300, 0), []byte("stale-entry")); err != nil {
-		t.Fatal(err)
+	ownEntry := uuid.Must(uuid.NewV4())
+	followedEntry := uuid.Must(uuid.NewV4())
+	for id, author := range map[uuid.UUID]uuid.UUID{ownEntry: userID, followedEntry: followedID} {
+		if _, err := model.PutEntry(db, &pb.Entry{
+			Id: id.String(), ProfileUuid: author.String(),
+			Date: time.Unix(100, 0).UTC().Format(time.RFC3339),
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	dryStats, err := rebuildTimelines(db, timelineRebuildOptions{user: "user", maxLimit: 1, dryRun: true})
@@ -351,7 +351,7 @@ func TestRebuildTimelines(t *testing.T) {
 	if dryStats.profiles != 1 || dryStats.existing != 1 || dryStats.follows != 0 || dryStats.entries != 1 {
 		t.Fatalf("unexpected dry-run stats: %+v", dryStats)
 	}
-	stalePrefix := model.NewUUIDKey(model.TableEntryIndex, timelineID)
+	stalePrefix := model.TimelineIndexPrefix(userID)
 	staleCount, err := db.ForwardScan(stalePrefix, func(i int, key, value []byte) error { return nil })
 	if err != nil || staleCount != 1 {
 		t.Fatalf("dry-run modified timeline: count=%d, err=%v", staleCount, err)
@@ -365,15 +365,19 @@ func TestRebuildTimelines(t *testing.T) {
 		t.Fatalf("unexpected rebuild stats: %+v", stats)
 	}
 
-	timelinePrefix := model.NewUUIDKey(model.TableEntryIndex, timelineID)
-	var values []string
+	timelinePrefix := model.TimelineIndexPrefix(userID)
+	var values []uuid.UUID
 	if _, err := db.ForwardScan(timelinePrefix, func(i int, key, value []byte) error {
-		values = append(values, string(value))
+		_, entryID, _, err := model.ParseTimelineIndexKey(key)
+		if err != nil {
+			return err
+		}
+		values = append(values, entryID)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if len(values) != 2 || values[0] != "followed-entry" || values[1] != "own-entry" {
+	if len(values) != 2 {
 		t.Fatalf("unexpected rebuilt timeline: %v", values)
 	}
 }
@@ -387,7 +391,10 @@ func TestExplicitTimelineUserDoesNotRequireOAuthMetadata(t *testing.T) {
 	if err := model.UpdateProfile(db, &pb.Profile{Uuid: userID.String(), Id: "yinhm", Type: "user"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := model.EntryIndex.Index(db, userID, time.Unix(100, 0), []byte("own-entry")); err != nil {
+	if _, err := model.PutEntry(db, &pb.Entry{
+		Id: uuid.Must(uuid.NewV4()).String(), ProfileUuid: userID.String(),
+		Date: time.Unix(100, 0).UTC().Format(time.RFC3339),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -398,6 +405,23 @@ func TestExplicitTimelineUserDoesNotRequireOAuthMetadata(t *testing.T) {
 	if stats.profiles != 1 || stats.entries != 1 {
 		t.Fatalf("unexpected explicit-user stats: %+v", stats)
 	}
+}
+
+func TestRebuiltTimelineActivityReplaysCurrentInteractions(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	entry := &pb.Entry{
+		Date: base.Format(time.RFC3339),
+		Likes: []*pb.Like{
+			{Date: base.Add(5 * time.Minute).Format(time.RFC3339), From: &pb.Feed{Uuid: "a"}},
+			{Date: base.Add(15 * time.Minute).Format(time.RFC3339), From: &pb.Feed{Uuid: "b"}},
+		},
+		Comments: []*pb.Comment{
+			{Id: "c", Date: base.Add(16 * time.Minute).Format(time.RFC3339)},
+		},
+	}
+	activity, err := rebuiltTimelineActivity(entry, base.Add(time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, base.Add(16*time.Minute), activity)
 }
 
 func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {

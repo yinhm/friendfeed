@@ -296,6 +296,33 @@ func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
 	s.Error(err)
 }
 
+func (s *RpcTestSuite) TestHomeCursorRanksActivityWithoutMovingProfileFeed() {
+	profileID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileID.String(), Id: "activity-user", Type: "user"}
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, profile))
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	oldID := uuid.Must(uuid.NewV4())
+	newID := uuid.Must(uuid.NewV4())
+	for id, date := range map[uuid.UUID]time.Time{oldID: base, newID: base.Add(time.Minute)} {
+		_, err := model.PutEntry(s.srv.rdb, &pb.Entry{
+			Id: id.String(), Date: date.Format(time.RFC3339), ProfileUuid: profileID.String(),
+			From: &pb.Feed{Uuid: profileID.String(), Id: profile.Id},
+		})
+		s.Require().NoError(err)
+	}
+	old, err := model.GetEntry(s.srv.rdb, oldID.String())
+	s.Require().NoError(err)
+	_, err = model.FanoutTimelineActivity(s.srv.rdb, old, base.Add(30*time.Minute), model.TimelineActivityComment)
+	s.Require().NoError(err)
+
+	home, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{ProfileUuid: profileID.String(), PageSize: 10})
+	s.Require().NoError(err)
+	s.Equal([]string{oldID.String(), newID.String()}, feedEntryIDs(home))
+	profileFeed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{Id: profile.Id, PageSize: 10, CursorPaging: true})
+	s.Require().NoError(err)
+	s.Equal([]string{newID.String(), oldID.String()}, feedEntryIDs(profileFeed))
+}
+
 func feedEntryIDs(feed *pb.Feed) []string {
 	ids := make([]string, len(feed.Entries))
 	for i := range feed.Entries {

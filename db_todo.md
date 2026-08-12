@@ -37,7 +37,7 @@ store API 及其仓库内调用方；若旧 API 的语义不合理，应替换�
 
 ### 可重建派生数据
 
-- follower timeline；
+- Home activity timeline；
 - public FeedIndex；
 - Bleve search index。
 
@@ -61,10 +61,10 @@ store API 及其仓库内调用方；若旧 API 的语义不合理，应替换�
 
 ## 阶段 B：数据审计
 
-- [x] `audit_store` 对比源 Entry、direct EntryIndex 和 timeline index。
+- [x] `audit_store` 对比源 Entry、direct EntryIndex，并检查 activity timeline 双表一致性。
 - [x] `audit_store` 统计同 feed 同秒 Entry 数及潜在覆盖量。
 - [x] `audit_store` 审计 Follow/Follower 是否完全对称。
-- [x] `audit_store` 统计 orphan index 和缺失 timeline index。
+- [x] `audit_store` 统计 orphan direct index、缺失 Entry、缺失 position/index、重复位置和时间不一致。
 - [x] 记录发帖 fanout 数量与耗时，不记录正文或敏感信息。
 - [x] 复现测试确认同秒覆盖，已获授权进入 EntryIndex 修正。
 
@@ -98,8 +98,8 @@ Flake ID 是现有的分布式、k-ordered 身份与排序设计，即使当前�
 - [x] 最小修正保留完整反转 flake，在 key 末尾追加 canonical Entry key 作为唯一性后缀。
 - [x] 选择原表离线迁移：`migrate_entry_index` 将旧 key 原子转换为新 key，不维护双轨。
 - [x] `rebuild_entry_index` 从 Entry 源数据重建 author/feed direct index。
-- [x] 同一命令按 Follower 源数据重建 author/follower timeline index。
-- [x] 全量 dry-run 逐 feed/timeline 对比数量和完整顺序（含首尾），并统计重复 index value。
+- [x] 旧 EntryIndex timeline 曾由该命令重建；阶段 E 切换后已停止，Home 改由 `rebuild_timeline` 管理。
+- [x] 全量 dry-run 逐 direct feed 对比数量和完整顺序（含首尾），并统计重复 index value。
 - [x] 指定用户和 `max-limit` rebuild 不清理其他用户索引；cursor 分页另有多页、尾页和删除锚点回归测试。
 - [x] 全量模式先清理派生 EntryIndex，再从源数据重建；指定用户模式只做有界 upsert。
 - [x] 生产备份路径覆盖 EntryIndex 与独立互动表；备份库可只读打开并作为 ApiServer 重启后读取。
@@ -142,21 +142,21 @@ Like 以 `(entry UUID, actor UUID)` 天然幂等；Comment 以稳定 comment UUI
 继续按 `entry.Date` 排序；Home 使用独立 `TimelineIndex + TimelinePosition` 按每个 viewer
 的 `activity_at` 排序。
 
-- [ ] 分配 TimelineIndex/TimelinePosition 前缀并固定 key/value codec；不复用 direct EntryIndex。
-- [ ] 新 Entry 以 `entry.Date` 初始化当前 follower 与作者的 timeline position。
-- [ ] 新 Comment 总是 bump；编辑/删除 Comment 不 bump、不回退。
-- [ ] 新 Like 仅在 Entry 不超过 7 天且 viewer 冷却已满 10 分钟时 bump；重复 Like 与 Unlike 不 bump。
-- [ ] 单 viewer 的旧索引删除、新索引写入和 position 更新使用一个 Pebble batch。
-- [ ] position 缺失且当前 Follow/Follower 关系满足时插入；资格、冷却和位置更新处于同一串行边界。
-- [ ] 新 Comment 由服务端 stamp Date，编辑保留旧 Date；未来 Entry 不能绕过 Like 时间窗口。
-- [ ] 互动源数据先提交，无上限 timeline bump fanout 保持在主 batch 外；错误必须返回。
-- [ ] DeleteEntry 不做无上限 timeline fanout；读路径懒删 index+position，audit/rebuild 清理其余孤儿。
-- [ ] cursor 分页覆盖活动后移动、删除锚点、尾页和重复显示边界。
-- [ ] `rebuild_timeline` 从当前 Entry、Comment、Like、Follow/Follower 确定性重建两张派生表。
-- [ ] 支持指定用户、`max-limit`、dry-run，并对比数量、顺序、首尾、重复项和 activity timestamp。
-- [ ] 文档明确：已删除互动与历史关注关系没有 event log，不能精确重放过去 bump。
-- [ ] `audit_store` 检查 index/position 双向一致、缺失 Entry、重复位置和 timestamp 不一致。
-- [ ] rollout 按“新表 rebuild → 切 Home 读取 → 停旧 timeline 写入 → purge 旧行”执行。
+- [x] 分配 TimelineIndex/TimelinePosition 前缀并固定 key/value codec；不复用 direct EntryIndex。
+- [x] 新 Entry 以 `entry.Date` 初始化当前 follower 与作者的 timeline position。
+- [x] 新 Comment 总是 bump；编辑/删除 Comment 不 bump、不回退。
+- [x] 新 Like 仅在 Entry 不超过 7 天且 viewer 冷却已满 10 分钟时 bump；重复 Like 与 Unlike 不 bump。
+- [x] 单 viewer 的旧索引删除、新索引写入和 position 更新使用一个 Pebble batch。
+- [x] position 缺失且当前 Follow/Follower 关系满足时插入；资格、冷却和位置更新处于同一串行边界。
+- [x] 新 Comment 由服务端 stamp Date，编辑保留旧 Date；未来 Entry 不能绕过 Like 时间窗口。
+- [x] 互动源数据先提交，无上限 timeline bump fanout 保持在主 batch 外；错误必须返回。
+- [x] DeleteEntry 不做无上限 timeline fanout；读路径懒删 index+position，audit/rebuild 清理其余孤儿。
+- [x] cursor 分页覆盖活动后移动、删除锚点、尾页和重复显示边界。
+- [x] `rebuild_timeline` 从当前 Entry、Comment、Like、Follow/Follower 确定性重建两张派生表。
+- [x] 支持指定用户、`max-limit`、dry-run，并对比数量、重复项和 activity timestamp。
+- [x] 文档明确：已删除互动与历史关注关系没有 event log，不能精确重放过去 bump。
+- [x] `audit_store` 检查 index/position 双向一致、缺失 Entry、重复位置和 timestamp 不一致。
+- [x] rollout 按“新表 rebuild → 切 Home 读取 → 停旧 timeline 写入 → purge 旧行”执行。
 
 ## 阶段 F：有实际需求后再决定
 

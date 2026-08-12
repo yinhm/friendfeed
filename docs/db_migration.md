@@ -121,8 +121,9 @@ inspect 只读；purge 会释放全部保留的旧 ID，并允许相关用户再
 当前版本把 EntryIndex 升级为同秒不碰撞的 key，并把 Like/Comment 从 Entry value
 拆到独立表。升级不维护旧格式双轨，完成后不得用旧程序打开或降级写入数据库。
 
-推荐使用全量 `rebuild_entry_index`，因为它从 Entry 与 Follower 源数据重建 direct
-index 和 timeline，能同时恢复历史碰撞造成的缺失行并清除 orphan/旧格式行。
+推荐依次使用全量 `rebuild_entry_index` 和 `rebuild_timeline`。前者从 Entry 重建
+Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；后者从 Entry、
+当前 Like/Comment 与当前 Follow 关系重建 Home activity timeline。
 `migrate_entry_index` 只转换现存旧 key，不能恢复已经丢失的索引；执行全量 rebuild
 时不需要先运行它。
 
@@ -138,8 +139,10 @@ index 和 timeline，能同时恢复历史碰撞造成的缺失行并清除 orph
 ```bash
 ./tools -to <db-dir> -c migrate_interactions -user yinhm -max-limit 20 -dry-run
 ./tools -to <db-dir> -c rebuild_entry_index -user yinhm -max-limit 20 -dry-run
+./tools -to <db-dir> -c rebuild_timeline -user yinhm -max-limit 20 -dry-run
 ./tools -to <db-dir> -c migrate_interactions -dry-run
 ./tools -to <db-dir> -c rebuild_entry_index -dry-run
+./tools -to <db-dir> -c rebuild_timeline -dry-run
 ```
 
 `migrate_interactions` 全量 apply 前会再次完整预检；`invalid_actors`、
@@ -150,10 +153,11 @@ index 和 timeline，能同时恢复历史碰撞造成的缺失行并清除 orph
 ```bash
 ./tools -to <db-dir> -c migrate_interactions
 ./tools -to <db-dir> -c rebuild_entry_index
+./tools -to <db-dir> -c rebuild_timeline
 ```
 
 6. 执行 `./tools -to <db-dir> -c audit_store`。必须确认 `missing_direct=0`、
-   `orphan_indexes=0`、`missing_timeline=0`；抽查目标用户的 cursor 多页顺序、首尾、
+   `orphan_indexes=0`，且 timeline 的 missing/duplicate/timestamp mismatch 均为 0；抽查目标用户的 cursor 多页顺序、首尾、
    无重复项，以及 Like/Comment 数量、顺序、编辑/删除权限和 rename 后身份。
 7. 用新二进制冷启动，验证 feed 与互动后正常停止并再次启动。若验收失败，应在没有
    新写入的前提下整体恢复步骤 2 的目录并中止升级；不要让旧程序打开已升级目录。

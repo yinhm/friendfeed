@@ -11,7 +11,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
@@ -71,10 +73,12 @@ func confirmDestructive(command, dbPath string, in io.Reader, out io.Writer) err
 }
 
 type timelineRebuildStats struct {
-	profiles int
-	follows  int
-	entries  int
-	existing int
+	profiles  int
+	follows   int
+	entries   int
+	existing  int
+	mismatch  int
+	duplicate int
 }
 
 type timelineRebuildOptions struct {
@@ -286,26 +290,29 @@ func rebuildSocialGraph(db *store.Store, dryRun bool) (socialGraphRebuildStats, 
 	return stats, nil
 }
 
-func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options timelineRebuildOptions) (int, int, int, error) {
+func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options timelineRebuildOptions) (int, int, int, int, int, error) {
 	profileID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+		return 0, 0, 0, 0, 0, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
 	}
 
-	timelineID := model.UniqueKeyFrom(fmt.Sprintf("%x", profileID), "user", "timeline")
-	timelinePrefix := model.NewUUIDKey(model.TableEntryIndex, timelineID)
+	timelinePrefix := model.TimelineIndexPrefix(profileID)
+	existingRows := make(map[uuid.UUID]time.Time)
+	duplicates := 0
 	existing, err := db.ForwardScan(timelinePrefix, func(i int, key, value []byte) error {
+		_, entry, activity, err := model.ParseTimelineIndexKey(key)
+		if err != nil {
+			return err
+		}
+		if _, ok := existingRows[entry]; ok {
+			duplicates++
+		}
+		existingRows[entry] = activity
 		return nil
 	})
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("count timeline for %s: %w", profile.Id, err)
+		return 0, 0, 0, 0, 0, fmt.Errorf("count timeline for %s: %w", profile.Id, err)
 	}
-	if !options.dryRun {
-		if _, err := purge_table(db, timelinePrefix); err != nil {
-			return 0, 0, existing, fmt.Errorf("clear timeline for %s: %w", profile.Id, err)
-		}
-	}
-
 	feeds := []uuid.UUID{profileID}
 	seenFeeds := map[uuid.UUID]struct{}{profileID: {}}
 	selectedFollows := 0
@@ -326,29 +333,129 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		return nil
 	})
 	if err != nil {
-		return 0, 0, existing, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
+		return 0, 0, existing, 0, duplicates, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
 	}
 
-	entries := 0
+	type rebuiltEntry struct {
+		id       uuid.UUID
+		activity time.Time
+	}
+	rebuilt := make(map[uuid.UUID]rebuiltEntry)
+	now := time.Now().UTC()
 	for _, feedID := range feeds {
 		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
 		_, err := db.ForwardScan(feedPrefix, func(i int, key, value []byte) error {
-			if !options.dryRun {
-				indexSuffix := key[len(feedPrefix):]
-				timelineKey := model.NewKeyFrom(timelinePrefix, indexSuffix)
-				if err := db.Set(timelineKey, value); err != nil {
-					return err
-				}
+			if len(value) != model.Entry.Prefix.Len()+uuid.Size {
+				return fmt.Errorf("invalid EntryIndex value length %d", len(value))
 			}
-			entries++
+			entryID, err := uuid.FromBytes(value[model.Entry.Prefix.Len():])
+			if err != nil {
+				return err
+			}
+			if _, seen := rebuilt[entryID]; seen {
+				return nil
+			}
+			entry, err := model.GetEntry(db, entryID.String())
+			if err != nil {
+				if errors.Is(err, model.ErrNotFound) {
+					return nil
+				}
+				return err
+			}
+			activity, err := rebuiltTimelineActivity(entry, now)
+			if err != nil {
+				return fmt.Errorf("entry %s activity: %w", entry.Id, err)
+			}
+			rebuilt[entryID] = rebuiltEntry{id: entryID, activity: activity}
 			return nil
 		})
 		if err != nil {
-			return selectedFollows, entries, existing, fmt.Errorf("copy feed %s into %s timeline: %w", feedID, profile.Id, err)
+			return selectedFollows, len(rebuilt), existing, 0, duplicates, fmt.Errorf("read feed %s for %s timeline: %w", feedID, profile.Id, err)
 		}
 	}
+	mismatches := 0
+	for entry, item := range rebuilt {
+		if old, ok := existingRows[entry]; !ok || !old.Equal(item.activity) {
+			mismatches++
+		}
+	}
+	for entry := range existingRows {
+		if _, ok := rebuilt[entry]; !ok {
+			mismatches++
+		}
+	}
+	if !options.dryRun {
+		if _, err := purge_table(db, timelinePrefix); err != nil {
+			return selectedFollows, len(rebuilt), existing, mismatches, duplicates, fmt.Errorf("clear timeline for %s: %w", profile.Id, err)
+		}
+		if _, err := purge_table(db, model.NewKeyFrom(model.TimelinePosition.Prefix, profileID.Bytes())); err != nil {
+			return selectedFollows, len(rebuilt), existing, mismatches, duplicates, fmt.Errorf("clear timeline positions for %s: %w", profile.Id, err)
+		}
+		for _, item := range rebuilt {
+			if _, err := model.MoveTimelineEntry(db, profileID, item.id, item.activity, nil); err != nil {
+				return selectedFollows, len(rebuilt), existing, mismatches, duplicates, err
+			}
+		}
+	}
+	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
+}
 
-	return selectedFollows, entries, existing, nil
+type timelineEvent struct {
+	at   time.Time
+	kind model.TimelineActivityKind
+	id   string
+}
+
+func rebuiltTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, error) {
+	published, err := time.Parse(time.RFC3339, entry.Date)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if published.After(now) {
+		published = now
+	}
+	events := make([]timelineEvent, 0, len(entry.Likes)+len(entry.Comments))
+	for _, like := range entry.Likes {
+		at, err := time.Parse(time.RFC3339, like.Date)
+		if err != nil {
+			return time.Time{}, err
+		}
+		id := ""
+		if like.From != nil {
+			id = like.From.Uuid
+		}
+		events = append(events, timelineEvent{at: at, kind: model.TimelineActivityLike, id: id})
+	}
+	for _, comment := range entry.Comments {
+		at, err := time.Parse(time.RFC3339, comment.Date)
+		if err != nil {
+			return time.Time{}, err
+		}
+		events = append(events, timelineEvent{at: at, kind: model.TimelineActivityComment, id: comment.Id})
+	}
+	sort.Slice(events, func(i, j int) bool {
+		if !events[i].at.Equal(events[j].at) {
+			return events[i].at.Before(events[j].at)
+		}
+		if events[i].kind != events[j].kind {
+			return events[i].kind < events[j].kind
+		}
+		return events[i].id < events[j].id
+	})
+	activity := published
+	for _, event := range events {
+		if event.at.After(now) || !event.at.After(activity) {
+			continue
+		}
+		if event.kind == model.TimelineActivityLike {
+			age := event.at.Sub(published)
+			if age < 0 || age > model.LikeBumpMaxEntryAge || event.at.Sub(activity) < model.LikeBumpCooldown {
+				continue
+			}
+		}
+		activity = event.at
+	}
+	return activity, nil
 }
 
 // oauthActiveProfiles lists non-deleted profiles and the set of profile UUIDs
@@ -423,7 +530,7 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 			}
 		}
 
-		follows, entries, existing, err := rebuildTimelineForProfile(db, profile, options)
+		follows, entries, existing, mismatches, duplicates, err := rebuildTimelineForProfile(db, profile, options)
 		if err != nil {
 			return stats, err
 		}
@@ -431,11 +538,13 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 		stats.follows += follows
 		stats.entries += entries
 		stats.existing += existing
+		stats.mismatch += mismatches
+		stats.duplicate += duplicates
 		action := "rebuilt"
 		if options.dryRun {
 			action = "would rebuild"
 		}
-		log.Printf("%s timeline for %s: %d existing entries, %d source feeds, %d source entries", action, profile.Id, existing, follows+1, entries)
+		log.Printf("%s timeline for %s: %d existing entries, %d source feeds, %d source entries, %d mismatches, %d duplicates", action, profile.Id, existing, follows+1, entries, mismatches, duplicates)
 	}
 	if options.user != "" && stats.profiles == 0 {
 		return stats, fmt.Errorf("profile %q not found", options.user)
@@ -479,7 +588,7 @@ func runRebuildTimelineCommand(ndb *store.Store) {
 			log.Fatalf("flush database: %v", err)
 		}
 	}
-	log.Printf("timeline summary: %d profiles, %d existing entries, %d follows, %d source entries, dry-run=%t", stats.profiles, stats.existing, stats.follows, stats.entries, dryRun)
+	log.Printf("timeline summary: %d profiles, %d existing entries, %d follows, %d source entries, %d mismatches, %d duplicates, dry-run=%t", stats.profiles, stats.existing, stats.follows, stats.entries, stats.mismatch, stats.duplicate, dryRun)
 }
 
 func runRebuildSocialGraphCommand(ndb *store.Store) {
@@ -1137,8 +1246,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("entry index rebuild: entries=%d direct=%d timeline=%d removed=%d feeds_checked=%d feeds_mismatched=%d duplicate_indexes=%d dry-run=%t",
-			stats.entries, stats.direct, stats.timeline, stats.removed, stats.feedsChecked,
+		log.Printf("entry index rebuild: entries=%d direct=%d removed=%d feeds_checked=%d feeds_mismatched=%d duplicate_indexes=%d dry-run=%t",
+			stats.entries, stats.direct, stats.removed, stats.feedsChecked,
 			stats.feedsMismatched, stats.duplicateIndexes, dryRun)
 	case "fix_twitter_oauth_fields":
 		runFixTwitterOAuthFieldsCommand(ndb)

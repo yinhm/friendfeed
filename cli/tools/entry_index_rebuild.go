@@ -23,7 +23,6 @@ type entryIndexRebuildOptions struct {
 type entryIndexRebuildStats struct {
 	entries          int
 	direct           int
-	timeline         int
 	removed          int
 	feedsChecked     int
 	feedsMismatched  int
@@ -31,10 +30,9 @@ type entryIndexRebuildStats struct {
 }
 
 type entryIndexRebuildRecord struct {
-	key      store.Key
-	date     time.Time
-	direct   []uuid.UUID
-	timeline []uuid.UUID
+	key    store.Key
+	date   time.Time
+	direct []uuid.UUID
 }
 
 func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (entryIndexRebuildStats, error) {
@@ -51,26 +49,7 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 		}
 	}
 
-	followers := make(map[uuid.UUID][]uuid.UUID)
 	records := make([]entryIndexRebuildRecord, 0)
-	loadFollowers := func(feed uuid.UUID) ([]uuid.UUID, error) {
-		if cached, ok := followers[feed]; ok {
-			return cached, nil
-		}
-		list := make([]uuid.UUID, 0)
-		prefix := model.NewPrefixKeyFrom(model.TableFollower, feed.Bytes())
-		_, err := db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
-			followerKey := model.ParseFollowerKey(key)
-			follower, err := uuid.FromBytes(followerKey)
-			if err != nil {
-				return err
-			}
-			list = append(list, follower)
-			return nil
-		})
-		followers[feed] = list
-		return list, err
-	}
 
 	err := model.Entry.Iter(db, func(key, raw []byte) error {
 		entry := new(pb.Entry)
@@ -105,18 +84,9 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 			directTargets = append(directTargets, feed)
 		}
 		stats.direct += len(directTargets)
-		timelineTargets := []uuid.UUID{model.TimelineUUID(author)}
-		feedFollowers, err := loadFollowers(feed)
-		if err != nil {
-			return err
-		}
-		for _, follower := range feedFollowers {
-			timelineTargets = append(timelineTargets, model.TimelineUUID(follower))
-		}
-		stats.timeline += len(timelineTargets)
 		records = append(records, entryIndexRebuildRecord{
 			key: append(store.Key(nil), entryKey...), date: date,
-			direct: directTargets, timeline: timelineTargets,
+			direct: directTargets,
 		})
 		return nil
 	})
@@ -157,11 +127,6 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 				return stats, err
 			}
 		}
-		for _, target := range record.timeline {
-			if err := model.EntryIndex.Index(db, target, record.date, record.key); err != nil {
-				return stats, err
-			}
-		}
 	}
 	return stats, nil
 }
@@ -173,7 +138,7 @@ func compareEntryIndexes(db *store.Store, records []entryIndexRebuildRecord, sta
 	}
 	expected := make(map[uuid.UUID][]expectedIndex)
 	for _, record := range records {
-		for _, target := range append(append([]uuid.UUID(nil), record.direct...), record.timeline...) {
+		for _, target := range record.direct {
 			flakeID := db.TimeTravelReverseId(record.date)
 			base := store.NewUUIDFlakeKey(model.TableEntryIndex, target, flakeID)
 			key := model.NewKeyFrom(base.Bytes(), record.key)

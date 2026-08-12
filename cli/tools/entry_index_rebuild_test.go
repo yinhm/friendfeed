@@ -40,24 +40,22 @@ func TestRebuildEntryIndexesRestoresSourceDerivedRows(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, dry.entries)
 	require.Equal(t, 2, dry.direct)
-	require.Equal(t, 4, dry.timeline)
 	require.Zero(t, dry.removed)
-	require.Equal(t, 3, dry.feedsChecked)
+	require.Equal(t, 1, dry.feedsChecked)
 	require.NotZero(t, dry.feedsMismatched)
 
 	stats, err := rebuildEntryIndexes(db, entryIndexRebuildOptions{})
 	require.NoError(t, err)
-	require.Equal(t, 6, stats.removed)
+	require.Equal(t, 2, stats.removed)
 	audit, err := auditStore(db)
 	require.NoError(t, err)
 	require.Zero(t, audit.missingDirectIndexes)
-	require.Zero(t, audit.missingTimeline)
 	require.Zero(t, audit.orphanIndexes)
-	require.Equal(t, 6, audit.entryIndexes)
+	require.Equal(t, 2, audit.entryIndexes)
 
 	verified, err := rebuildEntryIndexes(db, entryIndexRebuildOptions{dryRun: true})
 	require.NoError(t, err)
-	require.Equal(t, 3, verified.feedsChecked)
+	require.Equal(t, 1, verified.feedsChecked)
 	require.Zero(t, verified.feedsMismatched)
 	require.Zero(t, verified.duplicateIndexes)
 }
@@ -88,7 +86,6 @@ func TestRebuildEntryIndexesForOneUserIsBounded(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, stats.entries)
 	require.Equal(t, 1, stats.direct)
-	require.Equal(t, 1, stats.timeline)
 	require.Zero(t, stats.removed, "a scoped rebuild must not clear the shared index table")
 
 	assertIndexed := func(owner uuid.UUID, entryKey store.Key) {
