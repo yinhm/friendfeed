@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"testing"
@@ -422,6 +423,48 @@ func TestRebuiltTimelineActivityReplaysCurrentInteractions(t *testing.T) {
 	activity, err := rebuiltTimelineActivity(entry, base.Add(time.Hour))
 	require.NoError(t, err)
 	require.Equal(t, base.Add(16*time.Minute), activity)
+}
+
+func TestCanonicalEntryKeyFromIndexValueSupportsDeployedFormats(t *testing.T) {
+	entryID := uuid.Must(uuid.NewV4())
+	key := model.Entry.PrefixAppend(entryID.Bytes())
+	for name, value := range map[string][]byte{
+		"raw": key,
+		"hex": []byte(hex.EncodeToString(key)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := canonicalEntryKeyFromIndexValue(value)
+			require.NoError(t, err)
+			require.Equal(t, store.Key(key), got)
+		})
+	}
+	_, err := canonicalEntryKeyFromIndexValue([]byte("not-a-valid-entry-index-value"))
+	require.Error(t, err)
+	wrongPrefix := append(model.Profile.Prefix.Copy(), entryID.Bytes()...)
+	_, err = canonicalEntryKeyFromIndexValue(wrongPrefix)
+	require.ErrorContains(t, err, "table prefix")
+}
+
+func TestRebuildTimelineReadsHexEncodedEntryIndexValue(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	profileID := uuid.Must(uuid.NewV4())
+	entryID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileID.String(), Id: "legacy-index", Type: "user"}
+	require.NoError(t, model.UpdateProfile(db, profile))
+	entry := &pb.Entry{Id: entryID.String(), ProfileUuid: profileID.String(), Date: time.Now().UTC().Format(time.RFC3339)}
+	entryKey, err := model.Entry.Put(db, entryID.Bytes(), entry)
+	require.NoError(t, err)
+	legacyIndexKey := store.NewUUIDFlakeKey(model.TableEntryIndex, profileID, db.TimeTravelReverseId(time.Now())).Bytes()
+	require.NoError(t, db.Put(legacyIndexKey, []byte(hex.EncodeToString(entryKey))))
+
+	stats, err := rebuildTimelines(db, timelineRebuildOptions{user: profile.Id})
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.entries)
+	count, err := db.ForwardScan(model.TimelineIndexPrefix(profileID), func(int, []byte, []byte) error { return nil })
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 }
 
 func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {

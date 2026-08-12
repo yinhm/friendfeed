@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -345,10 +346,11 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	for _, feedID := range feeds {
 		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
 		_, err := db.ForwardScan(feedPrefix, func(i int, key, value []byte) error {
-			if len(value) != model.Entry.Prefix.Len()+uuid.Size {
-				return fmt.Errorf("invalid EntryIndex value length %d", len(value))
+			entryKey, err := canonicalEntryKeyFromIndexValue(value)
+			if err != nil {
+				return fmt.Errorf("EntryIndex[%x]: %w", key, err)
 			}
-			entryID, err := uuid.FromBytes(value[model.Entry.Prefix.Len():])
+			entryID, err := uuid.FromBytes(entryKey[model.Entry.Prefix.Len():])
 			if err != nil {
 				return err
 			}
@@ -398,6 +400,33 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		}
 	}
 	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
+}
+
+// canonicalEntryKeyFromIndexValue accepts both EntryIndex value encodings
+// found in deployed databases. Current rows store the 20-byte key directly;
+// historical rows store the same bytes as 40 ASCII hexadecimal characters.
+func canonicalEntryKeyFromIndexValue(value []byte) (store.Key, error) {
+	const keySize = 4 + uuid.Size
+	var key []byte
+	switch len(value) {
+	case keySize:
+		key = value
+	case 2 * keySize:
+		decoded := make([]byte, keySize)
+		if _, err := hex.Decode(decoded, value); err != nil {
+			return nil, fmt.Errorf("decode hexadecimal entry key: %w", err)
+		}
+		key = decoded
+	default:
+		return nil, fmt.Errorf("invalid entry key length %d", len(value))
+	}
+	if !bytes.Equal(key[:model.Entry.Prefix.Len()], model.Entry.Prefix) {
+		return nil, fmt.Errorf("entry key has table prefix %x, want %x", key[:model.Entry.Prefix.Len()], model.Entry.Prefix)
+	}
+	if _, err := uuid.FromBytes(key[model.Entry.Prefix.Len():]); err != nil {
+		return nil, fmt.Errorf("entry key UUID: %w", err)
+	}
+	return append(store.Key(nil), key...), nil
 }
 
 type timelineEvent struct {
