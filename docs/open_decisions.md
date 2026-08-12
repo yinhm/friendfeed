@@ -17,3 +17,10 @@
 - **股票存储**：`GetStockList`/`GetStock` 当前读取整表 gob。按 symbol 建索引会改变 schema，需先确定新数据模型和迁移方式。
 - **Twitter 写入模型**：先决定 `fetch_user` 是否继续维护 legacy Entry feed，还是迁往 Tweet/PostTweet，再考虑复用转换代码。
 - **Group comment moderation**：当前仅评论作者、entry 作者和 super 可删除评论。是否允许 group admin 审核 cross-post comment，需要先定义 graph 缺失、缓存过期和跨 feed 的授权语义。
+
+## 数据库性能与扩展
+
+- **扫描 buffer 契约**：仅在 benchmark 证明 key/value copy 是主要分配来源后，才考虑让 `ForwardScan` callback 借用 iterator buffer；该切片只能在 callback 返回前使用，属于 API 契约变化，不并存 safe/unsafe 两套公共入口。
+- **Feed N+1 读取**：先分别测量冷、热 Pebble cache 下的 index scan、Entry Get、protobuf decode 与渲染耗时；没有生产证据前不把 Entry 本体或摘要冗余进 fanout index。
+- **Prefix bloom**：配置 `Comparer.Split`、`SeekPrefixGE` 或 prefix bloom 前，必须覆盖全部 table key 布局并设计 SSTable filter 重写、全量 compaction 与回退验证；不作为普通 iterator 优化启用。
+- **Durable fanout outbox**：当前保持同步 fanout 与 audit/rebuild。只有实际发生 fanout 超时、部分写失败或 celebrity feed 写放大后，才设计持久化 outbox；不提前建立通用 job 框架。

@@ -1,7 +1,7 @@
 # 数据库设计
 
 本文记录当前 Pebble 数据模型、关键编码和重建边界。迁移操作见
-[db_migration.md](db_migration.md)，未实施事项见仓库根目录 `db_todo.md`。
+[db_migration.md](db_migration.md)，未决事项见 [open_decisions.md](open_decisions.md)。
 
 ## 总体结构
 
