@@ -157,6 +157,10 @@ Entry identity 后缀使重复写同一 Entry 仍然幂等，并让同秒不同 
 cursor 按产品取舍只编码 16 B reverse Flake，不携带 Entry identity；同一用户同秒发帖的
 分页边界不作保证。前向扫描仍按 reverse time 得到 newest → oldest，算法复杂度不变。
 
+value 只存 canonical Entry key，永不冗余 Entry 本体或摘要：fanout 按 follower 复制索引
+行，冗余正文会产生写放大。Feed 读取的 index scan + N 次 Entry 点查（N+1）是既定设计，
+不是待优化项。
+
 完整 canonical Entry key 中 4 字节 `TableEntry` 是固定冗余；只追加 Entry UUID 可将
 key 从 56 B 缩到 52 B。
 
