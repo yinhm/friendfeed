@@ -9,6 +9,7 @@
   - `EnqueJob`、`ArchiveFeed`、`ForceArchiveFeed` 的方法与路径；纠错只能新增兼容 RPC。
   - model/store 的表前缀、错误码、key 编码与迭代顺序。
   - `TableUserRenameMap = 7`，编码为 `old_id -> 16-byte user UUID`。
+  - `TableTimelineIndex = 108`、`TableTimelinePosition = 109` 及其 key/value 编码。
 - 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/client.py` 的 `get_ohlcs/adjust`、`twitter/config.py` 的 `zh_names` 和 Fabric task。
 - `model/feed.go` 的旧 Feedinfo、`UserMap` 仍用于迁移，不按运行时零引用删除。所有 iterator 必须关闭。
 - Pebble 同步写入开关必须真实控制底层写入模式。
@@ -25,9 +26,9 @@
 - ffdb 仅允许监听 loopback，不得绑定通配地址、网卡地址或对外暴露 gRPC；改变此边界前必须先设计可信 principal。
 - job claim 使用独立 `jobMu`，queued→running 在同一 Pebble batch 提交。
 - `ApiServer.cached` 构造后只读；若允许动态增删，须用独立锁保护全部访问。
-- `PutEntry` 的 entry 与 author/group 直接索引原子提交；无上限的 timeline fanout 独立执行。索引/fanout 错误必须返回，删除普通 entry 也要清理 author timeline。
+- `PutEntry` 的 entry 与 author/group 直接索引原子提交；无上限的 Home activity timeline fanout 独立执行，错误必须返回。`DeleteEntry` 不枚举 viewer，timeline 孤儿由读路径懒删及 audit/rebuild 清理。
 - FeedIndex 的 DB 检查在数据锁外；rebuild/load/dump 由 `rebuildMu` 串行，rebuild 期间的 Push 必须保留。
-- profile/timeline 通过 `FetchFeed` 的显式 cursor 模式分页；旧客户端、public cache 和 search 继续使用 `Start/PageSize`。cursor 只编码索引位置，解码后按当前 feed 前缀重建 key，不得解释为 entry UUID。
+- profile/timeline 通过 `FetchFeed` 的 cursor 模式分页，并兼容旧 Home `Start/PageSize` 链接；public cache 和 search 继续使用 `Start/PageSize`。cursor 只编码索引位置，解码后按当前 feed 前缀重建 key，不得解释为 entry UUID。
 - `Store.Close` 并发安全且幂等。生产关停先用 gRPC `GracefulStop` 排干请求，再关闭服务和数据库。
 
 ## 迁移边界

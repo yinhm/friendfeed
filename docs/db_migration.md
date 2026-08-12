@@ -130,6 +130,8 @@ Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；�
 按以下顺序操作，每个数据库目录单独完成：
 
 1. 停止所有使用该 Pebble 目录的进程并确认释放 `LOCK`；保存升级前二进制。
+   新二进制已经读取 TimelineIndex，必须保持服务停止直到步骤 5 的 `rebuild_timeline`
+   完成；提前启动会让 Home 暂时为空或只包含升级后的新帖。
 2. 使用 `cp -a <db-dir> <db-dir>.bak-entry-index` 创建离线备份，并在副本上确认
    `audit_store` 能打开。备份只用于升级验收失败时整体恢复，不能与已升级库混合。
 3. 若历史 actor UUID 尚未回填，先按上一节完成 `backfill_actor_uuids`；互动迁移不按

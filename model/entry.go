@@ -84,6 +84,8 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	return key, nil
 }
 
+// FanoutEntry maintains the retired EntryIndex timeline format.
+// Deprecated: runtime Home timelines use FanoutTimelineActivity.
 func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time, entryKey store.Key) (n int, err error) {
 	started := time.Now()
@@ -189,6 +191,8 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 	return nil
 }
 
+// DeleteFanoutEntry removes rows from the retired EntryIndex timeline format.
+// Deprecated: activity timeline rows are deleted lazily or by rebuild.
 func DeleteFanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
 	oldtime time.Time, entryKey store.Key) (n int, err error) {
 	fanOutToTimeline := TimelineUUID(userUuid)

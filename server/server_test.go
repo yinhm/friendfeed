@@ -323,6 +323,72 @@ func (s *RpcTestSuite) TestHomeCursorRanksActivityWithoutMovingProfileFeed() {
 	s.Equal([]string{newID.String(), oldID.String()}, feedEntryIDs(profileFeed))
 }
 
+func (s *RpcTestSuite) TestHomeCursorContinuesAfterMovedAndDeletedAnchors() {
+	profileID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileID.String(), Id: "moving-home", Type: "user"}
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, profile))
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	entryIDs := make([]string, 5)
+	for i := range entryIDs {
+		entryIDs[i] = uuid.Must(uuid.NewV4()).String()
+		_, err := model.PutEntry(s.srv.rdb, &pb.Entry{
+			Id: entryIDs[i], Date: base.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			ProfileUuid: profileID.String(), From: &pb.Feed{Uuid: profileID.String(), Id: profile.Id},
+		})
+		s.Require().NoError(err)
+	}
+	first, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[4], entryIDs[3]}, feedEntryIDs(first))
+	s.NotEmpty(first.NextCursor)
+
+	// Move the cursor anchor ahead of the old cursor key. SeekGE must still
+	// continue at the following rows without repeating or looping.
+	anchor, err := model.GetEntry(s.srv.rdb, entryIDs[3])
+	s.Require().NoError(err)
+	_, err = model.FanoutTimelineActivity(s.srv.rdb, anchor, base.Add(30*time.Minute), model.TimelineActivityComment)
+	s.Require().NoError(err)
+	second, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true, Cursor: first.NextCursor,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(second))
+	s.NotEmpty(second.NextCursor)
+
+	// Delete the second page anchor. Its lazy timeline row still provides a
+	// stable cursor position, then disappears when encountered by a reader.
+	s.Require().NoError(model.DeleteEntry(s.srv.rdb, entryIDs[1]))
+	third, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true, Cursor: second.NextCursor,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[0]}, feedEntryIDs(third))
+	s.Empty(third.NextCursor)
+}
+
+func (s *RpcTestSuite) TestHomeStartLinkUsesActivityTimelineOffset() {
+	profileID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileID.String(), Id: "legacy-home-start", Type: "user"}
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, profile))
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	entryIDs := make([]string, 5)
+	for i := range entryIDs {
+		entryIDs[i] = uuid.Must(uuid.NewV4()).String()
+		_, err := model.PutEntry(s.srv.rdb, &pb.Entry{
+			Id: entryIDs[i], Date: base.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			ProfileUuid: profileID.String(), From: &pb.Feed{Uuid: profileID.String(), Id: profile.Id},
+		})
+		s.Require().NoError(err)
+	}
+	feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: profileID.String(), Start: 2, PageSize: 2,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(feed))
+}
+
 func feedEntryIDs(feed *pb.Feed) []string {
 	ids := make([]string, len(feed.Entries))
 	for i := range feed.Entries {

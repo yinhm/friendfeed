@@ -432,7 +432,6 @@ func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Fee
 	}
 	s.RUnlock()
 	if req.CursorPaging || req.ProfileUuid != "" {
-		req.CursorPaging = true
 		return s.ForwardFetchFeedWithCursor(ctx, req)
 	}
 	return s.ForwardFetchFeed(ctx, req)
@@ -629,6 +628,14 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		}
 	} else {
 		iter.First()
+		// Home links generated before cursor pagination used ?start=N. Keep
+		// them useful by applying the offset to the new TimelineIndex rather
+		// than falling back to the retired EntryIndex timeline.
+		if req.ProfileUuid != "" && !req.CursorPaging {
+			for skipped := int32(0); iter.Valid() && skipped < req.Start; skipped++ {
+				iter.Next()
+			}
+		}
 	}
 
 	resolver := newProfileResolver(s.mdb)
@@ -637,8 +644,9 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		indexKey := iter.Key()
 		entryKey := iter.Value()
 		var timelineEntryUUID uuid.UUID
+		var timelineViewerUUID uuid.UUID
 		if activityTimeline {
-			_, timelineEntryUUID, _, err = model.ParseTimelineIndexKey(indexKey)
+			timelineViewerUUID, timelineEntryUUID, _, err = model.ParseTimelineIndexKey(indexKey)
 			if err != nil {
 				return nil, err
 			}
@@ -656,7 +664,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 					return nil, parseErr
 				}
 				if deleteErr := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
-					return model.DeleteTimelinePositionBatch(batch, profileUUID(profile), timelineEntryUUID, activity)
+					return model.DeleteTimelinePositionBatch(batch, timelineViewerUUID, timelineEntryUUID, activity)
 				}); deleteErr != nil {
 					return nil, deleteErr
 				}
@@ -732,11 +740,6 @@ func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Ke
 		return nil, nil, false, status.Error(codes.Internal, "profile has invalid UUID")
 	}
 	return profile, store.NewUUIDKey(model.TableEntryIndex, profileUUID).Bytes(), false, nil
-}
-
-func profileUUID(profile *pb.Profile) uuid.UUID {
-	parsed, _ := uuid.FromString(profile.Uuid)
-	return parsed
 }
 
 func encodeFeedCursor(key, prefix store.Key) string {
