@@ -402,39 +402,21 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
 }
 
-// canonicalEntryKeyFromIndexValue accepts the EntryIndex value encodings found
-// in deployed databases: a raw 20-byte key, its 40-character hexadecimal form,
-// or a raw table prefix followed by a 36-character UUID string.
+// canonicalEntryKeyFromIndexValue enforces the runtime EntryIndex value
+// contract. Historical string keys must be repaired with migrate_entry_keys
+// followed by rebuild_entry_index before rebuilding Home timelines.
 func canonicalEntryKeyFromIndexValue(value []byte) (store.Key, error) {
 	const keySize = 4 + uuid.Size
-	var key []byte
-	switch len(value) {
-	case keySize:
-		key = value
-	case 2 * keySize:
-		if bytes.Equal(value[:model.Entry.Prefix.Len()], model.Entry.Prefix) {
-			entryID, err := uuid.FromString(string(value[model.Entry.Prefix.Len():]))
-			if err != nil {
-				return nil, fmt.Errorf("decode prefixed entry UUID: %w", err)
-			}
-			key = model.Entry.PrefixAppend(entryID.Bytes())
-		} else {
-			decoded := make([]byte, keySize)
-			if _, err := hex.Decode(decoded, value); err != nil {
-				return nil, fmt.Errorf("decode hexadecimal entry key: %w", err)
-			}
-			key = decoded
-		}
-	default:
-		return nil, fmt.Errorf("invalid entry key length %d", len(value))
+	if len(value) != keySize {
+		return nil, fmt.Errorf("noncanonical entry key length %d; run migrate_entry_keys then rebuild_entry_index", len(value))
 	}
-	if !bytes.Equal(key[:model.Entry.Prefix.Len()], model.Entry.Prefix) {
-		return nil, fmt.Errorf("entry key has table prefix %x, want %x", key[:model.Entry.Prefix.Len()], model.Entry.Prefix)
+	if !bytes.Equal(value[:model.Entry.Prefix.Len()], model.Entry.Prefix) {
+		return nil, fmt.Errorf("entry key has table prefix %x, want %x", value[:model.Entry.Prefix.Len()], model.Entry.Prefix)
 	}
-	if _, err := uuid.FromBytes(key[model.Entry.Prefix.Len():]); err != nil {
+	if _, err := uuid.FromBytes(value[model.Entry.Prefix.Len():]); err != nil {
 		return nil, fmt.Errorf("entry key UUID: %w", err)
 	}
-	return append(store.Key(nil), key...), nil
+	return append(store.Key(nil), value...), nil
 }
 
 type timelineEvent struct {
@@ -1188,6 +1170,7 @@ func main() {
 		command == "rebuild_search_index" ||
 		(command == "debug" && debugTable != "") ||
 		(command == "migrate_entry_index" && dryRun) ||
+		(command == "migrate_entry_keys" && dryRun) ||
 		(command == "migrate_interactions" && dryRun) ||
 		(command == "rebuild_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun)
@@ -1266,6 +1249,13 @@ func main() {
 		}
 		log.Printf("entry index migration: scanned=%d migrated=%d current=%d dry-run=%t",
 			stats.scanned, stats.migrated, stats.current, dryRun)
+	case "migrate_entry_keys":
+		stats, err := migrateEntryKeys(ndb, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("entry key migration: scanned=%d canonical=%d migrated=%d dry-run=%t",
+			stats.scanned, stats.canonical, stats.migrated, dryRun)
 	case "migrate_interactions":
 		stats, err := migrateInteractions(ndb, interactionMigrationOptions{
 			user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun,

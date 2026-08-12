@@ -425,28 +425,27 @@ func TestRebuiltTimelineActivityReplaysCurrentInteractions(t *testing.T) {
 	require.Equal(t, base.Add(16*time.Minute), activity)
 }
 
-func TestCanonicalEntryKeyFromIndexValueSupportsDeployedFormats(t *testing.T) {
+func TestCanonicalEntryKeyFromIndexValueRejectsStringFormats(t *testing.T) {
 	entryID := uuid.Must(uuid.NewV4())
 	key := model.Entry.PrefixAppend(entryID.Bytes())
-	for name, value := range map[string][]byte{
-		"raw":                  key,
-		"hex":                  []byte(hex.EncodeToString(key)),
-		"prefixed UUID string": append(model.Entry.Prefix.Copy(), []byte(entryID.String())...),
+	got, err := canonicalEntryKeyFromIndexValue(key)
+	require.NoError(t, err)
+	require.Equal(t, store.Key(key), got)
+	for _, value := range [][]byte{
+		[]byte(hex.EncodeToString(key)),
+		append(model.Entry.Prefix.Copy(), []byte(entryID.String())...),
 	} {
-		t.Run(name, func(t *testing.T) {
-			got, err := canonicalEntryKeyFromIndexValue(value)
-			require.NoError(t, err)
-			require.Equal(t, store.Key(key), got)
-		})
+		_, err := canonicalEntryKeyFromIndexValue(value)
+		require.ErrorContains(t, err, "run migrate_entry_keys then rebuild_entry_index")
 	}
-	_, err := canonicalEntryKeyFromIndexValue([]byte("not-a-valid-entry-index-value"))
+	_, err = canonicalEntryKeyFromIndexValue([]byte("not-a-valid-entry-index-value"))
 	require.Error(t, err)
 	wrongPrefix := append(model.Profile.Prefix.Copy(), entryID.Bytes()...)
 	_, err = canonicalEntryKeyFromIndexValue(wrongPrefix)
 	require.ErrorContains(t, err, "table prefix")
 }
 
-func TestRebuildTimelineReadsPrefixedUUIDEntryIndexValue(t *testing.T) {
+func TestRebuildTimelineRejectsPrefixedUUIDEntryIndexValue(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
@@ -461,11 +460,11 @@ func TestRebuildTimelineReadsPrefixedUUIDEntryIndexValue(t *testing.T) {
 	require.NoError(t, db.Put(legacyIndexKey, append(model.Entry.Prefix.Copy(), []byte(entryID.String())...)))
 
 	stats, err := rebuildTimelines(db, timelineRebuildOptions{user: profile.Id})
-	require.NoError(t, err)
-	require.Equal(t, 1, stats.entries)
+	require.ErrorContains(t, err, "run migrate_entry_keys then rebuild_entry_index")
+	require.Zero(t, stats.entries)
 	count, err := db.ForwardScan(model.TimelineIndexPrefix(profileID), func(int, []byte, []byte) error { return nil })
 	require.NoError(t, err)
-	require.Equal(t, 1, count)
+	require.Zero(t, count)
 }
 
 func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {
