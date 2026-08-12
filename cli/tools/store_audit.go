@@ -41,6 +41,8 @@ type storeAuditStats struct {
 
 func auditStore(db *store.Store) (storeAuditStats, error) {
 	stats := storeAuditStats{}
+	expectedDirectIndexes := 0
+	foundDirectIndexes := 0
 
 	if err := model.Entry.Iter(db, func(key, raw []byte) error {
 		entry := new(pb.Entry)
@@ -81,6 +83,7 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			owners = append(owners, feed)
 		}
 		for _, owner := range owners {
+			expectedDirectIndexes++
 			value, err := db.Get(expectedEntryIndexKey(db, owner, date, canonicalKey))
 			if errors.Is(err, store.ErrNotFound) || (err == nil && !bytes.Equal(value, canonicalKey)) {
 				stats.missingDirectIndexes++
@@ -89,6 +92,7 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			if err != nil {
 				return err
 			}
+			foundDirectIndexes++
 		}
 		stats.entries++
 		return nil
@@ -125,31 +129,31 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			return fmt.Errorf("invalid Follower key length %d", len(key))
 		}
 		feed, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
-		follower, _ := uuid.FromBytes(key[4+uuid.Size:])
 		if followerCount > 0 && feed != followerFeed {
 			finishFollowerFeed()
 			followerCount = 0
 		}
 		followerFeed = feed
 		followerCount++
-		counterpart := model.NewKeyFrom(model.Follow.Prefix, follower.Bytes(), feed.Bytes())
-		exists, err := db.Exists(counterpart)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			stats.missingFollowEdges++
-		}
 		stats.followerEdges++
 		return nil
 	}); err != nil {
 		return stats, err
 	}
 	finishFollowerFeed()
+	// Follow keys are unique. The first pass already counted every Follow row
+	// whose Follower counterpart exists, so the remaining Follower rows are
+	// precisely the reverse-only edges; a second point lookup per row is waste.
+	matchedGraphEdges := stats.followEdges - stats.missingFollowerEdges
+	stats.missingFollowEdges = stats.followerEdges - matchedGraphEdges
+	if stats.missingFollowEdges < 0 {
+		return stats, errors.New("Follower table contains duplicate keys")
+	}
 
 	var groupOwner uuid.UUID
 	var groupSecond int64
 	groupCount := 0
+	canonicalIndexes := 0
 	finishSameSecond := func() {
 		if groupCount > 1 {
 			stats.sameSecondGroups++
@@ -161,61 +165,44 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			return fmt.Errorf("invalid EntryIndex key length %d", len(key))
 		}
 		owner, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
-		canonical, err := canonicalEntryKeyFromIndexValue(value)
-		if err != nil {
+		if _, err := canonicalEntryKeyFromIndexValue(value); err != nil {
 			stats.noncanonicalIndexes++
 			stats.entryIndexes++
 			return nil
 		}
-		entry := new(pb.Entry)
-		if err := model.Entry.Get(db, canonical[model.Entry.Prefix.Len():], entry); err != nil {
-			if errors.Is(err, model.ErrNotFound) {
-				stats.orphanIndexes++
-				stats.entryIndexes++
-				return nil
-			}
-			return err
+		canonicalIndexes++
+		// EntryIndex is ordered by owner then reverse Flake. Its first eight
+		// Flake bytes encode the deterministic reverse second; grouping here
+		// detects collision-prone direct-index positions without reading Entry.
+		const reverseTimestampOffset = 4 + uuid.Size
+		if len(key) < reverseTimestampOffset+8 {
+			return fmt.Errorf("invalid EntryIndex key length %d", len(key))
 		}
-		entryID, err := uuid.FromString(entry.Id)
-		if err != nil || !bytes.Equal(canonical, model.Entry.PrefixAppend(entryID.Bytes())) {
-			stats.orphanIndexes++
-			stats.entryIndexes++
-			return nil
+		second := int64(binary.BigEndian.Uint64(key[reverseTimestampOffset : reverseTimestampOffset+8]))
+		if groupCount > 0 && (owner != groupOwner || second != groupSecond) {
+			finishSameSecond()
+			groupCount = 0
 		}
-		feed, err := uuid.FromString(entry.ProfileUuid)
-		if err != nil {
-			return err
-		}
-		if entry.FeedUuid != "" {
-			feed, err = uuid.FromString(entry.FeedUuid)
-			if err != nil {
-				return err
-			}
-		}
-		if owner == feed {
-			date, err := time.Parse(time.RFC3339, entry.Date)
-			if err != nil {
-				return err
-			}
-			second := date.UTC().Unix()
-			if groupCount > 0 && (owner != groupOwner || second != groupSecond) {
-				finishSameSecond()
-				groupCount = 0
-			}
-			groupOwner, groupSecond = owner, second
-			groupCount++
-		}
+		groupOwner, groupSecond = owner, second
+		groupCount++
 		stats.entryIndexes++
 		return nil
 	}); err != nil {
 		return stats, err
 	}
 	finishSameSecond()
+	// Every healthy direct index was found by its exact deterministic key while
+	// scanning Entry. Any additional canonical EntryIndex row is therefore an
+	// orphan; this avoids reading Entry once for every index row.
+	stats.orphanIndexes = canonicalIndexes - foundDirectIndexes
+	if stats.orphanIndexes < 0 || foundDirectIndexes > expectedDirectIndexes {
+		return stats, errors.New("direct index accounting is inconsistent")
+	}
 
-	// Keep only drifted pairs. Healthy timeline cardinality does not affect
-	// memory; this small exception distinguishes a timestamp mismatch from a
-	// wholly missing index during the reverse Position scan.
-	timelineMismatchedPairs := make(map[[2]uuid.UUID]struct{})
+	// Keep only timestamp-mismatched pairs without their canonical index.
+	// Healthy pairs and duplicate indexes are accounted for with counters.
+	timelineMismatchedOnly := make(map[[2]uuid.UUID]struct{})
+	matchedTimelinePositions := 0
 	if err := model.TimelineIndex.Iter(db, func(key, _ []byte) error {
 		viewer, entry, activity, err := model.ParseTimelineIndexKey(key)
 		if err != nil {
@@ -232,7 +219,6 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		} else if err != nil {
 			return err
 		} else if !position.Equal(activity) {
-			timelineMismatchedPairs[[2]uuid.UUID{viewer, entry}] = struct{}{}
 			canonical, err := model.TimelineIndexKey(viewer, entry, position)
 			if err != nil {
 				return err
@@ -245,7 +231,10 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 				stats.timelineDuplicates++
 			} else {
 				stats.timelineTimeMismatch++
+				timelineMismatchedOnly[[2]uuid.UUID{viewer, entry}] = struct{}{}
 			}
+		} else {
+			matchedTimelinePositions++
 		}
 		stats.timelineIndexes++
 		return nil
@@ -256,8 +245,6 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		if len(key) != 4+2*uuid.Size {
 			return fmt.Errorf("invalid TimelinePosition key length %d", len(key))
 		}
-		viewer, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
-		entry, _ := uuid.FromBytes(key[4+uuid.Size:])
 		if len(value) != 8 {
 			return fmt.Errorf("invalid TimelinePosition value length %d", len(value))
 		}
@@ -265,23 +252,16 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		if ms > uint64(^uint64(0)>>1) {
 			return errors.New("timeline position overflows int64")
 		}
-		activity := time.UnixMilli(int64(ms)).UTC()
-		indexKey, err := model.TimelineIndexKey(viewer, entry, activity)
-		if err != nil {
-			return err
-		}
-		exists, err := db.Exists(indexKey)
-		if err != nil {
-			return err
-		}
-		_, mismatched := timelineMismatchedPairs[[2]uuid.UUID{viewer, entry}]
-		if !exists && !mismatched {
-			stats.timelineMissingIndex++
-		}
 		stats.timelinePositions++
 		return nil
 	}); err != nil {
 		return stats, err
+	}
+	// A Position is accounted for either by its exact index or by one known
+	// timestamp-mismatched index. Everything left has no index at all.
+	stats.timelineMissingIndex = stats.timelinePositions - matchedTimelinePositions - len(timelineMismatchedOnly)
+	if stats.timelineMissingIndex < 0 {
+		return stats, errors.New("timeline position accounting is inconsistent")
 	}
 	return stats, nil
 }
