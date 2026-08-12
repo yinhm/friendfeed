@@ -211,7 +211,7 @@ FriendFeed 风格的 Home timeline 按“最近有效活动”重新浮起讨论
 ```text
 TimelineIndex
 key   = T | viewer UUID | reverse activity timestamp | entry UUID
-value = canonical Entry key
+value = empty（canonical Entry key 可由 entry UUID 推导）
 
 TimelinePosition
 key   = T | viewer UUID | entry UUID
@@ -229,7 +229,10 @@ atomic bump(viewer, entry, newActivity)
 └── put    TimelinePosition(viewer, entry) = newActivity
 ```
 
-活动时间只允许单调前进。事件时间使用服务端时间，不信任客户端 Like/Comment 日期。
+活动时间只允许单调前进。事件时间使用服务端时间，不信任客户端 Like/Comment 日期；
+新 Comment 持久化时由服务端覆盖 `Date`，编辑保留原 Date。Like 冷却是每个
+`(viewer, entry)` 独立计算，不是 viewer 全局冷却。资格与冷却判断必须和 position 的
+读取、删除、写入位于同一个 `ApplyBatch` 串行边界内，避免并发 bump 留下多个 index。
 
 ### Bump 规则
 
@@ -247,7 +250,7 @@ atomic bump(viewer, entry, newActivity)
 
 重复 Like：不 bump
 Unlike：不 bump、不回退
-Unlike 后重新 Like：仍受 7 天窗口和 10 分钟冷却约束
+Unlike 后重新 Like：仍受该 (viewer, entry) 的 7 天窗口和 10 分钟冷却约束
 ```
 
 第一版常量固定为：
@@ -258,9 +261,21 @@ likeBumpCooldown    = 10 * time.Minute
 ```
 
 Comment 不受 Like 冷却限制；例如 Like 在 10:00 bump，10:01 新 Comment 仍更新到 10:01。
-一次互动只更新当前有权看到该 Entry、且按当前 Follow/Follower 关系应拥有它的 Home
-timeline，不改变 Profile/direct EntryIndex。互动源数据先独立提交，无上限 timeline fanout
-继续位于主 mutation batch 之外；失败由 audit/rebuild 修复，暂不预设 durable outbox。
+position 不存在时，只要 viewer 按当前 Follow/Follower 关系应拥有该 Entry，Comment
+直接插入，Like 在满足时间窗口时插入。一次互动不改变 Profile/direct EntryIndex。互动
+源数据先独立提交，无上限 timeline fanout 继续位于主 mutation batch 之外；失败由
+audit/rebuild 修复，暂不预设 durable outbox。
+
+Like 年龄判断必须满足 `0 <= serverNow-entry.Date <= 7 days`，未来 Entry 不得借负数年龄
+绕过窗口。Home 初始化/rebuild 使用 `min(entry.Date, serverNow)`，避免未来时间永久置顶；
+已有未来 position 由 audit 报告并通过 rebuild 修复，runtime 不把 position 向后改写。
+
+Entry 删除不枚举全部 viewer。Home 读取发现 TimelineIndex 指向缺失 Entry 时，在一个
+batch 中懒删该 index 与对应 position；仅存 position 等其他孤儿由 audit/rebuild 清理。
+
+Home 是会移动的 ranked stream，不是 snapshot。翻页期间 Entry bump 到 cursor 之前可能
+导致刷新后重复看到，或让当前翻页暂时漏看该 Entry；这是预期的弱一致性。必须保证单页
+无重复、cursor 不死循环、删除锚点后可继续，不承诺跨请求绝对无重复或漏看。
 
 ### 历史数据重建
 
@@ -269,7 +284,8 @@ timeline，不改变 Profile/direct EntryIndex。互动源数据先独立提交�
 
 1. 从当前 Profile、Follow/Follower 计算可见的 Entry 候选集，并包含用户自己的 Entry；
 2. 对每个 Entry 收集 `entry.Date`、当前 Comment 行和当前 Like 行；
-3. 事件按时间升序处理，相同时间以事件类型和稳定 UUID 确定性打破平局；
+3. 事件按时间升序处理；相同时间固定为 publish、Like（actor UUID）、Comment
+   （comment UUID）的顺序，Comment 最后体现其更强语义；
 4. publish 初始化 `activity_at`；新 Comment 总是推进；Like 依次应用 7 天窗口和 10 分钟
    冷却；
 5. 写入最终一条 TimelineIndex 和对应 TimelinePosition；
@@ -279,11 +295,19 @@ timeline，不改变 Profile/direct EntryIndex。互动源数据先独立提交�
 记录，历史 Follow 关系也没有版本，因此无法复现它们过去造成的 bump；重建不会猜测。
 这不影响当前可见 Like/Comment 和当前社交图产生一个确定、可重复的 timeline。若未来要
 精确重放已删除事件，必须另建不可变 activity log，不能从现有表反推。
+因此删除过互动的 Entry 在 rebuild 后可能比 runtime position 更早；这是当前源数据边界，
+不是 rebuild 的保序承诺。
+
+切换顺序固定为：先建新表并 rebuild，Home 读路径切到新表，完成 audit 后停止旧
+`EntryIndex | TimelineUUID` fanout，最后 purge 旧 timeline 行。新表仍在发帖时执行
+O(followers) 初始化，Comment/Like bump 还会增加互动 fanout；独立表带来的是正确排序和
+清晰生命周期，不是消除写放大。
 
 ## 原子性与并发边界
 
 - Entry record 与 author/target direct index 同 batch；timeline fanout 独立。
 - DeleteEntry 先处理无上限 timeline，再原子删除 Entry、direct index、Like、Comment。
+- activity timeline 对已删除 Entry 采用读路径懒删，不在 DeleteEntry 中增加无上限 fanout。
 - Entry 创建/编辑/删除持 `entryLifecycleMu` 写锁；Like/Comment 持读锁，互动可彼此并发，
   但不能与 Entry 删除并发产生 orphan 行。
 - queued → running job claim 使用 `jobMu`，并在同一 batch 中完成。

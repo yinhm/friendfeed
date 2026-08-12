@@ -168,6 +168,27 @@ func TestCommentOwnerCanEdit(t *testing.T) {
 	}
 }
 
+func TestNewCommentUsesServerDate(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+	entry := newLikeTestEntry()
+	_, err := PutEntry(db, entry)
+	require.NoError(t, err)
+
+	before := time.Now().UTC().Add(-time.Second)
+	comment := &pb.Comment{
+		Id: likeTestCommentID, Date: "2999-01-01T00:00:00Z", Body: "body",
+	}
+	_, entry, err = PutComment(db, owner, entry, comment)
+	require.NoError(t, err)
+	require.Len(t, entry.Comments, 1)
+	storedDate, err := time.Parse(time.RFC3339, entry.Comments[0].Date)
+	require.NoError(t, err)
+	require.True(t, storedDate.After(before))
+	require.True(t, storedDate.Before(time.Now().UTC().Add(time.Second)))
+	require.NotEqual(t, "2999-01-01T00:00:00Z", entry.Comments[0].Date)
+}
+
 // After a rename the stored From.Id is stale; ownership is verified by
 // the stable From.Uuid, so the author can still edit their own comment.
 func TestCommentOwnerCanEditAfterRename(t *testing.T) {

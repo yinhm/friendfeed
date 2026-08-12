@@ -147,11 +147,16 @@ Like 以 `(entry UUID, actor UUID)` 天然幂等；Comment 以稳定 comment UUI
 - [ ] 新 Comment 总是 bump；编辑/删除 Comment 不 bump、不回退。
 - [ ] 新 Like 仅在 Entry 不超过 7 天且 viewer 冷却已满 10 分钟时 bump；重复 Like 与 Unlike 不 bump。
 - [ ] 单 viewer 的旧索引删除、新索引写入和 position 更新使用一个 Pebble batch。
+- [ ] position 缺失且当前 Follow/Follower 关系满足时插入；资格、冷却和位置更新处于同一串行边界。
+- [ ] 新 Comment 由服务端 stamp Date，编辑保留旧 Date；未来 Entry 不能绕过 Like 时间窗口。
 - [ ] 互动源数据先提交，无上限 timeline bump fanout 保持在主 batch 外；错误必须返回。
+- [ ] DeleteEntry 不做无上限 timeline fanout；读路径懒删 index+position，audit/rebuild 清理其余孤儿。
 - [ ] cursor 分页覆盖活动后移动、删除锚点、尾页和重复显示边界。
 - [ ] `rebuild_timeline` 从当前 Entry、Comment、Like、Follow/Follower 确定性重建两张派生表。
 - [ ] 支持指定用户、`max-limit`、dry-run，并对比数量、顺序、首尾、重复项和 activity timestamp。
 - [ ] 文档明确：已删除互动与历史关注关系没有 event log，不能精确重放过去 bump。
+- [ ] `audit_store` 检查 index/position 双向一致、缺失 Entry、重复位置和 timestamp 不一致。
+- [ ] rollout 按“新表 rebuild → 切 Home 读取 → 停旧 timeline 写入 → purge 旧行”执行。
 
 ## 阶段 F：有实际需求后再决定
 

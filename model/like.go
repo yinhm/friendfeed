@@ -101,6 +101,7 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 		comment = stored
 	} else if errors.Is(getErr, store.ErrNotFound) {
 		comment.From = from
+		comment.Date = time.Now().UTC().Format(time.RFC3339)
 	} else {
 		return nil, nil, getErr
 	}
