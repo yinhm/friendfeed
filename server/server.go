@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -759,14 +758,14 @@ func encodeFeedCursor(key, prefix store.Key) string {
 		}
 		position = position[:feedFlakeCursorPositionSize()]
 	}
-	return base64.RawURLEncoding.EncodeToString(position)
+	return util.Base58Encode(position)
 }
 
 func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
 	if cursor == "" {
 		return nil, nil
 	}
-	position, err := base64.RawURLEncoding.DecodeString(cursor)
+	position, err := util.Base58Decode(cursor)
 	if err != nil {
 		return nil, err
 	}

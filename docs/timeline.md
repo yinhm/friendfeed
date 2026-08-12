@@ -119,7 +119,7 @@ Home cursor 只编码 TimelineIndex 中 viewer 固定前缀之后的位置：
 reverse activity time   8 B
 entry UUID             16 B
                         ----
-                        24 B，再用 base64url 传输
+                        24 B，再用 Base58 传输
 ```
 
 解码后必须与当前请求的 `TableTimelineIndex | viewer UUID` 前缀重新拼接。cursor 不是 Entry

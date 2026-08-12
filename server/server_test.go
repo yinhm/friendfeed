@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -284,7 +283,7 @@ func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
 	key := append(append(store.Key(nil), prefix...), position...)
 
 	cursor := encodeFeedCursor(key, prefix)
-	encoded, err := base64.RawURLEncoding.DecodeString(cursor)
+	encoded, err := util.Base58Decode(cursor)
 	s.Require().NoError(err)
 	s.Equal(position[:len(flakeID)], encoded)
 
@@ -292,9 +291,9 @@ func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
 	s.Require().NoError(err)
 	s.Equal(key[:len(prefix)+len(flakeID)], decoded)
 
-	_, err = decodeFeedCursor(base64.RawURLEncoding.EncodeToString(position[:len(flakeID)-1]), prefix)
+	_, err = decodeFeedCursor(util.Base58Encode(position[:len(flakeID)-1]), prefix)
 	s.Error(err)
-	_, err = decodeFeedCursor(base64.RawURLEncoding.EncodeToString(position), prefix)
+	_, err = decodeFeedCursor(util.Base58Encode(position), prefix)
 	s.Error(err)
 }
 
