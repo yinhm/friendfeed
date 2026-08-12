@@ -153,9 +153,9 @@ key   = T(4) | owner UUID(16) | reverse Flake(16) | canonical Entry key(20)
 value = canonical Entry key(20)
 ```
 
-Entry identity 后缀使重复写同一 Entry 仍然幂等，并让同秒不同 Entry 共存；cursor 编码
-时去掉固定的 `T + owner UUID`，只携带索引位置。前向扫描仍按 reverse time 得到
-newest → oldest，算法复杂度不变。
+Entry identity 后缀使重复写同一 Entry 仍然幂等，并让同秒不同 Entry 共存。direct feed
+cursor 按产品取舍只编码 16 B reverse Flake，不携带 Entry identity；同一用户同秒发帖的
+分页边界不作保证。前向扫描仍按 reverse time 得到 newest → oldest，算法复杂度不变。
 
 完整 canonical Entry key 中 4 字节 `TableEntry` 是固定冗余；只追加 Entry UUID 可将
 key 从 56 B 缩到 52 B。

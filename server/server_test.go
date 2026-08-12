@@ -286,13 +286,15 @@ func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
 	cursor := encodeFeedCursor(key, prefix)
 	encoded, err := base64.RawURLEncoding.DecodeString(cursor)
 	s.Require().NoError(err)
-	s.Equal(position, encoded)
+	s.Equal(position[:len(flakeID)], encoded)
 
 	decoded, err := decodeFeedCursor(cursor, prefix)
 	s.Require().NoError(err)
-	s.Equal(key, decoded)
+	s.Equal(key[:len(prefix)+len(flakeID)], decoded)
 
-	_, err = decodeFeedCursor(base64.RawURLEncoding.EncodeToString(position[:len(position)-1]), prefix)
+	_, err = decodeFeedCursor(base64.RawURLEncoding.EncodeToString(position[:len(flakeID)-1]), prefix)
+	s.Error(err)
+	_, err = decodeFeedCursor(base64.RawURLEncoding.EncodeToString(position), prefix)
 	s.Error(err)
 }
 

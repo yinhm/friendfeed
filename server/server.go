@@ -623,7 +623,9 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	defer iter.Close()
 	if len(cursorKey) > 0 {
 		iter.SeekGE(cursorKey)
-		if iter.Valid() && bytes.Equal(iter.UnsafeRawKey(), cursorKey) {
+		if iter.Valid() && (bytes.Equal(iter.UnsafeRawKey(), cursorKey) ||
+			(!activityTimeline && len(cursorKey) == len(prefix)+feedFlakeCursorPositionSize() &&
+				bytes.HasPrefix(iter.UnsafeRawKey(), cursorKey))) {
 			iter.Next()
 		}
 	} else {
@@ -743,11 +745,21 @@ func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Ke
 }
 
 func encodeFeedCursor(key, prefix store.Key) string {
-	positionSize := feedCursorPositionSize(prefix)
-	if len(key) != len(prefix)+positionSize || !bytes.HasPrefix(key, prefix) {
+	if !bytes.HasPrefix(key, prefix) {
 		return ""
 	}
-	return base64.RawURLEncoding.EncodeToString(key[len(prefix):])
+	position := key[len(prefix):]
+	if isTimelineCursorPrefix(prefix) {
+		if len(position) != 8+uuid.Size {
+			return ""
+		}
+	} else {
+		if len(position) < feedFlakeCursorPositionSize() {
+			return ""
+		}
+		position = position[:feedFlakeCursorPositionSize()]
+	}
+	return base64.RawURLEncoding.EncodeToString(position)
 }
 
 func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
@@ -758,9 +770,14 @@ func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	positionSize := feedCursorPositionSize(prefix)
-	if len(position) != positionSize {
-		return nil, errors.New("invalid cursor position")
+	if isTimelineCursorPrefix(prefix) {
+		if len(position) != 8+uuid.Size {
+			return nil, errors.New("invalid cursor position")
+		}
+	} else {
+		if len(position) != feedFlakeCursorPositionSize() {
+			return nil, errors.New("invalid cursor position")
+		}
 	}
 	key := make(store.Key, 0, len(prefix)+len(position))
 	key = append(key, prefix...)
@@ -768,12 +785,16 @@ func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
 	return key, nil
 }
 
-func feedCursorPositionSize(prefix store.Key) int {
+func isTimelineCursorPrefix(prefix store.Key) bool {
 	if bytes.Equal(prefix[:model.TimelineIndex.Prefix.Len()], model.TimelineIndex.Prefix) {
-		return 8 + uuid.Size
+		return true
 	}
+	return false
+}
+
+func feedFlakeCursorPositionSize() int {
 	var flakeID flake.Id
-	return len(flakeID) + model.Entry.Prefix.Len() + uuid.Size
+	return len(flakeID)
 }
 
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {
