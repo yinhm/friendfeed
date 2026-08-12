@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
@@ -337,11 +339,7 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		return 0, 0, existing, 0, duplicates, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
 	}
 
-	type rebuiltEntry struct {
-		id       uuid.UUID
-		activity time.Time
-	}
-	rebuilt := make(map[uuid.UUID]rebuiltEntry)
+	rebuilt := make(map[uuid.UUID]time.Time)
 	now := time.Now().UTC()
 	for _, feedID := range feeds {
 		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
@@ -368,7 +366,7 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 			if err != nil {
 				return fmt.Errorf("entry %s activity: %w", entry.Id, err)
 			}
-			rebuilt[entryID] = rebuiltEntry{id: entryID, activity: activity}
+			rebuilt[entryID] = activity
 			return nil
 		})
 		if err != nil {
@@ -376,8 +374,8 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		}
 	}
 	mismatches := 0
-	for entry, item := range rebuilt {
-		if old, ok := existingRows[entry]; !ok || !old.Equal(item.activity) {
+	for entry, activity := range rebuilt {
+		if old, ok := existingRows[entry]; !ok || !old.Equal(activity) {
 			mismatches++
 		}
 	}
@@ -387,19 +385,77 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		}
 	}
 	if !options.dryRun {
-		if _, err := purge_table(db, timelinePrefix); err != nil {
-			return selectedFollows, len(rebuilt), existing, mismatches, duplicates, fmt.Errorf("clear timeline for %s: %w", profile.Id, err)
-		}
-		if _, err := purge_table(db, model.NewKeyFrom(model.TimelinePosition.Prefix, profileID.Bytes())); err != nil {
-			return selectedFollows, len(rebuilt), existing, mismatches, duplicates, fmt.Errorf("clear timeline positions for %s: %w", profile.Id, err)
-		}
-		for _, item := range rebuilt {
-			if _, err := model.MoveTimelineEntry(db, profileID, item.id, item.activity, nil); err != nil {
-				return selectedFollows, len(rebuilt), existing, mismatches, duplicates, err
-			}
+		if err := replaceTimelineRows(db, profileID, rebuilt); err != nil {
+			return selectedFollows, len(rebuilt), existing, mismatches, duplicates, fmt.Errorf("replace timeline for %s: %w", profile.Id, err)
 		}
 	}
 	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
+}
+
+const timelineRebuildBatchSize = 500
+
+// replaceTimelineRows is the offline rebuild fast path. Unlike
+// MoveTimelineEntry, it does not read the old position or commit one batch per
+// entry: both derived tables are cleared first, then restored in bounded
+// batches while preserving the same key/value encoding.
+func replaceTimelineRows(db *store.Store, viewer uuid.UUID, rows map[uuid.UUID]time.Time) error {
+	indexPrefix := model.TimelineIndexPrefix(viewer)
+	positionPrefix := model.NewKeyFrom(model.TimelinePosition.Prefix, viewer.Bytes())
+	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		for _, prefix := range []store.Key{indexPrefix, positionPrefix} {
+			upper := store.KeyUpperBound(prefix)
+			if upper == nil {
+				return fmt.Errorf("timeline prefix %x has no upper bound", prefix)
+			}
+			if err := batch.DeleteRange(prefix, upper, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	batchRows := make([]struct {
+		entry    uuid.UUID
+		activity time.Time
+	}, 0, timelineRebuildBatchSize)
+	flush := func() error {
+		if len(batchRows) == 0 {
+			return nil
+		}
+		err := db.ApplyBatch(func(batch *pebble.Batch) error {
+			for _, row := range batchRows {
+				indexKey, err := model.TimelineIndexKey(viewer, row.entry, row.activity)
+				if err != nil {
+					return err
+				}
+				var position [8]byte
+				binary.BigEndian.PutUint64(position[:], uint64(row.activity.UTC().UnixMilli()))
+				if err := batch.Set(indexKey, nil, nil); err != nil {
+					return err
+				}
+				if err := batch.Set(model.TimelinePositionKey(viewer, row.entry), position[:], nil); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		batchRows = batchRows[:0]
+		return err
+	}
+	for entry, activity := range rows {
+		batchRows = append(batchRows, struct {
+			entry    uuid.UUID
+			activity time.Time
+		}{entry: entry, activity: activity})
+		if len(batchRows) == timelineRebuildBatchSize {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+	}
+	return flush()
 }
 
 // canonicalEntryKeyFromIndexValue enforces the runtime EntryIndex value
