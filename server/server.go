@@ -474,7 +474,7 @@ func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return nil, err
 		}
-		if err := model.HydrateEntryInteractions(s.rdb, entry); err != nil {
+		if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
 			return nil, err
 		}
 		// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
@@ -558,7 +558,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
 		}
-		if err := model.HydrateEntryInteractions(s.rdb, entry); err != nil {
+		if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
 			return err
 		}
 		// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
@@ -647,7 +647,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			if err := proto.Unmarshal(rawdata, entry); err != nil {
 				return nil, err
 			}
-			if err := model.HydrateEntryInteractions(s.rdb, entry); err != nil {
+			if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
 				return nil, err
 			}
 			if err := formatFeedEntryWithResolver(resolver, req, entry); err != nil {
@@ -921,7 +921,7 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 
 	if req.Like {
 		var key store.Key
-		key, entry, err = model.Like(s.rdb, profile, entry)
+		key, entry, err = model.PutLike(s.rdb, profile, entry)
 		if err == nil {
 			s.spread(key.String())
 		}
@@ -971,7 +971,7 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 		return nil, err
 	}
 
-	key, entry, err := model.Comment(s.rdb, profile, entry, req.Comment)
+	key, entry, err := model.PutComment(s.rdb, profile, entry, req.Comment)
 	if err != nil {
 		return nil, err
 	}

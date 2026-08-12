@@ -148,7 +148,7 @@ func scanInteractions(db *store.Store, options interactionMigrationOptions, writ
 				if err != nil {
 					return err
 				}
-				if err := batch.Set(model.LikeDataKey(entryUUID, actor), raw, nil); err != nil {
+				if err := batch.Set(model.LikeKey(entryUUID, actor), raw, nil); err != nil {
 					return err
 				}
 			}
@@ -158,7 +158,7 @@ func scanInteractions(db *store.Store, options interactionMigrationOptions, writ
 				if err != nil {
 					return err
 				}
-				if err := batch.Set(model.CommentDataKey(entryUUID, commentUUID), raw, nil); err != nil {
+				if err := batch.Set(model.CommentKey(entryUUID, commentUUID), raw, nil); err != nil {
 					return err
 				}
 			}

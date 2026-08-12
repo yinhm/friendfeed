@@ -58,19 +58,19 @@ func seedLikeTestInteractions(t *testing.T, db *store.Store, entry *pb.Entry) {
 		}
 		raw, err := proto.Marshal(like)
 		require.NoError(t, err)
-		require.NoError(t, db.Put(LikeDataKey(entryUUID, actorUUID), raw))
+		require.NoError(t, db.Put(LikeKey(entryUUID, actorUUID), raw))
 	}
 	for _, comment := range entry.Comments {
 		commentUUID := uuid.Must(uuid.FromString(comment.Id))
 		raw, err := proto.Marshal(comment)
 		require.NoError(t, err)
-		require.NoError(t, db.Put(CommentDataKey(entryUUID, commentUUID), raw))
+		require.NoError(t, db.Put(CommentKey(entryUUID, commentUUID), raw))
 	}
 }
 
 func testLike(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
 	seedLikeTestInteractions(t, db, entry)
-	return Like(db, profile, entry)
+	return PutLike(db, profile, entry)
 }
 
 func testDeleteLike(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
@@ -80,7 +80,7 @@ func testDeleteLike(t *testing.T, db *store.Store, profile *pb.Profile, entry *p
 
 func testComment(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
 	seedLikeTestInteractions(t, db, entry)
-	return Comment(db, profile, entry, comment)
+	return PutComment(db, profile, entry, comment)
 }
 
 func testDeleteComment(t *testing.T, db *store.Store, profile *pb.Profile, entry *pb.Entry, commentID string) (*pb.Entry, error) {

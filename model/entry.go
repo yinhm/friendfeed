@@ -116,7 +116,7 @@ func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("entry %s: %w", uuidStr, err)
 	}
-	if err := HydrateEntryInteractions(db, entry); err != nil {
+	if err := LoadEntryInteractions(db, entry); err != nil {
 		return nil, fmt.Errorf("entry %s interactions: %w", uuidStr, err)
 	}
 	return entry, nil

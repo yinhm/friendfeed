@@ -11,12 +11,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func LikeDataKey(entryUUID, actorUUID uuid.UUID) store.Key {
-	return NewKeyFrom(LikeData.Prefix, entryUUID.Bytes(), actorUUID.Bytes())
+func LikeKey(entryUUID, actorUUID uuid.UUID) store.Key {
+	return NewKeyFrom(Like.Prefix, entryUUID.Bytes(), actorUUID.Bytes())
 }
 
-func CommentDataKey(entryUUID, commentUUID uuid.UUID) store.Key {
-	return NewKeyFrom(CommentData.Prefix, entryUUID.Bytes(), commentUUID.Bytes())
+func CommentKey(entryUUID, commentUUID uuid.UUID) store.Key {
+	return NewKeyFrom(Comment.Prefix, entryUUID.Bytes(), commentUUID.Bytes())
 }
 
 func writeEntryInteractionsBatch(batch *pebble.Batch, entryUUID uuid.UUID, comments []*pb.Comment, likes []*pb.Like) error {
@@ -32,7 +32,7 @@ func writeEntryInteractionsBatch(batch *pebble.Batch, entryUUID uuid.UUID, comme
 		if err != nil {
 			return err
 		}
-		if err := batch.Set(LikeDataKey(entryUUID, actorUUID), raw, nil); err != nil {
+		if err := batch.Set(LikeKey(entryUUID, actorUUID), raw, nil); err != nil {
 			return err
 		}
 	}
@@ -48,7 +48,7 @@ func writeEntryInteractionsBatch(batch *pebble.Batch, entryUUID uuid.UUID, comme
 		if err != nil {
 			return err
 		}
-		if err := batch.Set(CommentDataKey(entryUUID, commentUUID), raw, nil); err != nil {
+		if err := batch.Set(CommentKey(entryUUID, commentUUID), raw, nil); err != nil {
 			return err
 		}
 	}
@@ -57,8 +57,8 @@ func writeEntryInteractionsBatch(batch *pebble.Batch, entryUUID uuid.UUID, comme
 
 func deleteEntryInteractionsBatch(db *store.Store, batch *pebble.Batch, entryUUID uuid.UUID) error {
 	for _, prefix := range []store.Key{
-		NewKeyFrom(LikeData.Prefix, entryUUID.Bytes()),
-		NewKeyFrom(CommentData.Prefix, entryUUID.Bytes()),
+		NewKeyFrom(Like.Prefix, entryUUID.Bytes()),
+		NewKeyFrom(Comment.Prefix, entryUUID.Bytes()),
 	} {
 		if _, err := db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
 			return batch.Delete(key, nil)
@@ -69,11 +69,11 @@ func deleteEntryInteractionsBatch(db *store.Store, batch *pebble.Batch, entryUUI
 	return nil
 }
 
-// HydrateEntryInteractions replaces legacy embedded interaction snapshots
+// LoadEntryInteractions replaces legacy embedded interaction snapshots
 // with the canonical independent-table rows. Values already contain their
 // actor display snapshot, so hydration performs two bounded prefix scans and
 // no per-actor lookups.
-func HydrateEntryInteractions(db *store.Store, entry *pb.Entry) error {
+func LoadEntryInteractions(db *store.Store, entry *pb.Entry) error {
 	if entry == nil {
 		return fmt.Errorf("entry is nil")
 	}
@@ -83,7 +83,7 @@ func HydrateEntryInteractions(db *store.Store, entry *pb.Entry) error {
 	}
 
 	likes := make([]*pb.Like, 0)
-	likePrefix := NewKeyFrom(LikeData.Prefix, entryUUID.Bytes())
+	likePrefix := NewKeyFrom(Like.Prefix, entryUUID.Bytes())
 	if _, err := db.ForwardScan(likePrefix, func(_ int, _, raw []byte) error {
 		like := new(pb.Like)
 		if err := proto.Unmarshal(raw, like); err != nil {
@@ -96,7 +96,7 @@ func HydrateEntryInteractions(db *store.Store, entry *pb.Entry) error {
 	}
 
 	comments := make([]*pb.Comment, 0)
-	commentPrefix := NewKeyFrom(CommentData.Prefix, entryUUID.Bytes())
+	commentPrefix := NewKeyFrom(Comment.Prefix, entryUUID.Bytes())
 	if _, err := db.ForwardScan(commentPrefix, func(_ int, _, raw []byte) error {
 		comment := new(pb.Comment)
 		if err := proto.Unmarshal(raw, comment); err != nil {

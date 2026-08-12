@@ -89,7 +89,7 @@ func TestMigrateInteractionsValidatesAllEntriesBeforeWriting(t *testing.T) {
 	raw := new(pb.Entry)
 	require.NoError(t, model.Entry.Get(db, validEntryUUID.Bytes(), raw))
 	require.Len(t, raw.Likes, 1)
-	_, err = db.Get(model.LikeDataKey(validEntryUUID, actorUUID))
+	_, err = db.Get(model.LikeKey(validEntryUUID, actorUUID))
 	require.ErrorIs(t, err, store.ErrNotFound)
 }
 
@@ -134,10 +134,10 @@ func TestMigrateInteractionsForOneUserPreservesIdentityAndPermissions(t *testing
 
 	actor, err := model.GetProfileFromUuid(db, actorUUID)
 	require.NoError(t, err)
-	_, entry, err = model.Like(db, actor, entry)
+	_, entry, err = model.PutLike(db, actor, entry)
 	require.NoError(t, err)
 	require.Len(t, entry.Likes, 1, "stable UUID must deduplicate a like after rename")
-	_, entry, err = model.Comment(db, actor, entry, &pb.Comment{Id: commentOne.String(), Body: "edited"})
+	_, entry, err = model.PutComment(db, actor, entry, &pb.Comment{Id: commentOne.String(), Body: "edited"})
 	require.NoError(t, err)
 	require.Equal(t, "edited", entry.Comments[0].Body)
 	entry, err = model.DeleteLike(db, actor, entry)

@@ -15,7 +15,7 @@ import (
 var errCommentPerm = errors.New("403: perm error")
 
 // returns a full key and entry if succedd
-func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
+func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
 	// Validate the caller's identity before anything else: the canonical
 	// mint must not be bypassed by a dedupe hit, and a nil profile must
 	// not panic the dedupe scan.
@@ -29,7 +29,7 @@ func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb
 		return nil, nil, err
 	}
 	actorUUID, _ := uuid.FromString(profile.Uuid)
-	dataKey := LikeDataKey(entryUUID, actorUUID)
+	dataKey := LikeKey(entryUUID, actorUUID)
 	if _, err := db.Get(dataKey); errors.Is(err, store.ErrNotFound) {
 		like := &pb.Like{
 			Date: time.Now().Format(time.RFC3339),
@@ -45,7 +45,7 @@ func Like(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb
 	} else if err != nil {
 		return nil, nil, err
 	}
-	if err := HydrateEntryInteractions(db, entry); err != nil {
+	if err := LoadEntryInteractions(db, entry); err != nil {
 		return nil, nil, err
 	}
 	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
@@ -60,13 +60,13 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 		return nil, err
 	}
 	actorUUID, _ := uuid.FromString(profile.Uuid)
-	if err := db.Delete(LikeDataKey(entryUUID, actorUUID)); err != nil {
+	if err := db.Delete(LikeKey(entryUUID, actorUUID)); err != nil {
 		return nil, err
 	}
-	return entry, HydrateEntryInteractions(db, entry)
+	return entry, LoadEntryInteractions(db, entry)
 }
 
-func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
+func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
 	// Validate the caller's identity before scanning existing comments;
 	// the author reference always comes from the canonical profile
 	// resolved server-side, any From the caller sent is display data.
@@ -83,7 +83,7 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 	if err != nil {
 		return nil, nil, err
 	}
-	dataKey := CommentDataKey(entryUUID, commentUUID)
+	dataKey := CommentKey(entryUUID, commentUUID)
 	storedRaw, getErr := db.Get(dataKey)
 	if getErr == nil {
 		stored := new(pb.Comment)
@@ -111,7 +111,7 @@ func Comment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.
 	if err := db.Put(dataKey, raw); err != nil {
 		return nil, nil, err
 	}
-	if err := HydrateEntryInteractions(db, entry); err != nil {
+	if err := LoadEntryInteractions(db, entry); err != nil {
 		return nil, nil, err
 	}
 	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
@@ -129,7 +129,7 @@ func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commen
 	if err != nil {
 		return nil, err
 	}
-	dataKey := CommentDataKey(entryUUID, commentUUID)
+	dataKey := CommentKey(entryUUID, commentUUID)
 	raw, err := db.Get(dataKey)
 	if errors.Is(err, store.ErrNotFound) {
 		return entry, nil // blind delete, keep current semantics
@@ -147,7 +147,7 @@ func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commen
 	if err := db.Delete(dataKey); err != nil {
 		return nil, err
 	}
-	return entry, HydrateEntryInteractions(db, entry)
+	return entry, LoadEntryInteractions(db, entry)
 }
 
 // canModerateComment reports whether profile may delete cmt: the comment
