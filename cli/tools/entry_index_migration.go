@@ -40,7 +40,13 @@ func migrateEntryIndex(db *store.Store, dryRun bool, maxLimit int) (entryIndexMi
 				newKey := make([]byte, 0, len(key)+len(value))
 				newKey = append(newKey, key...)
 				newKey = append(newKey, value...)
-				ops = append(ops, entryIndexMigrationOp{oldKey: key, newKey: newKey, value: value})
+				// key/value borrow the scan buffer and are replayed after the
+				// scan completes; copy them before retaining in ops.
+				ops = append(ops, entryIndexMigrationOp{
+					oldKey: append([]byte(nil), key...),
+					newKey: newKey,
+					value:  append([]byte(nil), value...),
+				})
 			}
 		case legacyKeySize + 4 + uuid.Size:
 			stats.current++

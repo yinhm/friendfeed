@@ -20,7 +20,6 @@
 
 ## 数据库性能与扩展
 
-- **扫描 buffer 契约**：仅在 benchmark 证明 key/value copy 是主要分配来源后，才考虑让 `ForwardScan` callback 借用 iterator buffer；该切片只能在 callback 返回前使用，属于 API 契约变化，不并存 safe/unsafe 两套公共入口。
 - **Feed N+1 读取**：先分别测量冷、热 Pebble cache 下的 index scan、Entry Get、protobuf decode 与渲染耗时；没有生产证据前不把 Entry 本体或摘要冗余进 fanout index。
 - **Prefix bloom**：配置 `Comparer.Split`、`SeekPrefixGE` 或 prefix bloom 前，必须覆盖全部 table key 布局并设计 SSTable filter 重写、全量 compaction 与回退验证；不作为普通 iterator 优化启用。
 - **Durable fanout outbox**：当前保持同步 fanout 与 audit/rebuild。只有实际发生 fanout 超时、部分写失败或 celebrity feed 写放大后，才设计持久化 outbox；不提前建立通用 job 框架。

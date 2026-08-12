@@ -13,6 +13,10 @@ import (
 	"github.com/yinhm/friendfeed/store/flake"
 )
 
+// ScanCallback receives the zero-based row index and the current key/value.
+// The key/value slices borrow the iterator's internal buffers: they are only
+// valid until the callback returns and must not be retained or mutated. Copy
+// explicitly (e.g. append([]byte(nil), key...)) to keep a row.
 type ScanCallback func(int, []byte, []byte) error
 
 var ErrNotFound = pebble.ErrNotFound
@@ -294,6 +298,11 @@ func (db *Store) TimeTravelReverseId(t time.Time) flake.Id {
 	return fid
 }
 
+// ForwardScan iterates prefix in key order, invoking fn once per row.
+//
+// The key/value passed to fn are unsafe: they alias the iterator's internal
+// buffers and are overwritten by the next iteration, so fn may only read them
+// until it returns. Retaining a slice without copying corrupts data.
 func (db *Store) ForwardScan(prefix Key, fn ScanCallback) (n int, err error) {
 	opts := PrefixIteratorOptions(prefix)
 	iter, err := newIterator(db.rdb, opts)
@@ -302,8 +311,8 @@ func (db *Store) ForwardScan(prefix Key, fn ScanCallback) (n int, err error) {
 	}
 	defer iter.Close()
 	for iter.First(); iter.Valid(); iter.Next() {
-		key := iter.Key()
-		value := iter.Value()
+		key := iter.UnsafeKey()
+		value := iter.UnsafeValue()
 		if err = fn(n, key, value); err != nil {
 			var serr *Error
 			if errors.As(err, &serr) {
