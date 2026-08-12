@@ -19,6 +19,26 @@ test('expands placeholder likes once when clicked', () => {
   expect(expandLikes).toHaveBeenCalledTimes(1);
 });
 
+test('renders archived interactions without an actor snapshot', () => {
+  render(
+    <Entry
+      entry={{
+        id: 'entry-id',
+        from: {id: 'entry-author', name: 'Entry Author'},
+        body: 'Entry body',
+        commands: [],
+        likes: [{from: {}}],
+        comments: [{id: 'legacy-comment', body: 'Archived comment', from: {}}],
+      }}
+      onpage_edit={false}
+    />
+  );
+
+  expect(screen.getAllByText('Unknown')).toHaveLength(2);
+  expect(screen.getByText('Archived comment')).toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Unknown'})).not.toBeInTheDocument();
+});
+
 test('renders only the comment commands authorized by the server', () => {
   render(
     <Entry

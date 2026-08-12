@@ -156,8 +156,12 @@ Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；�
 ./tools -to <db-dir> -c rebuild_timeline -dry-run
 ```
 
-`migrate_interactions` 全量 apply 前会再次完整预检；`invalid_actors`、
-`invalid_comments` 或 `duplicates` 非零时拒绝开始写入。
+`migrate_interactions` 全量 apply 前会再次完整预检。已经过
+`backfill_actor_uuids` 仍无法可靠映射的 archive actor 会保留为只读展示快照：
+迁移只为独立表生成确定性的内部 row UUID，不填写 `From.Uuid`，因此不会按当前同名
+profile 授予编辑、删除或 unlike 权限。非 UUID 的历史 comment ID 同样会确定性转换为
+UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，不阻断迁移；只有
+会覆盖同一独立表 key 的 `duplicates` 非零时拒绝开始写入。
 
 6. 确认 dry-run 后执行写入。命令默认会写库，`-dry-run` 才是不写开关：
 

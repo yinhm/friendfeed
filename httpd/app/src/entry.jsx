@@ -9,7 +9,7 @@ import {getJSON, postJSON, postForm, intersperse} from './utils';
  * @typedef {{id: string, name: string, picture?: string, title?: string}} FeedRef
  * @typedef {{width?: number, height?: number, link: string, url: string}} Thumbnail
  * @typedef {{id?: string, body: string, rawBody?: string, is_editing?: boolean,
- * commands?: string[], placeholder?: boolean, from: FeedRef, date?: string}} CommentData
+ * commands?: string[], placeholder?: boolean, from?: FeedRef, date?: string}} CommentData
  * @typedef {object} LikeData
  * @property {boolean} [placeholder]
  * @property {string} [body]
@@ -767,10 +767,15 @@ class EntryComment extends React.Component{
         </div>
       );
     } else {
-      var body = `${comment.body} - <a href="/feed/${comment.from.id}">${comment.from.name}</a>`;
+      const actor = comment.from;
+      const actorName = actor?.name || actor?.id || 'Unknown';
+      const actorNode = actor?.id
+        ? <a href={'/feed/' + actor.id}>{actorName}</a>
+        : <span>{actorName}</span>;
       return (
         <div className="comment" title={comment.date}>
-          <span dangerouslySetInnerHTML={{__html: body}}></span>
+          <span dangerouslySetInnerHTML={{__html: comment.body ?? ''}}></span>
+          {' - '}{actorNode}
           {cmds}
         </div>
       );

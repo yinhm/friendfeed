@@ -4,7 +4,7 @@ import React from 'react';
 
 /**
  * @typedef {object} EntryLikeProps
- * @property {{placeholder?: boolean, body?: string, from: {id: string, name: string}}} like
+ * @property {{placeholder?: boolean, body?: string, from?: {id?: string, name?: string}}} like
  * @property {() => void} expandLikes
  *
  * @typedef {{expanded: boolean}} EntryLikeState
@@ -38,9 +38,15 @@ export class EntryLike extends React.Component {
       );
     }
 
+    const actor = like.from;
+    const name = actor?.name || actor?.id || 'Unknown';
+    if (!actor?.id) {
+      return <span>{name}</span>;
+    }
+
     return (
-      <a href={'/feed/' + like.from.id}>
-        {like.from.name}
+      <a href={'/feed/' + actor.id}>
+        {name}
       </a>
     );
   }

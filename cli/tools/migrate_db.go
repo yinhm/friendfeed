@@ -1263,9 +1263,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("interaction migration: scanned=%d migrated=%d likes=%d comments=%d invalid_actors=%d invalid_comments=%d duplicates=%d dry-run=%t",
+		log.Printf("interaction migration: scanned=%d migrated=%d likes=%d comments=%d legacy_actors=%d generated_comment_ids=%d duplicates=%d dry-run=%t",
 			stats.entriesScanned, stats.entriesMigrated, stats.likes, stats.comments,
-			stats.invalidActors, stats.invalidComments, stats.duplicates, dryRun)
+			stats.legacyActors, stats.generatedIDs, stats.duplicates, dryRun)
 	case "rebuild_entry_index":
 		stats, err := rebuildEntryIndexes(ndb, entryIndexRebuildOptions{
 			user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun,

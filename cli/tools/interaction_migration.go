@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
@@ -22,8 +23,8 @@ type interactionMigrationStats struct {
 	entriesMigrated int
 	likes           int
 	comments        int
-	invalidActors   int
-	invalidComments int
+	legacyActors    int
+	generatedIDs    int
 	duplicates      int
 }
 
@@ -32,16 +33,35 @@ func migrateInteractions(db *store.Store, options interactionMigrationOptions) (
 	if err != nil || options.dryRun {
 		return stats, err
 	}
-	if stats.invalidActors > 0 || stats.invalidComments > 0 || stats.duplicates > 0 {
+	if stats.duplicates > 0 {
 		return stats, fmt.Errorf(
-			"interaction migration validation failed: invalid actors=%d invalid comments=%d duplicates=%d",
-			stats.invalidActors, stats.invalidComments, stats.duplicates,
+			"interaction migration validation failed: duplicates=%d",
+			stats.duplicates,
 		)
 	}
 	if _, err := scanInteractions(db, options, true); err != nil {
 		return stats, err
 	}
 	return stats, nil
+}
+
+// legacyInteractionRowUUID gives an embedded legacy interaction a stable row
+// identity without pretending that it has a verified local actor identity.
+// The source ordinal is stable in the stored repeated field and keeps otherwise
+// identical anonymous archive records distinct.
+func legacyInteractionRowUUID(entryUUID uuid.UUID, kind string, ordinal int) uuid.UUID {
+	return uuid.NewV5(uuid.NamespaceURL,
+		"ffdb/legacy-interaction/"+entryUUID.String()+"/"+kind+"/"+strconv.Itoa(ordinal))
+}
+
+type likeMigrationRow struct {
+	id   uuid.UUID
+	like *pb.Like
+}
+
+type commentMigrationRow struct {
+	id      uuid.UUID
+	comment *pb.Comment
 }
 
 // scanInteractions performs a complete validation pass before migrateInteractions
@@ -82,48 +102,58 @@ func scanInteractions(db *store.Store, options interactionMigrationOptions, writ
 		}
 
 		valid := true
-		seenLikes := make(map[uuid.UUID]*pb.Like)
-		for _, like := range entry.Likes {
-			if like == nil || like.From == nil {
-				stats.invalidActors++
-				valid = false
-				continue
+		seenLikes := make(map[uuid.UUID]struct{})
+		likeRows := make([]likeMigrationRow, 0, len(entry.Likes))
+		for i, sourceLike := range entry.Likes {
+			if sourceLike == nil {
+				sourceLike = new(pb.Like)
 			}
-			actor, err := uuid.FromString(like.From.Uuid)
-			if err != nil || actor == uuid.Nil {
-				stats.invalidActors++
-				valid = false
-				continue
+			like := proto.Clone(sourceLike).(*pb.Like)
+			if like.From == nil {
+				like.From = &pb.Feed{Name: "Unknown"}
+			}
+			actor := uuid.Nil
+			actor, _ = uuid.FromString(like.From.Uuid)
+			if actor == uuid.Nil {
+				stats.legacyActors++
+				actor = legacyInteractionRowUUID(entryUUID, "like", i)
+				like.From.Uuid = ""
 			}
 			if _, exists := seenLikes[actor]; exists {
 				stats.duplicates++
 				valid = false
 			}
-			seenLikes[actor] = like
+			seenLikes[actor] = struct{}{}
+			likeRows = append(likeRows, likeMigrationRow{id: actor, like: like})
 		}
 		seenComments := make(map[uuid.UUID]struct{})
-		for _, comment := range entry.Comments {
-			if comment == nil || comment.From == nil {
-				stats.invalidActors++
-				valid = false
-				continue
+		commentRows := make([]commentMigrationRow, 0, len(entry.Comments))
+		for i, sourceComment := range entry.Comments {
+			if sourceComment == nil {
+				sourceComment = new(pb.Comment)
 			}
-			actor, actorErr := uuid.FromString(comment.From.Uuid)
-			if actorErr != nil || actor == uuid.Nil {
-				stats.invalidActors++
-				valid = false
+			comment := proto.Clone(sourceComment).(*pb.Comment)
+			if comment.From == nil {
+				comment.From = &pb.Feed{Name: "Unknown"}
+			}
+			actor := uuid.Nil
+			actor, _ = uuid.FromString(comment.From.Uuid)
+			if actor == uuid.Nil {
+				stats.legacyActors++
+				comment.From.Uuid = ""
 			}
 			commentUUID, err := uuid.FromString(comment.Id)
 			if err != nil || commentUUID == uuid.Nil {
-				stats.invalidComments++
-				valid = false
-				continue
+				commentUUID = legacyInteractionRowUUID(entryUUID, "comment", i)
+				comment.Id = commentUUID.String()
+				stats.generatedIDs++
 			}
 			if _, exists := seenComments[commentUUID]; exists {
 				stats.duplicates++
 				valid = false
 			}
 			seenComments[commentUUID] = struct{}{}
+			commentRows = append(commentRows, commentMigrationRow{id: commentUUID, comment: comment})
 		}
 		if !valid {
 			return nil
@@ -143,22 +173,21 @@ func scanInteractions(db *store.Store, options interactionMigrationOptions, writ
 			return err
 		}
 		return db.ApplyBatch(func(batch *pebble.Batch) error {
-			for actor, like := range seenLikes {
-				raw, err := proto.Marshal(like)
+			for _, row := range likeRows {
+				raw, err := proto.Marshal(row.like)
 				if err != nil {
 					return err
 				}
-				if err := batch.Set(model.LikeKey(entryUUID, actor), raw, nil); err != nil {
+				if err := batch.Set(model.LikeKey(entryUUID, row.id), raw, nil); err != nil {
 					return err
 				}
 			}
-			for _, comment := range entry.Comments {
-				commentUUID, _ := uuid.FromString(comment.Id)
-				raw, err := proto.Marshal(comment)
+			for _, row := range commentRows {
+				raw, err := proto.Marshal(row.comment)
 				if err != nil {
 					return err
 				}
-				if err := batch.Set(model.CommentKey(entryUUID, commentUUID), raw, nil); err != nil {
+				if err := batch.Set(model.CommentKey(entryUUID, row.id), raw, nil); err != nil {
 					return err
 				}
 			}
