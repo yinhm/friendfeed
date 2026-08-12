@@ -429,8 +429,9 @@ func TestCanonicalEntryKeyFromIndexValueSupportsDeployedFormats(t *testing.T) {
 	entryID := uuid.Must(uuid.NewV4())
 	key := model.Entry.PrefixAppend(entryID.Bytes())
 	for name, value := range map[string][]byte{
-		"raw": key,
-		"hex": []byte(hex.EncodeToString(key)),
+		"raw":                  key,
+		"hex":                  []byte(hex.EncodeToString(key)),
+		"prefixed UUID string": append(model.Entry.Prefix.Copy(), []byte(entryID.String())...),
 	} {
 		t.Run(name, func(t *testing.T) {
 			got, err := canonicalEntryKeyFromIndexValue(value)
@@ -445,7 +446,7 @@ func TestCanonicalEntryKeyFromIndexValueSupportsDeployedFormats(t *testing.T) {
 	require.ErrorContains(t, err, "table prefix")
 }
 
-func TestRebuildTimelineReadsHexEncodedEntryIndexValue(t *testing.T) {
+func TestRebuildTimelineReadsPrefixedUUIDEntryIndexValue(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
@@ -454,10 +455,10 @@ func TestRebuildTimelineReadsHexEncodedEntryIndexValue(t *testing.T) {
 	profile := &pb.Profile{Uuid: profileID.String(), Id: "legacy-index", Type: "user"}
 	require.NoError(t, model.UpdateProfile(db, profile))
 	entry := &pb.Entry{Id: entryID.String(), ProfileUuid: profileID.String(), Date: time.Now().UTC().Format(time.RFC3339)}
-	entryKey, err := model.Entry.Put(db, entryID.Bytes(), entry)
+	_, err = model.Entry.Put(db, entryID.Bytes(), entry)
 	require.NoError(t, err)
 	legacyIndexKey := store.NewUUIDFlakeKey(model.TableEntryIndex, profileID, db.TimeTravelReverseId(time.Now())).Bytes()
-	require.NoError(t, db.Put(legacyIndexKey, []byte(hex.EncodeToString(entryKey))))
+	require.NoError(t, db.Put(legacyIndexKey, append(model.Entry.Prefix.Copy(), []byte(entryID.String())...)))
 
 	stats, err := rebuildTimelines(db, timelineRebuildOptions{user: profile.Id})
 	require.NoError(t, err)

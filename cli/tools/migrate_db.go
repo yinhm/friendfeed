@@ -402,9 +402,9 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
 }
 
-// canonicalEntryKeyFromIndexValue accepts both EntryIndex value encodings
-// found in deployed databases. Current rows store the 20-byte key directly;
-// historical rows store the same bytes as 40 ASCII hexadecimal characters.
+// canonicalEntryKeyFromIndexValue accepts the EntryIndex value encodings found
+// in deployed databases: a raw 20-byte key, its 40-character hexadecimal form,
+// or a raw table prefix followed by a 36-character UUID string.
 func canonicalEntryKeyFromIndexValue(value []byte) (store.Key, error) {
 	const keySize = 4 + uuid.Size
 	var key []byte
@@ -412,11 +412,19 @@ func canonicalEntryKeyFromIndexValue(value []byte) (store.Key, error) {
 	case keySize:
 		key = value
 	case 2 * keySize:
-		decoded := make([]byte, keySize)
-		if _, err := hex.Decode(decoded, value); err != nil {
-			return nil, fmt.Errorf("decode hexadecimal entry key: %w", err)
+		if bytes.Equal(value[:model.Entry.Prefix.Len()], model.Entry.Prefix) {
+			entryID, err := uuid.FromString(string(value[model.Entry.Prefix.Len():]))
+			if err != nil {
+				return nil, fmt.Errorf("decode prefixed entry UUID: %w", err)
+			}
+			key = model.Entry.PrefixAppend(entryID.Bytes())
+		} else {
+			decoded := make([]byte, keySize)
+			if _, err := hex.Decode(decoded, value); err != nil {
+				return nil, fmt.Errorf("decode hexadecimal entry key: %w", err)
+			}
+			key = decoded
 		}
-		key = decoded
 	default:
 		return nil, fmt.Errorf("invalid entry key length %d", len(value))
 	}
