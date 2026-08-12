@@ -340,7 +340,6 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	}
 
 	rebuilt := make(map[uuid.UUID]time.Time)
-	now := time.Now().UTC()
 	for _, feedID := range feeds {
 		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
 		_, err := db.ForwardScan(feedPrefix, func(i int, key, value []byte) error {
@@ -355,23 +354,19 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 			if _, seen := rebuilt[entryID]; seen {
 				return nil
 			}
-			entry, err := model.GetEntry(db, entryID.String())
-			if err != nil {
-				if errors.Is(err, model.ErrNotFound) {
-					return nil
-				}
-				return err
-			}
-			activity, err := rebuiltTimelineActivity(entry, now)
-			if err != nil {
-				return fmt.Errorf("entry %s activity: %w", entry.Id, err)
-			}
-			rebuilt[entryID] = activity
+			rebuilt[entryID] = time.Time{}
 			return nil
 		})
 		if err != nil {
 			return selectedFollows, len(rebuilt), existing, 0, duplicates, fmt.Errorf("read feed %s for %s timeline: %w", feedID, profile.Id, err)
 		}
+	}
+	skippedInteractionDates, err := loadTimelineActivities(db, rebuilt, time.Now().UTC())
+	if err != nil {
+		return selectedFollows, len(rebuilt), existing, 0, duplicates, err
+	}
+	if skippedInteractionDates > 0 {
+		log.Printf("timeline for %s: skipped %d interactions with missing or invalid dates", profile.Id, skippedInteractionDates)
 	}
 	mismatches := 0
 	for entry, activity := range rebuilt {
@@ -390,6 +385,75 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		}
 	}
 	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
+}
+
+// loadTimelineActivities reads Entry, Like and Comment in UUID order using
+// three reusable iterators. This avoids one random Entry Get and two new
+// Pebble iterators per source row while keeping memory bounded to one user's
+// deduplicated timeline.
+func loadTimelineActivities(db *store.Store, rows map[uuid.UUID]time.Time, now time.Time) (int, error) {
+	ids := make([]uuid.UUID, 0, len(rows))
+	for id := range rows {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return bytes.Compare(ids[i].Bytes(), ids[j].Bytes()) < 0 })
+
+	entryIter, err := db.NewIterator(model.Entry.Prefix)
+	if err != nil {
+		return 0, err
+	}
+	defer entryIter.Close()
+	likeIter, err := db.NewIterator(model.Like.Prefix)
+	if err != nil {
+		return 0, err
+	}
+	defer likeIter.Close()
+	commentIter, err := db.NewIterator(model.Comment.Prefix)
+	if err != nil {
+		return 0, err
+	}
+	defer commentIter.Close()
+
+	skippedInteractionDates := 0
+	for _, id := range ids {
+		entryKey := model.Entry.PrefixAppend(id.Bytes())
+		entryIter.SeekGE(entryKey)
+		if !entryIter.Valid() || !bytes.Equal(entryIter.UnsafeKey(), entryKey) {
+			delete(rows, id)
+			continue
+		}
+		entry := new(pb.Entry)
+		if err := proto.Unmarshal(entryIter.UnsafeValue(), entry); err != nil {
+			return skippedInteractionDates, fmt.Errorf("decode entry %s: %w", id, err)
+		}
+		likePrefix := model.NewKeyFrom(model.Like.Prefix, id.Bytes())
+		likeIter.SeekGE(likePrefix)
+		for likeIter.Valid() && bytes.HasPrefix(likeIter.UnsafeKey(), likePrefix) {
+			like := new(pb.Like)
+			if err := proto.Unmarshal(likeIter.UnsafeValue(), like); err != nil {
+				return skippedInteractionDates, fmt.Errorf("decode like for entry %s: %w", id, err)
+			}
+			entry.Likes = append(entry.Likes, like)
+			likeIter.Next()
+		}
+		commentPrefix := model.NewKeyFrom(model.Comment.Prefix, id.Bytes())
+		commentIter.SeekGE(commentPrefix)
+		for commentIter.Valid() && bytes.HasPrefix(commentIter.UnsafeKey(), commentPrefix) {
+			comment := new(pb.Comment)
+			if err := proto.Unmarshal(commentIter.UnsafeValue(), comment); err != nil {
+				return skippedInteractionDates, fmt.Errorf("decode comment for entry %s: %w", id, err)
+			}
+			entry.Comments = append(entry.Comments, comment)
+			commentIter.Next()
+		}
+		activity, skipped, err := rebuiltTimelineActivity(entry, now)
+		skippedInteractionDates += skipped
+		if err != nil {
+			return skippedInteractionDates, fmt.Errorf("entry %s activity: %w", entry.Id, err)
+		}
+		rows[id] = activity
+	}
+	return skippedInteractionDates, errors.Join(entryIter.Error(), likeIter.Error(), commentIter.Error())
 }
 
 const timelineRebuildBatchSize = 500
@@ -481,19 +545,25 @@ type timelineEvent struct {
 	id   string
 }
 
-func rebuiltTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, error) {
+func rebuiltTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, int, error) {
 	published, err := time.Parse(time.RFC3339, entry.Date)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, 0, fmt.Errorf("invalid publish date %q: %w", entry.Date, err)
 	}
 	if published.After(now) {
 		published = now
 	}
 	events := make([]timelineEvent, 0, len(entry.Likes)+len(entry.Comments))
+	skipped := 0
 	for _, like := range entry.Likes {
+		if like == nil {
+			skipped++
+			continue
+		}
 		at, err := time.Parse(time.RFC3339, like.Date)
 		if err != nil {
-			return time.Time{}, err
+			skipped++
+			continue
 		}
 		id := ""
 		if like.From != nil {
@@ -502,9 +572,14 @@ func rebuiltTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, error) 
 		events = append(events, timelineEvent{at: at, kind: model.TimelineActivityLike, id: id})
 	}
 	for _, comment := range entry.Comments {
+		if comment == nil {
+			skipped++
+			continue
+		}
 		at, err := time.Parse(time.RFC3339, comment.Date)
 		if err != nil {
-			return time.Time{}, err
+			skipped++
+			continue
 		}
 		events = append(events, timelineEvent{at: at, kind: model.TimelineActivityComment, id: comment.Id})
 	}
@@ -530,7 +605,7 @@ func rebuiltTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, error) 
 		}
 		activity = event.at
 	}
-	return activity, nil
+	return activity, skipped, nil
 }
 
 // oauthActiveProfiles lists non-deleted profiles and the set of profile UUIDs

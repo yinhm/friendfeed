@@ -168,6 +168,9 @@ Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；�
 profile 授予编辑、删除或 unlike 权限。非 UUID 的历史 comment ID 同样会确定性转换为
 UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，不阻断迁移；只有
 会覆盖同一独立表 key 的 `duplicates` 非零时拒绝开始写入。
+历史 Like/Comment 缺少或带有非法 `Date` 时仍保留展示，但 `rebuild_timeline` 会计数并
+跳过该互动的 activity bump；不得用当前时间或 Entry 发布时间伪造互动时间。Entry
+自身的发布时间无效仍会阻断重建，因为无法建立基础排序位置。
 
 全量 dry-run 和 apply 都应观察进程 RSS；内存应主要由 Pebble cache 和少量按 feed 的
 校验状态构成，不应随已扫描 Entry 数持续线性增长。`rebuild_timeline` 按 profile 逐个

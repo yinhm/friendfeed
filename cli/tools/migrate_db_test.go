@@ -420,9 +420,59 @@ func TestRebuiltTimelineActivityReplaysCurrentInteractions(t *testing.T) {
 			{Id: "c", Date: base.Add(16 * time.Minute).Format(time.RFC3339)},
 		},
 	}
-	activity, err := rebuiltTimelineActivity(entry, base.Add(time.Hour))
+	activity, skipped, err := rebuiltTimelineActivity(entry, base.Add(time.Hour))
 	require.NoError(t, err)
+	require.Zero(t, skipped)
 	require.Equal(t, base.Add(16*time.Minute), activity)
+}
+
+func TestRebuiltTimelineActivitySkipsUndatedLegacyInteractions(t *testing.T) {
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	entry := &pb.Entry{
+		Date:     base.Format(time.RFC3339),
+		Likes:    []*pb.Like{{Date: ""}, {Date: "invalid"}, nil},
+		Comments: []*pb.Comment{{Date: base.Add(time.Hour).Format(time.RFC3339)}, {Date: ""}, nil},
+	}
+	activity, skipped, err := rebuiltTimelineActivity(entry, base.Add(2*time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, 5, skipped)
+	require.Equal(t, base.Add(time.Hour), activity)
+
+	entry.Date = ""
+	_, _, err = rebuiltTimelineActivity(entry, base.Add(2*time.Hour))
+	require.ErrorContains(t, err, "invalid publish date")
+}
+
+func TestLoadTimelineActivitiesUsesIndependentInteractions(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	base := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	author := uuid.Must(uuid.NewV4())
+	actor := uuid.Must(uuid.NewV4())
+	entryID := uuid.Must(uuid.NewV4())
+	commentID := uuid.Must(uuid.NewV4())
+	_, err = model.PutEntry(db, &pb.Entry{
+		Id: entryID.String(), ProfileUuid: author.String(), Date: base.Format(time.RFC3339),
+		Likes: []*pb.Like{{
+			Date: base.Add(15 * time.Minute).Format(time.RFC3339),
+			From: &pb.Feed{Uuid: actor.String()},
+		}},
+		Comments: []*pb.Comment{{
+			Id: commentID.String(), Date: base.Add(16 * time.Minute).Format(time.RFC3339),
+			From: &pb.Feed{Uuid: actor.String()},
+		}},
+	})
+	require.NoError(t, err)
+	missing := uuid.Must(uuid.NewV4())
+	rows := map[uuid.UUID]time.Time{entryID: {}, missing: {}}
+	skipped, err := loadTimelineActivities(db, rows, base.Add(time.Hour))
+	require.NoError(t, err)
+	require.Zero(t, skipped)
+	require.Equal(t, base.Add(16*time.Minute), rows[entryID])
+	_, exists := rows[missing]
+	require.False(t, exists)
 }
 
 func TestReplaceTimelineRowsClearsAndWritesBoundedBatches(t *testing.T) {
