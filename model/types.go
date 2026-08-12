@@ -31,14 +31,16 @@ const (
 	// TableEntryIndex store.KeyPrefix = 4
 	TableEntryIndex store.KeyPrefix = 5
 
-	TableProfile  store.KeyPrefix = 100
-	TableService  store.KeyPrefix = 101
-	TableFollow   store.KeyPrefix = 102
-	TableFollower store.KeyPrefix = 103
-	TableOAuth    store.KeyPrefix = 104
-	TableFile     store.KeyPrefix = 105
-	TableLike     store.KeyPrefix = 106
-	TableComment  store.KeyPrefix = 107
+	TableProfile          store.KeyPrefix = 100
+	TableService          store.KeyPrefix = 101
+	TableFollow           store.KeyPrefix = 102
+	TableFollower         store.KeyPrefix = 103
+	TableOAuth            store.KeyPrefix = 104
+	TableFile             store.KeyPrefix = 105
+	TableLike             store.KeyPrefix = 106
+	TableComment          store.KeyPrefix = 107
+	TableTimelineIndex    store.KeyPrefix = 108
+	TableTimelinePosition store.KeyPrefix = 109
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -67,13 +69,15 @@ var (
 	UserRenameMap = NewTable(KeyPrefixToBytes(TableUserRenameMap))
 	Profile       = NewTable(KeyPrefixToBytes(TableProfile))
 
-	Service  = NewTable(KeyPrefixToBytes(TableService))
-	Follow   = NewTable(KeyPrefixToBytes(TableFollow))
-	Follower = NewTable(KeyPrefixToBytes(TableFollower))
-	OAuth    = NewTable(KeyPrefixToBytes(TableOAuth))
-	File     = NewTable(KeyPrefixToBytes(TableFile))
-	Like     = NewTable(KeyPrefixToBytes(TableLike))
-	Comment  = NewTable(KeyPrefixToBytes(TableComment))
+	Service          = NewTable(KeyPrefixToBytes(TableService))
+	Follow           = NewTable(KeyPrefixToBytes(TableFollow))
+	Follower         = NewTable(KeyPrefixToBytes(TableFollower))
+	OAuth            = NewTable(KeyPrefixToBytes(TableOAuth))
+	File             = NewTable(KeyPrefixToBytes(TableFile))
+	Like             = NewTable(KeyPrefixToBytes(TableLike))
+	Comment          = NewTable(KeyPrefixToBytes(TableComment))
+	TimelineIndex    = NewTable(KeyPrefixToBytes(TableTimelineIndex))
+	TimelinePosition = NewTable(KeyPrefixToBytes(TableTimelinePosition))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))

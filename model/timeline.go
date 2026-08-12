@@ -1,0 +1,132 @@
+package model
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/cockroachdb/pebble/v2"
+	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/store"
+)
+
+const (
+	LikeBumpMaxEntryAge = 7 * 24 * time.Hour
+	LikeBumpCooldown    = 10 * time.Minute
+)
+
+func TimelineIndexPrefix(viewer uuid.UUID) store.Key {
+	return NewKeyFrom(TimelineIndex.Prefix, viewer.Bytes())
+}
+
+func TimelinePositionKey(viewer, entry uuid.UUID) store.Key {
+	return NewKeyFrom(TimelinePosition.Prefix, viewer.Bytes(), entry.Bytes())
+}
+
+func reverseTimelineMillis(t time.Time) ([8]byte, error) {
+	var encoded [8]byte
+	ms := t.UTC().UnixMilli()
+	if ms < 0 {
+		return encoded, fmt.Errorf("timeline time before Unix epoch: %s", t)
+	}
+	binary.BigEndian.PutUint64(encoded[:], ^uint64(ms))
+	return encoded, nil
+}
+
+func TimelineIndexKey(viewer, entry uuid.UUID, activity time.Time) (store.Key, error) {
+	reverse, err := reverseTimelineMillis(activity)
+	if err != nil {
+		return nil, err
+	}
+	return NewKeyFrom(TimelineIndex.Prefix, viewer.Bytes(), reverse[:], entry.Bytes()), nil
+}
+
+func ParseTimelineIndexKey(key store.Key) (viewer, entry uuid.UUID, activity time.Time, err error) {
+	const size = 4 + uuid.Size + 8 + uuid.Size
+	if len(key) != size {
+		return viewer, entry, activity, fmt.Errorf("invalid TimelineIndex key length %d", len(key))
+	}
+	viewer, err = uuid.FromBytes(key[4 : 4+uuid.Size])
+	if err != nil {
+		return viewer, entry, activity, err
+	}
+	ms := ^binary.BigEndian.Uint64(key[4+uuid.Size : 4+uuid.Size+8])
+	if ms > uint64(^uint64(0)>>1) {
+		return viewer, entry, activity, errors.New("timeline timestamp overflows int64")
+	}
+	entry, err = uuid.FromBytes(key[4+uuid.Size+8:])
+	return viewer, entry, time.UnixMilli(int64(ms)).UTC(), err
+}
+
+func TimelinePositionTime(db *store.Store, viewer, entry uuid.UUID) (time.Time, error) {
+	raw, err := db.Get(TimelinePositionKey(viewer, entry))
+	if err != nil {
+		return time.Time{}, err
+	}
+	if len(raw) != 8 {
+		return time.Time{}, fmt.Errorf("invalid TimelinePosition value length %d", len(raw))
+	}
+	ms := binary.BigEndian.Uint64(raw)
+	if ms > uint64(^uint64(0)>>1) {
+		return time.Time{}, errors.New("timeline position overflows int64")
+	}
+	return time.UnixMilli(int64(ms)).UTC(), nil
+}
+
+// MoveTimelineEntry atomically replaces one viewer's old position. qualify is
+// evaluated while ApplyBatch holds its serialization lock. Activity never
+// moves backwards.
+func MoveTimelineEntry(db *store.Store, viewer, entry uuid.UUID, activity time.Time,
+	qualify func(old time.Time, exists bool) bool) (bool, error) {
+	activity = activity.UTC()
+	moved := false
+	err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		old, err := TimelinePositionTime(db, viewer, entry)
+		exists := err == nil
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		if exists && !activity.After(old) {
+			return nil
+		}
+		if qualify != nil && !qualify(old, exists) {
+			return nil
+		}
+		if exists {
+			oldKey, err := TimelineIndexKey(viewer, entry, old)
+			if err != nil {
+				return err
+			}
+			if err := batch.Delete(oldKey, nil); err != nil {
+				return err
+			}
+		}
+		newKey, err := TimelineIndexKey(viewer, entry, activity)
+		if err != nil {
+			return err
+		}
+		var value [8]byte
+		binary.BigEndian.PutUint64(value[:], uint64(activity.UnixMilli()))
+		if err := batch.Set(newKey, nil, nil); err != nil {
+			return err
+		}
+		if err := batch.Set(TimelinePositionKey(viewer, entry), value[:], nil); err != nil {
+			return err
+		}
+		moved = true
+		return nil
+	})
+	return moved, err
+}
+
+func DeleteTimelinePositionBatch(batch *pebble.Batch, viewer, entry uuid.UUID, activity time.Time) error {
+	key, err := TimelineIndexKey(viewer, entry, activity)
+	if err != nil {
+		return err
+	}
+	if err := batch.Delete(key, nil); err != nil {
+		return err
+	}
+	return batch.Delete(TimelinePositionKey(viewer, entry), nil)
+}
