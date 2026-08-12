@@ -136,3 +136,32 @@ Then apply it:
 
     sudo mkdir -p /var/log/journal
     sudo systemctl restart systemd-journald
+
+Backup & Restore
+================
+
+The database is backed up online through a gRPC command; the service keeps
+running. Run it on the production host, since ffdb only listens on loopback:
+
+    cli run --t BackupDB
+
+The server copies a consistent point-in-time snapshot of the live Pebble
+database to `/tmp/backup-YYYYMMDD-HHMMSS`. Writes concurrent with the copy do
+not leak in, and an interrupted run never publishes a half-written directory
+(leftover `.backup-tmp-*` directories are safe to remove).
+
+There is no scheduled backup job, and systemd-tmpfiles cleans `/tmp`
+periodically, so move the backup off the host right away:
+
+    rsync -av /tmp/backup-YYYYMMDD-HHMMSS backup-host:/srv/backups/ffdb/
+
+The backup directory is a complete, cleanly closed Pebble database. To
+restore, stop the service, swap it into the configured `db_path`
+(`/srv/ffdb/db` in production), and start the service again:
+
+    systemctl stop ffdb.service
+    mv /srv/ffdb/db /srv/ffdb/db.replaced
+    cp -a /path/to/backup-YYYYMMDD-HHMMSS /srv/ffdb/db
+    systemctl start ffdb.service
+
+After the service is verified, delete `db.replaced`.
