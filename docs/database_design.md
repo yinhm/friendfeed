@@ -101,8 +101,9 @@ entry Date = 同一个 RFC3339 time
 Twitter/股票等导入 Entry 也主要使用基于外部稳定标识的 UUIDv5；Archive 保留输入的
 历史 UUID。UUIDv5 是哈希，字节顺序不保留时间，不能替代 EntryIndex 的时间字段。
 
-当前 Web 生成式只精确到秒，同一 profile 同秒发两帖会得到相同 UUID；这是独立的待修
-正确性问题，不应通过 EntryIndex 掩盖。
+Web 生成式的 UUID name material 使用 RFC3339Nano（纳秒精度），同一 profile 同秒多帖
+得到不同 UUID；持久化的 entry Date 仍保持秒级 RFC3339。评论的 UUID name material
+同样使用纳秒精度。
 
 ## Flake 的两种用法
 

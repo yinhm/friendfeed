@@ -380,8 +380,11 @@ func (s *Server) CommentHandler(c *gin.Context) {
 			return
 		}
 	} else {
-		comment.Date = time.Now().UTC().Format(time.RFC3339)
-		name := entryId + profile.Uuid + comment.Date
+		now := time.Now().UTC()
+		comment.Date = now.Format(time.RFC3339)
+		// Nanosecond name material: second precision collided when the same
+		// user commented twice on one entry within a second.
+		name := entryId + profile.Uuid + now.Format(time.RFC3339Nano)
 		commentUUID = uuid.NewV5(uuid.NamespaceURL, name)
 	}
 	comment.Id = commentUUID.String()
