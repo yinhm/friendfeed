@@ -136,7 +136,11 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			return fmt.Errorf("invalid EntryIndex key length %d", len(key))
 		}
 		owner, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
-		entryKey := hex.EncodeToString(value)
+		canonical, err := canonicalEntryKeyFromIndexValue(value)
+		if err != nil {
+			return fmt.Errorf("EntryIndex[%x]: %w", key, err)
+		}
+		entryKey := hex.EncodeToString(canonical)
 		actualIndexes[auditPair(owner, entryKey)] = struct{}{}
 		if _, ok := entries[entryKey]; !ok {
 			stats.orphanIndexes++

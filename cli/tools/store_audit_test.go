@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"testing"
 	"time"
 
@@ -54,6 +55,31 @@ func TestAuditStoreFindsIndexAndGraphDrift(t *testing.T) {
 	require.Zero(t, stats.missingFollowerEdges)
 	require.Zero(t, stats.missingFollowEdges)
 	require.Equal(t, 1, stats.maxFollowers)
+}
+
+func TestAuditStoreAcceptsHexEncodedEntryIndexValue(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	author := uuid.Must(uuid.NewV4())
+	entryID := uuid.Must(uuid.NewV4())
+	date := time.Now().UTC().Truncate(time.Second)
+	_, err = model.PutEntry(db, &pb.Entry{
+		Id: entryID.String(), Date: date.Format(time.RFC3339), ProfileUuid: author.String(),
+		From: &pb.Feed{Uuid: author.String()},
+	})
+	require.NoError(t, err)
+	prefix := store.NewUUIDKey(model.TableEntryIndex, author).Bytes()
+	_, err = db.ForwardScan(prefix, func(_ int, key, value []byte) error {
+		return db.Put(key, []byte(hex.EncodeToString(value)))
+	})
+	require.NoError(t, err)
+
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.entryIndexes)
+	require.Zero(t, stats.orphanIndexes)
+	require.Zero(t, stats.missingDirectIndexes)
 }
 
 func TestAuditStoreFindsTimelineDrift(t *testing.T) {
