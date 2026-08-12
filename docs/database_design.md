@@ -195,6 +195,91 @@ FetchFeed(cursor mode)
 profile/timeline 使用 cursor；旧客户端、public cache 和 search 保持 Start/PageSize。cursor
 不是 Entry UUID，不得脱离当前 feed prefix 解释。
 
+## Home activity timeline（目标设计，尚未实施）
+
+FriendFeed 风格的 Home timeline 按“最近有效活动”重新浮起讨论；Profile/feed 页面仍按
+原帖发布时间稳定排序。两者不能共用同一个排序时间：
+
+| 视图 | 排序字段 | 互动后是否移动 |
+| --- | --- | --- |
+| Profile / target feed | `entry.Date` | 否 |
+| Home timeline | viewer 对该 Entry 的 `activity_at` | 按以下规则有限 bump |
+| Public / Search | 保持各自当前规则 | 否 |
+
+目标结构使用独立的 timeline 派生表，具体 table prefix 在实现时分配：
+
+```text
+TimelineIndex
+key   = T | viewer UUID | reverse activity timestamp | entry UUID
+value = canonical Entry key
+
+TimelinePosition
+key   = T | viewer UUID | entry UUID
+value = activity timestamp（UTC Unix milliseconds，8 B big-endian）
+```
+
+`TimelinePosition` 用于定位并删除旧排序 key。对单个 viewer 的移动必须在一个 batch 中
+完成：
+
+```text
+atomic bump(viewer, entry, newActivity)
+├── read  TimelinePosition(viewer, entry) = oldActivity
+├── delete TimelineIndex(viewer, reverse(oldActivity), entry)
+├── put    TimelineIndex(viewer, reverse(newActivity), entry)
+└── put    TimelinePosition(viewer, entry) = newActivity
+```
+
+活动时间只允许单调前进。事件时间使用服务端时间，不信任客户端 Like/Comment 日期。
+
+### Bump 规则
+
+```text
+新 Entry：activity_at = entry.Date
+
+新 Comment：总是 bump
+编辑 Comment：不 bump
+删除 Comment：不回退
+
+首次成功写入 Like：
+  - Entry 年龄不超过 7 天；且
+  - 该 viewer 距上次 activity bump 至少 10 分钟
+  满足时 bump
+
+重复 Like：不 bump
+Unlike：不 bump、不回退
+Unlike 后重新 Like：仍受 7 天窗口和 10 分钟冷却约束
+```
+
+第一版常量固定为：
+
+```go
+likeBumpMaxEntryAge = 7 * 24 * time.Hour
+likeBumpCooldown    = 10 * time.Minute
+```
+
+Comment 不受 Like 冷却限制；例如 Like 在 10:00 bump，10:01 新 Comment 仍更新到 10:01。
+一次互动只更新当前有权看到该 Entry、且按当前 Follow/Follower 关系应拥有它的 Home
+timeline，不改变 Profile/direct EntryIndex。互动源数据先独立提交，无上限 timeline fanout
+继续位于主 mutation batch 之外；失败由 audit/rebuild 修复，暂不预设 durable outbox。
+
+### 历史数据重建
+
+`rebuild_timeline` 必须能够完全丢弃并重建 `TimelineIndex` 与 `TimelinePosition`。对每个
+目标用户：
+
+1. 从当前 Profile、Follow/Follower 计算可见的 Entry 候选集，并包含用户自己的 Entry；
+2. 对每个 Entry 收集 `entry.Date`、当前 Comment 行和当前 Like 行；
+3. 事件按时间升序处理，相同时间以事件类型和稳定 UUID 确定性打破平局；
+4. publish 初始化 `activity_at`；新 Comment 总是推进；Like 依次应用 7 天窗口和 10 分钟
+   冷却；
+5. 写入最终一条 TimelineIndex 和对应 TimelinePosition；
+6. dry-run 对比数量、完整顺序、首尾、重复项和最终 activity timestamp。
+
+重建只承诺从当前 canonical 源数据恢复当前状态：已经 Unlike 或删除的 Comment 没有事件
+记录，历史 Follow 关系也没有版本，因此无法复现它们过去造成的 bump；重建不会猜测。
+这不影响当前可见 Like/Comment 和当前社交图产生一个确定、可重复的 timeline。若未来要
+精确重放已删除事件，必须另建不可变 activity log，不能从现有表反推。
+
 ## 原子性与并发边界
 
 - Entry record 与 author/target direct index 同 batch；timeline fanout 独立。
@@ -210,5 +295,5 @@ profile/timeline 使用 cursor；旧客户端、public cache 和 search 保持 S
 - `rebuild_entry_index` 从 Entry/Follower 源数据恢复 direct 与 timeline；它比只转换现存旧
   key 的 `migrate_entry_index` 更完整，因为后者无法恢复历史覆盖造成的缺失行。
 - 升级后不支持旧程序打开、Pebble v1 或降级写入。
-- Public FeedIndex、timeline 和 Bleve 是派生数据；Profile、OAuth、Entry、互动和社交边
+- Public FeedIndex、TimelineIndex/TimelinePosition 和 Bleve 是派生数据；Profile、OAuth、Entry、互动和社交边
   才是恢复时不可丢失的源数据。

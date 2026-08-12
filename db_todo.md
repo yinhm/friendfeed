@@ -119,7 +119,7 @@ TableComment | entry UUID | comment UUID -> Comment
 ```
 
 Like 以 `(entry UUID, actor UUID)` 天然幂等；Comment 以稳定 comment UUID 定位。
-互动写入不再重写 Entry 本体、direct index、timeline 或 search 文档。Entry 读取时按前缀
+当前阶段的互动写入不重写 Entry 本体、direct index、timeline 或 search 文档。Entry 读取时按前缀
 加载互动数据，并保持当前 API 所需的稳定展示顺序。
 
 实施步骤：
@@ -136,7 +136,24 @@ Like 以 `(entry UUID, actor UUID)` 天然幂等；Comment 以稳定 comment UUI
 - [x] protobuf 中既有 Like/Comment 字段保持不变，RPC 返回时继续填充。
 - [x] Entry 生命周期使用写锁，独立互动 mutation 使用读锁；互动不再彼此串行，仍阻止删除与互动并发产生 orphan 行。
 
-## 阶段 E：有实际需求后再决定
+## 阶段 E：FriendFeed 风格 Home activity timeline
+
+详细契约见 [docs/database_design.md](docs/database_design.md)。Profile/direct EntryIndex
+继续按 `entry.Date` 排序；Home 使用独立 `TimelineIndex + TimelinePosition` 按每个 viewer
+的 `activity_at` 排序。
+
+- [ ] 分配 TimelineIndex/TimelinePosition 前缀并固定 key/value codec；不复用 direct EntryIndex。
+- [ ] 新 Entry 以 `entry.Date` 初始化当前 follower 与作者的 timeline position。
+- [ ] 新 Comment 总是 bump；编辑/删除 Comment 不 bump、不回退。
+- [ ] 新 Like 仅在 Entry 不超过 7 天且 viewer 冷却已满 10 分钟时 bump；重复 Like 与 Unlike 不 bump。
+- [ ] 单 viewer 的旧索引删除、新索引写入和 position 更新使用一个 Pebble batch。
+- [ ] 互动源数据先提交，无上限 timeline bump fanout 保持在主 batch 外；错误必须返回。
+- [ ] cursor 分页覆盖活动后移动、删除锚点、尾页和重复显示边界。
+- [ ] `rebuild_timeline` 从当前 Entry、Comment、Like、Follow/Follower 确定性重建两张派生表。
+- [ ] 支持指定用户、`max-limit`、dry-run，并对比数量、顺序、首尾、重复项和 activity timestamp。
+- [ ] 文档明确：已删除互动与历史关注关系没有 event log，不能精确重放过去 bump。
+
+## 阶段 F：有实际需求后再决定
 
 ### Durable fanout outbox
 
