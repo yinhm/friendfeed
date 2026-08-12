@@ -15,7 +15,6 @@ package util
 
 import (
 	"regexp"
-	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -85,21 +84,26 @@ func Truncate(text string, length int, ellipsis string) string {
 			var out strings.Builder
 			out.WriteString(text[0:endTextPos])
 			out.WriteString(ellipsis)
-			// Close out any open HTML tags
-			var currentTag *htmlTag
-			for _, tag := range slices.Backward(tags) {
-				if tag.pos >= endTextPos || currentTag != nil {
-					if currentTag != nil && currentTag.name == tag.name {
-						currentTag = nil
-					}
+			// Close out any open HTML tags: replay the tags before the cut
+			// point as a stack, so already-balanced pairs are not closed again.
+			var stack []string
+			for _, tag := range tags {
+				if tag.pos >= endTextPos {
 					continue
 				}
-
 				if tag.openTag {
-					out.WriteString(("</" + tag.name + ">"))
-				} else {
-					currentTag = &tag
+					stack = append(stack, tag.name)
+					continue
 				}
+				for i := len(stack) - 1; i >= 0; i-- {
+					if stack[i] == tag.name {
+						stack = stack[:i]
+						break
+					}
+				}
+			}
+			for i := len(stack) - 1; i >= 0; i-- {
+				out.WriteString("</" + stack[i] + ">")
 			}
 
 			return out.String()
