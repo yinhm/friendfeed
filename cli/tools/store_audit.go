@@ -2,7 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -38,22 +39,8 @@ type storeAuditStats struct {
 	maxFollowers         int
 }
 
-type auditEntry struct {
-	key    string
-	author uuid.UUID
-	feed   uuid.UUID
-	date   time.Time
-}
-
-func auditPair(owner uuid.UUID, entryKey string) string {
-	return owner.String() + "/" + entryKey
-}
-
 func auditStore(db *store.Store) (storeAuditStats, error) {
 	stats := storeAuditStats{}
-	entries := make(map[string]auditEntry)
-	directExpected := make(map[string]struct{})
-	sameSecond := make(map[string]int)
 
 	if err := model.Entry.Iter(db, func(key, raw []byte) error {
 		entry := new(pb.Entry)
@@ -89,37 +76,49 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 				stats.entryKeyIDMismatches++
 			}
 		}
-		entryKey := hex.EncodeToString(canonicalKey)
-		entries[entryKey] = auditEntry{key: entryKey, author: author, feed: feed, date: date}
-		directExpected[auditPair(author, entryKey)] = struct{}{}
-		directExpected[auditPair(feed, entryKey)] = struct{}{}
-		sameSecond[feed.String()+"/"+date.UTC().Truncate(time.Second).Format(time.RFC3339)]++
+		owners := []uuid.UUID{author}
+		if feed != author {
+			owners = append(owners, feed)
+		}
+		for _, owner := range owners {
+			value, err := db.Get(expectedEntryIndexKey(db, owner, date, canonicalKey))
+			if errors.Is(err, store.ErrNotFound) || (err == nil && !bytes.Equal(value, canonicalKey)) {
+				stats.missingDirectIndexes++
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		}
 		stats.entries++
 		return nil
 	}); err != nil {
 		return stats, err
 	}
-	for _, count := range sameSecond {
-		if count > 1 {
-			stats.sameSecondGroups++
-			stats.sameSecondEntries += count
-		}
-	}
 
-	follows := make(map[string]struct{})
-	followers := make(map[string]struct{})
-	followerCounts := make(map[uuid.UUID]int)
 	if err := model.Follow.Iter(db, func(key, _ []byte) error {
 		if len(key) != 4+2*uuid.Size {
 			return fmt.Errorf("invalid Follow key length %d", len(key))
 		}
 		follower, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
 		feed, _ := uuid.FromBytes(key[4+uuid.Size:])
-		follows[follower.String()+"/"+feed.String()] = struct{}{}
+		counterpart := model.NewKeyFrom(model.Follower.Prefix, feed.Bytes(), follower.Bytes())
+		exists, err := db.Exists(counterpart)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			stats.missingFollowerEdges++
+		}
 		stats.followEdges++
 		return nil
 	}); err != nil {
 		return stats, err
+	}
+	var followerFeed uuid.UUID
+	followerCount := 0
+	finishFollowerFeed := func() {
+		stats.maxFollowers = max(stats.maxFollowers, followerCount)
 	}
 	if err := model.Follower.Iter(db, func(key, _ []byte) error {
 		if len(key) != 4+2*uuid.Size {
@@ -127,28 +126,36 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		}
 		feed, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
 		follower, _ := uuid.FromBytes(key[4+uuid.Size:])
-		followers[follower.String()+"/"+feed.String()] = struct{}{}
-		followerCounts[feed]++
+		if followerCount > 0 && feed != followerFeed {
+			finishFollowerFeed()
+			followerCount = 0
+		}
+		followerFeed = feed
+		followerCount++
+		counterpart := model.NewKeyFrom(model.Follow.Prefix, follower.Bytes(), feed.Bytes())
+		exists, err := db.Exists(counterpart)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			stats.missingFollowEdges++
+		}
 		stats.followerEdges++
 		return nil
 	}); err != nil {
 		return stats, err
 	}
-	for edge := range follows {
-		if _, ok := followers[edge]; !ok {
-			stats.missingFollowerEdges++
-		}
-	}
-	for edge := range followers {
-		if _, ok := follows[edge]; !ok {
-			stats.missingFollowEdges++
-		}
-	}
-	for _, count := range followerCounts {
-		stats.maxFollowers = max(stats.maxFollowers, count)
-	}
+	finishFollowerFeed()
 
-	actualIndexes := make(map[string]struct{})
+	var groupOwner uuid.UUID
+	var groupSecond int64
+	groupCount := 0
+	finishSameSecond := func() {
+		if groupCount > 1 {
+			stats.sameSecondGroups++
+			stats.sameSecondEntries += groupCount
+		}
+	}
 	if err := model.EntryIndex.Iter(db, func(key, value []byte) error {
 		if len(key) < 4+uuid.Size+16 {
 			return fmt.Errorf("invalid EntryIndex key length %d", len(key))
@@ -160,69 +167,121 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			stats.entryIndexes++
 			return nil
 		}
-		entryKey := hex.EncodeToString(canonical)
-		actualIndexes[auditPair(owner, entryKey)] = struct{}{}
-		if _, ok := entries[entryKey]; !ok {
+		entry := new(pb.Entry)
+		if err := model.Entry.Get(db, canonical[model.Entry.Prefix.Len():], entry); err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				stats.orphanIndexes++
+				stats.entryIndexes++
+				return nil
+			}
+			return err
+		}
+		entryID, err := uuid.FromString(entry.Id)
+		if err != nil || !bytes.Equal(canonical, model.Entry.PrefixAppend(entryID.Bytes())) {
 			stats.orphanIndexes++
+			stats.entryIndexes++
+			return nil
+		}
+		feed, err := uuid.FromString(entry.ProfileUuid)
+		if err != nil {
+			return err
+		}
+		if entry.FeedUuid != "" {
+			feed, err = uuid.FromString(entry.FeedUuid)
+			if err != nil {
+				return err
+			}
+		}
+		if owner == feed {
+			date, err := time.Parse(time.RFC3339, entry.Date)
+			if err != nil {
+				return err
+			}
+			second := date.UTC().Unix()
+			if groupCount > 0 && (owner != groupOwner || second != groupSecond) {
+				finishSameSecond()
+				groupCount = 0
+			}
+			groupOwner, groupSecond = owner, second
+			groupCount++
 		}
 		stats.entryIndexes++
 		return nil
 	}); err != nil {
 		return stats, err
 	}
-	for pair := range directExpected {
-		if _, ok := actualIndexes[pair]; !ok {
-			stats.missingDirectIndexes++
-		}
-	}
-	timelineRows := make(map[string]time.Time)
+	finishSameSecond()
+
+	// Keep only drifted pairs. Healthy timeline cardinality does not affect
+	// memory; this small exception distinguishes a timestamp mismatch from a
+	// wholly missing index during the reverse Position scan.
+	timelineMismatchedPairs := make(map[[2]uuid.UUID]struct{})
 	if err := model.TimelineIndex.Iter(db, func(key, _ []byte) error {
 		viewer, entry, activity, err := model.ParseTimelineIndexKey(key)
 		if err != nil {
 			return err
 		}
-		pair := viewer.String() + "/" + entry.String()
-		if _, exists := timelineRows[pair]; exists {
-			stats.timelineDuplicates++
-		}
-		timelineRows[pair] = activity
-		if _, ok := entries[hex.EncodeToString(model.Entry.PrefixAppend(entry.Bytes()))]; !ok {
+		if _, err := db.Get(model.Entry.PrefixAppend(entry.Bytes())); errors.Is(err, store.ErrNotFound) {
 			stats.timelineMissingEntry++
+		} else if err != nil {
+			return err
+		}
+		position, err := model.TimelinePositionTime(db, viewer, entry)
+		if errors.Is(err, store.ErrNotFound) {
+			stats.timelineMissingPos++
+		} else if err != nil {
+			return err
+		} else if !position.Equal(activity) {
+			timelineMismatchedPairs[[2]uuid.UUID{viewer, entry}] = struct{}{}
+			canonical, err := model.TimelineIndexKey(viewer, entry, position)
+			if err != nil {
+				return err
+			}
+			exists, err := db.Exists(canonical)
+			if err != nil {
+				return err
+			}
+			if exists {
+				stats.timelineDuplicates++
+			} else {
+				stats.timelineTimeMismatch++
+			}
 		}
 		stats.timelineIndexes++
 		return nil
 	}); err != nil {
 		return stats, err
 	}
-	positions := make(map[string]time.Time)
 	if err := model.TimelinePosition.Iter(db, func(key, value []byte) error {
 		if len(key) != 4+2*uuid.Size {
 			return fmt.Errorf("invalid TimelinePosition key length %d", len(key))
 		}
 		viewer, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
 		entry, _ := uuid.FromBytes(key[4+uuid.Size:])
-		activity, err := model.TimelinePositionTime(db, viewer, entry)
+		if len(value) != 8 {
+			return fmt.Errorf("invalid TimelinePosition value length %d", len(value))
+		}
+		ms := binary.BigEndian.Uint64(value)
+		if ms > uint64(^uint64(0)>>1) {
+			return errors.New("timeline position overflows int64")
+		}
+		activity := time.UnixMilli(int64(ms)).UTC()
+		indexKey, err := model.TimelineIndexKey(viewer, entry, activity)
 		if err != nil {
 			return err
 		}
-		positions[viewer.String()+"/"+entry.String()] = activity
+		exists, err := db.Exists(indexKey)
+		if err != nil {
+			return err
+		}
+		_, mismatched := timelineMismatchedPairs[[2]uuid.UUID{viewer, entry}]
+		if !exists && !mismatched {
+			stats.timelineMissingIndex++
+		}
 		stats.timelinePositions++
 		return nil
 	}); err != nil {
 		return stats, err
-	}
-	for pair, activity := range timelineRows {
-		position, ok := positions[pair]
-		if !ok {
-			stats.timelineMissingPos++
-		} else if !position.Equal(activity) {
-			stats.timelineTimeMismatch++
-		}
-	}
-	for pair := range positions {
-		if _, ok := timelineRows[pair]; !ok {
-			stats.timelineMissingIndex++
-		}
 	}
 	return stats, nil
 }
