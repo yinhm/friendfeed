@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -15,7 +16,10 @@ import (
 
 type storeAuditStats struct {
 	entries              int
+	noncanonicalEntries  int
+	entryKeyIDMismatches int
 	entryIndexes         int
+	noncanonicalIndexes  int
 	missingDirectIndexes int
 	orphanIndexes        int
 	timelineIndexes      int
@@ -71,7 +75,21 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		if err != nil {
 			return fmt.Errorf("entry %q date: %w", entry.Id, err)
 		}
-		entryKey := hex.EncodeToString(key)
+		entryID, idErr := uuid.FromString(entry.Id)
+		if idErr != nil {
+			stats.entryKeyIDMismatches++
+			return nil
+		}
+		canonicalKey := model.Entry.PrefixAppend(entryID.Bytes())
+		if !bytes.Equal(key, canonicalKey) {
+			stats.noncanonicalEntries++
+			if len(key) != model.Entry.Prefix.Len()+36 {
+				stats.entryKeyIDMismatches++
+			} else if keyID, err := uuid.FromString(string(key[model.Entry.Prefix.Len():])); err != nil || keyID != entryID {
+				stats.entryKeyIDMismatches++
+			}
+		}
+		entryKey := hex.EncodeToString(canonicalKey)
 		entries[entryKey] = auditEntry{key: entryKey, author: author, feed: feed, date: date}
 		directExpected[auditPair(author, entryKey)] = struct{}{}
 		directExpected[auditPair(feed, entryKey)] = struct{}{}
@@ -138,7 +156,9 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		owner, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
 		canonical, err := canonicalEntryKeyFromIndexValue(value)
 		if err != nil {
-			return fmt.Errorf("EntryIndex[%x]: %w", key, err)
+			stats.noncanonicalIndexes++
+			stats.entryIndexes++
+			return nil
 		}
 		entryKey := hex.EncodeToString(canonical)
 		actualIndexes[auditPair(owner, entryKey)] = struct{}{}
@@ -208,8 +228,9 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 }
 
 func writeStoreAudit(out io.Writer, stats storeAuditStats) {
-	fmt.Fprintf(out, "entries=%d entry_indexes=%d missing_direct=%d orphan_indexes=%d\n",
-		stats.entries, stats.entryIndexes, stats.missingDirectIndexes, stats.orphanIndexes)
+	fmt.Fprintf(out, "entries=%d noncanonical_entries=%d entry_key_id_mismatches=%d entry_indexes=%d noncanonical_indexes=%d missing_direct=%d orphan_indexes=%d\n",
+		stats.entries, stats.noncanonicalEntries, stats.entryKeyIDMismatches, stats.entryIndexes,
+		stats.noncanonicalIndexes, stats.missingDirectIndexes, stats.orphanIndexes)
 	fmt.Fprintf(out, "timeline_indexes=%d timeline_positions=%d missing_entry=%d missing_position=%d missing_index=%d duplicates=%d timestamp_mismatch=%d\n",
 		stats.timelineIndexes, stats.timelinePositions, stats.timelineMissingEntry, stats.timelineMissingPos,
 		stats.timelineMissingIndex, stats.timelineDuplicates, stats.timelineTimeMismatch)

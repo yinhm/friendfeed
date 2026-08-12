@@ -5,7 +5,7 @@
 
 > 本文档从 README 拆出，记录 `old_db` 到 `new_db` 的迁移命令。
 > 这些工具属于 `v1.0.0` 基线（tag）；old_db 迁移与 Pebble v2 升级均已完成。
-> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`，以及诊断/修复命令 `inspect_profile`、`audit_profiles`、`fix_twitter_oauth_fields`、`backfill_actor_uuids`、`inspect_user_rename_map`、`purge_user_rename_map`、`rebuild_search_index`（见下文）。
+> 其中 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 命令及 `debug` 的 mdb 参数已在 master 退役删除，仅存在于 `v1.0.0` tag；master 保留 `db`、`sync`、`rebuild_timeline`、`rebuild_social_graph`、`migrate_media_urls`、`purge_profile`、`purge_oauth`、`debug`，以及诊断/修复命令 `inspect_profile`、`audit_profiles`、`fix_twitter_oauth_fields`、`backfill_actor_uuids`、`migrate_entry_keys`、`inspect_user_rename_map`、`purge_user_rename_map`、`rebuild_search_index`（见下文）。
 >
 > `-from` 只对读取源库的命令（`db`、`sync`、无 `-table` 的 `debug`）为必填；其余命令仅操作 `-to` 目标库，无需 `-from`。
 
@@ -130,13 +130,22 @@ Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；�
 按以下顺序操作，每个数据库目录单独完成：
 
 1. 停止所有使用该 Pebble 目录的进程并确认释放 `LOCK`；保存升级前二进制。
-   新二进制已经读取 TimelineIndex，必须保持服务停止直到步骤 5 的 `rebuild_timeline`
+   新二进制已经读取 TimelineIndex，必须保持服务停止直到步骤 6 的 `rebuild_timeline`
    完成；提前启动会让 Home 暂时为空或只包含升级后的新帖。
 2. 使用 `cp -a <db-dir> <db-dir>.bak-entry-index` 创建离线备份，并在副本上确认
    `audit_store` 能打开。备份只用于升级验收失败时整体恢复，不能与已升级库混合。
 3. 若历史 actor UUID 尚未回填，先按上一节完成 `backfill_actor_uuids`；互动迁移不按
    可回收的 `From.Id` 猜测身份。
-4. 先对一个用户、小上限执行 dry-run，再执行全库 dry-run：
+4. 先修复历史字符串 Entry key。该命令只认已知的
+   `TableEntry + 36-character UUID` 污染格式，并核对 key UUID、`Entry.Id` 及已有
+   canonical row；冲突会在任何写入前报错：
+
+```bash
+./tools -to <db-dir> -c migrate_entry_keys -dry-run
+./tools -to <db-dir> -c migrate_entry_keys
+```
+
+5. 再对一个用户、小上限执行其余 dry-run，最后执行全库 dry-run：
 
 ```bash
 ./tools -to <db-dir> -c migrate_interactions -user yinhm -max-limit 20 -dry-run
@@ -150,7 +159,7 @@ Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；�
 `migrate_interactions` 全量 apply 前会再次完整预检；`invalid_actors`、
 `invalid_comments` 或 `duplicates` 非零时拒绝开始写入。
 
-5. 确认 dry-run 后执行写入。命令默认会写库，`-dry-run` 才是不写开关：
+6. 确认 dry-run 后执行写入。命令默认会写库，`-dry-run` 才是不写开关：
 
 ```bash
 ./tools -to <db-dir> -c migrate_interactions
@@ -158,10 +167,11 @@ Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；�
 ./tools -to <db-dir> -c rebuild_timeline
 ```
 
-6. 执行 `./tools -to <db-dir> -c audit_store`。必须确认 `missing_direct=0`、
+7. 执行 `./tools -to <db-dir> -c audit_store`。必须确认 `noncanonical_entries=0`、
+   `entry_key_id_mismatches=0`、`noncanonical_indexes=0`、`missing_direct=0`、
    `orphan_indexes=0`，且 timeline 的 missing/duplicate/timestamp mismatch 均为 0；抽查目标用户的 cursor 多页顺序、首尾、
    无重复项，以及 Like/Comment 数量、顺序、编辑/删除权限和 rename 后身份。
-7. 用新二进制冷启动，验证 feed 与互动后正常停止并再次启动。若验收失败，应在没有
+8. 用新二进制冷启动，验证 feed 与互动后正常停止并再次启动。若验收失败，应在没有
    新写入的前提下整体恢复步骤 2 的目录并中止升级；不要让旧程序打开已升级目录。
 
 ## rebuild_search_index

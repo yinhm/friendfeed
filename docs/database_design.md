@@ -37,6 +37,15 @@ family；表前缀承担逻辑分区作用。
 | canonical Entry key | 20 B | `TableEntry(4) + Entry UUID(16)` |
 
 前缀扫描依赖字节序和字段顺序，不得在没有离线迁移时调整持久化编码。
+Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串或 hex 文本代替。
+
+### 历史 Entry 字符串 key
+
+2021 年短期使用过 `Entry.Put(db, entry.Id, ...)`。当 `entry.Id` 是带连字符 UUID 时，
+`KeyFromString` 无法按 hex 解码，因而写出了错误的 `TableEntry(4) + UUID string(36)`；
+后来的 EntryIndex rebuild 又曾直接复用该 40 B key，使污染进入 index value 和 key 后缀。
+这不是受支持的第二种编码。升级时必须先用 `migrate_entry_keys` 修复源 Entry，再用
+`rebuild_entry_index` 丢弃并重建派生索引；运行时和 TimelineIndex 不兼容字符串 key。
 
 ## 主要表与 key 设计
 

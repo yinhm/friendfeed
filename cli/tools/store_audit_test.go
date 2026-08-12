@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -57,7 +56,7 @@ func TestAuditStoreFindsIndexAndGraphDrift(t *testing.T) {
 	require.Equal(t, 1, stats.maxFollowers)
 }
 
-func TestAuditStoreAcceptsHexEncodedEntryIndexValue(t *testing.T) {
+func TestAuditStoreReportsPrefixedUUIDEntryIndexValue(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
@@ -71,15 +70,31 @@ func TestAuditStoreAcceptsHexEncodedEntryIndexValue(t *testing.T) {
 	require.NoError(t, err)
 	prefix := store.NewUUIDKey(model.TableEntryIndex, author).Bytes()
 	_, err = db.ForwardScan(prefix, func(_ int, key, value []byte) error {
-		return db.Put(key, []byte(hex.EncodeToString(value)))
+		return db.Put(key, append(model.Entry.Prefix.Copy(), []byte(entryID.String())...))
 	})
 	require.NoError(t, err)
 
 	stats, err := auditStore(db)
 	require.NoError(t, err)
 	require.Equal(t, 1, stats.entryIndexes)
+	require.Equal(t, 1, stats.noncanonicalIndexes)
 	require.Zero(t, stats.orphanIndexes)
-	require.Zero(t, stats.missingDirectIndexes)
+	require.Equal(t, 1, stats.missingDirectIndexes)
+}
+
+func TestAuditStoreReportsNoncanonicalEntryKey(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	entryID := uuid.Must(uuid.NewV4())
+	putLegacyStringKeyEntry(t, db, &pb.Entry{
+		Id: entryID.String(), Date: time.Now().UTC().Format(time.RFC3339),
+		ProfileUuid: uuid.Must(uuid.NewV4()).String(),
+	})
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.noncanonicalEntries)
+	require.Zero(t, stats.entryKeyIDMismatches)
 }
 
 func TestAuditStoreFindsTimelineDrift(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
@@ -281,6 +282,14 @@ func TestEntryIndexKeepsDistinctEntriesInSameSecond(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Len(t, indexedEntryKeys, 2)
+}
+
+func TestEntryIndexRejectsNoncanonicalEntryKey(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	err = EntryIndex.Index(db, uuid.Must(uuid.NewV4()), time.Now(), NewKeyFrom(Entry.Prefix, []byte(uuid.Must(uuid.NewV4()).String())))
+	require.ErrorContains(t, err, "noncanonical Entry key length")
 }
 
 func (s *TableTestSuite) TestPutDeleteGroupEntryMaintainsAllIndexes() {

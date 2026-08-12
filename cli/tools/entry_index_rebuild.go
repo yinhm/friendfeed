@@ -77,7 +77,14 @@ func rebuildEntryIndexes(db *store.Store, options entryIndexRebuildOptions) (ent
 		if err != nil {
 			return fmt.Errorf("entry %q date: %w", entry.Id, err)
 		}
-		entryKey := store.Key(key)
+		entryID, err := uuid.FromString(entry.Id)
+		if err != nil {
+			return fmt.Errorf("entry %q UUID: %w", entry.Id, err)
+		}
+		entryKey := model.Entry.PrefixAppend(entryID.Bytes())
+		if !bytes.Equal(key, entryKey) {
+			return fmt.Errorf("entry %q has noncanonical key %x; run migrate_entry_keys", entry.Id, key)
+		}
 		stats.entries++
 		directTargets := []uuid.UUID{author}
 		if feed != author {

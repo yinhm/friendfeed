@@ -102,3 +102,17 @@ func TestRebuildEntryIndexesForOneUserIsBounded(t *testing.T) {
 	assertIndexed(selected, selectedEntry)
 	assertIndexed(other, otherEntry)
 }
+
+func TestRebuildEntryIndexesRequiresCanonicalEntryKeys(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	profileID := seedActorProfile(t, db, "legacy-entry-key")
+	entryID := uuid.Must(uuid.NewV4())
+	putLegacyStringKeyEntry(t, db, &pb.Entry{
+		Id: entryID.String(), Date: time.Now().UTC().Format(time.RFC3339),
+		ProfileUuid: profileID.String(),
+	})
+	_, err = rebuildEntryIndexes(db, entryIndexRebuildOptions{})
+	require.ErrorContains(t, err, "run migrate_entry_keys")
+}

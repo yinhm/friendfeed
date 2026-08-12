@@ -104,6 +104,9 @@ func (t *Table) Delete(db *store.Store, key store.Key) error {
 // K-> | table | user uuid | Maxime - ts-flake |
 // V-> |      +++++   entry key   ++++++      |
 func (t *Table) Index(db *store.Store, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
+	if err := validateCanonicalEntryKey(entryKey); err != nil {
+		return err
+	}
 	if err := removePreviousEntryIndex(db, nil, indexUUID, oldtime, entryKey); err != nil {
 		return err
 	}
@@ -113,12 +116,28 @@ func (t *Table) Index(db *store.Store, indexUUID uuid.UUID, oldtime time.Time, e
 // indexBatch preserves Index's key encoding and duplicate-removal semantics
 // while adding its mutations to the caller's atomic batch.
 func (t *Table) indexBatch(db *store.Store, batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
+	if err := validateCanonicalEntryKey(entryKey); err != nil {
+		return err
+	}
 	if err := removePreviousEntryIndex(db, batch, indexUUID, oldtime, entryKey); err != nil {
 		return err
 	}
 	flakeid := db.TimeTravelReverseId(oldtime)
 	k := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeid)
 	return batch.Set(NewKeyFrom(k.Bytes(), entryKey), entryKey, nil)
+}
+
+func validateCanonicalEntryKey(key store.Key) error {
+	if len(key) != Entry.Prefix.Len()+uuid.Size {
+		return fmt.Errorf("noncanonical Entry key length %d", len(key))
+	}
+	if !bytes.Equal(key[:Entry.Prefix.Len()], Entry.Prefix) {
+		return fmt.Errorf("noncanonical Entry key prefix %x", key[:Entry.Prefix.Len()])
+	}
+	if _, err := uuid.FromBytes(key[Entry.Prefix.Len():]); err != nil {
+		return fmt.Errorf("noncanonical Entry key UUID: %w", err)
+	}
+	return nil
 }
 
 func removePreviousEntryIndex(db *store.Store, batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
