@@ -389,6 +389,70 @@ func (s *RpcTestSuite) TestHomeStartLinkUsesActivityTimelineOffset() {
 	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(feed))
 }
 
+func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline() {
+	profileID := uuid.Must(uuid.NewV4())
+	profile := &pb.Profile{Uuid: profileID.String(), Id: "concurrent-home", Type: "user"}
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, profile))
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	const entryCount = 8
+	for i := 0; i < entryCount; i++ {
+		entryID := uuid.Must(uuid.NewV4())
+		_, err := model.PutEntry(s.srv.rdb, &pb.Entry{
+			Id: entryID.String(), Date: base.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			ProfileUuid: profileID.String(), From: &pb.Feed{Uuid: profileID.String(), Id: profile.Id},
+		})
+		s.Require().NoError(err)
+	}
+
+	const requestCount = 8
+	start := make(chan struct{})
+	results := make(chan *pb.Feed, requestCount)
+	errs := make(chan error, requestCount)
+	var wg sync.WaitGroup
+	for i := 0; i < requestCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+				ProfileUuid: profileID.String(), PageSize: entryCount,
+			})
+			results <- feed
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	for err := range errs {
+		s.Require().NoError(err)
+	}
+	var expected []string
+	for feed := range results {
+		s.Require().NotNil(feed)
+		ids := feedEntryIDs(feed)
+		s.Len(ids, entryCount)
+		if expected == nil {
+			expected = ids
+		} else {
+			s.Equal(expected, ids)
+		}
+	}
+	countRow := func(_ int, _, _ []byte) error { return nil }
+	indexRows, err := s.srv.rdb.ForwardScan(model.TimelineIndexPrefix(profileID), countRow)
+	s.Require().NoError(err)
+	s.Equal(entryCount, indexRows)
+	positionPrefix := model.NewKeyFrom(model.TimelinePosition.Prefix, profileID.Bytes())
+	positionRows, err := s.srv.rdb.ForwardScan(positionPrefix, countRow)
+	s.Require().NoError(err)
+	s.Equal(entryCount, positionRows)
+	active, err := model.TimelineIsActive(s.srv.rdb, profileID, time.Now().UTC())
+	s.Require().NoError(err)
+	s.True(active)
+}
+
 func feedEntryIDs(feed *pb.Feed) []string {
 	ids := make([]string, len(feed.Entries))
 	for i := range feed.Entries {

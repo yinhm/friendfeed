@@ -42,6 +42,13 @@ func TimelineLastAccess(db *store.Store, viewer uuid.UUID) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	return ParseTimelineLastAccess(raw)
+}
+
+// ParseTimelineLastAccess decodes a TimelineState value already obtained by a
+// table scan. It avoids a second point lookup when migration tools enumerate
+// TimelineState.
+func ParseTimelineLastAccess(raw []byte) (time.Time, error) {
 	if len(raw) != 8 {
 		return time.Time{}, fmt.Errorf("invalid TimelineState value length %d", len(raw))
 	}

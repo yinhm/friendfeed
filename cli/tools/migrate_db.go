@@ -630,7 +630,7 @@ func timelineActiveProfiles(db *store.Store, now time.Time) (profiles []*pb.Prof
 	}
 
 	activeProfiles = make(map[uuid.UUID]struct{})
-	if err := model.TimelineState.Iter(db, func(key, _ []byte) error {
+	if err := model.TimelineState.Iter(db, func(key, raw []byte) error {
 		if len(key) != model.TimelineState.Prefix.Len()+uuid.Size {
 			return fmt.Errorf("invalid TimelineState key length %d", len(key))
 		}
@@ -638,11 +638,12 @@ func timelineActiveProfiles(db *store.Store, now time.Time) (profiles []*pb.Prof
 		if err != nil {
 			return err
 		}
-		active, err := model.TimelineIsActive(db, profileID, now)
+		lastAccess, err := model.ParseTimelineLastAccess(raw)
 		if err != nil {
 			return err
 		}
-		if active {
+		age := now.UTC().Sub(lastAccess)
+		if age >= 0 && age <= model.TimelineActiveFor {
 			activeProfiles[profileID] = struct{}{}
 		}
 		return nil

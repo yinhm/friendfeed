@@ -67,6 +67,11 @@ publish 候选并计算 activity；`-user` 成功后创建/刷新 State，默认
 恢复全 follower fanout，但新版本期间跳过的 inactive 派生行不会自动出现，应按用户重建，
 不要默认恢复旧式全库 timeline。
 
+生产执行时保留一份简短验收记录：执行日期与环境、compact dry-run/正式执行删除的 viewer
+和 108/109 行数、audit_store 摘要、重点用户首次 Home 重建耗时及随后一次热读耗时。范围删除
+先产生逻辑 tombstone，磁盘占用不保证立即下降；如需记录空间收益，应等待 Pebble 后台压缩后
+再测量，不把命令结束时的目录大小当作验收条件。
+
 ## v1.0.0 old DB 迁移记录
 
 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 仅存在于 `v1.0.0` tag。需要处理尚未迁移的 old DB 时，必须先使用 v1.0.0 工具完成迁移，再使用当前版本打开 new DB；不要在 master 上寻找或重新实现这些命令。

@@ -97,6 +97,18 @@ func TestTimelineStateRejectsInvalidData(t *testing.T) {
 	require.ErrorContains(t, err, "overflows int64")
 }
 
+func TestParseTimelineLastAccess(t *testing.T) {
+	at := time.Date(2026, 8, 13, 10, 0, 0, 123000000, time.UTC)
+	var raw [8]byte
+	binary.BigEndian.PutUint64(raw[:], uint64(at.UnixMilli()))
+
+	got, err := ParseTimelineLastAccess(raw[:])
+	require.NoError(t, err)
+	require.Equal(t, at, got)
+	_, err = ParseTimelineLastAccess(raw[:7])
+	require.ErrorContains(t, err, "invalid TimelineState value length")
+}
+
 func TestMoveTimelineEntryAppliesPerEntryCooldown(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
