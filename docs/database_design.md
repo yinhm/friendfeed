@@ -95,16 +95,15 @@ Like 使用 `(entry UUID, actor UUID)` 作为 key，因此同一用户重复点�
 普通 Web 新帖目前不使用 Flake 生成 Entry ID：
 
 ```text
-entry UUID = UUIDv5(namespaceURL, profile UUID + "/" + RFC3339 time)
-entry Date = 同一个 RFC3339 time
+entry UUID = 随机 UUIDv4
+entry Date = 服务端当前时间（RFC3339，秒精度）
 ```
 
 Twitter/股票等导入 Entry 也主要使用基于外部稳定标识的 UUIDv5；Archive 保留输入的
 历史 UUID。UUIDv5 是哈希，字节顺序不保留时间，不能替代 EntryIndex 的时间字段。
 
-Web 生成式的 UUID name material 使用 RFC3339Nano（纳秒精度），同一 profile 同秒多帖
-得到不同 UUID；持久化的 entry Date 仍保持秒级 RFC3339。评论的 UUID name material
-同样使用纳秒精度。
+Web 评论同样使用随机 UUIDv4。UUID 与时间相互独立，因此同一用户同秒发布多条 Entry
+或 Comment 仍具有不同身份；排序继续由各索引中的时间字段决定。
 
 ## Flake 的两种用法
 
