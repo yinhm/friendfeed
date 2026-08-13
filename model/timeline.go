@@ -18,6 +18,7 @@ const (
 	TimelineActiveFor   = 30 * 24 * time.Hour
 	TimelineTouchAfter  = time.Hour
 	TimelineMaxEntries  = 10_000
+	TimelineColdEntries = 500
 	// TimelineRetentionMax disables the publish-time cutoff while retaining a
 	// concrete option that can later be changed to 90 days or another window.
 	TimelineRetentionMax = time.Duration(1<<63 - 1)

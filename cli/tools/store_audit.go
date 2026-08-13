@@ -215,7 +215,11 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		if !timelineViewerActive {
 			stats.timelineInactiveRows += timelineViewerRows
 		}
-		if timelineViewerRows > model.TimelineMaxEntries {
+		limit := model.TimelineMaxEntries
+		if !timelineViewerActive {
+			limit = model.TimelineColdEntries
+		}
+		if timelineViewerRows > limit {
 			stats.timelineOverLimit++
 		}
 	}

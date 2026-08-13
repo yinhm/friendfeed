@@ -14,6 +14,7 @@ type timelineCompactOptions struct {
 	user      string
 	dryRun    bool
 	maxRows   int
+	coldRows  int
 	retention time.Duration
 	now       time.Time
 }
@@ -48,10 +49,26 @@ func compactTimelineRanges(db *store.Store, viewer uuid.UUID, dryRun bool) error
 	})
 }
 
+func timelineIndexHasRows(db *store.Store, viewer uuid.UUID) (bool, error) {
+	iter, err := db.NewIterator(model.TimelineIndexPrefix(viewer))
+	if err != nil {
+		return false, err
+	}
+	defer iter.Close()
+	iter.First()
+	if err := iter.Error(); err != nil {
+		return false, err
+	}
+	return iter.Valid(), nil
+}
+
 func compactTimelines(db *store.Store, options timelineCompactOptions) (timelineCompactStats, error) {
 	stats := timelineCompactStats{}
 	if options.maxRows <= 0 {
 		options.maxRows = model.TimelineMaxEntries
+	}
+	if options.coldRows <= 0 {
+		options.coldRows = model.TimelineColdEntries
 	}
 	if options.retention <= 0 {
 		options.retention = model.TimelineRetentionMax
@@ -95,11 +112,12 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		return err
 	}
 
-	// Position keys are grouped by viewer. Count source rows and inactive
-	// deletions with one state lookup per viewer before apply mutates ranges.
+	// Count positions before the Index pass starts deleting paired rows. A
+	// position-only inactive viewer is fully reclaimable and counted here;
+	// paired row deletions are counted later from the ordered Index scan.
 	var positionViewer uuid.UUID
-	positionActive := false
 	positionStarted := false
+	positionDeleteAll := false
 	if err := model.TimelinePosition.Iter(db, func(key, _ []byte) error {
 		if len(key) != model.TimelinePosition.Prefix.Len()+2*uuid.Size {
 			return fmt.Errorf("invalid TimelinePosition key length %d", len(key))
@@ -112,14 +130,23 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 			return nil
 		}
 		if !positionStarted || viewer != positionViewer {
-			positionViewer, positionStarted = viewer, true
-			positionActive, err = model.TimelineIsActive(db, viewer, options.now)
-			if err != nil {
-				return err
+			positionStarted = true
+			positionViewer = viewer
+			active, activeErr := model.TimelineIsActive(db, viewer, options.now)
+			if activeErr != nil {
+				return activeErr
+			}
+			positionDeleteAll = false
+			if !active {
+				hasIndex, indexErr := timelineIndexHasRows(db, viewer)
+				if indexErr != nil {
+					return indexErr
+				}
+				positionDeleteAll = !hasIndex
 			}
 		}
 		stats.positions++
-		if !positionActive {
+		if positionDeleteAll {
 			stats.deletedPositions++
 		}
 		return nil
@@ -138,7 +165,6 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		stats.viewers++
 		if !currentActive {
 			stats.inactiveViewers++
-			return compactTimelineRanges(db, current, options.dryRun)
 		}
 		return nil
 	}
@@ -163,15 +189,17 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		}
 		stats.indexes++
 		currentRows++
+		rowLimit := options.maxRows
+		if !currentActive {
+			rowLimit = options.coldRows
+		}
 		outsideTime := options.retention != model.TimelineRetentionMax && activity.Before(options.now.Add(-options.retention))
-		if !currentActive || currentRows > options.maxRows || outsideTime {
+		if currentRows > rowLimit || outsideTime {
 			stats.deletedIndexes++
-			if currentActive {
-				stats.deletedPositions++
-				deletes = append(deletes, deleteRow{viewer: viewer, entry: entry, activity: activity})
-				if len(deletes) == batchSize {
-					return flush()
-				}
+			stats.deletedPositions++
+			deletes = append(deletes, deleteRow{viewer: viewer, entry: entry, activity: activity})
+			if len(deletes) == batchSize {
+				return flush()
 			}
 		}
 		return nil
@@ -186,11 +214,13 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		return stats, err
 	}
 
-	// Reclaim position-only inactive viewers left after the Index pass. Keys are
-	// ordered by viewer, so one scalar remembers the last reclaimed range.
+	// Reclaim an inactive viewer only when it has positions but no Index rows at
+	// all. Mixed Index/Position drift remains audit/rebuild territory; deleting
+	// the whole range would discard the retained cold cache.
 	var lastInactive uuid.UUID
 	var checkedViewer uuid.UUID
 	checkedActive := false
+	checkedHasIndex := false
 	if err := model.TimelinePosition.Iter(db, func(key, _ []byte) error {
 		viewer, err := uuid.FromBytes(key[model.TimelinePosition.Prefix.Len() : model.TimelinePosition.Prefix.Len()+uuid.Size])
 		if err != nil {
@@ -205,8 +235,15 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 			if err != nil {
 				return err
 			}
+			checkedHasIndex = false
+			if !checkedActive {
+				checkedHasIndex, err = timelineIndexHasRows(db, viewer)
+				if err != nil {
+					return err
+				}
+			}
 		}
-		if !checkedActive && viewer != lastInactive {
+		if !checkedActive && !checkedHasIndex && viewer != lastInactive {
 			lastInactive = viewer
 			return compactTimelineRanges(db, viewer, options.dryRun)
 		}

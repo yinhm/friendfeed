@@ -1303,7 +1303,8 @@ func main() {
 	case "compact_timelines":
 		stats, err := compactTimelines(ndb, timelineCompactOptions{
 			user: timelineUser, dryRun: dryRun,
-			maxRows: model.TimelineMaxEntries, retention: model.TimelineRetentionMax,
+			maxRows: model.TimelineMaxEntries, coldRows: model.TimelineColdEntries,
+			retention: model.TimelineRetentionMax,
 		})
 		if err != nil {
 			log.Fatal(err)

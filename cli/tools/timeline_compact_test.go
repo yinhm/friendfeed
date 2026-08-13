@@ -10,7 +10,7 @@ import (
 	"github.com/yinhm/friendfeed/store"
 )
 
-func TestCompactTimelinesTrimsActiveAndRemovesInactive(t *testing.T) {
+func TestCompactTimelinesTrimsActiveAndRetainsInactiveColdRows(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
@@ -26,21 +26,21 @@ func TestCompactTimelinesTrimsActiveAndRemovesInactive(t *testing.T) {
 		}
 	}
 
-	dry, err := compactTimelines(db, timelineCompactOptions{dryRun: true, maxRows: 2, retention: model.TimelineRetentionMax, now: now})
+	dry, err := compactTimelines(db, timelineCompactOptions{dryRun: true, maxRows: 2, coldRows: 1, retention: model.TimelineRetentionMax, now: now})
 	require.NoError(t, err)
 	require.Equal(t, 6, dry.indexes)
-	require.Equal(t, 4, dry.deletedIndexes)
+	require.Equal(t, 3, dry.deletedIndexes)
 	require.Equal(t, 6, dry.positions)
-	require.Equal(t, 4, dry.deletedPositions)
+	require.Equal(t, 3, dry.deletedPositions)
 
-	stats, err := compactTimelines(db, timelineCompactOptions{maxRows: 2, retention: model.TimelineRetentionMax, now: now})
+	stats, err := compactTimelines(db, timelineCompactOptions{maxRows: 2, coldRows: 1, retention: model.TimelineRetentionMax, now: now})
 	require.NoError(t, err)
-	require.Equal(t, 4, stats.deletedIndexes)
-	require.Equal(t, 4, stats.deletedPositions)
+	require.Equal(t, 3, stats.deletedIndexes)
+	require.Equal(t, 3, stats.deletedPositions)
 	activeRows, err := db.ForwardScan(model.TimelineIndexPrefix(active), func(int, []byte, []byte) error { return nil })
 	require.NoError(t, err)
 	require.Equal(t, 2, activeRows)
 	inactiveRows, err := db.ForwardScan(model.TimelineIndexPrefix(inactive), func(int, []byte, []byte) error { return nil })
 	require.NoError(t, err)
-	require.Zero(t, inactiveRows)
+	require.Equal(t, 1, inactiveRows)
 }
