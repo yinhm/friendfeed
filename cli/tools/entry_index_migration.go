@@ -35,7 +35,28 @@ type entryIndexMigrationOp struct {
 
 func migrateEntryIndex(db *store.Store, dryRun bool, maxLimit int) (entryIndexMigrationStats, error) {
 	stats := entryIndexMigrationStats{}
-	ops := make([]entryIndexMigrationOp, 0)
+	const batchSize = 500
+	ops := make([]entryIndexMigrationOp, 0, batchSize)
+	flush := func() error {
+		if len(ops) == 0 {
+			return nil
+		}
+		if err := db.ApplyBatch(func(batch *pebble.Batch) error {
+			for _, op := range ops {
+				if err := batch.Set(op.newKey, nil, nil); err != nil {
+					return err
+				}
+				if err := batch.Delete(op.oldKey, nil); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("commit EntryIndex migration batch: %w", err)
+		}
+		ops = ops[:0]
+		return nil
+	}
 	_, err := db.ForwardScan(model.EntryIndex.Prefix, func(_ int, key, value []byte) error {
 		if maxLimit > 0 && stats.scanned >= maxLimit {
 			return &store.Error{Msg: "entry index migration limit reached", Code: store.StopIteration}
@@ -51,12 +72,15 @@ func migrateEntryIndex(db *store.Store, dryRun bool, maxLimit int) (entryIndexMi
 			}
 			stats.migrated++
 			if !dryRun {
-				// key borrows the scan buffer and is replayed after the scan
-				// completes; copy it before retaining in ops.
+				// key borrows the scan buffer; retain only the current bounded
+				// batch and release it immediately after commit.
 				ops = append(ops, entryIndexMigrationOp{
 					oldKey: append([]byte(nil), key...),
 					newKey: newKey,
 				})
+				if len(ops) == batchSize {
+					return flush()
+				}
 			}
 		default:
 			return fmt.Errorf("EntryIndex[%x] has unsupported key length %d", key, len(key))
@@ -69,24 +93,7 @@ func migrateEntryIndex(db *store.Store, dryRun bool, maxLimit int) (entryIndexMi
 	if dryRun {
 		return stats, nil
 	}
-	const batchSize = 500
-	for start := 0; start < len(ops); start += batchSize {
-		end := min(start+batchSize, len(ops))
-		if err := db.ApplyBatch(func(batch *pebble.Batch) error {
-			for _, op := range ops[start:end] {
-				if err := batch.Set(op.newKey, nil, nil); err != nil {
-					return err
-				}
-				if err := batch.Delete(op.oldKey, nil); err != nil {
-					return err
-				}
-			}
-			return nil
-		}); err != nil {
-			return stats, fmt.Errorf("commit EntryIndex migration batch: %w", err)
-		}
-	}
-	return stats, nil
+	return stats, flush()
 }
 
 // transformEntryIndexKey converts a legacy or previous EntryIndex row to the

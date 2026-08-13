@@ -55,3 +55,29 @@ func TestMigrateEntryIndexDryRunAndApply(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, entryIndexMigrationStats{scanned: 1, current: 1}, stats)
 }
+
+func TestMigrateEntryIndexFlushesBoundedBatchesDuringScan(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	owner := uuid.Must(uuid.NewV4())
+	const rows = 501
+	for range rows {
+		entryKey := model.Entry.PrefixAppend(uuid.Must(uuid.NewV4()).Bytes())
+		legacyKey := store.NewUUIDFlakeKey(model.TableEntryIndex, owner, db.NextId()).Bytes()
+		require.NoError(t, db.Put(legacyKey, entryKey))
+	}
+
+	stats, err := migrateEntryIndex(db, false, 0)
+	require.NoError(t, err)
+	require.Equal(t, entryIndexMigrationStats{scanned: rows, migrated: rows}, stats)
+
+	count, err := db.ForwardScan(model.EntryIndex.Prefix, func(_ int, key, value []byte) error {
+		require.Len(t, key, model.EntryIndexKeySize)
+		require.Empty(t, value)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, rows, count)
+}
