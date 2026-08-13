@@ -16,24 +16,23 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type timelineCandidateCursor struct {
-	iter      *store.Iterator
+type timelineCandidate struct {
 	entry     uuid.UUID
 	published time.Time
 }
 
-type timelineCandidateHeap []*timelineCandidateCursor
+type timelineCandidateHeap []*timelineCandidate
 
 func (h timelineCandidateHeap) Len() int { return len(h) }
 func (h timelineCandidateHeap) Less(i, j int) bool {
 	if !h[i].published.Equal(h[j].published) {
-		return h[i].published.After(h[j].published)
+		return h[i].published.Before(h[j].published)
 	}
-	return bytes.Compare(h[i].entry.Bytes(), h[j].entry.Bytes()) < 0
+	return bytes.Compare(h[i].entry.Bytes(), h[j].entry.Bytes()) > 0
 }
 func (h timelineCandidateHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h *timelineCandidateHeap) Push(value any) {
-	*h = append(*h, value.(*timelineCandidateCursor))
+	*h = append(*h, value.(*timelineCandidate))
 }
 func (h *timelineCandidateHeap) Pop() any {
 	old := *h
@@ -42,23 +41,11 @@ func (h *timelineCandidateHeap) Pop() any {
 	return last
 }
 
-func timelineCandidateAt(iter *store.Iterator, retention time.Duration, now time.Time) (uuid.UUID, time.Time, bool, error) {
-	if !iter.Valid() {
-		return uuid.Nil, time.Time{}, false, iter.Error()
-	}
-	_, entry, published, err := ParseEntryIndexKey(iter.UnsafeKey())
-	if err != nil {
-		return uuid.Nil, time.Time{}, false, err
-	}
-	if retention != TimelineRetentionMax && published.Before(now.Add(-retention)) {
-		return uuid.Nil, time.Time{}, false, nil
-	}
-	return entry, published, true, nil
-}
-
-// BuildHomeTimeline merges direct feeds newest-first, then recomputes activity
-// for at most maxRows unique publish candidates. Long-tail entries outside the
-// candidate set are deliberately not recovered without an activity index.
+// BuildHomeTimeline scans each reverse-time direct feed forward and keeps a
+// maxRows min-heap of the globally newest unique publications. Only one
+// Pebble iterator is open at a time, even for viewers following thousands of
+// feeds. Long-tail entries outside the candidate set are deliberately not
+// recovered without an activity index.
 func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retention time.Duration, now time.Time) (map[uuid.UUID]time.Time, int, error) {
 	if maxRows <= 0 {
 		return nil, 0, errors.New("timeline max rows must be positive")
@@ -67,15 +54,9 @@ func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retentio
 		return nil, 0, errors.New("timeline retention must be positive")
 	}
 	now = now.UTC()
-	rows := make(map[uuid.UUID]time.Time, maxRows)
-	cursors := make([]*timelineCandidateCursor, 0, len(feeds))
-	defer func() {
-		for _, cursor := range cursors {
-			_ = cursor.iter.Close()
-		}
-	}()
-
-	queue := make(timelineCandidateHeap, 0, len(feeds))
+	selected := make(map[uuid.UUID]*timelineCandidate, maxRows)
+	queue := make(timelineCandidateHeap, 0, maxRows)
+	cutoff := now.Add(-retention)
 	for _, feed := range feeds {
 		if feed == uuid.Nil {
 			return nil, 0, errors.New("timeline source feed UUID is zero")
@@ -84,35 +65,46 @@ func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retentio
 		if err != nil {
 			return nil, 0, err
 		}
-		cursor := &timelineCandidateCursor{iter: iter}
-		cursors = append(cursors, cursor)
-		iter.First()
-		entry, published, ok, err := timelineCandidateAt(iter, retention, now)
-		if err != nil {
-			return nil, 0, err
+		for iter.First(); iter.Valid(); iter.Next() {
+			_, entry, published, err := ParseEntryIndexKey(iter.UnsafeKey())
+			if err != nil {
+				_ = iter.Close()
+				return nil, 0, err
+			}
+			if retention != TimelineRetentionMax && published.Before(cutoff) {
+				break
+			}
+			if _, exists := selected[entry]; exists {
+				continue
+			}
+			candidate := &timelineCandidate{entry: entry, published: published}
+			if queue.Len() < maxRows {
+				selected[entry] = candidate
+				heap.Push(&queue, candidate)
+				continue
+			}
+			worst := queue[0]
+			better := published.After(worst.published) ||
+				(published.Equal(worst.published) && bytes.Compare(entry.Bytes(), worst.entry.Bytes()) < 0)
+			if !better {
+				break
+			}
+			removed := heap.Pop(&queue).(*timelineCandidate)
+			delete(selected, removed.entry)
+			selected[entry] = candidate
+			heap.Push(&queue, candidate)
 		}
-		if ok {
-			cursor.entry, cursor.published = entry, published
-			heap.Push(&queue, cursor)
+		iterErr := iter.Error()
+		closeErr := iter.Close()
+		if err := errors.Join(iterErr, closeErr); err != nil {
+			return nil, 0, err
 		}
 	}
 
-	for queue.Len() > 0 && len(rows) < maxRows {
-		cursor := heap.Pop(&queue).(*timelineCandidateCursor)
-		if _, exists := rows[cursor.entry]; !exists {
-			rows[cursor.entry] = cursor.published
-		}
-		cursor.iter.Next()
-		entry, published, ok, err := timelineCandidateAt(cursor.iter, retention, now)
-		if err != nil {
-			return nil, 0, err
-		}
-		if ok {
-			cursor.entry, cursor.published = entry, published
-			heap.Push(&queue, cursor)
-		}
+	rows := make(map[uuid.UUID]time.Time, len(selected))
+	for entry, candidate := range selected {
+		rows[entry] = candidate.published
 	}
-
 	skipped, err := loadHomeTimelineActivities(db, rows, now)
 	return rows, skipped, err
 }

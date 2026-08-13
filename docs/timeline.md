@@ -277,7 +277,8 @@ TimelineIndex + TimelinePosition + TimelineState
 - `-user <id>` 重建指定用户，不要求其已有 TimelineState，并在成功后创建或刷新 State；
 - 默认模式只处理已有有效 TimelineState 的 viewer，不再把 OAuth 记录当成活跃用户集合；
 - 使用与在线初始化相同的时间窗口和 10,000 条上限；
-- 从多个 direct EntryIndex 的最新端做前向迭代归并，取得有界候选；
+- 逐个 direct EntryIndex 从最新端前向扫描，用 10,000 条最小堆保留全局最新候选；同一时间
+  只打开一个 Pebble iterator，避免关注数较大时耗尽 iterator 资源；
 - 对候选读取 Entry/Like/Comment，重算最终 activity；
 - 用固定 batch 替换该 viewer 的 108/109 行，成功后才更新 TimelineState；
 - dry-run 只报告候选数、现有行数、差异和预计写入量，不修改数据库；

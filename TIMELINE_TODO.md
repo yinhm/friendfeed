@@ -47,8 +47,8 @@ Home：派生表无生命周期，inactive 用户也持续接收 fanout。
   窗口（例如 90 天），确保选项不是只存在于签名中的死参数；
 - [ ] 不能先把所有关注 feed 的完整历史装入 map 再截断；内存上限应与 10,000 条及固定 batch
   成正比，而不是与源 Entry 总数成正比；
-- [ ] 用多个前向 iterator 归并各 direct EntryIndex 的最新端，取得满足窗口的 10,000 个唯一
-  publish 候选；不使用 Pebble 反向迭代；
+- [ ] 逐个前向扫描各 direct EntryIndex 的最新端，用 10,000 条最小堆保留满足窗口的全局
+  最新唯一 publish 候选；同一时间只打开一个 iterator，不使用 Pebble 反向迭代；
 - [ ] 在候选集合内正确合并 publish、当前 Like、当前 Comment 的 activity，并保留现有
   bump/cooldown 规则；候选外历史 Entry 的近期互动允许不进入重建结果；
 - [ ] 用固定 batch 原子替换该 viewer 的 TimelineIndex/Position；

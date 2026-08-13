@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -96,6 +95,38 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		return err
 	}
 
+	// Position keys are grouped by viewer. Count source rows and inactive
+	// deletions with one state lookup per viewer before apply mutates ranges.
+	var positionViewer uuid.UUID
+	positionActive := false
+	positionStarted := false
+	if err := model.TimelinePosition.Iter(db, func(key, _ []byte) error {
+		if len(key) != model.TimelinePosition.Prefix.Len()+2*uuid.Size {
+			return fmt.Errorf("invalid TimelinePosition key length %d", len(key))
+		}
+		viewer, err := uuid.FromBytes(key[model.TimelinePosition.Prefix.Len() : model.TimelinePosition.Prefix.Len()+uuid.Size])
+		if err != nil {
+			return err
+		}
+		if selected != uuid.Nil && viewer != selected {
+			return nil
+		}
+		if !positionStarted || viewer != positionViewer {
+			positionViewer, positionStarted = viewer, true
+			positionActive, err = model.TimelineIsActive(db, viewer, options.now)
+			if err != nil {
+				return err
+			}
+		}
+		stats.positions++
+		if !positionActive {
+			stats.deletedPositions++
+		}
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+
 	var current uuid.UUID
 	currentRows := 0
 	currentActive := false
@@ -135,8 +166,8 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		outsideTime := options.retention != model.TimelineRetentionMax && activity.Before(options.now.Add(-options.retention))
 		if !currentActive || currentRows > options.maxRows || outsideTime {
 			stats.deletedIndexes++
-			stats.deletedPositions++
 			if currentActive {
+				stats.deletedPositions++
 				deletes = append(deletes, deleteRow{viewer: viewer, entry: entry, activity: activity})
 				if len(deletes) == batchSize {
 					return flush()
@@ -155,28 +186,11 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		return stats, err
 	}
 
-	// Count positions before mutations so apply and dry-run report the same
-	// source cardinality.
-	if err := model.TimelinePosition.Iter(db, func(key, _ []byte) error {
-		if len(key) != model.TimelinePosition.Prefix.Len()+2*uuid.Size {
-			return fmt.Errorf("invalid TimelinePosition key length %d", len(key))
-		}
-		viewer, err := uuid.FromBytes(key[model.TimelinePosition.Prefix.Len() : model.TimelinePosition.Prefix.Len()+uuid.Size])
-		if err != nil {
-			return err
-		}
-		if selected != uuid.Nil && viewer != selected {
-			return nil
-		}
-		stats.positions++
-		return nil
-	}); err != nil && !errors.Is(err, store.ErrNotFound) {
-		return stats, err
-	}
-
 	// Reclaim position-only inactive viewers left after the Index pass. Keys are
 	// ordered by viewer, so one scalar remembers the last reclaimed range.
 	var lastInactive uuid.UUID
+	var checkedViewer uuid.UUID
+	checkedActive := false
 	if err := model.TimelinePosition.Iter(db, func(key, _ []byte) error {
 		viewer, err := uuid.FromBytes(key[model.TimelinePosition.Prefix.Len() : model.TimelinePosition.Prefix.Len()+uuid.Size])
 		if err != nil {
@@ -185,11 +199,14 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		if selected != uuid.Nil && viewer != selected {
 			return nil
 		}
-		active, err := model.TimelineIsActive(db, viewer, options.now)
-		if err != nil {
-			return err
+		if viewer != checkedViewer {
+			checkedViewer = viewer
+			checkedActive, err = model.TimelineIsActive(db, viewer, options.now)
+			if err != nil {
+				return err
+			}
 		}
-		if !active && viewer != lastInactive {
+		if !checkedActive && viewer != lastInactive {
 			lastInactive = viewer
 			return compactTimelineRanges(db, viewer, options.dryRun)
 		}
