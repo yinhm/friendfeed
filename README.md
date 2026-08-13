@@ -50,12 +50,11 @@ build js
 Start develop
 
     cd httpd
-    go get .
     go build; ./httpd -f=../conf/gauth.json -d
 
 Or use Gin(recommend)
         
-    go get github.com/codegangsta/gin
+    go install github.com/codegangsta/gin@latest
     export DEBUG=1
     export RPC="localhost:8901"
     export CONFIG_FILE=/srv/ff/config.json

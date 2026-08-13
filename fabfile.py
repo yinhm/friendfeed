@@ -38,7 +38,7 @@ def production(_ctx):
     env.nginx_server_name = "friendfeed.me"
     env.nginx_client_max_body_size = 200
 
-    config = Config(overrides={"load_ssh_configs": True})
+    config = Config(overrides={"load_ssh_configs": True, "run": {"echo": True}})
     _connection = Connection(env.hosts[0], user=env.user, config=config)
 
 
@@ -153,7 +153,7 @@ def deploy_db(_ctx):
     _upload_template(
         "conf/ffdb.service", "/etc/systemd/system/ffdb.service", _template_context()
     )
-    _update_and_build(("go get .", "go install"))
+    _update_and_build(("go install",))
     conn.sudo(
         f"chown {env.runner_user}:{env.runner_group} {quote(env.go_path + '/bin/ffdb')}"
     )
@@ -217,7 +217,6 @@ def deploy_web(_ctx):
     _update_and_build(
         (
             "cd httpd/app && corepack enable pnpm && pnpm install --frozen-lockfile && pnpm run build",
-            "cd httpd && go get .",
             "cd httpd && go build",
         ),
         clean=True,
