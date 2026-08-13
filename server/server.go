@@ -748,6 +748,9 @@ func (s *ApiServer) ensureHomeTimeline(viewer uuid.UUID, now time.Time) error {
 		age := now.Sub(lastAccess)
 		if age >= 0 && age <= model.TimelineActiveFor {
 			if age >= model.TimelineTouchAfter {
+				if _, err := model.TrimHomeTimeline(s.rdb, viewer, model.TimelineMaxEntries, model.TimelineRetentionMax, now); err != nil {
+					return err
+				}
 				return model.TouchTimelineState(s.rdb, viewer, now)
 			}
 			return nil

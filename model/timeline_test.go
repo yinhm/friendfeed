@@ -121,14 +121,38 @@ func TestMoveTimelineEntryAppliesPerEntryCooldown(t *testing.T) {
 	require.True(t, moved)
 }
 
+func TestTrimHomeTimelineDeletesIndexAndPosition(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	viewer := uuid.Must(uuid.NewV4())
+	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
+	entries := make([]uuid.UUID, 3)
+	for i := range entries {
+		entries[i] = uuid.Must(uuid.NewV4())
+		_, err := MoveTimelineEntry(db, viewer, entries[i], now.Add(-time.Duration(i)*time.Hour), nil)
+		require.NoError(t, err)
+	}
+	deleted, err := TrimHomeTimeline(db, viewer, 2, TimelineRetentionMax, now)
+	require.NoError(t, err)
+	require.Equal(t, 1, deleted)
+	count, err := db.ForwardScan(TimelineIndexPrefix(viewer), func(int, []byte, []byte) error { return nil })
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+	_, err = TimelinePositionTime(db, viewer, entries[2])
+	require.ErrorIs(t, err, store.ErrNotFound)
+}
+
 func TestFanoutTimelineActivityBumpsFollowersButNotDirectFeed(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
 	author := uuid.Must(uuid.NewV4())
 	follower := uuid.Must(uuid.NewV4())
+	inactiveFollower := uuid.Must(uuid.NewV4())
 	entryID := uuid.Must(uuid.NewV4())
 	require.NoError(t, db.Put(NewKeyFrom(Follower.Prefix, author.Bytes(), follower.Bytes()), []byte("1")))
+	require.NoError(t, db.Put(NewKeyFrom(Follower.Prefix, author.Bytes(), inactiveFollower.Bytes()), []byte("1")))
 	require.NoError(t, TouchTimelineState(db, author, time.Now().UTC()))
 	require.NoError(t, TouchTimelineState(db, follower, time.Now().UTC()))
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
@@ -144,6 +168,8 @@ func TestFanoutTimelineActivityBumpsFollowersButNotDirectFeed(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, commentAt, position)
 	}
+	_, err = TimelinePositionTime(db, inactiveFollower, entryID)
+	require.ErrorIs(t, err, store.ErrNotFound)
 
 	// The author's direct feed remains keyed by the publish time and contains
 	// exactly one row after the activity bump.

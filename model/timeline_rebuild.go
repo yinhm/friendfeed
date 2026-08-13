@@ -305,3 +305,55 @@ func ReplaceHomeTimeline(db *store.Store, viewer uuid.UUID, rows map[uuid.UUID]t
 	}
 	return flush()
 }
+
+// TrimHomeTimeline keeps the newest maxRows existing activity rows within the
+// optional activity-time retention window. It deletes Index and Position in
+// fixed batches and does not inspect canonical Entry or interactions.
+func TrimHomeTimeline(db *store.Store, viewer uuid.UUID, maxRows int, retention time.Duration, now time.Time) (int, error) {
+	if maxRows <= 0 || retention <= 0 {
+		return 0, errors.New("invalid timeline trim bounds")
+	}
+	type row struct {
+		entry    uuid.UUID
+		activity time.Time
+	}
+	deletes := make([]row, 0, timelineWriteBatchSize)
+	deleted := 0
+	flush := func() error {
+		if len(deletes) == 0 {
+			return nil
+		}
+		err := db.ApplyBatch(func(batch *pebble.Batch) error {
+			for _, item := range deletes {
+				if err := DeleteTimelinePositionBatch(batch, viewer, item.entry, item.activity); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		deletes = deletes[:0]
+		return err
+	}
+	rows := 0
+	cutoff := now.UTC().Add(-retention)
+	_, err := db.ForwardScan(TimelineIndexPrefix(viewer), func(_ int, key, _ []byte) error {
+		_, entry, activity, err := ParseTimelineIndexKey(key)
+		if err != nil {
+			return err
+		}
+		rows++
+		outsideTime := retention != TimelineRetentionMax && activity.Before(cutoff)
+		if rows > maxRows || outsideTime {
+			deletes = append(deletes, row{entry: entry, activity: activity})
+			deleted++
+			if len(deletes) == timelineWriteBatchSize {
+				return flush()
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return deleted, err
+	}
+	return deleted, flush()
+}
