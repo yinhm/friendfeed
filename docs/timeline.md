@@ -172,3 +172,68 @@ audit_store
 
 因此不采用自定义 48-bit 时间、短 viewer ID、hash/sequence tie-break 或非空 index value。
 除非实际存储测量证明该布局是瓶颈，否则保持编码稳定优先于节省少量理论字节。
+
+## 容量与生命周期
+
+TimelineIndex 与 TimelinePosition 的编码适合 Home 的活动排序，但当前“为全部 follower 永久
+保存完整历史”的生命周期不适合实际数据分布。一次生产审计得到：
+
+```text
+Entry                 7,733,672
+TimelineIndex        28,582,865
+TimelinePosition     28,582,865
+```
+
+平均每条 Entry 约产生 3.7 份 Home 副本，两张派生表合计超过 5,700 万行。两表必须同时存在：
+Index 支持按活动时间扫描，Position 支持 O(1) bump；只压缩 key 或删除 Position 不能解决无限
+增长。根因是运行时 fanout 遍历全部历史 follower，而有 OAuth 身份也只表示曾经登录，不等于
+当前仍活跃。
+
+### 后续目标：活跃用户的有界 Home 缓存
+
+TimelineIndex/TimelinePosition 应继续作为可丢弃、可重建的派生数据，但其职责收窄为活跃用户
+的有界 Home 缓存，而不是永久历史索引。后续设计引入独立的 TimelineState：
+
+```text
+canonical source
+├── Entry / direct EntryIndex
+├── Like / Comment
+└── Follow / Follower
+
+derived Home cache
+├── TimelineState(viewer)
+├── TimelineIndex(viewer, activity, entry)
+└── TimelinePosition(viewer, entry)
+```
+
+TimelineState 至少记录初始化状态、最近访问或重建时间，以及缓存边界。具体 schema 在实施前
+另行确定；不得复用 OAuth 存在性充当活跃状态。
+
+目标运行规则：
+
+1. 只有近期访问过 Home、拥有有效 TimelineState 的 viewer 才持续接收 fanout。
+2. 长期未访问的 viewer 不维护 Home；再次访问时从当前 Follow 和 direct EntryIndex 按需重建。
+3. 每个 viewer 只保留固定时间或固定条数窗口，例如最近 90 天或 10,000 条，取先达到者。
+4. 裁剪、过期或重建必须同时处理 TimelineIndex 与 TimelinePosition。
+5. TimelineState 过期后可删除该 viewer 的全部 Home 派生行，不影响 canonical source。
+6. 新 Entry 必须能进入活跃 viewer 的 Home，不能用“该 Entry 已有 TimelinePosition”代替
+   TimelineState 判断，否则首次插入会被错误跳过。
+
+该模型将写放大从“全部历史 follower × 永久历史”收敛为“活跃 follower × 有界窗口”。当前
+规模下不采用完全读时合并：跨多个 direct feed 的 iterator 合并、互动 bump 排序和 cursor
+状态更复杂，读取成本也会随关注数增长。
+
+### 落地边界
+
+这是后续架构方向，当前表前缀 108/109、key/value 编码和运行时语义尚未改变。实施时应按以下
+顺序独立设计和迁移：
+
+1. 定义 TimelineState schema、活跃判定和窗口常量；
+2. Home 访问按需初始化或刷新有界缓存；
+3. fanout 只面向活跃 viewer；
+4. 增加成对裁剪与过期清理；
+5. 让 rebuild、audit 和迁移工具遵守相同窗口；
+6. 清理既有 inactive viewer 的派生行。
+
+在 TimelineState 落地前，不应只通过检查 TimelinePosition 是否存在来限制 fanout，也不应把
+OAuth 用户集合继续当成长期容量边界。
