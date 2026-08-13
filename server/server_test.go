@@ -427,7 +427,12 @@ func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline
 	close(errs)
 
 	for err := range errs {
-		s.Equal(codes.Unavailable, status.Code(err))
+		// A request may arrive after the fast background build completes. Both
+		// success and the retryable initializing response are valid; the cache
+		// consistency assertions below are the behavior this test protects.
+		if err != nil {
+			s.Equal(codes.Unavailable, status.Code(err))
+		}
 	}
 	s.Require().Eventually(func() bool {
 		active, err := model.TimelineIsActive(s.srv.rdb, profileID, time.Now().UTC())

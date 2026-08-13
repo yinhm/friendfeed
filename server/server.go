@@ -30,7 +30,6 @@ import (
 
 const (
 	homeTimelineMaintenanceLimit = 8
-	homeTimelineInitializing     = "home timeline initializing"
 	homeTimelineFailureBackoff   = 30 * time.Second
 )
 
@@ -638,7 +637,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			return nil, status.Errorf(codes.Internal, "initialize home timeline: %v", err)
 		}
 		if initializing {
-			return nil, status.Error(codes.Unavailable, homeTimelineInitializing)
+			return nil, status.Error(codes.Unavailable, pb.HomeTimelineInitializing)
 		}
 	}
 	cursorKey, err := decodeFeedCursor(req.Cursor, prefix)

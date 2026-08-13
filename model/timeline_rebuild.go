@@ -245,13 +245,14 @@ func rebuildHomeTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, int
 
 const timelineWriteBatchSize = 500
 
-// ReplaceHomeTimeline clears and writes one viewer's two derived tables using
-// bounded batches. TimelineState is intentionally updated by the caller only
-// after this operation succeeds.
+// ReplaceHomeTimeline atomically replaces one viewer's two derived tables.
+// Callers bound rows to TimelineMaxEntries, so the single batch is bounded and
+// an error cannot expose a partially replaced stale cache. TimelineState is
+// intentionally updated by the caller only after this operation succeeds.
 func ReplaceHomeTimeline(db *store.Store, viewer uuid.UUID, rows map[uuid.UUID]time.Time) error {
 	indexPrefix := TimelineIndexPrefix(viewer)
 	positionPrefix := NewKeyFrom(TimelinePosition.Prefix, viewer.Bytes())
-	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
+	return db.ApplyBatch(func(batch *pebble.Batch) error {
 		for _, prefix := range []store.Key{indexPrefix, positionPrefix} {
 			upper := store.KeyUpperBound(prefix)
 			if upper == nil {
@@ -261,49 +262,22 @@ func ReplaceHomeTimeline(db *store.Store, viewer uuid.UUID, rows map[uuid.UUID]t
 				return err
 			}
 		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	type row struct {
-		entry    uuid.UUID
-		activity time.Time
-	}
-	batchRows := make([]row, 0, timelineWriteBatchSize)
-	flush := func() error {
-		if len(batchRows) == 0 {
-			return nil
-		}
-		err := db.ApplyBatch(func(batch *pebble.Batch) error {
-			for _, item := range batchRows {
-				indexKey, err := TimelineIndexKey(viewer, item.entry, item.activity)
-				if err != nil {
-					return err
-				}
-				var position [8]byte
-				binary.BigEndian.PutUint64(position[:], uint64(item.activity.UTC().UnixMilli()))
-				if err := batch.Set(indexKey, nil, nil); err != nil {
-					return err
-				}
-				if err := batch.Set(TimelinePositionKey(viewer, item.entry), position[:], nil); err != nil {
-					return err
-				}
+		for entry, activity := range rows {
+			indexKey, err := TimelineIndexKey(viewer, entry, activity)
+			if err != nil {
+				return err
 			}
-			return nil
-		})
-		batchRows = batchRows[:0]
-		return err
-	}
-	for entry, activity := range rows {
-		batchRows = append(batchRows, row{entry: entry, activity: activity})
-		if len(batchRows) == timelineWriteBatchSize {
-			if err := flush(); err != nil {
+			var position [8]byte
+			binary.BigEndian.PutUint64(position[:], uint64(activity.UTC().UnixMilli()))
+			if err := batch.Set(indexKey, nil, nil); err != nil {
+				return err
+			}
+			if err := batch.Set(TimelinePositionKey(viewer, entry), position[:], nil); err != nil {
 				return err
 			}
 		}
-	}
-	return flush()
+		return nil
+	})
 }
 
 // TrimHomeTimeline keeps the newest maxRows existing activity rows within the

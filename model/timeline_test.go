@@ -155,6 +155,35 @@ func TestTrimHomeTimelineDeletesIndexAndPosition(t *testing.T) {
 	require.ErrorIs(t, err, store.ErrNotFound)
 }
 
+func TestReplaceHomeTimelineFailurePreservesOldCache(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	viewer := uuid.Must(uuid.NewV4())
+	oldEntry := uuid.Must(uuid.NewV4())
+	oldActivity := time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC)
+	_, err = MoveTimelineEntry(db, viewer, oldEntry, oldActivity, nil)
+	require.NoError(t, err)
+
+	err = ReplaceHomeTimeline(db, viewer, map[uuid.UUID]time.Time{
+		uuid.Must(uuid.NewV4()): time.Unix(-1, 0),
+	})
+	require.ErrorContains(t, err, "before Unix epoch")
+
+	rows := make([]uuid.UUID, 0, 1)
+	_, err = db.ForwardScan(TimelineIndexPrefix(viewer), func(_ int, key, _ []byte) error {
+		_, entry, _, parseErr := ParseTimelineIndexKey(key)
+		rows = append(rows, entry)
+		return parseErr
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{oldEntry}, rows)
+	position, err := TimelinePositionTime(db, viewer, oldEntry)
+	require.NoError(t, err)
+	require.Equal(t, oldActivity, position)
+}
+
 func TestFanoutTimelineActivityBumpsFollowersButNotDirectFeed(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)

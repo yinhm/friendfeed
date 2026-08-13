@@ -280,7 +280,7 @@ func TestRequestErrorReturnsRetryableTimelineInitialization(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 
-	handled := RequestError(ctx, status.Error(codes.Unavailable, "home timeline initializing"))
+	handled := RequestError(ctx, status.Error(codes.Unavailable, pb.HomeTimelineInitializing))
 
 	if !handled {
 		t.Fatal("RequestError did not handle initializing response")

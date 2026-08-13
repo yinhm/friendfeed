@@ -471,7 +471,7 @@ func RequestError(c *gin.Context, err error) bool {
 	if err != nil {
 		errStatus, _ := status.FromError(err)
 		if codes.Unavailable == errStatus.Code() {
-			if errStatus.Message() == "home timeline initializing" {
+			if errStatus.Message() == pb.HomeTimelineInitializing {
 				c.Header("Retry-After", "2")
 				c.Header("Refresh", "2")
 				c.String(http.StatusAccepted, "Preparing your Home timeline. This page will retry shortly.")
