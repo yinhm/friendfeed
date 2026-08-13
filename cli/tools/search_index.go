@@ -28,8 +28,9 @@ type searchIndexStats struct {
 	noBody   int
 }
 
-// oauthActiveProfiles is search-specific: historical search scope remains
-// profiles with OAuth identity and must not follow Home TimelineState.
+// oauthActiveProfiles returns non-deleted profiles and the subset with OAuth
+// identity. Search indexing and offline Home prewarming intentionally use the
+// same real-user definition; runtime Home fanout still follows TimelineState.
 func oauthActiveProfiles(db *store.Store) (profiles []*pb.Profile, activeProfiles map[uuid.UUID]struct{}, err error) {
 	profilesByID := make(map[string]uuid.UUID)
 	if err := model.Profile.Iter(db, func(key, raw []byte) error {

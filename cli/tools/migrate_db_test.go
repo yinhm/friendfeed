@@ -356,10 +356,6 @@ func TestRebuildTimelines(t *testing.T) {
 	if err != nil || staleCount != 0 {
 		t.Fatalf("dry-run modified timeline: count=%d, err=%v", staleCount, err)
 	}
-	if err := model.TouchTimelineState(db, userID, time.Now().UTC()); err != nil {
-		t.Fatal(err)
-	}
-
 	stats, err := rebuildTimelines(db, timelineRebuildOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -383,6 +379,41 @@ func TestRebuildTimelines(t *testing.T) {
 	if len(values) != 2 {
 		t.Fatalf("unexpected rebuilt timeline: %v", values)
 	}
+	active, err := model.TimelineIsActive(db, userID, time.Now().UTC())
+	if err != nil || !active {
+		t.Fatalf("OAuth profile was not prewarmed: active=%v, err=%v", active, err)
+	}
+}
+
+func TestRebuildTimelinesSkipsProfileWithoutOAuth(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	oauthID := uuid.Must(uuid.NewV4())
+	nonOAuthID := uuid.Must(uuid.NewV4())
+	for id, name := range map[uuid.UUID]string{oauthID: "oauth-user", nonOAuthID: "profile-only"} {
+		require.NoError(t, model.UpdateProfile(db, &pb.Profile{Uuid: id.String(), Id: name, Type: "user"}))
+		_, err := model.PutEntry(db, &pb.Entry{
+			Id: uuid.Must(uuid.NewV4()).String(), ProfileUuid: id.String(),
+			Date: time.Unix(100, 0).UTC().Format(time.RFC3339),
+		})
+		require.NoError(t, err)
+	}
+	_, err = model.OAuth.Put(db, model.KeyFromString("google", "oauth-user"), &pb.OAuthUser{
+		Uuid: oauthID.String(), Provider: "google", UserId: "oauth-user",
+	})
+	require.NoError(t, err)
+
+	stats, err := rebuildTimelines(db, timelineRebuildOptions{})
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.profiles)
+	active, err := model.TimelineIsActive(db, oauthID, time.Now().UTC())
+	require.NoError(t, err)
+	require.True(t, active)
+	active, err = model.TimelineIsActive(db, nonOAuthID, time.Now().UTC())
+	require.NoError(t, err)
+	require.False(t, active)
 }
 
 func TestExplicitTimelineUserDoesNotRequireOAuthMetadata(t *testing.T) {

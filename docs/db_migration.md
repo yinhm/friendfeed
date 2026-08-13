@@ -49,18 +49,19 @@ TimelineIndex/Position 现在只维护 TimelineState 有效的活跃 viewer，�
 
 ```text
 1. 停止 ffdb/ffweb，完成 Entry/EntryIndex/interaction 必要迁移
-2. 部署新二进制并恢复服务
-3. 让真实用户访问 Home，按需建立 TimelineState
-4. 对重点用户验证：./tools -to new_db -c rebuild_timeline -user yinhm -max-limit 20 -dry-run
-5. 正式重建重点用户：./tools -to new_db -c rebuild_timeline -user yinhm
-6. 评估清理：./tools -to new_db -c compact_timelines -dry-run
-7. 执行清理：./tools -to new_db -c compact_timelines
-8. ./tools -to new_db -c audit_store
+2. 对重点用户验证：./tools -to new_db -c rebuild_timeline -user yinhm -max-limit 20 -dry-run
+3. 全量演练：./tools -to new_db -c rebuild_timeline -dry-run
+4. 预热全部 Profile + OAuth 用户：./tools -to new_db -c rebuild_timeline
+5. 评估清理：./tools -to new_db -c compact_timelines -dry-run
+6. 执行清理：./tools -to new_db -c compact_timelines
+7. ./tools -to new_db -c audit_store
+8. 部署新二进制并恢复服务，验证重点用户首次 Home 请求直接命中预热缓存
 ```
 
 `rebuild_timeline` 从 Follow、direct EntryIndex、Entry、Like、Comment 重新选择最多 10,000 个
-publish 候选并计算 activity；`-user` 成功后创建/刷新 State，默认只重建 State 仍有效的用户。
-候选外的长尾历史互动不保证恢复。
+publish 候选并计算 activity；`-user` 成功后创建/刷新 State，默认预热同时具有 Profile 与 OAuth
+身份的用户并为其创建/刷新 State。候选外的长尾历史互动不保证恢复。全量预热会把这些用户暂时
+视为活跃，因此只在部署或明确需要重建全部真实用户时运行，不作为周期任务。
 
 `compact_timelines` 不读取 canonical 数据、不重算 activity：有效 State 仅裁剪现有排序，过期
 或无 State 的 viewer 删除全部 108/109 行。必须先 dry-run；执行可安全重跑。回滚旧二进制会

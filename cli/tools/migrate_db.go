@@ -609,59 +609,14 @@ func rebuiltTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, int, er
 	return activity, skipped, nil
 }
 
-// timelineActiveProfiles lists non-deleted profiles and viewers whose
-// TimelineState is valid now. OAuth presence is not an activity signal.
-func timelineActiveProfiles(db *store.Store, now time.Time) (profiles []*pb.Profile, activeProfiles map[uuid.UUID]struct{}, err error) {
-	if err := model.Profile.Iter(db, func(key, raw []byte) error {
-		profile := new(pb.Profile)
-		if err := proto.Unmarshal(raw, profile); err != nil {
-			return fmt.Errorf("decode profile at %x: %w", key, err)
-		}
-		if profile.Deleted {
-			return nil
-		}
-		if _, err := uuid.FromString(profile.Uuid); err != nil {
-			return fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
-		}
-		profiles = append(profiles, profile)
-		return nil
-	}); err != nil {
-		return nil, nil, err
-	}
-
-	activeProfiles = make(map[uuid.UUID]struct{})
-	if err := model.TimelineState.Iter(db, func(key, raw []byte) error {
-		if len(key) != model.TimelineState.Prefix.Len()+uuid.Size {
-			return fmt.Errorf("invalid TimelineState key length %d", len(key))
-		}
-		profileID, err := uuid.FromBytes(key[model.TimelineState.Prefix.Len():])
-		if err != nil {
-			return err
-		}
-		lastAccess, err := model.ParseTimelineLastAccess(raw)
-		if err != nil {
-			return err
-		}
-		age := now.UTC().Sub(lastAccess)
-		if age >= 0 && age <= model.TimelineActiveFor {
-			activeProfiles[profileID] = struct{}{}
-		}
-		return nil
-	}); err != nil {
-		return nil, nil, err
-	}
-	return profiles, activeProfiles, nil
-}
-
 func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timelineRebuildStats, error) {
 	stats := timelineRebuildStats{}
-	_, _, now := timelineRebuildBounds(options)
-	profiles, activeProfiles, err := timelineActiveProfiles(db, now)
+	profiles, oauthProfiles, err := oauthActiveProfiles(db)
 	if err != nil {
 		return stats, err
 	}
-	if len(activeProfiles) == 0 && options.user == "" {
-		return stats, errors.New("no active TimelineState found")
+	if len(oauthProfiles) == 0 && options.user == "" {
+		return stats, errors.New("no profiles with OAuth information found")
 	}
 
 	for _, profile := range profiles {
@@ -669,13 +624,13 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 			continue
 		}
 		if options.user != "" {
-			log.Printf("explicit user %s selected; TimelineState check bypassed", profile.Id)
+			log.Printf("explicit user %s selected; OAuth metadata check bypassed", profile.Id)
 		} else {
 			profileID, err := uuid.FromString(profile.Uuid)
 			if err != nil {
 				return stats, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
 			}
-			if _, active := activeProfiles[profileID]; !active {
+			if _, active := oauthProfiles[profileID]; !active {
 				continue
 			}
 		}

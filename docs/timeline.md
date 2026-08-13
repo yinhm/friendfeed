@@ -286,7 +286,8 @@ TimelineIndex + TimelinePosition + TimelineState
 计算某个用户的 Home。改造后：
 
 - `-user <id>` 重建指定用户，不要求其已有 TimelineState，并在成功后创建或刷新 State；
-- 默认模式只处理已有有效 TimelineState 的 viewer，不再把 OAuth 记录当成活跃用户集合；
+- 默认模式预热同时具有 Profile 与 OAuth 身份的真实用户，并创建或刷新 TimelineState；这会把
+  预热用户暂时视为活跃，只用于部署或明确的全量重建，不作为周期任务；
 - 使用与在线初始化相同的时间窗口和 10,000 条上限；
 - 逐个 direct EntryIndex 从最新端前向扫描，用 10,000 条最小堆保留全局最新候选；同一时间
   只打开一个 Pebble iterator，避免关注数较大时耗尽 iterator 资源；
