@@ -19,6 +19,7 @@ func TestAuditStoreFindsIndexAndGraphDrift(t *testing.T) {
 
 	author := uuid.Must(uuid.NewV4())
 	follower := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.TouchTimelineState(db, author, time.Now().UTC()))
 	date := time.Now().UTC().Truncate(time.Second).Format(time.RFC3339)
 	for range 2 {
 		entryID := uuid.Must(uuid.NewV4())

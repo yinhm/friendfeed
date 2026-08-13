@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"container/heap"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -297,32 +296,6 @@ func rebuildSocialGraph(db *store.Store, dryRun bool) (socialGraphRebuildStats, 
 	return stats, nil
 }
 
-type timelineCandidateCursor struct {
-	iter      *store.Iterator
-	entry     uuid.UUID
-	published time.Time
-}
-
-type timelineCandidateHeap []*timelineCandidateCursor
-
-func (h timelineCandidateHeap) Len() int { return len(h) }
-func (h timelineCandidateHeap) Less(i, j int) bool {
-	if !h[i].published.Equal(h[j].published) {
-		return h[i].published.After(h[j].published)
-	}
-	return bytes.Compare(h[i].entry.Bytes(), h[j].entry.Bytes()) < 0
-}
-func (h timelineCandidateHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h *timelineCandidateHeap) Push(value any) {
-	*h = append(*h, value.(*timelineCandidateCursor))
-}
-func (h *timelineCandidateHeap) Pop() any {
-	old := *h
-	last := old[len(old)-1]
-	*h = old[:len(old)-1]
-	return last
-}
-
 func timelineRebuildBounds(options timelineRebuildOptions) (int, time.Duration, time.Time) {
 	maxRows := options.maxRows
 	if maxRows <= 0 {
@@ -337,69 +310,6 @@ func timelineRebuildBounds(options timelineRebuildOptions) (int, time.Duration, 
 		now = time.Now().UTC()
 	}
 	return maxRows, retention, now
-}
-
-func timelineCandidateAt(iter *store.Iterator, retention time.Duration, now time.Time) (uuid.UUID, time.Time, bool, error) {
-	if !iter.Valid() {
-		return uuid.Nil, time.Time{}, false, iter.Error()
-	}
-	_, entry, published, err := model.ParseEntryIndexKey(iter.UnsafeKey())
-	if err != nil {
-		return uuid.Nil, time.Time{}, false, err
-	}
-	if retention != model.TimelineRetentionMax && published.Before(now.Add(-retention)) {
-		return uuid.Nil, time.Time{}, false, nil
-	}
-	return entry, published, true, nil
-}
-
-// collectTimelineCandidates performs a forward k-way merge. EntryIndex stores
-// reverse time, so First/Next yields newest publications without Prev. Memory
-// is bounded by the feed count plus maxRows unique entries.
-func collectTimelineCandidates(db *store.Store, feeds []uuid.UUID, maxRows int, retention time.Duration, now time.Time) (map[uuid.UUID]time.Time, error) {
-	rows := make(map[uuid.UUID]time.Time, maxRows)
-	cursors := make([]*timelineCandidateCursor, 0, len(feeds))
-	defer func() {
-		for _, cursor := range cursors {
-			_ = cursor.iter.Close()
-		}
-	}()
-
-	queue := make(timelineCandidateHeap, 0, len(feeds))
-	for _, feed := range feeds {
-		iter, err := db.NewIterator(model.NewUUIDKey(model.TableEntryIndex, feed))
-		if err != nil {
-			return nil, err
-		}
-		cursor := &timelineCandidateCursor{iter: iter}
-		cursors = append(cursors, cursor)
-		iter.First()
-		entry, published, ok, err := timelineCandidateAt(iter, retention, now)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			cursor.entry, cursor.published = entry, published
-			heap.Push(&queue, cursor)
-		}
-	}
-
-	for queue.Len() > 0 && len(rows) < maxRows {
-		cursor := heap.Pop(&queue).(*timelineCandidateCursor)
-		if _, exists := rows[cursor.entry]; !exists {
-			rows[cursor.entry] = cursor.published
-		}
-		cursor.iter.Next()
-		entry, published, ok, err := timelineCandidateAt(cursor.iter, retention, now)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			cursor.entry, cursor.published = entry, published
-			heap.Push(&queue, cursor)
-		}
-	}
-	return rows, nil
 }
 
 func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options timelineRebuildOptions) (int, int, int, int, int, error) {
@@ -432,13 +342,9 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	}
 
 	maxRows, retention, now := timelineRebuildBounds(options)
-	rebuilt, err := collectTimelineCandidates(db, feeds, maxRows, retention, now)
+	rebuilt, skippedInteractionDates, err := model.BuildHomeTimeline(db, feeds, maxRows, retention, now)
 	if err != nil {
 		return selectedFollows, 0, 0, 0, 0, fmt.Errorf("collect timeline candidates for %s: %w", profile.Id, err)
-	}
-	skippedInteractionDates, err := loadTimelineActivities(db, rebuilt, now)
-	if err != nil {
-		return selectedFollows, len(rebuilt), 0, 0, 0, err
 	}
 	if skippedInteractionDates > 0 {
 		log.Printf("timeline for %s: skipped %d interactions with missing or invalid dates", profile.Id, skippedInteractionDates)
@@ -448,8 +354,11 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		return selectedFollows, len(rebuilt), existing, mismatches, duplicates, err
 	}
 	if !options.dryRun {
-		if err := replaceTimelineRows(db, profileID, rebuilt); err != nil {
+		if err := model.ReplaceHomeTimeline(db, profileID, rebuilt); err != nil {
 			return selectedFollows, len(rebuilt), existing, mismatches, duplicates, fmt.Errorf("replace timeline for %s: %w", profile.Id, err)
+		}
+		if err := model.TouchTimelineState(db, profileID, now); err != nil {
+			return selectedFollows, len(rebuilt), existing, mismatches, duplicates, fmt.Errorf("activate timeline for %s: %w", profile.Id, err)
 		}
 	}
 	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
@@ -700,12 +609,9 @@ func rebuiltTimelineActivity(entry *pb.Entry, now time.Time) (time.Time, int, er
 	return activity, skipped, nil
 }
 
-// oauthActiveProfiles lists non-deleted profiles and the set of profile UUIDs
-// that carry OAuth login information. Older OAuth rows were sometimes stored
-// before their profile UUID was bound; their login name still matches
-// Profile.Id.
-func oauthActiveProfiles(db *store.Store) (profiles []*pb.Profile, activeProfiles map[uuid.UUID]struct{}, err error) {
-	profilesByID := make(map[string]uuid.UUID)
+// timelineActiveProfiles lists non-deleted profiles and viewers whose
+// TimelineState is valid now. OAuth presence is not an activity signal.
+func timelineActiveProfiles(db *store.Store, now time.Time) (profiles []*pb.Profile, activeProfiles map[uuid.UUID]struct{}, err error) {
 	if err := model.Profile.Iter(db, func(key, raw []byte) error {
 		profile := new(pb.Profile)
 		if err := proto.Unmarshal(raw, profile); err != nil {
@@ -714,29 +620,29 @@ func oauthActiveProfiles(db *store.Store) (profiles []*pb.Profile, activeProfile
 		if profile.Deleted {
 			return nil
 		}
-		profileID, err := uuid.FromString(profile.Uuid)
-		if err != nil {
+		if _, err := uuid.FromString(profile.Uuid); err != nil {
 			return fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
 		}
 		profiles = append(profiles, profile)
-		profilesByID[profile.Id] = profileID
 		return nil
 	}); err != nil {
 		return nil, nil, err
 	}
 
 	activeProfiles = make(map[uuid.UUID]struct{})
-	if err := model.OAuth.Iter(db, func(key, raw []byte) error {
-		oauth := new(pb.OAuthUser)
-		if err := proto.Unmarshal(raw, oauth); err != nil {
-			return fmt.Errorf("decode OAuth record at %x: %w", key, err)
+	if err := model.TimelineState.Iter(db, func(key, _ []byte) error {
+		if len(key) != model.TimelineState.Prefix.Len()+uuid.Size {
+			return fmt.Errorf("invalid TimelineState key length %d", len(key))
 		}
-		profileID, err := uuid.FromString(oauth.Uuid)
-		if err == nil {
-			activeProfiles[profileID] = struct{}{}
-			return nil
+		profileID, err := uuid.FromBytes(key[model.TimelineState.Prefix.Len():])
+		if err != nil {
+			return err
 		}
-		if profileID, exists := profilesByID[oauth.Name]; exists {
+		active, err := model.TimelineIsActive(db, profileID, now)
+		if err != nil {
+			return err
+		}
+		if active {
 			activeProfiles[profileID] = struct{}{}
 		}
 		return nil
@@ -748,12 +654,13 @@ func oauthActiveProfiles(db *store.Store) (profiles []*pb.Profile, activeProfile
 
 func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timelineRebuildStats, error) {
 	stats := timelineRebuildStats{}
-	profiles, activeProfiles, err := oauthActiveProfiles(db)
+	_, _, now := timelineRebuildBounds(options)
+	profiles, activeProfiles, err := timelineActiveProfiles(db, now)
 	if err != nil {
 		return stats, err
 	}
 	if len(activeProfiles) == 0 && options.user == "" {
-		return stats, errors.New("no profiles with OAuth information found")
+		return stats, errors.New("no active TimelineState found")
 	}
 
 	for _, profile := range profiles {
@@ -761,7 +668,7 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 			continue
 		}
 		if options.user != "" {
-			log.Printf("explicit user %s selected; OAuth metadata check bypassed", profile.Id)
+			log.Printf("explicit user %s selected; TimelineState check bypassed", profile.Id)
 		} else {
 			profileID, err := uuid.FromString(profile.Uuid)
 			if err != nil {

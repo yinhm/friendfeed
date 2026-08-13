@@ -129,6 +129,8 @@ func TestFanoutTimelineActivityBumpsFollowersButNotDirectFeed(t *testing.T) {
 	follower := uuid.Must(uuid.NewV4())
 	entryID := uuid.Must(uuid.NewV4())
 	require.NoError(t, db.Put(NewKeyFrom(Follower.Prefix, author.Bytes(), follower.Bytes()), []byte("1")))
+	require.NoError(t, TouchTimelineState(db, author, time.Now().UTC()))
+	require.NoError(t, TouchTimelineState(db, follower, time.Now().UTC()))
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
 	entry := &pb.Entry{Id: entryID.String(), ProfileUuid: author.String(), Date: base.Format(time.RFC3339)}
 	_, err = PutEntry(db, entry)

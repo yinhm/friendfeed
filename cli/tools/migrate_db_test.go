@@ -348,13 +348,16 @@ func TestRebuildTimelines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dryStats.profiles != 1 || dryStats.existing != 1 || dryStats.follows != 0 || dryStats.entries != 1 {
+	if dryStats.profiles != 1 || dryStats.existing != 0 || dryStats.follows != 0 || dryStats.entries != 1 {
 		t.Fatalf("unexpected dry-run stats: %+v", dryStats)
 	}
 	stalePrefix := model.TimelineIndexPrefix(userID)
 	staleCount, err := db.ForwardScan(stalePrefix, func(i int, key, value []byte) error { return nil })
-	if err != nil || staleCount != 1 {
+	if err != nil || staleCount != 0 {
 		t.Fatalf("dry-run modified timeline: count=%d, err=%v", staleCount, err)
+	}
+	if err := model.TouchTimelineState(db, userID, time.Now().UTC()); err != nil {
+		t.Fatal(err)
 	}
 
 	stats, err := rebuildTimelines(db, timelineRebuildOptions{})
@@ -489,13 +492,15 @@ func TestCollectTimelineCandidatesMergesFeedsAndBoundsRows(t *testing.T) {
 		if i%2 == 1 {
 			feed = secondFeed
 		}
-		entryKey := model.Entry.PrefixAppend(ids[i].Bytes())
-		require.NoError(t, model.EntryIndex.Index(db, feed, base.Add(-time.Duration(i)*time.Hour), entryKey))
+		published := base.Add(-time.Duration(i) * time.Hour)
+		_, err := model.Entry.Put(db, ids[i].Bytes(), &pb.Entry{Id: ids[i].String(), ProfileUuid: feed.String(), Date: published.Format(time.RFC3339)})
+		require.NoError(t, err)
+		require.NoError(t, model.EntryIndex.Index(db, feed, published, model.Entry.PrefixAppend(ids[i].Bytes())))
 	}
 	// One entry appearing in both feeds must consume only one candidate slot.
 	require.NoError(t, model.EntryIndex.Index(db, secondFeed, base, model.Entry.PrefixAppend(ids[0].Bytes())))
 
-	rows, err := collectTimelineCandidates(db, []uuid.UUID{firstFeed, secondFeed}, 3, model.TimelineRetentionMax, base)
+	rows, _, err := model.BuildHomeTimeline(db, []uuid.UUID{firstFeed, secondFeed}, 3, model.TimelineRetentionMax, base)
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 	for _, id := range ids[:3] {
@@ -515,15 +520,19 @@ func TestCollectTimelineCandidatesAppliesOptionalRetention(t *testing.T) {
 	now := time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC)
 	recent := uuid.Must(uuid.NewV4())
 	old := uuid.Must(uuid.NewV4())
+	_, err = model.Entry.Put(db, recent.Bytes(), &pb.Entry{Id: recent.String(), ProfileUuid: feed.String(), Date: now.Add(-89 * 24 * time.Hour).Format(time.RFC3339)})
+	require.NoError(t, err)
+	_, err = model.Entry.Put(db, old.Bytes(), &pb.Entry{Id: old.String(), ProfileUuid: feed.String(), Date: now.Add(-91 * 24 * time.Hour).Format(time.RFC3339)})
+	require.NoError(t, err)
 	require.NoError(t, model.EntryIndex.Index(db, feed, now.Add(-89*24*time.Hour), model.Entry.PrefixAppend(recent.Bytes())))
 	require.NoError(t, model.EntryIndex.Index(db, feed, now.Add(-91*24*time.Hour), model.Entry.PrefixAppend(old.Bytes())))
 
-	limited, err := collectTimelineCandidates(db, []uuid.UUID{feed}, 10, 90*24*time.Hour, now)
+	limited, _, err := model.BuildHomeTimeline(db, []uuid.UUID{feed}, 10, 90*24*time.Hour, now)
 	require.NoError(t, err)
 	require.Contains(t, limited, recent)
 	require.NotContains(t, limited, old)
 
-	unlimited, err := collectTimelineCandidates(db, []uuid.UUID{feed}, 10, model.TimelineRetentionMax, now)
+	unlimited, _, err := model.BuildHomeTimeline(db, []uuid.UUID{feed}, 10, model.TimelineRetentionMax, now)
 	require.NoError(t, err)
 	require.Contains(t, unlimited, recent)
 	require.Contains(t, unlimited, old)
@@ -544,7 +553,7 @@ func TestReplaceTimelineRowsClearsAndWritesBoundedBatches(t *testing.T) {
 	for i := 0; i < timelineRebuildBatchSize+1; i++ {
 		rows[uuid.Must(uuid.NewV4())] = base.Add(time.Duration(i) * time.Millisecond)
 	}
-	require.NoError(t, replaceTimelineRows(db, viewer, rows))
+	require.NoError(t, model.ReplaceHomeTimeline(db, viewer, rows))
 
 	count, err := db.ForwardScan(model.TimelineIndexPrefix(viewer), func(_ int, key, _ []byte) error {
 		_, entry, activity, err := model.ParseTimelineIndexKey(key)

@@ -223,6 +223,7 @@ func (s *TableTestSuite) TestUpdateFollowerTimelinesPropagatesUpdateError() {
 
 func (s *TableTestSuite) TestPutDeleteEntryMaintainsAuthorTimeline() {
 	authorUUID := uuid.Must(uuid.NewV4())
+	assert.NoError(s.T(), TouchTimelineState(s.db, authorUUID, time.Now().UTC()))
 	entryUUID := uuid.Must(uuid.NewV4())
 	entry := &pb.Entry{
 		Id:          entryUUID.String(),
@@ -299,6 +300,8 @@ func (s *TableTestSuite) TestPutDeleteGroupEntryMaintainsAllIndexes() {
 	entryUUID := uuid.Must(uuid.NewV4())
 	followerKey := NewKeyFrom(Follower.Prefix, groupUUID.Bytes(), followerUUID.Bytes())
 	assert.NoError(s.T(), s.db.Put(followerKey, []byte("1")))
+	assert.NoError(s.T(), TouchTimelineState(s.db, authorUUID, time.Now().UTC()))
+	assert.NoError(s.T(), TouchTimelineState(s.db, followerUUID, time.Now().UTC()))
 
 	entry := &pb.Entry{
 		Id:          entryUUID.String(),

@@ -311,7 +311,8 @@ func (s *RpcTestSuite) TestHomeCursorRanksActivityWithoutMovingProfileFeed() {
 	}
 	old, err := model.GetEntry(s.srv.rdb, oldID.String())
 	s.Require().NoError(err)
-	_, err = model.FanoutTimelineActivity(s.srv.rdb, old, base.Add(30*time.Minute), model.TimelineActivityComment)
+	commentID := uuid.Must(uuid.NewV4())
+	_, _, err = model.PutComment(s.srv.rdb, profile, old, &pb.Comment{Id: commentID.String()})
 	s.Require().NoError(err)
 
 	home, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{ProfileUuid: profileID.String(), PageSize: 10})

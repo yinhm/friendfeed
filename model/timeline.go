@@ -207,9 +207,9 @@ const (
 	TimelineActivityComment
 )
 
-// FanoutTimelineActivity updates the author's Home timeline and every current
-// follower of the target feed. Source mutations are committed before this
-// unbounded derived-data fanout.
+// FanoutTimelineActivity updates only active Home caches. Inactive viewers are
+// rebuilt on their next Home request; source mutations are committed before
+// this derived-data fanout.
 func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time, kind TimelineActivityKind) (int, error) {
 	entryUUID, err := uuid.FromString(entry.Id)
 	if err != nil {
@@ -240,29 +240,44 @@ func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time
 			return 0, nil
 		}
 	}
-	update := func(viewer uuid.UUID) error {
+	update := func(viewer uuid.UUID) (bool, error) {
+		active, err := TimelineIsActive(db, viewer, now)
+		if err != nil {
+			return false, err
+		}
+		if !active {
+			return false, nil
+		}
 		qualify := func(old time.Time, exists bool) bool { return true }
 		if kind == TimelineActivityLike {
 			qualify = func(old time.Time, exists bool) bool {
 				return !exists || activity.Sub(old) >= LikeBumpCooldown
 			}
 		}
-		_, err := MoveTimelineEntry(db, viewer, entryUUID, activity, qualify)
-		return err
+		_, err = MoveTimelineEntry(db, viewer, entryUUID, activity, qualify)
+		return true, err
 	}
-	if err := update(author); err != nil {
+	if _, err := update(author); err != nil {
 		return 0, fmt.Errorf("update author timeline: %w", err)
 	}
 	prefix := NewPrefixKeyFrom(TableFollower, feed.Bytes())
-	n, err := db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
+	updated := 0
+	_, err = db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
 		follower, err := uuid.FromBytes(ParseFollowerKey(key))
 		if err != nil {
 			return err
 		}
-		return update(follower)
+		active, err := update(follower)
+		if err != nil {
+			return err
+		}
+		if active {
+			updated++
+		}
+		return nil
 	})
 	if err != nil {
-		return n, fmt.Errorf("update follower timelines: %w", err)
+		return updated, fmt.Errorf("update follower timelines: %w", err)
 	}
-	return n, nil
+	return updated, nil
 }

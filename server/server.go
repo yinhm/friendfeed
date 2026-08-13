@@ -35,6 +35,7 @@ type ApiServer struct {
 	// entryLifecycleMu lets independent interaction rows mutate concurrently,
 	// while keeping them mutually exclusive with Entry create/edit/delete.
 	entryLifecycleMu sync.RWMutex
+	timelineInitMu   sync.Mutex
 
 	// meta database
 	mdb *store.Store
@@ -615,6 +616,15 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	if err != nil {
 		return nil, err
 	}
+	if activityTimeline {
+		viewer, parseErr := uuid.FromString(profile.Uuid)
+		if parseErr != nil {
+			return nil, status.Error(codes.Internal, "profile has invalid UUID")
+		}
+		if err := s.ensureHomeTimeline(viewer, time.Now().UTC()); err != nil {
+			return nil, status.Errorf(codes.Internal, "initialize home timeline: %v", err)
+		}
+	}
 	cursorKey, err := decodeFeedCursor(req.Cursor, prefix)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid feed cursor: %v", err)
@@ -727,6 +737,54 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		}
 	}
 	return feed, nil
+}
+
+func (s *ApiServer) ensureHomeTimeline(viewer uuid.UUID, now time.Time) error {
+	s.timelineInitMu.Lock()
+	defer s.timelineInitMu.Unlock()
+
+	lastAccess, err := model.TimelineLastAccess(s.rdb, viewer)
+	if err == nil {
+		age := now.Sub(lastAccess)
+		if age >= 0 && age <= model.TimelineActiveFor {
+			if age >= model.TimelineTouchAfter {
+				return model.TouchTimelineState(s.rdb, viewer, now)
+			}
+			return nil
+		}
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+
+	feeds := []uuid.UUID{viewer}
+	seen := map[uuid.UUID]struct{}{viewer: {}}
+	followPrefix := model.NewKeyFrom(model.Follow.Prefix, viewer.Bytes())
+	if _, err := s.rdb.ForwardScan(followPrefix, func(_ int, key, _ []byte) error {
+		feed, err := uuid.FromBytes(key[len(followPrefix):])
+		if err != nil {
+			return err
+		}
+		if _, exists := seen[feed]; !exists {
+			seen[feed] = struct{}{}
+			feeds = append(feeds, feed)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	rows, skipped, err := model.BuildHomeTimeline(s.rdb, feeds, model.TimelineMaxEntries, model.TimelineRetentionMax, now)
+	if err != nil {
+		return err
+	}
+	if err := model.ReplaceHomeTimeline(s.rdb, viewer, rows); err != nil {
+		return err
+	}
+	if err := model.TouchTimelineState(s.rdb, viewer, now); err != nil {
+		return err
+	}
+	slog.Info("initialized home timeline", "viewer", viewer, "feeds", len(feeds), "entries", len(rows), "skipped_dates", skipped)
+	return nil
 }
 
 func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Key, bool, error) {

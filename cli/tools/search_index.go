@@ -28,6 +28,49 @@ type searchIndexStats struct {
 	noBody   int
 }
 
+// oauthActiveProfiles is search-specific: historical search scope remains
+// profiles with OAuth identity and must not follow Home TimelineState.
+func oauthActiveProfiles(db *store.Store) (profiles []*pb.Profile, activeProfiles map[uuid.UUID]struct{}, err error) {
+	profilesByID := make(map[string]uuid.UUID)
+	if err := model.Profile.Iter(db, func(key, raw []byte) error {
+		profile := new(pb.Profile)
+		if err := proto.Unmarshal(raw, profile); err != nil {
+			return fmt.Errorf("decode profile at %x: %w", key, err)
+		}
+		if profile.Deleted {
+			return nil
+		}
+		profileID, err := uuid.FromString(profile.Uuid)
+		if err != nil {
+			return fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+		}
+		profiles = append(profiles, profile)
+		profilesByID[profile.Id] = profileID
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+	activeProfiles = make(map[uuid.UUID]struct{})
+	if err := model.OAuth.Iter(db, func(key, raw []byte) error {
+		oauth := new(pb.OAuthUser)
+		if err := proto.Unmarshal(raw, oauth); err != nil {
+			return fmt.Errorf("decode OAuth record at %x: %w", key, err)
+		}
+		profileID, err := uuid.FromString(oauth.Uuid)
+		if err == nil {
+			activeProfiles[profileID] = struct{}{}
+			return nil
+		}
+		if profileID, exists := profilesByID[oauth.Name]; exists {
+			activeProfiles[profileID] = struct{}{}
+		}
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+	return profiles, activeProfiles, nil
+}
+
 // rebuildSearchIndex indexes every historical entry authored by profiles that
 // carry OAuth login information. The author index (EntryIndex keyed by profile
 // UUID) holds one row per entry, so each entry is indexed exactly once. idx
