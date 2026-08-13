@@ -79,15 +79,6 @@ func (s *Server) EntryHandler(c *gin.Context) {
 	// s.HTML(c, 200, "feed.html", data)
 }
 
-// newEntryUUID derives a new post's ID from the author and creation time. The
-// name material uses nanosecond precision: second precision gave every
-// same-second post of a profile the same UUID, silently overwriting the
-// earlier entry.
-func newEntryUUID(profileUuid string, dt time.Time) uuid.UUID {
-	name := profileUuid + "/" + dt.Format(time.RFC3339Nano)
-	return uuid.NewV5(uuid.NamespaceURL, name)
-}
-
 // TODO: allow cross post to multiply feeds
 func (s *Server) EntryPostHandler(c *gin.Context) {
 	var form struct {
@@ -103,10 +94,14 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	// init profile and new entry
 	profile, _ := s.CurrentUser(c)
 	dt := time.Now().UTC()
-	entryUUID := newEntryUUID(profile.Uuid, dt)
 	entry := &pb.Entry{}
 
 	if form.Id == "" { // new entry
+		entryUUID, err := uuid.NewV4()
+		if err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 		entry.Id = entryUUID.String()
 		entry.Date = dt.Format(time.RFC3339)
 	} else { // edit entry
