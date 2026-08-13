@@ -30,6 +30,9 @@ type storeAuditStats struct {
 	timelineMissingIndex int
 	timelineDuplicates   int
 	timelineTimeMismatch int
+	timelineViewers      int
+	timelineInactiveRows int
+	timelineOverLimit    int
 	sameSecondGroups     int
 	sameSecondEntries    int
 	followEdges          int
@@ -201,11 +204,35 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 	// Healthy pairs and duplicate indexes are accounted for with counters.
 	timelineMismatchedOnly := make(map[[2]uuid.UUID]struct{})
 	matchedTimelinePositions := 0
+	var timelineViewer uuid.UUID
+	timelineViewerRows := 0
+	timelineViewerActive := false
+	finishTimelineViewer := func() {
+		if timelineViewerRows == 0 {
+			return
+		}
+		stats.timelineViewers++
+		if !timelineViewerActive {
+			stats.timelineInactiveRows += timelineViewerRows
+		}
+		if timelineViewerRows > model.TimelineMaxEntries {
+			stats.timelineOverLimit++
+		}
+	}
 	if err := model.TimelineIndex.Iter(db, func(key, _ []byte) error {
 		viewer, entry, activity, err := model.ParseTimelineIndexKey(key)
 		if err != nil {
 			return err
 		}
+		if timelineViewerRows == 0 || viewer != timelineViewer {
+			finishTimelineViewer()
+			timelineViewer, timelineViewerRows = viewer, 0
+			timelineViewerActive, err = model.TimelineIsActive(db, viewer, time.Now().UTC())
+			if err != nil {
+				return err
+			}
+		}
+		timelineViewerRows++
 		if _, err := db.Get(model.Entry.PrefixAppend(entry.Bytes())); errors.Is(err, store.ErrNotFound) {
 			stats.timelineMissingEntry++
 		} else if err != nil {
@@ -239,6 +266,7 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 	}); err != nil {
 		return stats, err
 	}
+	finishTimelineViewer()
 	if err := model.TimelinePosition.Iter(db, func(key, value []byte) error {
 		if len(key) != 4+2*uuid.Size {
 			return fmt.Errorf("invalid TimelinePosition key length %d", len(key))
@@ -271,6 +299,8 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "timeline_indexes=%d timeline_positions=%d missing_entry=%d missing_position=%d missing_index=%d duplicates=%d timestamp_mismatch=%d\n",
 		stats.timelineIndexes, stats.timelinePositions, stats.timelineMissingEntry, stats.timelineMissingPos,
 		stats.timelineMissingIndex, stats.timelineDuplicates, stats.timelineTimeMismatch)
+	fmt.Fprintf(out, "timeline_viewers=%d inactive_rows=%d over_limit_viewers=%d\n",
+		stats.timelineViewers, stats.timelineInactiveRows, stats.timelineOverLimit)
 	fmt.Fprintf(out, "same_second_groups=%d same_second_entries=%d\n", stats.sameSecondGroups, stats.sameSecondEntries)
 	fmt.Fprintf(out, "follow=%d follower=%d missing_follower=%d missing_follow=%d max_followers=%d\n",
 		stats.followEdges, stats.followerEdges, stats.missingFollowerEdges, stats.missingFollowEdges, stats.maxFollowers)

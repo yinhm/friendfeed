@@ -1304,6 +1304,9 @@ func main() {
 		(command == "migrate_interactions" && dryRun) ||
 		(command == "rebuild_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun)
+	if command == "compact_timelines" && dryRun {
+		readOnly = true
+	}
 	if needsSource && fromPath == "" {
 		log.Fatal("-from is required for command ", command)
 	}
@@ -1341,6 +1344,17 @@ func main() {
 		runDBCommand(db, ndb)
 	case "rebuild_timeline":
 		runRebuildTimelineCommand(ndb)
+	case "compact_timelines":
+		stats, err := compactTimelines(ndb, timelineCompactOptions{
+			user: timelineUser, dryRun: dryRun,
+			maxRows: model.TimelineMaxEntries, retention: model.TimelineRetentionMax,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("timeline compaction: viewers=%d inactive=%d indexes=%d positions=%d deleted_indexes=%d deleted_positions=%d dry-run=%t",
+			stats.viewers, stats.inactiveViewers, stats.indexes, stats.positions,
+			stats.deletedIndexes, stats.deletedPositions, dryRun)
 	case "rebuild_social_graph":
 		runRebuildSocialGraphCommand(ndb)
 	case "migrate_media_urls":
