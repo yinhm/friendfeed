@@ -220,18 +220,23 @@ OAuth 存在性充当活跃状态。
 
 1. 只有近期访问过 Home、拥有有效 TimelineState 的 viewer 才持续接收 fanout。
 2. 长期未访问的 viewer 不维护 Home；再次访问时从当前 Follow 和 direct EntryIndex 按需重建。
-3. 每个 viewer 最多保留 10,000 条，并保留可调整的时间窗口。当前时间窗口为 MAX（不按
+3. 活跃 viewer 最多保留 10,000 条，inactive viewer 保留最近 500 条冷缓存，并保留可调整的时间窗口。当前时间窗口为 MAX（不按
    日期裁剪），实际仅受条数上限约束；未来可调整为 90 天或其他窗口。当前数据以历史内容
    为主且活跃度低，默认启用日期裁剪可能让用户 Home 无内容。
 4. 裁剪、过期或重建必须同时处理 TimelineIndex 与 TimelinePosition。
-5. TimelineState 过期后可删除该 viewer 的全部 Home 派生行，不影响 canonical source。
+5. TimelineState 过期后不再接收 fanout；compact 将其收敛为 500 条冷缓存，不影响 canonical source。
 6. 新 Entry 必须能进入活跃 viewer 的 Home，不能用“该 Entry 已有 TimelinePosition”代替
    TimelineState 判断，否则首次插入会被错误跳过。
 
 Home 热读先检查 TimelineState：一小时内无需维护时不获取协调锁。需要初始化、重建或裁剪时，
-按 viewer UUID 通过 singleflight 合并并发请求；同一 viewer 只执行一次，不同 viewer 可并行。
-跨 viewer 的昂贵维护最多同时执行 8 个，避免冷启动流量同时扫描 Pebble 导致 I/O 与内存尖峰。
-singleflight 在调用完成后自动回收 key，不保留随用户数增长的锁表。
+请求只按 viewer UUID 通过 singleflight 调度后台维护，不等待工作完成；同一 viewer 只执行一次，
+不同 viewer 可并行。跨 viewer 的昂贵维护最多同时执行 8 个，避免冷启动流量同时扫描 Pebble
+导致 I/O 与内存尖峰。singleflight 在调用完成后自动回收 key，不保留随用户数增长的锁表。
+过期 State 仍有冷缓存时立即返回 stale 数据；完全无缓存时 gRPC 返回稳定的 initializing 状态，
+ffweb 映射为 HTTP 202、`Retry-After: 2` 和两秒自动刷新。后台任务不继承 RPC deadline，并纳入
+ApiServer 的关停 WaitGroup，关闭 Pebble 前必须排干。OAuth 登录成功后只触发后台预建，不阻塞回调。
+维护失败不替换旧缓存、不刷新 State，并对该 viewer 退避 30 秒后才允许重试，避免坏数据随每次
+Home 请求反复触发昂贵扫描。
 
 该模型将写放大从“全部历史 follower × 永久历史”收敛为“活跃 follower × 有界窗口”。当前
 规模下不采用完全读时合并：跨多个 direct feed 的 iterator 合并、互动 bump 排序和 cursor
@@ -310,8 +315,9 @@ same derived tables, fewer rows
 - 有效 TimelineState：保留现有 activity 排序中满足时间窗口的前 10,000 条，成对删除其余
   108/109 行；有限窗口在 rebuild 中约束 publish 候选，在 compact 中只能按现有 activity
   判断，因为 compact 刻意不读取 Entry；
-- 无 State 或 State 已过期：用 viewer prefix 范围删除其全部 TimelineIndex/Position；
-- 当前时间窗口为 MAX，因此第一版只按活跃状态和 10,000 条上限清理；
+- 无 State 或 State 已过期：保留最近 500 条冷缓存，成对删除其余 TimelineIndex/Position；只有
+  完全没有 Index 的 position-only viewer 才整段回收；
+- 当前时间窗口为 MAX，因此第一版只按活跃状态、10,000/500 条上限清理；
 - dry-run 流式统计 viewer、现有行和预计删除行，不保留全表 key；
 - apply 使用 DeleteRange 或固定 batch，可中断并安全重跑；
 - 它只保证容量和两表成对清理，不保证 Home 与 canonical source 语义一致。

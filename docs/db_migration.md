@@ -44,8 +44,8 @@
 
 ## Home Timeline 有界缓存迁移
 
-TimelineIndex/Position 现在只维护 TimelineState 有效的活跃 viewer，每次维护收敛到最多
-10,000 条；内容时间窗口当前为 MAX，不按日期裁剪。升级顺序：
+TimelineIndex/Position 对 TimelineState 有效的活跃 viewer 最多维护 10,000 条；inactive viewer
+保留最近 500 条冷缓存，内容时间窗口当前为 MAX，不按日期裁剪。升级顺序：
 
 ```text
 1. 停止 ffdb/ffweb，完成 Entry/EntryIndex/interaction 必要迁移
@@ -63,10 +63,10 @@ publish 候选并计算 activity；`-user` 成功后创建/刷新 State，默认
 身份的用户并为其创建/刷新 State。候选外的长尾历史互动不保证恢复。全量预热会把这些用户暂时
 视为活跃，因此只在部署或明确需要重建全部真实用户时运行，不作为周期任务。
 
-`compact_timelines` 不读取 canonical 数据、不重算 activity：有效 State 仅裁剪现有排序，过期
-或无 State 的 viewer 删除全部 108/109 行。必须先 dry-run；执行可安全重跑。回滚旧二进制会
-恢复全 follower fanout，但新版本期间跳过的 inactive 派生行不会自动出现，应按用户重建，
-不要默认恢复旧式全库 timeline。
+`compact_timelines` 不读取 canonical 数据、不重算 activity：有效 State 保留现有排序前 10,000
+条，过期或无 State 的 viewer 保留前 500 条冷缓存，均成对裁剪 108/109。必须先 dry-run；执行
+可安全重跑。回滚旧二进制会恢复全 follower fanout，但新版本期间跳过的 inactive 派生行不会
+自动出现，应按用户重建，不要默认恢复旧式全库 timeline。
 
 生产执行时保留一份简短验收记录：执行日期与环境、compact dry-run/正式执行删除的 viewer
 和 108/109 行数、audit_store 摘要、重点用户首次 Home 重建耗时及随后一次热读耗时。范围删除
