@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"container/heap"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -85,9 +86,12 @@ type timelineRebuildStats struct {
 }
 
 type timelineRebuildOptions struct {
-	user     string
-	maxLimit int
-	dryRun   bool
+	user      string
+	maxLimit  int
+	dryRun    bool
+	maxRows   int
+	retention time.Duration
+	now       time.Time
 }
 
 type socialGraphEdge struct {
@@ -293,29 +297,117 @@ func rebuildSocialGraph(db *store.Store, dryRun bool) (socialGraphRebuildStats, 
 	return stats, nil
 }
 
+type timelineCandidateCursor struct {
+	iter      *store.Iterator
+	entry     uuid.UUID
+	published time.Time
+}
+
+type timelineCandidateHeap []*timelineCandidateCursor
+
+func (h timelineCandidateHeap) Len() int { return len(h) }
+func (h timelineCandidateHeap) Less(i, j int) bool {
+	if !h[i].published.Equal(h[j].published) {
+		return h[i].published.After(h[j].published)
+	}
+	return bytes.Compare(h[i].entry.Bytes(), h[j].entry.Bytes()) < 0
+}
+func (h timelineCandidateHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h *timelineCandidateHeap) Push(value any) {
+	*h = append(*h, value.(*timelineCandidateCursor))
+}
+func (h *timelineCandidateHeap) Pop() any {
+	old := *h
+	last := old[len(old)-1]
+	*h = old[:len(old)-1]
+	return last
+}
+
+func timelineRebuildBounds(options timelineRebuildOptions) (int, time.Duration, time.Time) {
+	maxRows := options.maxRows
+	if maxRows <= 0 {
+		maxRows = model.TimelineMaxEntries
+	}
+	retention := options.retention
+	if retention <= 0 {
+		retention = model.TimelineRetentionMax
+	}
+	now := options.now.UTC()
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	return maxRows, retention, now
+}
+
+func timelineCandidateAt(iter *store.Iterator, retention time.Duration, now time.Time) (uuid.UUID, time.Time, bool, error) {
+	if !iter.Valid() {
+		return uuid.Nil, time.Time{}, false, iter.Error()
+	}
+	_, entry, published, err := model.ParseEntryIndexKey(iter.UnsafeKey())
+	if err != nil {
+		return uuid.Nil, time.Time{}, false, err
+	}
+	if retention != model.TimelineRetentionMax && published.Before(now.Add(-retention)) {
+		return uuid.Nil, time.Time{}, false, nil
+	}
+	return entry, published, true, nil
+}
+
+// collectTimelineCandidates performs a forward k-way merge. EntryIndex stores
+// reverse time, so First/Next yields newest publications without Prev. Memory
+// is bounded by the feed count plus maxRows unique entries.
+func collectTimelineCandidates(db *store.Store, feeds []uuid.UUID, maxRows int, retention time.Duration, now time.Time) (map[uuid.UUID]time.Time, error) {
+	rows := make(map[uuid.UUID]time.Time, maxRows)
+	cursors := make([]*timelineCandidateCursor, 0, len(feeds))
+	defer func() {
+		for _, cursor := range cursors {
+			_ = cursor.iter.Close()
+		}
+	}()
+
+	queue := make(timelineCandidateHeap, 0, len(feeds))
+	for _, feed := range feeds {
+		iter, err := db.NewIterator(model.NewUUIDKey(model.TableEntryIndex, feed))
+		if err != nil {
+			return nil, err
+		}
+		cursor := &timelineCandidateCursor{iter: iter}
+		cursors = append(cursors, cursor)
+		iter.First()
+		entry, published, ok, err := timelineCandidateAt(iter, retention, now)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			cursor.entry, cursor.published = entry, published
+			heap.Push(&queue, cursor)
+		}
+	}
+
+	for queue.Len() > 0 && len(rows) < maxRows {
+		cursor := heap.Pop(&queue).(*timelineCandidateCursor)
+		if _, exists := rows[cursor.entry]; !exists {
+			rows[cursor.entry] = cursor.published
+		}
+		cursor.iter.Next()
+		entry, published, ok, err := timelineCandidateAt(cursor.iter, retention, now)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			cursor.entry, cursor.published = entry, published
+			heap.Push(&queue, cursor)
+		}
+	}
+	return rows, nil
+}
+
 func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options timelineRebuildOptions) (int, int, int, int, int, error) {
 	profileID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
 		return 0, 0, 0, 0, 0, fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
 	}
 
-	timelinePrefix := model.TimelineIndexPrefix(profileID)
-	existingRows := make(map[uuid.UUID]time.Time)
-	duplicates := 0
-	existing, err := db.ForwardScan(timelinePrefix, func(i int, key, value []byte) error {
-		_, entry, activity, err := model.ParseTimelineIndexKey(key)
-		if err != nil {
-			return err
-		}
-		if _, ok := existingRows[entry]; ok {
-			duplicates++
-		}
-		existingRows[entry] = activity
-		return nil
-	})
-	if err != nil {
-		return 0, 0, 0, 0, 0, fmt.Errorf("count timeline for %s: %w", profile.Id, err)
-	}
 	feeds := []uuid.UUID{profileID}
 	seenFeeds := map[uuid.UUID]struct{}{profileID: {}}
 	selectedFollows := 0
@@ -336,44 +428,24 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		return nil
 	})
 	if err != nil {
-		return 0, 0, existing, 0, duplicates, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
+		return 0, 0, 0, 0, 0, fmt.Errorf("scan follows for %s: %w", profile.Id, err)
 	}
 
-	rebuilt := make(map[uuid.UUID]time.Time)
-	for _, feedID := range feeds {
-		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
-		_, err := db.ForwardScan(feedPrefix, func(i int, key, value []byte) error {
-			_, entryID, _, err := model.ParseEntryIndexKey(key)
-			if err != nil {
-				return fmt.Errorf("EntryIndex[%x]: %w", key, err)
-			}
-			if _, seen := rebuilt[entryID]; seen {
-				return nil
-			}
-			rebuilt[entryID] = time.Time{}
-			return nil
-		})
-		if err != nil {
-			return selectedFollows, len(rebuilt), existing, 0, duplicates, fmt.Errorf("read feed %s for %s timeline: %w", feedID, profile.Id, err)
-		}
-	}
-	skippedInteractionDates, err := loadTimelineActivities(db, rebuilt, time.Now().UTC())
+	maxRows, retention, now := timelineRebuildBounds(options)
+	rebuilt, err := collectTimelineCandidates(db, feeds, maxRows, retention, now)
 	if err != nil {
-		return selectedFollows, len(rebuilt), existing, 0, duplicates, err
+		return selectedFollows, 0, 0, 0, 0, fmt.Errorf("collect timeline candidates for %s: %w", profile.Id, err)
+	}
+	skippedInteractionDates, err := loadTimelineActivities(db, rebuilt, now)
+	if err != nil {
+		return selectedFollows, len(rebuilt), 0, 0, 0, err
 	}
 	if skippedInteractionDates > 0 {
 		log.Printf("timeline for %s: skipped %d interactions with missing or invalid dates", profile.Id, skippedInteractionDates)
 	}
-	mismatches := 0
-	for entry, activity := range rebuilt {
-		if old, ok := existingRows[entry]; !ok || !old.Equal(activity) {
-			mismatches++
-		}
-	}
-	for entry := range existingRows {
-		if _, ok := rebuilt[entry]; !ok {
-			mismatches++
-		}
+	existing, mismatches, duplicates, err := compareTimelineRows(db, profileID, rebuilt)
+	if err != nil {
+		return selectedFollows, len(rebuilt), existing, mismatches, duplicates, err
 	}
 	if !options.dryRun {
 		if err := replaceTimelineRows(db, profileID, rebuilt); err != nil {
@@ -381,6 +453,47 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 		}
 	}
 	return selectedFollows, len(rebuilt), existing, mismatches, duplicates, nil
+}
+
+func compareTimelineRows(db *store.Store, viewer uuid.UUID, rebuilt map[uuid.UUID]time.Time) (existing, mismatches, duplicates int, err error) {
+	for entry, activity := range rebuilt {
+		old, getErr := model.TimelinePositionTime(db, viewer, entry)
+		positionMatches := getErr == nil && old.Equal(activity)
+		if getErr != nil && !errors.Is(getErr, store.ErrNotFound) {
+			return 0, 0, 0, getErr
+		}
+		indexKey, keyErr := model.TimelineIndexKey(viewer, entry, activity)
+		if keyErr != nil {
+			return 0, 0, 0, keyErr
+		}
+		indexExists, existsErr := db.Exists(indexKey)
+		if existsErr != nil {
+			return 0, 0, 0, existsErr
+		}
+		if !positionMatches || !indexExists {
+			mismatches++
+		}
+	}
+	seenCandidates := make(map[uuid.UUID]struct{}, len(rebuilt))
+	_, err = db.ForwardScan(model.TimelineIndexPrefix(viewer), func(_ int, key, _ []byte) error {
+		existing++
+		_, entry, _, parseErr := model.ParseTimelineIndexKey(key)
+		if parseErr != nil {
+			return parseErr
+		}
+		if _, expected := rebuilt[entry]; !expected {
+			mismatches++
+			return nil
+		}
+		if _, seen := seenCandidates[entry]; seen {
+			duplicates++
+			mismatches++
+		} else {
+			seenCandidates[entry] = struct{}{}
+		}
+		return nil
+	})
+	return existing, mismatches, duplicates, err
 }
 
 // loadTimelineActivities reads Entry, Like and Comment in UUID order using

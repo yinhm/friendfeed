@@ -474,6 +474,61 @@ func TestLoadTimelineActivitiesUsesIndependentInteractions(t *testing.T) {
 	require.False(t, exists)
 }
 
+func TestCollectTimelineCandidatesMergesFeedsAndBoundsRows(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	firstFeed := uuid.Must(uuid.NewV4())
+	secondFeed := uuid.Must(uuid.NewV4())
+	base := time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC)
+	ids := make([]uuid.UUID, 5)
+	for i := range ids {
+		ids[i] = uuid.Must(uuid.NewV4())
+		feed := firstFeed
+		if i%2 == 1 {
+			feed = secondFeed
+		}
+		entryKey := model.Entry.PrefixAppend(ids[i].Bytes())
+		require.NoError(t, model.EntryIndex.Index(db, feed, base.Add(-time.Duration(i)*time.Hour), entryKey))
+	}
+	// One entry appearing in both feeds must consume only one candidate slot.
+	require.NoError(t, model.EntryIndex.Index(db, secondFeed, base, model.Entry.PrefixAppend(ids[0].Bytes())))
+
+	rows, err := collectTimelineCandidates(db, []uuid.UUID{firstFeed, secondFeed}, 3, model.TimelineRetentionMax, base)
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	for _, id := range ids[:3] {
+		require.Contains(t, rows, id)
+	}
+	for _, id := range ids[3:] {
+		require.NotContains(t, rows, id)
+	}
+}
+
+func TestCollectTimelineCandidatesAppliesOptionalRetention(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	feed := uuid.Must(uuid.NewV4())
+	now := time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC)
+	recent := uuid.Must(uuid.NewV4())
+	old := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.EntryIndex.Index(db, feed, now.Add(-89*24*time.Hour), model.Entry.PrefixAppend(recent.Bytes())))
+	require.NoError(t, model.EntryIndex.Index(db, feed, now.Add(-91*24*time.Hour), model.Entry.PrefixAppend(old.Bytes())))
+
+	limited, err := collectTimelineCandidates(db, []uuid.UUID{feed}, 10, 90*24*time.Hour, now)
+	require.NoError(t, err)
+	require.Contains(t, limited, recent)
+	require.NotContains(t, limited, old)
+
+	unlimited, err := collectTimelineCandidates(db, []uuid.UUID{feed}, 10, model.TimelineRetentionMax, now)
+	require.NoError(t, err)
+	require.Contains(t, unlimited, recent)
+	require.Contains(t, unlimited, old)
+}
+
 func TestReplaceTimelineRowsClearsAndWritesBoundedBatches(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
