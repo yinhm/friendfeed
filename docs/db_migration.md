@@ -42,6 +42,31 @@
 路径上会被判为非法 key，混跑期间 feed 读取会报错；旧格式的分页 cursor 在升级后失效
 （cursor 为不透明短期令牌，重新翻页即可）。
 
+## Home Timeline 有界缓存迁移
+
+TimelineIndex/Position 现在只维护 TimelineState 有效的活跃 viewer，每次维护收敛到最多
+10,000 条；内容时间窗口当前为 MAX，不按日期裁剪。升级顺序：
+
+```text
+1. 停止 ffdb/ffweb，完成 Entry/EntryIndex/interaction 必要迁移
+2. 部署新二进制并恢复服务
+3. 让真实用户访问 Home，按需建立 TimelineState
+4. 对重点用户验证：./tools -to new_db -c rebuild_timeline -user yinhm -max-limit 20 -dry-run
+5. 正式重建重点用户：./tools -to new_db -c rebuild_timeline -user yinhm
+6. 评估清理：./tools -to new_db -c compact_timelines -dry-run
+7. 执行清理：./tools -to new_db -c compact_timelines
+8. ./tools -to new_db -c audit_store
+```
+
+`rebuild_timeline` 从 Follow、direct EntryIndex、Entry、Like、Comment 重新选择最多 10,000 个
+publish 候选并计算 activity；`-user` 成功后创建/刷新 State，默认只重建 State 仍有效的用户。
+候选外的长尾历史互动不保证恢复。
+
+`compact_timelines` 不读取 canonical 数据、不重算 activity：有效 State 仅裁剪现有排序，过期
+或无 State 的 viewer 删除全部 108/109 行。必须先 dry-run；执行可安全重跑。回滚旧二进制会
+恢复全 follower fanout，但新版本期间跳过的 inactive 派生行不会自动出现，应按用户重建，
+不要默认恢复旧式全库 timeline。
+
 ## v1.0.0 old DB 迁移记录
 
 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 仅存在于 `v1.0.0` tag。需要处理尚未迁移的 old DB 时，必须先使用 v1.0.0 工具完成迁移，再使用当前版本打开 new DB；不要在 master 上寻找或重新实现这些命令。

@@ -206,8 +206,15 @@ derived Home cache
 └── TimelinePosition(viewer, entry)
 ```
 
-TimelineState 至少记录初始化状态、最近访问或重建时间，以及缓存边界。具体 schema 在实施前
-另行确定；不得复用 OAuth 存在性充当活跃状态。
+TimelineState 使用 table prefix 110：
+
+```text
+key   = TableTimelineState(4 B) | viewer UUID(16 B)
+value = last_access UnixMillis(8 B, big-endian)
+```
+
+最近 30 天访问过 Home 的 viewer 视为活跃；距离上次写入不足 1 小时时不重复 touch。不得复用
+OAuth 存在性充当活跃状态。
 
 目标运行规则：
 
@@ -227,8 +234,7 @@ TimelineState 至少记录初始化状态、最近访问或重建时间，以及
 
 ### 落地边界
 
-这是后续架构方向，当前表前缀 108/109、key/value 编码和运行时语义尚未改变。实施时应按以下
-顺序独立设计和迁移：
+当前实现已按以下顺序落地，表前缀 108/109 和 key/value 编码保持不变：
 
 1. 定义 TimelineState schema、活跃判定和窗口常量；
 2. Home 访问按需初始化或刷新有界缓存；
@@ -237,8 +243,8 @@ TimelineState 至少记录初始化状态、最近访问或重建时间，以及
 5. 让 rebuild、audit 和迁移工具遵守相同窗口；
 6. 清理既有 inactive viewer 的派生行。
 
-在 TimelineState 落地前，不应只通过检查 TimelinePosition 是否存在来限制 fanout，也不应把
-OAuth 用户集合继续当成长期容量边界。
+运行时不得通过检查 TimelinePosition 是否存在来限制 fanout，也不得把 OAuth 用户集合当成
+长期容量边界。
 
 ### 有界重建的精度边界
 
@@ -295,7 +301,9 @@ same derived tables, fewer rows
 它不读取 Follow、direct EntryIndex、Like 或 Comment，不重新计算 activity，也不会补回缺失 Entry。
 它适用于部署后的批量空间回收和周期维护：
 
-- 有效 TimelineState：保留现有排序中满足时间窗口的前 10,000 条，成对删除其余 108/109 行；
+- 有效 TimelineState：保留现有 activity 排序中满足时间窗口的前 10,000 条，成对删除其余
+  108/109 行；有限窗口在 rebuild 中约束 publish 候选，在 compact 中只能按现有 activity
+  判断，因为 compact 刻意不读取 Entry；
 - 无 State 或 State 已过期：用 viewer prefix 范围删除其全部 TimelineIndex/Position；
 - 当前时间窗口为 MAX，因此第一版只按活跃状态和 10,000 条上限清理；
 - dry-run 流式统计 viewer、现有行和预计删除行，不保留全表 key；

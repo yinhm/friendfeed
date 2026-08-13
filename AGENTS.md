@@ -27,7 +27,7 @@
 - ffdb 仅允许监听 loopback，不得绑定通配地址、网卡地址或对外暴露 gRPC；改变此边界前必须先设计可信 principal。
 - job claim 使用独立 `jobMu`，queued→running 在同一 Pebble batch 提交。
 - `ApiServer.cached` 构造后只读；若允许动态增删，须用独立锁保护全部访问。
-- `PutEntry` 的 entry 与 author/group 直接索引原子提交；无上限的 Home activity timeline fanout 独立执行，错误必须返回。`DeleteEntry` 不枚举 viewer，timeline 孤儿由读路径懒删及 audit/rebuild 清理。
+- `PutEntry` 的 entry 与 author/group 直接索引原子提交；Home activity timeline 只 fanout 到 TimelineState 有效的 viewer，独立执行且错误必须返回。每个 Home 维护后最多 10,000 条，当前时间窗口为 MAX。`DeleteEntry` 不枚举 viewer，timeline 孤儿由读路径懒删及 audit/rebuild 清理。
 - FeedIndex 的 DB 检查在数据锁外；rebuild/load/dump 由 `rebuildMu` 串行，rebuild 期间的 Push 必须保留。
 - profile/timeline 通过 `FetchFeed` 的 cursor 模式分页，并兼容旧 Home `Start/PageSize` 链接；public cache 和 search 继续使用 `Start/PageSize`。cursor 只编码索引位置，解码后按当前 feed 前缀重建 key，不得解释为 entry UUID。
 - `Store.Close` 并发安全且幂等。生产关停先用 gRPC `GracefulStop` 排干请求，再关闭服务和数据库。
@@ -37,7 +37,7 @@
 - 仅支持 Pebble v2 和已由 v1.0 工具迁移完成的新库，不兼容旧库、Pebble v1 或降级运行。
 - 全库迁移/重建必须流式且内存有界；不得把全部 record、key 或 value 收集进 slice/map。小 batch 只限制单次写入，不代表内存有界；需要全量预检时使用多遍扫描，整段清理优先使用范围删除。
 - 社交图、timeline 重建和 R2 URL 改写只依赖 new DB，不重新引入 old DB。
-- timeline 只处理同时具有 profile 与 OAuth 身份的活跃用户；先针对指定用户和小 feed 上限 dry-run。
+- timeline 活跃性只由 TimelineState 判断，不以 OAuth 存在性替代；显式 `-user` 可初始化指定 profile。迁移先针对指定用户和小 feed 上限 dry-run。
 - PublicFeed 的 `public` metadata/UUID 不得由普通 feed 初始化覆盖。
 - GCS 已退出运行时，媒体使用 R2。
 
