@@ -274,3 +274,24 @@ func TestCommentDeleteHandlerRejectsInvalidForm(t *testing.T) {
 		t.Fatalf("status = %d; want %d", recorder.Code, http.StatusBadRequest)
 	}
 }
+
+func TestRequestErrorReturnsRetryableTimelineInitialization(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+
+	handled := RequestError(ctx, status.Error(codes.Unavailable, "home timeline initializing"))
+
+	if !handled {
+		t.Fatal("RequestError did not handle initializing response")
+	}
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("status = %d; want %d", recorder.Code, http.StatusAccepted)
+	}
+	if got := recorder.Header().Get("Retry-After"); got != "2" {
+		t.Fatalf("Retry-After = %q; want 2", got)
+	}
+	if got := recorder.Header().Get("Refresh"); got != "2" {
+		t.Fatalf("Refresh = %q; want 2", got)
+	}
+}

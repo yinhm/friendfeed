@@ -28,7 +28,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const homeTimelineMaintenanceLimit = 8
+const (
+	homeTimelineMaintenanceLimit = 8
+	homeTimelineInitializing     = "home timeline initializing"
+	homeTimelineFailureBackoff   = 30 * time.Second
+)
 
 // server implementation.
 type ApiServer struct {
@@ -40,6 +44,8 @@ type ApiServer struct {
 	entryLifecycleMu    sync.RWMutex
 	timelineMaintenance singleflight.Group
 	timelineBuildSlots  chan struct{}
+	timelineFailureMu   sync.Mutex
+	timelineRetryAfter  map[uuid.UUID]time.Time
 
 	// meta database
 	mdb *store.Store
@@ -112,6 +118,7 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		cached:             cached,
 		done:               make(chan struct{}),
 		timelineBuildSlots: make(chan struct{}, homeTimelineMaintenanceLimit),
+		timelineRetryAfter: make(map[uuid.UUID]time.Time),
 	}
 
 	srv.fs = media.NewStorage(cfg, 1024)
@@ -626,8 +633,12 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		if parseErr != nil {
 			return nil, status.Error(codes.Internal, "profile has invalid UUID")
 		}
-		if err := s.ensureHomeTimeline(viewer, time.Now().UTC()); err != nil {
+		initializing, err := s.prepareHomeTimeline(viewer, time.Now().UTC())
+		if err != nil {
 			return nil, status.Errorf(codes.Internal, "initialize home timeline: %v", err)
+		}
+		if initializing {
+			return nil, status.Error(codes.Unavailable, homeTimelineInitializing)
 		}
 	}
 	cursorKey, err := decodeFeedCursor(req.Cursor, prefix)
@@ -744,27 +755,68 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	return feed, nil
 }
 
-func (s *ApiServer) ensureHomeTimeline(viewer uuid.UUID, now time.Time) error {
+// prepareHomeTimeline schedules maintenance without tying it to the caller's
+// RPC context. It returns initializing only when maintenance is needed and no
+// stale row is available to render meanwhile.
+func (s *ApiServer) prepareHomeTimeline(viewer uuid.UUID, now time.Time) (bool, error) {
 	needed, err := s.homeTimelineMaintenanceNeeded(viewer, now)
 	if err != nil || !needed {
-		return err
+		return false, err
 	}
+	s.scheduleHomeTimelineMaintenance(viewer, now)
+	hasRows, err := s.homeTimelineHasRows(viewer)
+	return !hasRows, err
+}
 
-	_, err, _ = s.timelineMaintenance.Do(viewer.String(), func() (any, error) {
-		// Another request for this viewer may have completed maintenance while
-		// this request was waiting for the per-viewer singleflight call.
+func (s *ApiServer) scheduleHomeTimelineMaintenance(viewer uuid.UUID, now time.Time) {
+	s.timelineFailureMu.Lock()
+	retryAfter := s.timelineRetryAfter[viewer]
+	s.timelineFailureMu.Unlock()
+	if now.Before(retryAfter) {
+		return
+	}
+	s.timelineMaintenance.DoChan(viewer.String(), func() (any, error) {
+		if !s.beginBackgroundJob() {
+			return nil, nil
+		}
+		defer s.wg.Done()
+
+		// Another request may have completed maintenance before this call ran.
 		needed, err := s.homeTimelineMaintenanceNeeded(viewer, now)
 		if err != nil || !needed {
 			return nil, err
 		}
 
-		// Different viewers may rebuild concurrently, but bound the expensive
-		// scans so a cold-request burst cannot exhaust Pebble or memory.
-		s.timelineBuildSlots <- struct{}{}
+		select {
+		case s.timelineBuildSlots <- struct{}{}:
+		case <-s.done:
+			return nil, nil
+		}
 		defer func() { <-s.timelineBuildSlots }()
-		return nil, s.maintainHomeTimeline(viewer, now)
+		err = s.maintainHomeTimeline(viewer, now)
+		s.timelineFailureMu.Lock()
+		if err != nil {
+			s.timelineRetryAfter[viewer] = time.Now().UTC().Add(homeTimelineFailureBackoff)
+			slog.Error("home timeline maintenance failed", "viewer", viewer, "err", err)
+		} else {
+			delete(s.timelineRetryAfter, viewer)
+		}
+		s.timelineFailureMu.Unlock()
+		return nil, err
 	})
-	return err
+}
+
+func (s *ApiServer) homeTimelineHasRows(viewer uuid.UUID) (bool, error) {
+	iter, err := s.rdb.NewIterator(model.TimelineIndexPrefix(viewer))
+	if err != nil {
+		return false, err
+	}
+	defer iter.Close()
+	iter.First()
+	if err := iter.Error(); err != nil {
+		return false, err
+	}
+	return iter.Valid(), nil
 }
 
 func (s *ApiServer) homeTimelineMaintenanceNeeded(viewer uuid.UUID, now time.Time) (bool, error) {

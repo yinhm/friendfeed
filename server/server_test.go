@@ -314,6 +314,7 @@ func (s *RpcTestSuite) TestHomeCursorRanksActivityWithoutMovingProfileFeed() {
 	commentID := uuid.Must(uuid.NewV4())
 	_, _, err = model.PutComment(s.srv.rdb, profile, old, &pb.Comment{Id: commentID.String()})
 	s.Require().NoError(err)
+	s.Require().NoError(s.srv.maintainHomeTimeline(profileID, time.Now().UTC()))
 
 	home, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{ProfileUuid: profileID.String(), PageSize: 10})
 	s.Require().NoError(err)
@@ -337,6 +338,7 @@ func (s *RpcTestSuite) TestHomeCursorContinuesAfterMovedAndDeletedAnchors() {
 		})
 		s.Require().NoError(err)
 	}
+	s.Require().NoError(s.srv.maintainHomeTimeline(profileID, time.Now().UTC()))
 	first, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true,
 	})
@@ -382,6 +384,7 @@ func (s *RpcTestSuite) TestHomeStartLinkUsesActivityTimelineOffset() {
 		})
 		s.Require().NoError(err)
 	}
+	s.Require().NoError(s.srv.maintainHomeTimeline(profileID, time.Now().UTC()))
 	feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		ProfileUuid: profileID.String(), Start: 2, PageSize: 2,
 	})
@@ -406,7 +409,6 @@ func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline
 
 	const requestCount = 8
 	start := make(chan struct{})
-	results := make(chan *pb.Feed, requestCount)
 	errs := make(chan error, requestCount)
 	var wg sync.WaitGroup
 	for i := 0; i < requestCount; i++ {
@@ -414,32 +416,28 @@ func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline
 		go func() {
 			defer wg.Done()
 			<-start
-			feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+			_, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 				ProfileUuid: profileID.String(), PageSize: entryCount,
 			})
-			results <- feed
 			errs <- err
 		}()
 	}
 	close(start)
 	wg.Wait()
-	close(results)
 	close(errs)
 
 	for err := range errs {
-		s.Require().NoError(err)
+		s.Equal(codes.Unavailable, status.Code(err))
 	}
-	var expected []string
-	for feed := range results {
-		s.Require().NotNil(feed)
-		ids := feedEntryIDs(feed)
-		s.Len(ids, entryCount)
-		if expected == nil {
-			expected = ids
-		} else {
-			s.Equal(expected, ids)
-		}
-	}
+	s.Require().Eventually(func() bool {
+		active, err := model.TimelineIsActive(s.srv.rdb, profileID, time.Now().UTC())
+		return err == nil && active
+	}, 5*time.Second, 10*time.Millisecond)
+	feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: profileID.String(), PageSize: entryCount,
+	})
+	s.Require().NoError(err)
+	s.Len(feed.Entries, entryCount)
 	countRow := func(_ int, _, _ []byte) error { return nil }
 	indexRows, err := s.srv.rdb.ForwardScan(model.TimelineIndexPrefix(profileID), countRow)
 	s.Require().NoError(err)
@@ -466,14 +464,46 @@ func (s *RpcTestSuite) TestFreshHomeRequestDoesNotWaitForMaintenanceCapacity() {
 		}
 	}()
 
-	done := make(chan error, 1)
-	go func() { done <- s.srv.ensureHomeTimeline(viewer, now) }()
+	type result struct {
+		initializing bool
+		err          error
+	}
+	done := make(chan result, 1)
+	go func() {
+		initializing, err := s.srv.prepareHomeTimeline(viewer, now)
+		done <- result{initializing: initializing, err: err}
+	}()
 	select {
-	case err := <-done:
-		s.Require().NoError(err)
+	case result := <-done:
+		s.Require().NoError(result.err)
+		s.False(result.initializing)
 	case <-time.After(time.Second):
 		s.Fail("fresh Home request waited for timeline maintenance capacity")
 	}
+}
+
+func (s *RpcTestSuite) TestExpiredHomeReturnsStaleRowsWhileRebuilding() {
+	viewer := uuid.Must(uuid.NewV4())
+	entry := uuid.Must(uuid.NewV4())
+	now := time.Now().UTC()
+	_, err := model.MoveTimelineEntry(s.srv.rdb, viewer, entry, now.Add(-time.Hour), nil)
+	s.Require().NoError(err)
+	s.Require().NoError(model.TouchTimelineState(s.srv.rdb, viewer, now.Add(-model.TimelineActiveFor-time.Hour)))
+	for i := 0; i < homeTimelineMaintenanceLimit; i++ {
+		s.srv.timelineBuildSlots <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < homeTimelineMaintenanceLimit; i++ {
+			<-s.srv.timelineBuildSlots
+		}
+	}()
+
+	initializing, err := s.srv.prepareHomeTimeline(viewer, now)
+	s.Require().NoError(err)
+	s.False(initializing)
+	rows, err := s.srv.rdb.ForwardScan(model.TimelineIndexPrefix(viewer), func(int, []byte, []byte) error { return nil })
+	s.Require().NoError(err)
+	s.Equal(1, rows)
 }
 
 func feedEntryIDs(feed *pb.Feed) []string {
@@ -862,6 +892,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 
 	_, err = model.PutEntry(s.srv.rdb, entry)
 	assert.Nil(s.T(), err)
+	assert.NoError(s.T(), s.srv.maintainHomeTimeline(uuid.Must(uuid.FromString("c6f8dca8-54f0-11dd-b489-003048343a40")), time.Now().UTC()))
 
 	req := &pb.FeedRequest{
 		Id:       "yinhm",
@@ -943,6 +974,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 	}
 	_, err = s.srv.GraphFollow(ctx, fReq)
 	assert.Nil(s.T(), err)
+	assert.NoError(s.T(), s.srv.maintainHomeTimeline(uuid.Must(uuid.FromString(p2.Uuid)), time.Now().UTC()))
 
 	// post entry to p1 now fanout to p2 user timeline
 	_, err = model.PutEntry(s.srv.rdb, entry)
@@ -1599,6 +1631,30 @@ func TestShutdownIsConcurrentAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestShutdownCancelsQueuedTimelineMaintenance(t *testing.T) {
+	dbpath := t.TempDir()
+	cfg, err := util.NewConfigFromJSON("../conf/example.config.json")
+	require.NoError(t, err)
+	search.InitMockIndexService(filepath.Join(dbpath, "index"))
+	srv, err := NewApiServer(dbpath, cfg)
+	require.NoError(t, err)
+	for i := 0; i < homeTimelineMaintenanceLimit; i++ {
+		srv.timelineBuildSlots <- struct{}{}
+	}
+	srv.scheduleHomeTimelineMaintenance(uuid.Must(uuid.NewV4()), time.Now().UTC())
+
+	done := make(chan struct{})
+	go func() {
+		srv.Shutdown()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Shutdown did not cancel queued timeline maintenance")
+	}
+}
+
 // Twitter 登录完整生命周期：首次登录创建 profile 和 twitter service；
 // 重复登录保留旧 uuid（旧 uuid 可能来自 FriendFeed 迁移，绝不能重新生成）、
 // 刷新 token，且不重建 profile。
@@ -1622,6 +1678,10 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 	// twitter provider 必须创建 service
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	assert.Nil(s.T(), err)
+	s.Require().Eventually(func() bool {
+		active, activeErr := model.TimelineIsActive(s.srv.rdb, profileUUID, time.Now().UTC())
+		return activeErr == nil && active
+	}, 5*time.Second, 10*time.Millisecond)
 	services, err := model.GetServicesForProfile(s.srv.rdb, profileUUID)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 1, len(services))

@@ -71,6 +71,9 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		}
 		slog.Debug("PutService", "uuid", profile.Uuid, "username", service.Username)
 	}
+	// Login must not wait for a potentially expensive Home rebuild. Prewarm in
+	// the same bounded, per-viewer background path used by FetchFeed.
+	s.scheduleHomeTimelineMaintenance(profileUUID, time.Now().UTC())
 	return profile, nil
 }
 
