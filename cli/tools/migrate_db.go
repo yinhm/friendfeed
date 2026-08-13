@@ -53,6 +53,7 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 var destructiveCommands = map[string]bool{
 	"purge_profile":         true,
 	"purge_oauth":           true,
+	"purge_timeline":        true,
 	"purge_user_rename_map": true,
 }
 
@@ -593,6 +594,35 @@ func runPurgeOAuthCommand(ndb *store.Store) {
 	}
 }
 
+func purgeTimelineTables(db *store.Store) (map[string]int, error) {
+	removed := make(map[string]int, 3)
+	for _, table := range []struct {
+		name   string
+		prefix store.Key
+	}{
+		{name: "TimelineIndex", prefix: model.TimelineIndex.Prefix},
+		{name: "TimelinePosition", prefix: model.TimelinePosition.Prefix},
+		{name: "TimelineState", prefix: model.TimelineState.Prefix},
+	} {
+		n, err := purge_table(db, table.prefix)
+		if err != nil {
+			return removed, fmt.Errorf("purge %s: %w", table.name, err)
+		}
+		removed[table.name] = n
+	}
+	return removed, nil
+}
+
+func runPurgeTimelineCommand(ndb *store.Store) {
+	removed, err := purgeTimelineTables(ndb)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, name := range []string{"TimelineIndex", "TimelinePosition", "TimelineState"} {
+		fmt.Printf("%s: %d records removed.\n", name, removed[name])
+	}
+}
+
 func inspectUserRenameMap(db *store.Store, oldID string, maxLimit int, out io.Writer) (int, error) {
 	n := 0
 	printRecord := func(id string, raw []byte) error {
@@ -1121,6 +1151,8 @@ func main() {
 		runPurgeProfileCommand(ndb)
 	case "purge_oauth":
 		runPurgeOAuthCommand(ndb)
+	case "purge_timeline":
+		runPurgeTimelineCommand(ndb)
 	case "purge_user_rename_map":
 		runPurgeUserRenameMapCommand(ndb)
 	case "inspect_profile":

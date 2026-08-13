@@ -91,6 +91,34 @@ func TestUserRenameMapPurgeRequiresConfirmation(t *testing.T) {
 	}
 }
 
+func TestPurgeTimelineTables(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	viewer := uuid.Must(uuid.NewV4())
+	entry := uuid.Must(uuid.NewV4())
+	_, err = model.MoveTimelineEntry(db, viewer, entry, time.Now().UTC(), nil)
+	require.NoError(t, err)
+	require.NoError(t, model.TouchTimelineState(db, viewer, time.Now().UTC()))
+
+	removed, err := purgeTimelineTables(db)
+	require.NoError(t, err)
+	require.Equal(t, map[string]int{
+		"TimelineIndex": 1, "TimelinePosition": 1, "TimelineState": 1,
+	}, removed)
+	for _, prefix := range []store.Key{
+		model.TimelineIndex.Prefix, model.TimelinePosition.Prefix, model.TimelineState.Prefix,
+	} {
+		remaining, err := db.ForwardScan(prefix, func(int, []byte, []byte) error { return nil })
+		require.NoError(t, err)
+		require.Zero(t, remaining)
+	}
+	if !destructiveCommands["purge_timeline"] {
+		t.Fatal("purge_timeline is not marked destructive")
+	}
+}
+
 func TestFixTwitterOAuthFields(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)

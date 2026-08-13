@@ -68,6 +68,15 @@ publish 候选并计算 activity；`-user` 成功后创建/刷新 State，默认
 可安全重跑。回滚旧二进制会恢复全 follower fanout，但新版本期间跳过的 inactive 派生行不会
 自动出现，应按用户重建，不要默认恢复旧式全库 timeline。
 
+开发环境需要清空全部 Home 派生缓存并测试冷启动时，停掉 ffdb 后执行：
+
+```bash
+echo purge_timeline | ./tools -to new_db -c purge_timeline
+```
+
+该命令只清空 TimelineIndex、TimelinePosition、TimelineState 三张表，不删除 Entry、互动或
+社交图数据；随后访问 Home 会触发冷启动重建。
+
 生产执行时保留一份简短验收记录：执行日期与环境、compact dry-run/正式执行删除的 viewer
 和 108/109 行数、audit_store 摘要、重点用户首次 Home 重建耗时及随后一次热读耗时。范围删除
 先产生逻辑 tombstone，磁盘占用不保证立即下降；如需记录空间收益，应等待 Pebble 后台压缩后
