@@ -21,11 +21,14 @@ import (
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
 	"github.com/yinhm/friendfeed/util"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
+
+const homeTimelineMaintenanceLimit = 8
 
 // server implementation.
 type ApiServer struct {
@@ -34,8 +37,9 @@ type ApiServer struct {
 	jobMu           sync.Mutex
 	// entryLifecycleMu lets independent interaction rows mutate concurrently,
 	// while keeping them mutually exclusive with Entry create/edit/delete.
-	entryLifecycleMu sync.RWMutex
-	timelineInitMu   sync.Mutex
+	entryLifecycleMu    sync.RWMutex
+	timelineMaintenance singleflight.Group
+	timelineBuildSlots  chan struct{}
 
 	// meta database
 	mdb *store.Store
@@ -103,10 +107,11 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	cached["public"].load(mdb)
 
 	srv := &ApiServer{
-		mdb:    mdb,
-		rdb:    rdb,
-		cached: cached,
-		done:   make(chan struct{}),
+		mdb:                mdb,
+		rdb:                rdb,
+		cached:             cached,
+		done:               make(chan struct{}),
+		timelineBuildSlots: make(chan struct{}, homeTimelineMaintenanceLimit),
 	}
 
 	srv.fs = media.NewStorage(cfg, 1024)
@@ -740,9 +745,41 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 }
 
 func (s *ApiServer) ensureHomeTimeline(viewer uuid.UUID, now time.Time) error {
-	s.timelineInitMu.Lock()
-	defer s.timelineInitMu.Unlock()
+	needed, err := s.homeTimelineMaintenanceNeeded(viewer, now)
+	if err != nil || !needed {
+		return err
+	}
 
+	_, err, _ = s.timelineMaintenance.Do(viewer.String(), func() (any, error) {
+		// Another request for this viewer may have completed maintenance while
+		// this request was waiting for the per-viewer singleflight call.
+		needed, err := s.homeTimelineMaintenanceNeeded(viewer, now)
+		if err != nil || !needed {
+			return nil, err
+		}
+
+		// Different viewers may rebuild concurrently, but bound the expensive
+		// scans so a cold-request burst cannot exhaust Pebble or memory.
+		s.timelineBuildSlots <- struct{}{}
+		defer func() { <-s.timelineBuildSlots }()
+		return nil, s.maintainHomeTimeline(viewer, now)
+	})
+	return err
+}
+
+func (s *ApiServer) homeTimelineMaintenanceNeeded(viewer uuid.UUID, now time.Time) (bool, error) {
+	lastAccess, err := model.TimelineLastAccess(s.rdb, viewer)
+	if errors.Is(err, store.ErrNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	age := now.Sub(lastAccess)
+	return age < 0 || age >= model.TimelineTouchAfter, nil
+}
+
+func (s *ApiServer) maintainHomeTimeline(viewer uuid.UUID, now time.Time) error {
 	lastAccess, err := model.TimelineLastAccess(s.rdb, viewer)
 	if err == nil {
 		age := now.Sub(lastAccess)

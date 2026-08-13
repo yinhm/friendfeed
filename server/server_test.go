@@ -453,6 +453,29 @@ func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline
 	s.True(active)
 }
 
+func (s *RpcTestSuite) TestFreshHomeRequestDoesNotWaitForMaintenanceCapacity() {
+	viewer := uuid.Must(uuid.NewV4())
+	now := time.Now().UTC()
+	s.Require().NoError(model.TouchTimelineState(s.srv.rdb, viewer, now))
+	for i := 0; i < homeTimelineMaintenanceLimit; i++ {
+		s.srv.timelineBuildSlots <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < homeTimelineMaintenanceLimit; i++ {
+			<-s.srv.timelineBuildSlots
+		}
+	}()
+
+	done := make(chan error, 1)
+	go func() { done <- s.srv.ensureHomeTimeline(viewer, now) }()
+	select {
+	case err := <-done:
+		s.Require().NoError(err)
+	case <-time.After(time.Second):
+		s.Fail("fresh Home request waited for timeline maintenance capacity")
+	}
+}
+
 func feedEntryIDs(feed *pb.Feed) []string {
 	ids := make([]string, len(feed.Entries))
 	for i := range feed.Entries {

@@ -228,6 +228,11 @@ OAuth 存在性充当活跃状态。
 6. 新 Entry 必须能进入活跃 viewer 的 Home，不能用“该 Entry 已有 TimelinePosition”代替
    TimelineState 判断，否则首次插入会被错误跳过。
 
+Home 热读先检查 TimelineState：一小时内无需维护时不获取协调锁。需要初始化、重建或裁剪时，
+按 viewer UUID 通过 singleflight 合并并发请求；同一 viewer 只执行一次，不同 viewer 可并行。
+跨 viewer 的昂贵维护最多同时执行 8 个，避免冷启动流量同时扫描 Pebble 导致 I/O 与内存尖峰。
+singleflight 在调用完成后自动回收 key，不保留随用户数增长的锁表。
+
 该模型将写放大从“全部历史 follower × 永久历史”收敛为“活跃 follower × 有界窗口”。当前
 规模下不采用完全读时合并：跨多个 direct feed 的 iterator 合并、互动 bump 排序和 cursor
 状态更复杂，读取成本也会随关注数增长。
