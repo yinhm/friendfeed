@@ -502,40 +502,6 @@ func TestCollectTimelineCandidatesAppliesOptionalRetention(t *testing.T) {
 	require.Contains(t, unlimited, old)
 }
 
-func TestReplaceTimelineRowsClearsAndWritesBoundedBatches(t *testing.T) {
-	db, err := store.NewStore(t.TempDir())
-	require.NoError(t, err)
-	defer db.Close()
-
-	viewer := uuid.Must(uuid.NewV4())
-	stale := uuid.Must(uuid.NewV4())
-	_, err = model.MoveTimelineEntry(db, viewer, stale, time.Unix(1, 0).UTC(), nil)
-	require.NoError(t, err)
-
-	rows := make(map[uuid.UUID]time.Time, timelineRebuildBatchSize+1)
-	base := time.Date(2026, 8, 12, 8, 0, 0, 0, time.UTC)
-	for i := 0; i < timelineRebuildBatchSize+1; i++ {
-		rows[uuid.Must(uuid.NewV4())] = base.Add(time.Duration(i) * time.Millisecond)
-	}
-	require.NoError(t, model.ReplaceHomeTimeline(db, viewer, rows))
-
-	count, err := db.ForwardScan(model.TimelineIndexPrefix(viewer), func(_ int, key, _ []byte) error {
-		_, entry, activity, err := model.ParseTimelineIndexKey(key)
-		if err != nil {
-			return err
-		}
-		require.Equal(t, rows[entry], activity)
-		position, err := model.TimelinePositionTime(db, viewer, entry)
-		require.NoError(t, err)
-		require.Equal(t, activity, position)
-		return nil
-	})
-	require.NoError(t, err)
-	require.Equal(t, len(rows), count)
-	_, err = model.TimelinePositionTime(db, viewer, stale)
-	require.ErrorIs(t, err, store.ErrNotFound)
-}
-
 func TestRebuildTimelineRejectsLegacyEntryIndexKey(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)

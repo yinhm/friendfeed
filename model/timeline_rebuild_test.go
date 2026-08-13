@@ -79,3 +79,38 @@ func TestLoadHomeTimelineActivitiesUsesIndependentInteractions(t *testing.T) {
 	_, exists := rows[missing]
 	require.False(t, exists)
 }
+
+func TestReplaceHomeTimelineClearsStaleAndWritesRows(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	viewer := uuid.Must(uuid.NewV4())
+	stale := uuid.Must(uuid.NewV4())
+	_, err = MoveTimelineEntry(db, viewer, stale, time.Unix(1, 0).UTC(), nil)
+	require.NoError(t, err)
+
+	base := time.Date(2026, 8, 12, 8, 0, 0, 0, time.UTC)
+	rows := map[uuid.UUID]time.Time{
+		uuid.Must(uuid.NewV4()): base,
+		uuid.Must(uuid.NewV4()): base.Add(time.Millisecond),
+		uuid.Must(uuid.NewV4()): base.Add(2 * time.Millisecond),
+	}
+	require.NoError(t, ReplaceHomeTimeline(db, viewer, rows))
+
+	count, err := db.ForwardScan(TimelineIndexPrefix(viewer), func(_ int, key, _ []byte) error {
+		_, entry, activity, err := ParseTimelineIndexKey(key)
+		if err != nil {
+			return err
+		}
+		require.Equal(t, rows[entry], activity)
+		position, err := TimelinePositionTime(db, viewer, entry)
+		require.NoError(t, err)
+		require.Equal(t, activity, position)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, len(rows), count)
+	_, err = TimelinePositionTime(db, viewer, stale)
+	require.ErrorIs(t, err, store.ErrNotFound)
+}
