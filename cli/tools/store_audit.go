@@ -84,13 +84,17 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		}
 		for _, owner := range owners {
 			expectedDirectIndexes++
-			value, err := db.Get(expectedEntryIndexKey(db, owner, date, canonicalKey))
-			if errors.Is(err, store.ErrNotFound) || (err == nil && !bytes.Equal(value, canonicalKey)) {
-				stats.missingDirectIndexes++
-				continue
-			}
+			expected, err := expectedEntryIndexKey(owner, date, canonicalKey)
 			if err != nil {
 				return err
+			}
+			exists, err := db.Exists(expected)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				stats.missingDirectIndexes++
+				continue
 			}
 			foundDirectIndexes++
 		}
@@ -161,23 +165,17 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		}
 	}
 	if err := model.EntryIndex.Iter(db, func(key, value []byte) error {
-		if len(key) < 4+uuid.Size+16 {
-			return fmt.Errorf("invalid EntryIndex key length %d", len(key))
-		}
-		owner, _ := uuid.FromBytes(key[4 : 4+uuid.Size])
-		if _, err := canonicalEntryKeyFromIndexValue(value); err != nil {
+		owner, _, _, err := model.ParseEntryIndexKey(key)
+		if err != nil {
 			stats.noncanonicalIndexes++
 			stats.entryIndexes++
 			return nil
 		}
 		canonicalIndexes++
-		// EntryIndex is ordered by owner then reverse Flake. Its first eight
-		// Flake bytes encode the deterministic reverse second; grouping here
-		// detects collision-prone direct-index positions without reading Entry.
+		// EntryIndex is ordered by owner then reverse Unix ms. Grouping on the
+		// eight reverse-time bytes detects collision-prone direct-index
+		// positions without reading Entry.
 		const reverseTimestampOffset = 4 + uuid.Size
-		if len(key) < reverseTimestampOffset+8 {
-			return fmt.Errorf("invalid EntryIndex key length %d", len(key))
-		}
 		second := int64(binary.BigEndian.Uint64(key[reverseTimestampOffset : reverseTimestampOffset+8]))
 		if groupCount > 0 && (owner != groupOwner || second != groupSecond) {
 			finishSameSecond()

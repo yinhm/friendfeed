@@ -54,11 +54,11 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 		if err := batch.Set(key, encodedEntry, nil); err != nil {
 			return fmt.Errorf("write entry: %w", err)
 		}
-		if err := EntryIndex.indexBatch(db, batch, userUuid, oldtime, key); err != nil {
+		if err := EntryIndex.indexBatch(batch, userUuid, oldtime, key); err != nil {
 			return fmt.Errorf("index entry for author: %w", err)
 		}
 		if userUuid != feedUuid {
-			if err := EntryIndex.indexBatch(db, batch, feedUuid, oldtime, key); err != nil {
+			if err := EntryIndex.indexBatch(batch, feedUuid, oldtime, key); err != nil {
 				return fmt.Errorf("index entry for feed: %w", err)
 			}
 		}
@@ -160,11 +160,11 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 	// Activity timeline rows are derived, unbounded fanout state. Readers
 	// remove stale rows lazily; audit/rebuild handles rows never read again.
 	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
-		if err := EntryIndex.removeIndexBatch(db, batch, profileUuid, oldtime, entryKey); err != nil {
+		if err := EntryIndex.removeIndexBatch(batch, profileUuid, oldtime, entryKey); err != nil {
 			return fmt.Errorf("remove author entry index: %w", err)
 		}
 		if feedUuid != profileUuid {
-			if err := EntryIndex.removeIndexBatch(db, batch, feedUuid, oldtime, entryKey); err != nil {
+			if err := EntryIndex.removeIndexBatch(batch, feedUuid, oldtime, entryKey); err != nil {
 				return fmt.Errorf("remove feed entry index: %w", err)
 			}
 		}

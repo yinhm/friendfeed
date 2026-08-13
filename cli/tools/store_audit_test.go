@@ -35,8 +35,10 @@ func TestAuditStoreFindsIndexAndGraphDrift(t *testing.T) {
 	require.NoError(t, db.Put(followerKey, []byte("1")))
 
 	orphanOwner := uuid.Must(uuid.NewV4())
-	orphanIndex := store.NewUUIDFlakeKey(model.TableEntryIndex, orphanOwner, db.NextId())
-	require.NoError(t, db.Put(orphanIndex.Bytes(), model.Entry.PrefixAppend(uuid.Must(uuid.NewV4()).Bytes())))
+	orphanEntry := uuid.Must(uuid.NewV4())
+	orphanIndex, err := model.EntryIndexKey(orphanOwner, orphanEntry, time.Now().UTC())
+	require.NoError(t, err)
+	require.NoError(t, db.Put(orphanIndex, nil))
 
 	stats, err := auditStore(db)
 	require.NoError(t, err)
@@ -56,23 +58,22 @@ func TestAuditStoreFindsIndexAndGraphDrift(t *testing.T) {
 	require.Equal(t, 1, stats.maxFollowers)
 }
 
-func TestAuditStoreReportsPrefixedUUIDEntryIndexValue(t *testing.T) {
+func TestAuditStoreReportsLegacyEntryIndexKey(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
 	author := uuid.Must(uuid.NewV4())
 	entryID := uuid.Must(uuid.NewV4())
 	date := time.Now().UTC().Truncate(time.Second)
-	_, err = model.PutEntry(db, &pb.Entry{
+	entryKey, err := model.PutEntry(db, &pb.Entry{
 		Id: entryID.String(), Date: date.Format(time.RFC3339), ProfileUuid: author.String(),
 		From: &pb.Feed{Uuid: author.String()},
 	})
 	require.NoError(t, err)
-	prefix := store.NewUUIDKey(model.TableEntryIndex, author).Bytes()
-	_, err = db.ForwardScan(prefix, func(_ int, key, value []byte) error {
-		return db.Put(key, append(model.Entry.Prefix.Copy(), []byte(entryID.String())...))
-	})
-	require.NoError(t, err)
+	// Replace the current-format row with a legacy Flake-shaped row.
+	require.NoError(t, model.EntryIndex.RemoveIndex(db, author, date, entryKey))
+	legacyKey := store.NewUUIDFlakeKey(model.TableEntryIndex, author, db.TimeTravelReverseId(date)).Bytes()
+	require.NoError(t, db.Put(legacyKey, entryKey))
 
 	stats, err := auditStore(db)
 	require.NoError(t, err)

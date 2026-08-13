@@ -27,6 +27,21 @@
 
     ./tools -to new_db -c migrate_media_urls
 
+## EntryIndex 44 B 格式迁移
+
+当前 EntryIndex 为 `T | owner UUID | reverse Unix ms(8) | entry UUID(16)`（44 B，value
+为空）。含旧格式（56 B reverse Flake + canonical key 后缀，或更早的 36 B 无后缀）的库
+升级后执行：
+
+    ./tools -to new_db -c migrate_entry_index -dry-run        # 演练，不写盘
+    ./tools -to new_db -c migrate_entry_index                 # 可用 -max-limit 先小范围验证
+
+迁移按键直接转换：Entry.Date 为整秒，reverse Unix ms 可由 reverse Flake 精确还原，无需
+读取 Entry；重复的 legacy 行会折叠到同一新 key。也可以用 `rebuild_entry_index` 从 Entry
+源数据清空重建。应按 schema 升级惯例停服执行：旧代码写入的 56/36 B 行在新代码的读取
+路径上会被判为非法 key，混跑期间 feed 读取会报错；旧格式的分页 cursor 在升级后失效
+（cursor 为不透明短期令牌，重新翻页即可）。
+
 ## v1.0.0 old DB 迁移记录
 
 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 仅存在于 `v1.0.0` tag。需要处理尚未迁移的 old DB 时，必须先使用 v1.0.0 工具完成迁移，再使用当前版本打开 new DB；不要在 master 上寻找或重新实现这些命令。

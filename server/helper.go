@@ -221,9 +221,12 @@ func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
 
 	url := ""
 	_, _ = db.ForwardScan(preKey, func(i int, k, v []byte) error {
-		// slog.Debug("entry key", "value", hex.EncodeToString(v))
+		_, entryUUID, _, err := model.ParseEntryIndexKey(k)
+		if err != nil {
+			return err
+		}
 		entry := new(pb.Entry)
-		rawdata, err := db.Get(v) // index value point to entry key
+		rawdata, err := db.Get(model.Entry.PrefixAppend(entryUUID.Bytes()))
 		if errors.Is(err, store.ErrNotFound) {
 			return nil
 		}

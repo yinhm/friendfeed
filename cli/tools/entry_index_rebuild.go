@@ -153,9 +153,12 @@ func scanEntryIndexSources(db *store.Store, selected uuid.UUID, maxLimit int, fn
 	return stats, err
 }
 
-func expectedEntryIndexKey(db *store.Store, target uuid.UUID, date time.Time, entryKey store.Key) store.Key {
-	base := store.NewUUIDFlakeKey(model.TableEntryIndex, target, db.TimeTravelReverseId(date))
-	return model.NewKeyFrom(base.Bytes(), entryKey)
+func expectedEntryIndexKey(target uuid.UUID, date time.Time, entryKey store.Key) (store.Key, error) {
+	entryID, err := uuid.FromBytes(entryKey[model.Entry.Prefix.Len():])
+	if err != nil {
+		return nil, err
+	}
+	return model.EntryIndexKey(target, entryID, date)
 }
 
 // compareEntryIndexes validates both directions without retaining every entry
@@ -166,15 +169,15 @@ func compareEntryIndexes(db *store.Store, selected uuid.UUID, maxLimit int, stat
 	_, err := scanEntryIndexSources(db, selected, maxLimit, func(record entryIndexRebuildRecord) error {
 		for _, target := range record.direct {
 			checked[target] = struct{}{}
-			value, err := db.Get(expectedEntryIndexKey(db, target, record.date, record.key))
-			if errors.Is(err, store.ErrNotFound) {
-				mismatched[target] = true
-				continue
-			}
+			expected, err := expectedEntryIndexKey(target, record.date, record.key)
 			if err != nil {
 				return err
 			}
-			if !bytes.Equal(value, record.key) {
+			exists, err := db.Exists(expected)
+			if err != nil {
+				return err
+			}
+			if !exists {
 				mismatched[target] = true
 			}
 		}
@@ -197,13 +200,13 @@ func compareEntryIndexes(db *store.Store, selected uuid.UUID, maxLimit int, stat
 			// reports whether each source-derived feed can be rebuilt exactly.
 			return nil
 		}
-		entryKey, err := canonicalEntryKeyFromIndexValue(value)
+		_, entryID, _, err := model.ParseEntryIndexKey(key)
 		if err != nil {
 			mismatched[target] = true
 			return nil
 		}
 		entry := new(pb.Entry)
-		if err := model.Entry.Get(db, entryKey[model.Entry.Prefix.Len():], entry); err != nil {
+		if err := model.Entry.Get(db, entryID.Bytes(), entry); err != nil {
 			if errors.Is(err, model.ErrNotFound) {
 				mismatched[target] = true
 				return nil
@@ -229,7 +232,11 @@ func compareEntryIndexes(db *store.Store, selected uuid.UUID, maxLimit int, stat
 		if err != nil {
 			return err
 		}
-		if !bytes.Equal(key, expectedEntryIndexKey(db, target, date, entryKey)) {
+		expected, err := model.EntryIndexKey(target, entryID, date)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(key, expected) {
 			mismatched[target] = true
 			stats.duplicateIndexes++
 		}

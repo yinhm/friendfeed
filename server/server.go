@@ -20,7 +20,6 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
-	"github.com/yinhm/friendfeed/store/flake"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -542,11 +541,17 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 			return nil // continue
 		}
 
-		// slog.Debug("entry key", "index_key", hex.EncodeToString(k), "entry_key", hex.EncodeToString(v))
+		// Direct index values are empty; the entry UUID lives in the index
+		// key suffix.
+		_, entryUUID, _, err := model.ParseEntryIndexKey(k)
+		if err != nil {
+			return err
+		}
+		entryKey := model.Entry.PrefixAppend(entryUUID.Bytes())
 		entry := new(pb.Entry)
-		rawdata, err := s.rdb.Get(v) // index value point to entry key
+		rawdata, err := s.rdb.Get(entryKey)
 		if errors.Is(err, store.ErrNotFound) {
-			slog.Debug("user feed: entry missing", "index_key", hex.EncodeToString(k), "entry_key", hex.EncodeToString(v))
+			slog.Debug("user feed: entry missing", "index_key", hex.EncodeToString(k), "entry_key", hex.EncodeToString(entryKey))
 			// slient delete the key from index
 			s.rdb.Delete(k)
 			slog.Debug("deleting", "key", hex.EncodeToString(k))
@@ -622,9 +627,9 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	defer iter.Close()
 	if len(cursorKey) > 0 {
 		iter.SeekGE(cursorKey)
-		if iter.Valid() && (bytes.Equal(iter.UnsafeRawKey(), cursorKey) ||
-			(!activityTimeline && len(cursorKey) == len(prefix)+feedFlakeCursorPositionSize() &&
-				bytes.HasPrefix(iter.UnsafeRawKey(), cursorKey))) {
+		// The cursor encodes the full index position, so an exact key match is
+		// the previously rendered row; step past it.
+		if iter.Valid() && bytes.Equal(iter.UnsafeRawKey(), cursorKey) {
 			iter.Next()
 		}
 	} else {
@@ -643,7 +648,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	items := make([]cursorFeedEntry, 0, req.PageSize+1)
 	for iter.Valid() && len(items) <= int(req.PageSize) {
 		indexKey := iter.Key()
-		entryKey := iter.Value()
+		var entryKey store.Key
 		var timelineEntryUUID uuid.UUID
 		var timelineViewerUUID uuid.UUID
 		if activityTimeline {
@@ -652,6 +657,14 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 				return nil, err
 			}
 			entryKey = model.Entry.PrefixAppend(timelineEntryUUID.Bytes())
+		} else {
+			// Direct index values are empty; the entry UUID lives in the
+			// index key suffix.
+			_, entryUUID, _, parseErr := model.ParseEntryIndexKey(indexKey)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			entryKey = model.Entry.PrefixAppend(entryUUID.Bytes())
 		}
 		entry := new(pb.Entry)
 		rawdata, getErr := s.rdb.Get(entryKey)
@@ -743,20 +756,17 @@ func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Ke
 	return profile, store.NewUUIDKey(model.TableEntryIndex, profileUUID).Bytes(), false, nil
 }
 
+// feedCursorPositionSize is the cursor payload shared by TimelineIndex and
+// direct EntryIndex positions: reverse Unix ms (8 B) + entry UUID (16 B).
+const feedCursorPositionSize = 8 + uuid.Size
+
 func encodeFeedCursor(key, prefix store.Key) string {
 	if !bytes.HasPrefix(key, prefix) {
 		return ""
 	}
 	position := key[len(prefix):]
-	if isTimelineCursorPrefix(prefix) {
-		if len(position) != 8+uuid.Size {
-			return ""
-		}
-	} else {
-		if len(position) < feedFlakeCursorPositionSize() {
-			return ""
-		}
-		position = position[:feedFlakeCursorPositionSize()]
+	if len(position) != feedCursorPositionSize {
+		return ""
 	}
 	return util.Base58Encode(position)
 }
@@ -769,31 +779,13 @@ func decodeFeedCursor(cursor string, prefix store.Key) (store.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	if isTimelineCursorPrefix(prefix) {
-		if len(position) != 8+uuid.Size {
-			return nil, errors.New("invalid cursor position")
-		}
-	} else {
-		if len(position) != feedFlakeCursorPositionSize() {
-			return nil, errors.New("invalid cursor position")
-		}
+	if len(position) != feedCursorPositionSize {
+		return nil, errors.New("invalid cursor position")
 	}
 	key := make(store.Key, 0, len(prefix)+len(position))
 	key = append(key, prefix...)
 	key = append(key, position...)
 	return key, nil
-}
-
-func isTimelineCursorPrefix(prefix store.Key) bool {
-	if bytes.Equal(prefix[:model.TimelineIndex.Prefix.Len()], model.TimelineIndex.Prefix) {
-		return true
-	}
-	return false
-}
-
-func feedFlakeCursorPositionSize() int {
-	var flakeID flake.Id
-	return len(flakeID)
 }
 
 func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.Feed, error) {

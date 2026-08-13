@@ -11,7 +11,6 @@ import (
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/store"
-	"github.com/yinhm/friendfeed/store/flake"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -100,31 +99,29 @@ func (t *Table) Delete(db *store.Store, key store.Key) error {
 	return db.Delete(k)
 }
 
-// Reversed Entry index:
-// K-> | table | user uuid | Maxime - ts-flake |
-// V-> |      +++++   entry key   ++++++      |
+// Reversed Entry index, mirroring the TimelineIndex layout:
+//
+//	K-> | table | owner uuid | reverse unix ms | entry uuid |
+//	V-> empty
+//
+// The key is deterministic, so re-indexing one entry overwrites the same row.
+// Readers reconstruct the canonical Entry key from the key suffix.
 func (t *Table) Index(db *store.Store, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
-	if err := validateCanonicalEntryKey(entryKey); err != nil {
+	k, err := entryIndexKey(indexUUID, oldtime, entryKey)
+	if err != nil {
 		return err
 	}
-	if err := removePreviousEntryIndex(db, nil, indexUUID, oldtime, entryKey); err != nil {
-		return err
-	}
-	return db.Put(entryIndexKey(db, indexUUID, oldtime, entryKey), entryKey)
+	return db.Set(k, nil)
 }
 
-// indexBatch preserves Index's key encoding and duplicate-removal semantics
-// while adding its mutations to the caller's atomic batch.
-func (t *Table) indexBatch(db *store.Store, batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
-	if err := validateCanonicalEntryKey(entryKey); err != nil {
+// indexBatch preserves Index's key encoding and overwrite semantics while
+// adding its mutations to the caller's atomic batch.
+func (t *Table) indexBatch(batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
+	k, err := entryIndexKey(indexUUID, oldtime, entryKey)
+	if err != nil {
 		return err
 	}
-	if err := removePreviousEntryIndex(db, batch, indexUUID, oldtime, entryKey); err != nil {
-		return err
-	}
-	flakeid := db.TimeTravelReverseId(oldtime)
-	k := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeid)
-	return batch.Set(NewKeyFrom(k.Bytes(), entryKey), entryKey, nil)
+	return batch.Set(k, nil, nil)
 }
 
 func validateCanonicalEntryKey(key store.Key) error {
@@ -140,39 +137,62 @@ func validateCanonicalEntryKey(key store.Key) error {
 	return nil
 }
 
-func removePreviousEntryIndex(db *store.Store, batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
-	flakeID := db.TimeTravelReverseId(oldtime)
-	base := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeID)
-	var layout flake.Generator
-	uniqueSuffixSize := len(layout.WorkerId) + binary.Size(layout.Sequence)
-	timestampPrefix := base.Bytes()[:base.Len()-uniqueSuffixSize]
-	_, err := db.ForwardScan(timestampPrefix, func(_ int, key, value []byte) error {
-		if !bytes.Equal(value, entryKey) {
-			return nil
-		}
-		if batch != nil {
-			return batch.Delete(key, nil)
-		}
-		return db.Delete(key)
-	})
+// EntryIndexKey encodes a direct feed index row: owner UUID, reverse Unix
+// millisecond activity time and entry UUID. The value is empty.
+func EntryIndexKey(owner, entry uuid.UUID, at time.Time) (store.Key, error) {
+	reverse, err := reverseTimelineMillis(at)
 	if err != nil {
-		return fmt.Errorf("remove previous entry index: %w", err)
+		return nil, err
 	}
-	return nil
+	return NewKeyFrom(EntryIndex.Prefix, owner.Bytes(), reverse[:], entry.Bytes()), nil
 }
 
-func entryIndexKey(db *store.Store, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) store.Key {
-	flakeID := db.TimeTravelReverseId(oldtime)
-	base := store.NewUUIDFlakeKey(TableEntryIndex, indexUUID, flakeID)
-	return NewKeyFrom(base.Bytes(), entryKey)
+// EntryIndexKeySize is the encoded direct feed index key length:
+// table prefix (4) + owner UUID (16) + reverse Unix ms (8) + entry UUID (16).
+const EntryIndexKeySize = 4 + uuid.Size + 8 + uuid.Size
+
+// ParseEntryIndexKey decodes a direct feed index key written by EntryIndexKey.
+func ParseEntryIndexKey(key store.Key) (owner, entry uuid.UUID, at time.Time, err error) {
+	if len(key) != EntryIndexKeySize {
+		return owner, entry, at, fmt.Errorf("invalid EntryIndex key length %d", len(key))
+	}
+	owner, err = uuid.FromBytes(key[4 : 4+uuid.Size])
+	if err != nil {
+		return owner, entry, at, err
+	}
+	ms := ^binary.BigEndian.Uint64(key[4+uuid.Size : 4+uuid.Size+8])
+	if ms > uint64(^uint64(0)>>1) {
+		return owner, entry, at, errors.New("entry index timestamp overflows int64")
+	}
+	entry, err = uuid.FromBytes(key[4+uuid.Size+8:])
+	return owner, entry, time.UnixMilli(int64(ms)).UTC(), err
+}
+
+func entryIndexKey(indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) (store.Key, error) {
+	if err := validateCanonicalEntryKey(entryKey); err != nil {
+		return nil, err
+	}
+	entryUUID, err := uuid.FromBytes(entryKey[Entry.Prefix.Len():])
+	if err != nil {
+		return nil, fmt.Errorf("noncanonical Entry key UUID: %w", err)
+	}
+	return EntryIndexKey(indexUUID, entryUUID, oldtime)
 }
 
 func (t *Table) RemoveIndex(db *store.Store, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
-	return db.Delete(entryIndexKey(db, indexUUID, oldtime, entryKey))
+	k, err := entryIndexKey(indexUUID, oldtime, entryKey)
+	if err != nil {
+		return err
+	}
+	return db.Delete(k)
 }
 
-func (t *Table) removeIndexBatch(db *store.Store, batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
-	return batch.Delete(entryIndexKey(db, indexUUID, oldtime, entryKey), nil)
+func (t *Table) removeIndexBatch(batch *pebble.Batch, indexUUID uuid.UUID, oldtime time.Time, entryKey store.Key) error {
+	k, err := entryIndexKey(indexUUID, oldtime, entryKey)
+	if err != nil {
+		return err
+	}
+	return batch.Delete(k, nil)
 }
 
 func (t *Table) Keys(db *store.Store, ks ...string) (keys []string, err error) {

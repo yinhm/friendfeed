@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
@@ -88,19 +87,18 @@ func TestRebuildEntryIndexesForOneUserIsBounded(t *testing.T) {
 	require.Equal(t, 1, stats.direct)
 	require.Zero(t, stats.removed, "a scoped rebuild must not clear the shared index table")
 
-	assertIndexed := func(owner uuid.UUID, entryKey store.Key) {
+	assertIndexed := func(owner uuid.UUID, entryKey store.Key, date time.Time) {
 		t.Helper()
-		found := false
-		prefix := store.NewUUIDKey(model.TableEntryIndex, owner).Bytes()
-		_, err := db.ForwardScan(prefix, func(_ int, _, value []byte) error {
-			found = found || bytes.Equal(value, entryKey)
-			return nil
-		})
+		entryID, err := uuid.FromBytes(entryKey[model.Entry.Prefix.Len():])
 		require.NoError(t, err)
-		require.True(t, found)
+		expected, err := model.EntryIndexKey(owner, entryID, date)
+		require.NoError(t, err)
+		value, err := db.Get(expected)
+		require.NoError(t, err)
+		require.Empty(t, value)
 	}
-	assertIndexed(selected, selectedEntry)
-	assertIndexed(other, otherEntry)
+	assertIndexed(selected, selectedEntry, date)
+	assertIndexed(other, otherEntry, date.Add(time.Minute))
 }
 
 func TestRebuildEntryIndexesRequiresCanonicalEntryKeys(t *testing.T) {

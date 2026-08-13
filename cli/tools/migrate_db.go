@@ -343,13 +343,9 @@ func rebuildTimelineForProfile(db *store.Store, profile *pb.Profile, options tim
 	for _, feedID := range feeds {
 		feedPrefix := model.NewUUIDKey(model.TableEntryIndex, feedID)
 		_, err := db.ForwardScan(feedPrefix, func(i int, key, value []byte) error {
-			entryKey, err := canonicalEntryKeyFromIndexValue(value)
+			_, entryID, _, err := model.ParseEntryIndexKey(key)
 			if err != nil {
 				return fmt.Errorf("EntryIndex[%x]: %w", key, err)
-			}
-			entryID, err := uuid.FromBytes(entryKey[model.Entry.Prefix.Len():])
-			if err != nil {
-				return err
 			}
 			if _, seen := rebuilt[entryID]; seen {
 				return nil
@@ -520,23 +516,6 @@ func replaceTimelineRows(db *store.Store, viewer uuid.UUID, rows map[uuid.UUID]t
 		}
 	}
 	return flush()
-}
-
-// canonicalEntryKeyFromIndexValue enforces the runtime EntryIndex value
-// contract. Historical string keys must be repaired with migrate_entry_keys
-// followed by rebuild_entry_index before rebuilding Home timelines.
-func canonicalEntryKeyFromIndexValue(value []byte) (store.Key, error) {
-	const keySize = 4 + uuid.Size
-	if len(value) != keySize {
-		return nil, fmt.Errorf("noncanonical entry key length %d; run migrate_entry_keys then rebuild_entry_index", len(value))
-	}
-	if !bytes.Equal(value[:model.Entry.Prefix.Len()], model.Entry.Prefix) {
-		return nil, fmt.Errorf("entry key has table prefix %x, want %x", value[:model.Entry.Prefix.Len()], model.Entry.Prefix)
-	}
-	if _, err := uuid.FromBytes(value[model.Entry.Prefix.Len():]); err != nil {
-		return nil, fmt.Errorf("entry key UUID: %w", err)
-	}
-	return append(store.Key(nil), value...), nil
 }
 
 type timelineEvent struct {

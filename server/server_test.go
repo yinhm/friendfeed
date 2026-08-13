@@ -23,7 +23,6 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
-	"github.com/yinhm/friendfeed/store/flake"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -275,8 +274,7 @@ func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
 
 func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
 	prefix := store.NewUUIDKey(model.TableEntryIndex, uuid.Must(uuid.NewV4())).Bytes()
-	var flakeID flake.Id
-	position := make([]byte, len(flakeID)+model.Entry.Prefix.Len()+uuid.Size)
+	position := make([]byte, 8+uuid.Size)
 	for i := range position {
 		position[i] = byte(i + 1)
 	}
@@ -285,15 +283,15 @@ func (s *RpcTestSuite) TestFeedCursorOmitsFixedIndexPrefix() {
 	cursor := encodeFeedCursor(key, prefix)
 	encoded, err := util.Base58Decode(cursor)
 	s.Require().NoError(err)
-	s.Equal(position[:len(flakeID)], encoded)
+	s.Equal([]byte(position), encoded)
 
 	decoded, err := decodeFeedCursor(cursor, prefix)
 	s.Require().NoError(err)
-	s.Equal(key[:len(prefix)+len(flakeID)], decoded)
+	s.Equal(key, decoded)
 
-	_, err = decodeFeedCursor(util.Base58Encode(position[:len(flakeID)-1]), prefix)
+	_, err = decodeFeedCursor(util.Base58Encode(position[:len(position)-1]), prefix)
 	s.Error(err)
-	_, err = decodeFeedCursor(util.Base58Encode(position), prefix)
+	_, err = decodeFeedCursor(util.Base58Encode(append(append([]byte(nil), position...), 0)), prefix)
 	s.Error(err)
 }
 

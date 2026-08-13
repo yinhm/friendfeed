@@ -126,9 +126,9 @@ entry UUID             16 B
 UUID，也不得跨 viewer 解释。旧 Home `Start/PageSize` 链接仍在 TimelineIndex 上跳过 Start
 行兼容，不回读已退役的 `EntryIndex | TimelineUUID`。
 
-当前 cursor 编解码根据传入 prefix 的 table number 区分 TimelineIndex（24 B position）和
-direct EntryIndex（16 B reverse Flake）。同一用户同秒发帖的分页边界不作保证。这是显式
-表格式选择，不是从任意内容猜测编码。
+当前 cursor 编解码对 TimelineIndex 和 direct EntryIndex 使用同一 24 B 位置格式
+（reverse ms 8 B + entry UUID 16 B）；同秒多帖由 UUID 后缀消歧。这是显式表格式选择，
+不是从任意内容猜测编码。
 
 ## 删除、审计与重建
 

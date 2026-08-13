@@ -58,7 +58,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 2 | Feedinfo | `T + feed UUID` | `pb.Feedinfo` | 历史/迁移 metadata |
 | 3 | Entry | `T + entry UUID` | `pb.Entry`，不再内嵌 canonical Like/Comment | 源数据 |
 | 4 | UserMap | `T + current profile id` | 16 B profile UUID | 源映射 |
-| 5 | EntryIndex | 见下一节 | canonical Entry key | Profile/target feed direct 索引 |
+| 5 | EntryIndex | 见下一节 | 空 | Profile/target feed direct 索引 |
 | 6 | Tweet | `T + tweet key` | `pb.Tweet` | 导入数据 |
 | 7 | UserRenameMap | `T + old profile id` | 16 B profile UUID | soft rename metadata |
 | 100 | Profile | `T + profile UUID` | `pb.Profile` | 源数据 |
@@ -136,51 +136,31 @@ TimeTravelReverseId(T) -> new generator -> sequence 0
 
 ## EntryIndex
 
-### 历史格式及缺陷
+### 当前格式
+
+与 TimelineIndex 同构：
 
 ```text
-key   = EntryIndex T | owner/feed UUID | reverse Flake
-value = canonical Entry key
+key   = T(4) | owner UUID(16) | reverse Unix ms(8) | entry UUID(16)
+value = 空
 ```
 
-确定性 key 的原意合理：重复 `PutEntry`、编辑、Archive 重跑或旧式互动重写 Entry 时，
-应覆盖同一索引行而不是产生重复行。但它错误地把 `(feed, second)` 当成 Entry identity。
-同一 feed 同秒两条 Entry 的 reverse Flake 完全相同，后写会覆盖先写。
+reverse Unix ms 取 Entry.Date，前向扫描仍得 newest → oldest；entry UUID 后缀保证唯一
+与幂等：重复写同一 Entry 覆盖同一行，同秒不同 Entry 共存。value 为空，读取时按 key
+后缀重建 canonical Entry key。正文永不冗余进索引：fanout 按 follower 复制索引行，
+冗余会产生写放大。Feed 读取的 index scan + N 次 Entry 点查（N+1）是既定设计，不是
+待优化项。
 
-### 当前分支的最小修正
+direct feed cursor 编码完整 24 B 位置（reverse ms + entry UUID），与 timeline cursor
+同构；同秒多帖的分页边界由 UUID 后缀消歧。
 
-```text
-key   = T(4) | owner UUID(16) | reverse Flake(16) | canonical Entry key(20)
-value = canonical Entry key(20)
-```
+### 历史格式
 
-Entry identity 后缀使重复写同一 Entry 仍然幂等，并让同秒不同 Entry 共存。direct feed
-cursor 按产品取舍只编码 16 B reverse Flake，不携带 Entry identity；同一用户同秒发帖的
-分页边界不作保证。前向扫描仍按 reverse time 得到 newest → oldest，算法复杂度不变。
-
-value 只存 canonical Entry key，永不冗余 Entry 本体或摘要：fanout 按 follower 复制索引
-行，冗余正文会产生写放大。Feed 读取的 index scan + N 次 Entry 点查（N+1）是既定设计，
-不是待优化项。
-
-完整 canonical Entry key 中 4 字节 `TableEntry` 是固定冗余；只追加 Entry UUID 可将
-key 从 56 B 缩到 52 B。
-
-### 更干净的目标格式（尚未实施）
-
-引入 Entry UUID 后，Flake 的 worker/sequence 对这个派生索引不再贡献唯一性。若本轮
-决定继续做一次离线 schema break，建议直接使用：
-
-```text
-key   = T(4) | owner UUID(16) | reverse timestamp(8) | entry UUID(16)
-value = canonical Entry key(20)
-```
-
-共 44 B。职责明确：reverse timestamp 排序，Entry UUID 唯一且作为同时间 tie-break。
-这仍保持 `First/SeekGE + Next` 的前向扫描优势。不能只保留 Entry UUID，因为现有 UUIDv4/
-UUIDv5 不具备时间字节序，Archive 的导入时间也不等于 Entry.Date。
-
-目标格式只有在迁移与代码同时调整后才成立；当前数据库和 cursor 必须按“当前分支的
-最小修正”解释。
+早期格式为 `T | owner UUID | reverse Flake(16)`（36 B，value 为 canonical Entry key），
+后追加 canonical Entry key 后缀变为 56 B。Flake 的 worker/sequence 对派生索引不贡献
+唯一性，value 与 key 后缀冗余。两种旧格式由 `migrate_entry_index` 按键直接转换
+（Entry.Date 为整秒，reverse ms 可由 reverse Flake 精确还原），或由
+`rebuild_entry_index` 从 Entry 源数据清空重建。
 
 ## Entry 写入和读取路径
 

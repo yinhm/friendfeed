@@ -440,13 +440,18 @@ func TestBackupDBToAtomicPublish(t *testing.T) {
 }
 
 // entryIndexTargets lists the entry keys the direct index of indexUUID
-// points at. ForwardScan closes its iterator internally.
+// points at. Values are empty; targets come from the key suffixes.
+// ForwardScan closes its iterator internally.
 func entryIndexTargets(t *testing.T, db *store.Store, indexUUID uuid.UUID) []string {
 	t.Helper()
 	prefix := store.NewUUIDKey(model.TableEntryIndex, indexUUID).Bytes()
 	var targets []string
 	_, err := db.ForwardScan(prefix, func(i int, k, v []byte) error {
-		targets = append(targets, store.Key(v).String())
+		_, entryID, _, err := model.ParseEntryIndexKey(k)
+		if err != nil {
+			return err
+		}
+		targets = append(targets, model.Entry.PrefixAppend(entryID.Bytes()).String())
 		return nil
 	})
 	require.NoError(t, err)

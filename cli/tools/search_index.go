@@ -80,17 +80,22 @@ func rebuildSearchIndex(db *store.Store, idx bleve.Index, options searchIndexOpt
 		indexed := 0
 		authorPrefix := model.NewUUIDKey(model.TableEntryIndex, profileID)
 		if _, err := db.ForwardScan(authorPrefix, func(i int, key, value []byte) error {
-			raw, err := db.Get(value)
+			_, entryID, _, err := model.ParseEntryIndexKey(key)
+			if err != nil {
+				return err
+			}
+			entryKey := model.Entry.PrefixAppend(entryID.Bytes())
+			raw, err := db.Get(entryKey)
 			if errors.Is(err, store.ErrNotFound) {
 				stats.missing++
 				return nil
 			}
 			if err != nil {
-				return fmt.Errorf("read entry at %x: %w", value, err)
+				return fmt.Errorf("read entry at %x: %w", entryKey, err)
 			}
 			entry := new(pb.Entry)
 			if err := proto.Unmarshal(raw, entry); err != nil {
-				return fmt.Errorf("decode entry at %x: %w", value, err)
+				return fmt.Errorf("decode entry at %x: %w", entryKey, err)
 			}
 			// Mirror PutEntry: only entries with a body are searchable.
 			if entry.Body == "" {

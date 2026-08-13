@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"testing"
@@ -509,27 +508,7 @@ func TestReplaceTimelineRowsClearsAndWritesBoundedBatches(t *testing.T) {
 	require.ErrorIs(t, err, store.ErrNotFound)
 }
 
-func TestCanonicalEntryKeyFromIndexValueRejectsStringFormats(t *testing.T) {
-	entryID := uuid.Must(uuid.NewV4())
-	key := model.Entry.PrefixAppend(entryID.Bytes())
-	got, err := canonicalEntryKeyFromIndexValue(key)
-	require.NoError(t, err)
-	require.Equal(t, store.Key(key), got)
-	for _, value := range [][]byte{
-		[]byte(hex.EncodeToString(key)),
-		append(model.Entry.Prefix.Copy(), []byte(entryID.String())...),
-	} {
-		_, err := canonicalEntryKeyFromIndexValue(value)
-		require.ErrorContains(t, err, "run migrate_entry_keys then rebuild_entry_index")
-	}
-	_, err = canonicalEntryKeyFromIndexValue([]byte("not-a-valid-entry-index-value"))
-	require.Error(t, err)
-	wrongPrefix := append(model.Profile.Prefix.Copy(), entryID.Bytes()...)
-	_, err = canonicalEntryKeyFromIndexValue(wrongPrefix)
-	require.ErrorContains(t, err, "table prefix")
-}
-
-func TestRebuildTimelineRejectsPrefixedUUIDEntryIndexValue(t *testing.T) {
+func TestRebuildTimelineRejectsLegacyEntryIndexKey(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
@@ -541,10 +520,10 @@ func TestRebuildTimelineRejectsPrefixedUUIDEntryIndexValue(t *testing.T) {
 	_, err = model.Entry.Put(db, entryID.Bytes(), entry)
 	require.NoError(t, err)
 	legacyIndexKey := store.NewUUIDFlakeKey(model.TableEntryIndex, profileID, db.TimeTravelReverseId(time.Now())).Bytes()
-	require.NoError(t, db.Put(legacyIndexKey, append(model.Entry.Prefix.Copy(), []byte(entryID.String())...)))
+	require.NoError(t, db.Put(legacyIndexKey, model.Entry.PrefixAppend(entryID.Bytes())))
 
 	stats, err := rebuildTimelines(db, timelineRebuildOptions{user: profile.Id})
-	require.ErrorContains(t, err, "run migrate_entry_keys then rebuild_entry_index")
+	require.ErrorContains(t, err, "invalid EntryIndex key length")
 	require.Zero(t, stats.entries)
 	count, err := db.ForwardScan(model.TimelineIndexPrefix(profileID), func(int, []byte, []byte) error { return nil })
 	require.NoError(t, err)
