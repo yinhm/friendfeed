@@ -15,7 +15,74 @@ import (
 const (
 	LikeBumpMaxEntryAge = 7 * 24 * time.Hour
 	LikeBumpCooldown    = 10 * time.Minute
+	TimelineActiveFor   = 30 * 24 * time.Hour
+	TimelineTouchAfter  = time.Hour
+	TimelineMaxEntries  = 10_000
+	// TimelineRetentionMax disables the publish-time cutoff while retaining a
+	// concrete option that can later be changed to 90 days or another window.
+	TimelineRetentionMax = time.Duration(1<<63 - 1)
 )
+
+func TimelineStateKey(viewer uuid.UUID) store.Key {
+	return NewKeyFrom(TimelineState.Prefix, viewer.Bytes())
+}
+
+func validateTimelineViewer(viewer uuid.UUID) error {
+	if viewer == uuid.Nil {
+		return errors.New("timeline viewer UUID is zero")
+	}
+	return nil
+}
+
+func TimelineLastAccess(db *store.Store, viewer uuid.UUID) (time.Time, error) {
+	if err := validateTimelineViewer(viewer); err != nil {
+		return time.Time{}, err
+	}
+	raw, err := db.Get(TimelineStateKey(viewer))
+	if err != nil {
+		return time.Time{}, err
+	}
+	if len(raw) != 8 {
+		return time.Time{}, fmt.Errorf("invalid TimelineState value length %d", len(raw))
+	}
+	ms := binary.BigEndian.Uint64(raw)
+	if ms > uint64(^uint64(0)>>1) {
+		return time.Time{}, errors.New("timeline last access overflows int64")
+	}
+	return time.UnixMilli(int64(ms)).UTC(), nil
+}
+
+func TouchTimelineState(db *store.Store, viewer uuid.UUID, at time.Time) error {
+	if err := validateTimelineViewer(viewer); err != nil {
+		return err
+	}
+	ms := at.UTC().UnixMilli()
+	if ms < 0 {
+		return fmt.Errorf("timeline last access before Unix epoch: %s", at)
+	}
+	var value [8]byte
+	binary.BigEndian.PutUint64(value[:], uint64(ms))
+	return db.Set(TimelineStateKey(viewer), value[:])
+}
+
+func TimelineIsActive(db *store.Store, viewer uuid.UUID, now time.Time) (bool, error) {
+	last, err := TimelineLastAccess(db, viewer)
+	if errors.Is(err, store.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	age := now.UTC().Sub(last)
+	return age >= 0 && age <= TimelineActiveFor, nil
+}
+
+func DeleteTimelineState(db *store.Store, viewer uuid.UUID) error {
+	if err := validateTimelineViewer(viewer); err != nil {
+		return err
+	}
+	return db.Delete(TimelineStateKey(viewer))
+}
 
 func TimelineIndexPrefix(viewer uuid.UUID) store.Key {
 	return NewKeyFrom(TimelineIndex.Prefix, viewer.Bytes())

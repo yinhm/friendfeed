@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -39,6 +40,61 @@ func TestMoveTimelineEntryIsMonotonicAndOrdered(t *testing.T) {
 	position, err := TimelinePositionTime(db, viewer, first)
 	require.NoError(t, err)
 	require.Equal(t, base.Add(time.Hour), position)
+}
+
+func TestTimelineStateLifecycle(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	viewer := uuid.Must(uuid.NewV4())
+	now := time.Date(2026, 8, 13, 10, 0, 0, 123000000, time.UTC)
+	active, err := TimelineIsActive(db, viewer, now)
+	require.NoError(t, err)
+	require.False(t, active)
+
+	require.NoError(t, TouchTimelineState(db, viewer, now))
+	last, err := TimelineLastAccess(db, viewer)
+	require.NoError(t, err)
+	require.Equal(t, now.Truncate(time.Millisecond), last)
+
+	active, err = TimelineIsActive(db, viewer, now.Add(TimelineActiveFor))
+	require.NoError(t, err)
+	require.True(t, active)
+	active, err = TimelineIsActive(db, viewer, now.Add(TimelineActiveFor+time.Millisecond))
+	require.NoError(t, err)
+	require.False(t, active)
+
+	require.NoError(t, TouchTimelineState(db, viewer, now.Add(time.Hour)))
+	last, err = TimelineLastAccess(db, viewer)
+	require.NoError(t, err)
+	require.Equal(t, now.Add(time.Hour).Truncate(time.Millisecond), last)
+	require.NoError(t, DeleteTimelineState(db, viewer))
+	_, err = TimelineLastAccess(db, viewer)
+	require.ErrorIs(t, err, store.ErrNotFound)
+}
+
+func TestTimelineStateRejectsInvalidData(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	require.Error(t, TouchTimelineState(db, uuid.Nil, time.Now()))
+	require.Error(t, TouchTimelineState(db, uuid.Must(uuid.NewV4()), time.Unix(-1, 0)))
+	require.Error(t, DeleteTimelineState(db, uuid.Nil))
+	_, err = TimelineLastAccess(db, uuid.Nil)
+	require.Error(t, err)
+
+	viewer := uuid.Must(uuid.NewV4())
+	require.NoError(t, db.Set(TimelineStateKey(viewer), []byte{1}))
+	_, err = TimelineLastAccess(db, viewer)
+	require.ErrorContains(t, err, "invalid TimelineState value length")
+
+	var overflow [8]byte
+	binary.BigEndian.PutUint64(overflow[:], ^uint64(0))
+	require.NoError(t, db.Set(TimelineStateKey(viewer), overflow[:]))
+	_, err = TimelineLastAccess(db, viewer)
+	require.ErrorContains(t, err, "overflows int64")
 }
 
 func TestMoveTimelineEntryAppliesPerEntryCooldown(t *testing.T) {

@@ -41,6 +41,7 @@ const (
 	TableComment          store.KeyPrefix = 107
 	TableTimelineIndex    store.KeyPrefix = 108
 	TableTimelinePosition store.KeyPrefix = 109
+	TableTimelineState    store.KeyPrefix = 110
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -78,6 +79,7 @@ var (
 	Comment          = NewTable(KeyPrefixToBytes(TableComment))
 	TimelineIndex    = NewTable(KeyPrefixToBytes(TableTimelineIndex))
 	TimelinePosition = NewTable(KeyPrefixToBytes(TableTimelinePosition))
+	TimelineState    = NewTable(KeyPrefixToBytes(TableTimelineState))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))
