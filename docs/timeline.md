@@ -213,7 +213,9 @@ TimelineState 至少记录初始化状态、最近访问或重建时间，以及
 
 1. 只有近期访问过 Home、拥有有效 TimelineState 的 viewer 才持续接收 fanout。
 2. 长期未访问的 viewer 不维护 Home；再次访问时从当前 Follow 和 direct EntryIndex 按需重建。
-3. 每个 viewer 只保留固定时间或固定条数窗口，例如最近 90 天或 10,000 条，取先达到者。
+3. 每个 viewer 最多保留 10,000 条，并保留可调整的时间窗口。当前时间窗口为 MAX（不按
+   日期裁剪），实际仅受条数上限约束；未来可调整为 90 天或其他窗口。当前数据以历史内容
+   为主且活跃度低，默认启用日期裁剪可能让用户 Home 无内容。
 4. 裁剪、过期或重建必须同时处理 TimelineIndex 与 TimelinePosition。
 5. TimelineState 过期后可删除该 viewer 的全部 Home 派生行，不影响 canonical source。
 6. 新 Entry 必须能进入活跃 viewer 的 Home，不能用“该 Entry 已有 TimelinePosition”代替
@@ -237,3 +239,78 @@ TimelineState 至少记录初始化状态、最近访问或重建时间，以及
 
 在 TimelineState 落地前，不应只通过检查 TimelinePosition 是否存在来限制 fanout，也不应把
 OAuth 用户集合继续当成长期容量边界。
+
+### 有界重建的精度边界
+
+本轮不新增按事件时间排列的全局 activity index。现有 Like/Comment 按 Entry UUID 分组，
+无法从“最近发生的互动”反查 Entry。因此按需重建不能同时做到扫描量有界和精确恢复全部历史
+bump。
+
+`rebuild_timeline` 先从当前关注 feed 的 direct EntryIndex 中按发布时间归并候选，再只对候选
+Entry 重放当前 Like/Comment：
+
+- 时间窗口为 MAX 时，不按发布日期淘汰候选，但仍受 10,000 个唯一 Entry 的数量上限约束；
+- 时间窗口改为 90 天等有限值时，候选同时受日期和数量限制；
+- 候选集合内的 activity 排序与 bump/cooldown 规则应精确；
+- 候选集合外的历史 Entry，即使最近新增 Comment，也可能不进入重建结果；
+- viewer 成为 active 后的新互动由实时 fanout 正常维护。
+
+这是明确的产品取舍。若未来要求精确恢复所有长尾 bump，必须另行设计 interaction activity
+index；不能通过重新扫描全部历史数据规避容量边界。
+
+### rebuild_timeline 与 compact_timelines
+
+两个命令都操作派生表，但解决的问题不同，不能互相替代。
+
+`rebuild_timeline` 是语义重算：
+
+```text
+canonical source
+  Follow + direct EntryIndex + Entry + Like + Comment
+      ↓ 重新选择候选并计算 activity
+TimelineIndex + TimelinePosition + TimelineState
+```
+
+它适用于首次初始化、关注关系变化后修复、排序漂移、Index/Position 不一致，或明确要求重新
+计算某个用户的 Home。改造后：
+
+- `-user <id>` 重建指定用户，不要求其已有 TimelineState，并在成功后创建或刷新 State；
+- 默认模式只处理已有有效 TimelineState 的 viewer，不再把 OAuth 记录当成活跃用户集合；
+- 使用与在线初始化相同的时间窗口和 10,000 条上限；
+- 从多个 direct EntryIndex 的最新端做前向迭代归并，取得有界候选；
+- 对候选读取 Entry/Like/Comment，重算最终 activity；
+- 用固定 batch 替换该 viewer 的 108/109 行，成功后才更新 TimelineState；
+- dry-run 只报告候选数、现有行数、差异和预计写入量，不修改数据库；
+- 全过程内存上限与候选上限相关，不与全库 Entry 数相关。
+
+`compact_timelines` 是容量清理：
+
+```text
+existing TimelineState + TimelineIndex + TimelinePosition
+      ↓ 按活跃状态、时间窗口和条数裁剪
+same derived tables, fewer rows
+```
+
+它不读取 Follow、direct EntryIndex、Like 或 Comment，不重新计算 activity，也不会补回缺失 Entry。
+它适用于部署后的批量空间回收和周期维护：
+
+- 有效 TimelineState：保留现有排序中满足时间窗口的前 10,000 条，成对删除其余 108/109 行；
+- 无 State 或 State 已过期：用 viewer prefix 范围删除其全部 TimelineIndex/Position；
+- 当前时间窗口为 MAX，因此第一版只按活跃状态和 10,000 条上限清理；
+- dry-run 流式统计 viewer、现有行和预计删除行，不保留全表 key；
+- apply 使用 DeleteRange 或固定 batch，可中断并安全重跑；
+- 它只保证容量和两表成对清理，不保证 Home 与 canonical source 语义一致。
+
+典型执行顺序：
+
+```text
+部署 TimelineState 与受限 fanout
+→ 让真实用户访问并建立 State
+→ rebuild_timeline -user <id> 验证重点用户
+→ compact_timelines -dry-run
+→ compact_timelines
+→ audit_store
+```
+
+若 compact 后发现某个 active 用户内容或排序不正确，应对该用户运行 `rebuild_timeline -user`，
+而不是再次 compact。
