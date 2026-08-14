@@ -76,6 +76,10 @@ type ApiServer struct {
 	taskWorkersStarted    bool
 	taskWorkerPollMin     time.Duration
 	taskWorkerPollMax     time.Duration
+	rssFetch              rssFetcher
+	rssNow                func() time.Time
+	rssHostMu             sync.Mutex
+	rssHosts              map[string]*sync.Mutex
 }
 
 // grpcSlogLogger routes gRPC internal logs into slog. gRPC fatal-level
@@ -124,9 +128,14 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		timelineRetryAfter: make(map[uuid.UUID]time.Time),
 		taskWorkerPollMin:  time.Second,
 		taskWorkerPollMax:  30 * time.Second,
+		rssNow:             func() time.Time { return time.Now().UTC() },
+		rssHosts:           make(map[string]*sync.Mutex),
 	}
 	srv.taskCtx, srv.taskCancel = context.WithCancel(context.Background())
-	taskRegistry, err := taskqueue.NewRegistry(map[string]taskqueue.Definition{})
+	srv.rssFetch = fetchRSS
+	taskRegistry, err := taskqueue.NewRegistry(map[string]taskqueue.Definition{
+		rssFetchTaskType: rssTaskDefinition(srv.handleRSSFetchTask),
+	})
 	if err != nil {
 		rdb.Close()
 		return nil, fmt.Errorf("initialize task registry: %w", err)
@@ -152,6 +161,7 @@ func (s *ApiServer) StartBackgroundJobs() {
 	s.backgroundJobsStarted = true
 	go s.RefetchJobTicker()
 	go s.TaskReapLoop()
+	go s.RSSScheduleLoop()
 	s.startTaskWorkersLocked()
 }
 

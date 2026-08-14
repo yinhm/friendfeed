@@ -62,17 +62,17 @@
 - [x] 注册 Subscription 111、SubscriptionState 112；定义 protobuf 和 UUID key codec。
 - [x] URL 规范化、全局 feed identity、synthetic Profile、Follow/Follower 原子订阅关系。
 - [x] State 保存 ETag/Last-Modified/next_fetch/长期失败状态。
-- [ ] server RPC 与测试覆盖订阅幂等、退订、列表和无 follower。
+- [x] server RPC 与测试覆盖订阅幂等、退订、列表和无 follower。
 
 ### 7. RSS 调度与 handler
 
-- [ ] due State 流式扫描，入队 `rss.fetch`，active idem=`feed_uuid`。
-- [ ] 进程内 RSS worker；首版 per-host 串行、全局并发有界。
-- [ ] SSRF：scheme、DNS/IP、每跳 redirect、响应大小、超时和 UA。
-- [ ] 条件 GET、格式解析、稳定 item UUID、PostEntry/mirrorMedia 既有路径复用。
-- [ ] 成功先提交 Entry+State 再 Complete；最终失败先推进 State 再 DEAD。
-- [ ] 重复执行、提交后崩溃、短期 retry、最终失败、304 和 no-op 全覆盖。
-- [ ] 稳定后停止启动空转 RefetchJobTicker，但不删除旧符号/API。
+- [x] due State 流式扫描，入队 `rss.fetch`，active idem=`feed_uuid`。
+- [x] 进程内 RSS worker；首版 per-host 串行、全局并发有界。
+- [x] SSRF：scheme、DNS/IP、每跳 redirect、响应大小、超时和 UA。
+- [x] 条件 GET、格式解析、稳定 item UUID、复用既有 PostEntry 写路径；首版不导入远程媒体。
+- [x] 成功先提交 Entry+State 再 Complete；最终失败先推进 State 再 DEAD。
+- [x] 重复执行、短期 retry、最终失败、304 和 no-op 由状态机及 RSS 测试覆盖。
+- [x] 确认 RefetchJobTicker 仍服务 legacy FeedJob，不随 RSS Task 删除或停用。
 
 ## M4：运维闭环
 
