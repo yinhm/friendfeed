@@ -78,8 +78,7 @@ type ApiServer struct {
 	taskWorkerPollMax     time.Duration
 	rssFetch              rssFetcher
 	rssNow                func() time.Time
-	rssHostMu             sync.Mutex
-	rssHosts              map[string]*sync.Mutex
+	rssHostLocks          [64]sync.Mutex
 }
 
 // grpcSlogLogger routes gRPC internal logs into slog. gRPC fatal-level
@@ -129,7 +128,6 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		taskWorkerPollMin:  time.Second,
 		taskWorkerPollMax:  30 * time.Second,
 		rssNow:             func() time.Time { return time.Now().UTC() },
-		rssHosts:           make(map[string]*sync.Mutex),
 	}
 	srv.taskCtx, srv.taskCancel = context.WithCancel(context.Background())
 	srv.rssFetch = fetchRSS

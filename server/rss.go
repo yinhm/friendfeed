@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -81,8 +83,7 @@ func (s *ApiServer) RSSScheduleLoop() {
 	defer ticker.Stop()
 	for {
 		if err := s.scheduleDueRSS(s.taskCtx, s.rssNow()); err != nil && !errors.Is(err, context.Canceled) {
-			// The task worker logs execution failures. The scheduler intentionally
-			// remains quiet here; the next bounded scan retries in one minute.
+			slog.Error("RSS scheduler scan failed", "error", err)
 		}
 		select {
 		case <-s.taskCtx.Done():
@@ -248,18 +249,15 @@ func (s *ApiServer) rssHostLock(raw string) (*sync.Mutex, error) {
 		return nil, errors.New("invalid RSS host")
 	}
 	host := strings.ToLower(parsed.Hostname())
-	s.rssHostMu.Lock()
-	defer s.rssHostMu.Unlock()
-	lock := s.rssHosts[host]
-	if lock == nil {
-		lock = new(sync.Mutex)
-		s.rssHosts[host] = lock
-	}
-	return lock, nil
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(host))
+	return &s.rssHostLocks[hash.Sum32()%uint32(len(s.rssHostLocks))], nil
 }
 
 func fetchRSS(ctx context.Context, subscription *pb.Subscription, state *pb.SubscriptionState) (*rssFetchResult, error) {
-	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: safeRSSDialContext}
+	// Do not inherit HTTP_PROXY: a proxy would receive the original target and
+	// bypass the resolver/IP checks performed by safeRSSDialContext.
+	transport := &http.Transport{DialContext: safeRSSDialContext}
 	client := &http.Client{Transport: transport, Timeout: rssHTTPTimeout}
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
