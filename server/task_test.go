@@ -116,12 +116,12 @@ func (s *RpcTestSuite) installTaskHandler(definition taskqueue.Definition) {
 func (s *RpcTestSuite) TestTaskWorkerRenewsAndCompletes() {
 	var calls atomic.Int32
 	definition := taskqueue.Definition{
-		MaxAttempts: 2, LeaseDuration: 50 * time.Millisecond, MaxLease: 500 * time.Millisecond,
+		MaxAttempts: 2, LeaseDuration: 250 * time.Millisecond, MaxLease: 2 * time.Second,
 		BackoffBase: time.Millisecond, BackoffCap: time.Second,
 		Handler: func(ctx context.Context, task *pb.Task) error {
 			calls.Add(1)
 			select {
-			case <-time.After(140 * time.Millisecond):
+			case <-time.After(600 * time.Millisecond):
 				return nil
 			case <-ctx.Done():
 				return ctx.Err()

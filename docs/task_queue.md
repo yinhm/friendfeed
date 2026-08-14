@@ -309,8 +309,8 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
   60 秒，这是明确 SLA。
 - 收到关停信号后先把 Queue 标记为不接受 enqueue/claim，并停止调度器和进程内 worker
   领取新任务；随后 gRPC GracefulStop 排干正在执行的 Complete/Fail/Renew RPC。
-- 进程内 handler 在关停宽限期内完成；超过期限则停止续租并退出，任务由下次启动后的
-  reaper 回收。不能为等外部 HTTP 无限阻塞 Store.Close。
+- 排干 RPC 后取消进程内 handler context 并停止续租；未完成的 Task 保持 INFLIGHT，
+  由下次启动后的 reaper 回收。关停不为外部 HTTP 设置无限宽限期。
 - reaper/worker 退出并由既有 wg 确认后，才关闭 Pebble。kill -9 后不需特殊恢复流程。
 
 ## 审计、历史与运维
@@ -361,7 +361,8 @@ Done 由显式时间 cutoff 裁剪，扫描与输出有界。日志只记录 tas
 ### M4：运维闭环
 
 - audit、list、replay-dead、Done retention/reconcile。
-- 记录 ready depth、最老 ready age、inflight/expired/dead 数量和 handler 延迟。
+- 运维状态由 `audit_store` 与有界 `list_tasks` 查看；需要常驻 metrics 时另行设计，
+  不在首版伪造一套未消费的指标。
 
 ### M5：外部 worker
 

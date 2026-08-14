@@ -36,4 +36,15 @@ func TestAuditTracksQueueStateAndDrift(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, stats.MissingReady)
 	require.Equal(t, 1, countRows(t, db, model.TaskReady.Prefix))
+
+	// An index pointing to an existing task is still corrupt when its state or
+	// scheduling fields do not match the authoritative Task row.
+	claimedID, err := DecodeTaskID(claimed[0].Id)
+	require.NoError(t, err)
+	staleReady, err := ReadyKey(claimed[0].Type, claimed[0].RunAtMs, claimedID)
+	require.NoError(t, err)
+	require.NoError(t, db.Set(staleReady, nil))
+	stats, err = Audit(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.MismatchedReady)
 }

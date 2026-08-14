@@ -14,6 +14,7 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
+	taskqueue "github.com/yinhm/friendfeed/task"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/protobuf/proto"
 )
@@ -84,6 +85,7 @@ func TestRSSHandlerImportsStableEntriesAndAdvancesState(t *testing.T) {
 	entry, err := model.GetEntry(srv.rdb, entryID.String())
 	require.NoError(t, err)
 	require.NotContains(t, entry.Body, "script")
+	require.Equal(t, &pb.Via{Name: subscription.Title, Url: subscription.Url}, entry.Via)
 	require.NoError(t, srv.handleRSSFetchTask(context.Background(), task))
 	state, err := model.GetSubscriptionState(srv.rdb, uuid.Must(uuid.FromString(subscription.FeedUuid)))
 	require.NoError(t, err)
@@ -112,8 +114,34 @@ func TestRSSHandlerFinalFailureAdvancesState(t *testing.T) {
 }
 
 func TestRSSPublicIPPolicy(t *testing.T) {
-	for _, raw := range []string{"127.0.0.1", "10.0.0.1", "169.254.1.1", "::1", "fc00::1", "0.0.0.0"} {
+	for _, raw := range []string{"127.0.0.1", "10.0.0.1", "100.64.0.1", "169.254.1.1", "::1", "fc00::1", "0.0.0.0"} {
 		require.False(t, rssPublicIP(netip.MustParseAddr(raw)), raw)
 	}
 	require.True(t, rssPublicIP(netip.MustParseAddr("8.8.8.8")))
+}
+
+func TestRSSHandlerTreatsDeletedSubscriptionAsNoop(t *testing.T) {
+	srv := newRSSServer(t)
+	userID := createRSSSubscriber(t, srv)
+	now := time.Date(2026, 8, 14, 4, 0, 0, 0, time.UTC)
+	subscription, err := model.SubscribeRSS(srv.rdb, userID, "https://example.com/deleted", now)
+	require.NoError(t, err)
+	feedID := uuid.Must(uuid.FromString(subscription.FeedUuid))
+	require.NoError(t, model.Subscription.Delete(srv.rdb, feedID.Bytes()))
+	payload, err := proto.Marshal(&pb.RSSFetchPayload{FeedUuid: subscription.FeedUuid})
+	require.NoError(t, err)
+	require.NoError(t, srv.handleRSSFetchTask(context.Background(), &pb.Task{Payload: payload, CreatedAtMs: now.UnixMilli()}))
+}
+
+func TestRSSSchedulerSkipsCorruptStateAndContinues(t *testing.T) {
+	srv := newRSSServer(t)
+	userID := createRSSSubscriber(t, srv)
+	now := time.Date(2026, 8, 14, 5, 0, 0, 0, time.UTC)
+	_, err := model.SubscribeRSS(srv.rdb, userID, "https://example.com/valid", now)
+	require.NoError(t, err)
+	require.NoError(t, srv.rdb.Set(model.SubscriptionState.PrefixAppend(make([]byte, uuid.Size)), []byte{0xff}))
+	require.NoError(t, srv.scheduleDueRSS(context.Background(), now))
+	records, err := taskqueue.List(srv.rdb, "ready", 10)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
 }

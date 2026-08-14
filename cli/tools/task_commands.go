@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/yinhm/friendfeed/server"
@@ -37,9 +36,13 @@ func runInspectTaskCommand(db *store.Store) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("task=%v\n", record.Task)
+	fmt.Printf("id=%s type=%s state=%s attempts=%d max_attempts=%d run_at=%d lease_until=%d leased_by=%q lease_epoch=%d payload_version=%d payload_bytes=%d idempotency_key=%q last_error=%q\n",
+		record.Task.Id, record.Task.Type, record.Task.State, record.Task.Attempts, record.Task.MaxAttempts,
+		record.Task.RunAtMs, record.Task.LeaseUntilMs, record.Task.LeasedBy, record.Task.LeaseEpoch,
+		record.Task.PayloadVersion, len(record.Task.Payload), record.Task.IdempotencyKey, record.Task.LastError)
 	if record.Completion != nil {
-		fmt.Printf("completion=%v\n", record.Completion)
+		fmt.Printf("completion_status=%s finished_at=%d last_error=%q\n",
+			record.Completion.Status, record.Completion.FinishedAtMs, record.Completion.LastError)
 	}
 }
 
@@ -69,11 +72,6 @@ func runPurgeTaskDoneCommand(db *store.Store) {
 	cutoff, err := time.Parse(time.RFC3339, beforeTime)
 	if err != nil {
 		log.Fatalf("parse -before: %v", err)
-	}
-	if !dryRun {
-		if err := confirmDestructive("purge_task_done", toPath, os.Stdin, os.Stderr); err != nil {
-			log.Fatal(err)
-		}
 	}
 	count, err := taskqueue.PurgeDone(db, cutoff, dryRun)
 	if err != nil {

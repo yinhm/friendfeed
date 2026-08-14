@@ -47,7 +47,7 @@ func init() {
 	flag.StringVar(&toPath, "to", "", "to directory")
 	flag.StringVar(&command, "c", "", "command to do")
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
-	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump / URLs per mirror_twimg run (0 is unlimited)")
+	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "command-specific record/feed limit (0 uses the command default or unlimited)")
 	flag.BoolVar(&timelinePublic, "public", false, "rebuild the shared public timeline instead of per-user Home timelines")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
 	flag.StringVar(&inspectID, "id", "", "profile or previous profile ID to inspect")
@@ -1264,7 +1264,7 @@ func main() {
 	}
 
 	// 确认必须发生在打开(创建)目标库之前,避免误操作产生副作用。
-	if destructiveCommands[command] {
+	if destructiveCommands[command] || (command == "purge_task_done" && !dryRun) {
 		if err := confirmDestructive(command, toPath, os.Stdin, os.Stderr); err != nil {
 			log.Fatal(err)
 		}

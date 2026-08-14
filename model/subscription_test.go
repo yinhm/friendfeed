@@ -72,3 +72,15 @@ func TestListRSSSubscriptionsSkipsOrdinaryFollows(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, listed)
 }
+
+func TestSubscriptionRejectsZeroUUIDs(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	_, err = SubscribeRSS(db, uuid.Nil, "https://example.com/feed", time.Now())
+	require.Error(t, err)
+	require.Error(t, UnsubscribeRSS(db, uuid.Nil, uuid.Must(uuid.NewV4())))
+	_, err = ListRSSSubscriptions(db, uuid.Nil)
+	require.Error(t, err)
+	require.Error(t, PutSubscriptionState(db, uuid.Nil, &pb.SubscriptionState{}))
+}

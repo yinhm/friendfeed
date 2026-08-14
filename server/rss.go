@@ -82,7 +82,8 @@ func (s *ApiServer) RSSScheduleLoop() {
 	ticker := time.NewTicker(rssScheduleInterval)
 	defer ticker.Stop()
 	for {
-		if err := s.scheduleDueRSS(s.taskCtx, s.rssNow()); err != nil && !errors.Is(err, context.Canceled) {
+		if err := s.scheduleDueRSS(s.taskCtx, s.rssNow()); err != nil &&
+			!errors.Is(err, context.Canceled) && !errors.Is(err, taskqueue.ErrClosed) {
 			slog.Error("RSS scheduler scan failed", "error", err)
 		}
 		select {
@@ -94,20 +95,22 @@ func (s *ApiServer) RSSScheduleLoop() {
 }
 
 func (s *ApiServer) scheduleDueRSS(ctx context.Context, now time.Time) error {
-	return model.SubscriptionState.IterValue(s.rdb, func(value []byte) error {
+	return model.SubscriptionState.Iter(s.rdb, func(key, value []byte) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		state := new(pb.SubscriptionState)
 		if err := proto.Unmarshal(value, state); err != nil {
-			return fmt.Errorf("decode SubscriptionState: %w", err)
+			slog.Error("skip corrupt RSS subscription state", "key", fmt.Sprintf("%x", key), "error", err)
+			return nil
 		}
 		if state.NextFetchMs > now.UnixMilli() {
 			return nil
 		}
 		feedID, err := uuid.FromString(state.FeedUuid)
 		if err != nil || feedID == uuid.Nil {
-			return fmt.Errorf("invalid SubscriptionState feed UUID %q", state.FeedUuid)
+			slog.Error("skip RSS subscription state with invalid feed UUID", "key", fmt.Sprintf("%x", key))
+			return nil
 		}
 		hasFollowers, err := model.SubscriptionHasFollowers(s.rdb, feedID)
 		if err != nil || !hasFollowers {
@@ -132,6 +135,9 @@ func (s *ApiServer) handleRSSFetchTask(ctx context.Context, task *pb.Task) error
 		return err
 	}
 	subscription, err := model.GetSubscription(s.rdb, feedID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -206,6 +212,8 @@ func (s *ApiServer) importRSSItems(ctx context.Context, subscription *pb.Subscri
 		entryID := model.UniqueKeyFrom("rss", subscription.Url, itemKey)
 		if _, err := model.GetEntry(s.rdb, entryID.String()); err == nil {
 			continue
+		} else if !errors.Is(err, model.ErrNotFound) {
+			return fmt.Errorf("check RSS entry %s: %w", entryID, err)
 		}
 		link := safeRSSLink(item.Link, subscription.Url)
 		body := item.Content
@@ -216,6 +224,7 @@ func (s *ApiServer) importRSSItems(ctx context.Context, subscription *pb.Subscri
 			Id: entryID.String(), Url: link, Date: rssItemTime(item, now).UTC().Format(time.RFC3339),
 			Title: item.Title, Body: util.DefaultSanitize(body), RawLink: link,
 			ProfileUuid: subscription.FeedUuid, FeedUuid: subscription.FeedUuid, Type: "rss",
+			Via: &pb.Via{Name: subscription.Title, Url: subscription.Url},
 		}
 		if _, err := s.PostEntry(ctx, entry); err != nil {
 			return err
@@ -281,6 +290,10 @@ func fetchRSS(ctx context.Context, subscription *pb.Subscription, state *pb.Subs
 	}
 	resp, err := client.Do(req)
 	if err != nil {
+		var requestErr *url.Error
+		if errors.As(err, &requestErr) {
+			return nil, fmt.Errorf("RSS request failed: %w", requestErr.Err)
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -328,6 +341,9 @@ func safeRSSDialContext(ctx context.Context, network, address string) (net.Conn,
 }
 
 func rssPublicIP(address netip.Addr) bool {
+	if address.Is4() && netip.MustParsePrefix("100.64.0.0/10").Contains(address) {
+		return false
+	}
 	return address.IsValid() && !address.IsLoopback() && !address.IsPrivate() && !address.IsLinkLocalUnicast() &&
 		!address.IsLinkLocalMulticast() && !address.IsMulticast() && !address.IsUnspecified()
 }

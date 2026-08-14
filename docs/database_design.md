@@ -77,7 +77,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 201 | JobRunning | `T + Flake ID` | job protobuf | claimed job |
 | 202 | JobHistory | `T + target id` | `pb.FeedJob` | 历史记录 |
 | 203 | Task | `T + raw Flake ID` | `pb.Task` | Task 权威状态 |
-| 204 | TaskReady | `T + type + run time + task ID` | 空 | READY 派生索引 |
+| 204 | TaskReady | `T + type_len(1) + type + run time + task ID` | 空 | READY 派生索引 |
 | 205 | TaskLease | `T + lease time + task ID` | 空 | INFLIGHT 派生索引 |
 | 206 | TaskIdem | `T + SHA-256(type,idempotency key)` | raw Flake ID | 活跃去重索引 |
 | 207 | TaskDone | `T + finish time + task ID` | `pb.TaskCompletion` | 完成/死信历史 |

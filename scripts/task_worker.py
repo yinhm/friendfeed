@@ -54,6 +54,7 @@ def execute(stub, args, task):
         remaining = lease_until / 1000 - time.time()
         if remaining <= 0:
             process.terminate()
+            process.wait()
             raise RuntimeError("task lease expired")
         time.sleep(max(0.05, min(remaining / 2, 5.0)))
         if process.poll() is not None:
@@ -96,17 +97,28 @@ def main():
     with grpc.insecure_channel(args.target) as channel:
         stub = api_pb2_grpc.ApiStub(channel)
         while True:
-            response = stub.ClaimTasks(
-                api_pb2.ClaimTasksRequest(
-                    worker_id=args.worker_id, types=args.types, max_tasks=1
+            try:
+                response = stub.ClaimTasks(
+                    api_pb2.ClaimTasksRequest(
+                        worker_id=args.worker_id, types=args.types, max_tasks=1
+                    )
                 )
-            )
+            except grpc.RpcError as error:
+                print(f"task claim failed: {error.code().name}", file=sys.stderr)
+                time.sleep(delay * random.uniform(0.8, 1.2))
+                delay = min(delay * 2, 30.0)
+                continue
             if not response.tasks:
                 time.sleep(delay * random.uniform(0.8, 1.2))
                 delay = min(delay * 2, 30.0)
                 continue
             delay = 1.0
-            execute(stub, args, response.tasks[0])
+            try:
+                execute(stub, args, response.tasks[0])
+            except (grpc.RpcError, RuntimeError) as error:
+                # Lease loss means this worker must not Complete/Fail. The
+                # server reaper makes the task available again.
+                print(f"task execution lost lease: {type(error).__name__}", file=sys.stderr)
 
 
 if __name__ == "__main__":

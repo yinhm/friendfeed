@@ -81,7 +81,7 @@ value = pb.Subscription{ url, title, added_by, created }
 TableSubscriptionState = 112               // 抓取状态，与源表分离避免高频重写
 key   = prefix(4) | feed UUID(16)
 value = pb.SubscriptionState{ etag, last_modified, last_fetch, next_fetch,
-        consecutive_failures, http_status }
+        consecutive_failures, http_status, empty_fetches }
 ```
 
 订阅关系复用既有社交图：用户订阅 = 创建 `Follow(subscriber → 合成 feed

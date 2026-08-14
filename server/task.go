@@ -105,8 +105,17 @@ func (s *ApiServer) TaskReapLoop() {
 		return
 	}
 	defer s.wg.Done()
-	if err := s.tasks.ReapLoop(s.taskCtx, taskReapInterval); err != nil {
-		slog.Error("task reaper stopped", "error", err)
+	ticker := time.NewTicker(taskReapInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.taskCtx.Done():
+			return
+		case <-ticker.C:
+			if _, err := s.tasks.ReapOnce(s.taskCtx); err != nil && s.taskCtx.Err() == nil {
+				slog.Error("task reaper scan failed", "error", err)
+			}
+		}
 	}
 }
 
@@ -215,8 +224,14 @@ func (s *ApiServer) renewClaimedTask(ctx context.Context, cancelHandler context.
 			}
 			return nil
 		case <-timer.C:
+			if ctx.Err() != nil {
+				return nil
+			}
 			renewed, err := s.tasks.Renew(ctx, workerID, taskID, epoch)
 			if err != nil {
+				if errors.Is(err, context.Canceled) && ctx.Err() != nil {
+					return nil
+				}
 				cancelHandler()
 				return err
 			}
