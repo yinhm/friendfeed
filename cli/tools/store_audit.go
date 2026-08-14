@@ -12,6 +12,7 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	taskqueue "github.com/yinhm/friendfeed/task"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -40,6 +41,7 @@ type storeAuditStats struct {
 	missingFollowerEdges int
 	missingFollowEdges   int
 	maxFollowers         int
+	tasks                taskqueue.AuditStats
 }
 
 func auditStore(db *store.Store) (storeAuditStats, error) {
@@ -299,7 +301,9 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 	if stats.timelineMissingIndex < 0 {
 		return stats, errors.New("timeline position accounting is inconsistent")
 	}
-	return stats, nil
+	taskStats, err := taskqueue.Audit(db)
+	stats.tasks = taskStats
+	return stats, err
 }
 
 func writeStoreAudit(out io.Writer, stats storeAuditStats) {
@@ -314,4 +318,8 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "same_second_groups=%d same_second_entries=%d\n", stats.sameSecondGroups, stats.sameSecondEntries)
 	fmt.Fprintf(out, "follow=%d follower=%d missing_follower=%d missing_follow=%d max_followers=%d\n",
 		stats.followEdges, stats.followerEdges, stats.missingFollowerEdges, stats.missingFollowEdges, stats.maxFollowers)
+	fmt.Fprintf(out, "tasks=%d ready=%d leases=%d idem=%d done=%d missing_ready=%d missing_lease=%d missing_idem=%d orphan_ready=%d orphan_lease=%d orphan_idem=%d invalid_done=%d\n",
+		stats.tasks.Tasks, stats.tasks.Ready, stats.tasks.Leases, stats.tasks.Idempotency, stats.tasks.Done,
+		stats.tasks.MissingReady, stats.tasks.MissingLease, stats.tasks.MissingIdem,
+		stats.tasks.OrphanReady, stats.tasks.OrphanLease, stats.tasks.OrphanIdem, stats.tasks.InvalidDone)
 }
