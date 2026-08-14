@@ -39,6 +39,8 @@ var mirrorBackoffBase time.Duration
 var mirrorRetries int
 var noWayback bool
 var waybackDelay time.Duration
+var taskState string
+var beforeTime string
 
 func init() {
 	flag.StringVar(&fromPath, "from", "", "from directory")
@@ -59,6 +61,8 @@ func init() {
 	flag.IntVar(&mirrorRetries, "retries", 3, "mirror_twimg maximum transient retries per live candidate")
 	flag.BoolVar(&noWayback, "no-wayback", false, "mirror_twimg: skip Wayback Machine recovery for dead URLs")
 	flag.DurationVar(&waybackDelay, "wayback-delay", 2*time.Second, "mirror_twimg: delay between Wayback Machine requests")
+	flag.StringVar(&taskState, "task-state", "", "task list state: ready, inflight, or dead")
+	flag.StringVar(&beforeTime, "before", "", "RFC3339 cutoff for retention commands")
 }
 
 func purge_table(db *store.Store, prefix store.Key) (int, error) {
@@ -1240,6 +1244,7 @@ func main() {
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
 		command == "audit_profiles" || command == "audit_store" ||
+		command == "list_tasks" || command == "inspect_task" ||
 		command == "rebuild_search_index" || command == "mirror_twimg" ||
 		(command == "debug" && debugTable != "") ||
 		(command == "migrate_entry_index" && dryRun) ||
@@ -1249,6 +1254,9 @@ func main() {
 		(command == "backfill_actor_uuids" && dryRun) ||
 		(command == "purge_public_cache" && dryRun)
 	if command == "compact_timelines" && dryRun {
+		readOnly = true
+	}
+	if command == "purge_task_done" && dryRun {
 		readOnly = true
 	}
 	if needsSource && fromPath == "" {
@@ -1360,6 +1368,14 @@ func main() {
 			log.Fatal(err)
 		}
 		writeStoreAudit(os.Stdout, stats)
+	case "list_tasks":
+		runListTasksCommand(ndb)
+	case "inspect_task":
+		runInspectTaskCommand(ndb)
+	case "replay_dead_task":
+		runReplayDeadTaskCommand(ndb)
+	case "purge_task_done":
+		runPurgeTaskDoneCommand(ndb)
 	case "migrate_entry_index":
 		stats, err := migrateEntryIndex(ndb, dryRun, timelineMaxLimit)
 		if err != nil {

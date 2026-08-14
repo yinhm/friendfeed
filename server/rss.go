@@ -63,6 +63,15 @@ func rssTaskDefinition(handler taskqueue.Handler) taskqueue.Definition {
 	}
 }
 
+// NewTaskRegistry is the single registry definition used by the server and
+// offline queue tools. A nil RSS handler is valid for tools that only validate
+// or replay persisted tasks.
+func NewTaskRegistry(rssHandler taskqueue.Handler) (*taskqueue.Registry, error) {
+	return taskqueue.NewRegistry(map[string]taskqueue.Definition{
+		rssFetchTaskType: rssTaskDefinition(rssHandler),
+	})
+}
+
 func (s *ApiServer) RSSScheduleLoop() {
 	if !s.beginBackgroundJob() {
 		return

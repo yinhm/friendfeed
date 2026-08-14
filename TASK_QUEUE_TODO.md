@@ -78,11 +78,11 @@
 
 ### 8. audit、inspect、replay 与 retention
 
-- [ ] audit_store 增加 Task↔Ready/Lease/Idem/Done 双向不变量，流式且内存有界。
-- [ ] tools 提供有界 list ready/inflight/dead 和按 task id inspect。
-- [ ] replay-dead 经 Queue 生成新 task id，保留原历史并重新校验 type/payload。
-- [ ] Done 按时间/数量裁剪，使用安全 RangeDelete，支持 dry-run。
-- [ ] 指标/日志只含 task id/type/worker/耗时/截断错误，不记录 payload 或 secret。
+- [x] audit_store 增加 Task↔Ready/Lease/Idem/Done 双向不变量，流式且内存有界。
+- [x] tools 提供有界 list ready/inflight/dead 和按 task id inspect。
+- [x] replay-dead 经 Queue 生成新 task id，保留原历史并重新校验 type/payload。
+- [x] Done 按明确时间 cutoff 裁剪，使用安全 RangeDelete，支持 dry-run。
+- [x] 日志只含 task id/type/worker/截断错误，不记录 payload 或 secret。
 
 ## M5：外部 worker 与文档
 

@@ -133,9 +133,7 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	}
 	srv.taskCtx, srv.taskCancel = context.WithCancel(context.Background())
 	srv.rssFetch = fetchRSS
-	taskRegistry, err := taskqueue.NewRegistry(map[string]taskqueue.Definition{
-		rssFetchTaskType: rssTaskDefinition(srv.handleRSSFetchTask),
-	})
+	taskRegistry, err := NewTaskRegistry(srv.handleRSSFetchTask)
 	if err != nil {
 		rdb.Close()
 		return nil, fmt.Errorf("initialize task registry: %w", err)
