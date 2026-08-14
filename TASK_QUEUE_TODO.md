@@ -27,16 +27,16 @@
 
 ### 3. Queue 状态机
 
-- [ ] Enqueue：Task+Ready+Idem 单 batch；active idem 返回已有 Task。
-- [ ] EnqueueWith：固定 `Queue.mu → Store.ApplyBatch`，同批去重，callback 失败零写入。
-- [ ] Claim：按 type/due time 公平选择；READY→INFLIGHT；attempt/epoch/claimed/lease
+- [x] Enqueue：Task+Ready+Idem 单 batch；active idem 返回已有 Task。
+- [x] EnqueueWith：固定 `Queue.mu → Store.ApplyBatch`，同批去重，callback 失败零写入。
+- [x] Claim：按 type/due time 公平选择；READY→INFLIGHT；attempt/epoch/claimed/lease
       一次提交；空队列正常返回空结果。
-- [ ] Complete：fencing 校验；删除主记录/Lease/Idem；写 Done(OK)。
-- [ ] Fail：RETRY/DEAD、确定性可注入 jitter、首次 base、attempts 封顶。
-- [ ] Renew：旧 Lease key 原子替换；过期拒绝；claimed_at+MaxLease 硬上限。
-- [ ] ReapOnce：只回收仍匹配主记录 epoch/lease 的到期项，复用 Fail 状态迁移。
-- [ ] 明确损坏队头 loud failure；不静默跳过或在线修复。
-- [ ] 全部状态机测试通过 `go test -race ./task/...`。
+- [x] Complete：fencing 校验；删除主记录/Lease/Idem；写 Done(OK)。
+- [x] Fail：RETRY/DEAD、确定性可注入 jitter、首次 base、attempts 封顶。
+- [x] Renew：旧 Lease key 原子替换；过期拒绝；claimed_at+MaxLease 硬上限。
+- [x] ReapOnce：只回收仍匹配主记录 epoch/lease 的到期项，复用 Fail 状态迁移。
+- [x] 明确损坏队头 loud failure；不静默跳过或在线修复。
+- [x] 全部状态机测试通过 `go test -race ./task/...`。
 
 ## M2：RPC、worker 与生命周期
 
