@@ -54,6 +54,9 @@ service Api {
 
   // service
   rpc DeleteService(ServiceRequest) returns (Feedinfo) {}
+  rpc SubscribeService(SubscribeServiceRequest) returns (Subscription) {}
+  rpc UnsubscribeService(UnsubscribeServiceRequest) returns (google.protobuf.Empty) {}
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
@@ -298,6 +301,24 @@ message CommentDeleteRequest {
 message ServiceRequest {
   string user = 1;
   string service = 2;
+}
+
+message SubscribeServiceRequest {
+  string user_uuid = 1;
+  string url = 2;
+}
+
+message UnsubscribeServiceRequest {
+  string user_uuid = 1;
+  string feed_uuid = 2;
+}
+
+message ListSubscriptionsRequest {
+  string user_uuid = 1;
+}
+
+message ListSubscriptionsResponse {
+  repeated Subscription subscriptions = 1;
 }
 
 message SearchRequest {

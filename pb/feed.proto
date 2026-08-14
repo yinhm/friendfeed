@@ -20,6 +20,29 @@ syntax = "proto3";
 package pb;
 option go_package = ".;pb";
 
+message Subscription {
+  string feed_uuid = 1;
+  string url = 2;
+  string title = 3;
+  string added_by = 4;
+  int64 created_at_ms = 5;
+}
+
+message SubscriptionState {
+  string feed_uuid = 1;
+  string etag = 2;
+  string last_modified = 3;
+  int64 last_fetch_ms = 4;
+  int64 next_fetch_ms = 5;
+  uint32 consecutive_failures = 6;
+  int32 http_status = 7;
+  uint32 empty_fetches = 8;
+}
+
+message RSSFetchPayload {
+  string feed_uuid = 1;
+}
+
 enum FeedType {
   user = 0;
   group = 1;
