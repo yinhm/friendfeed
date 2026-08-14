@@ -1,201 +1,374 @@
 # 通用 Task 队列设计
 
-`docs/service_aggregation.md` 的审计结论是旧 FeedJob 队列不可逐项修补；本文给出
-替代它的通用队列设计，并修正该文的一处结论：RSS 抓取的**执行**应走通用队列
-（调度状态仍留 SubscriptionState），而不是进程内自造 dispatcher。
+本文定义 FeedJob 的后继系统。目标不是复刻消息中间件，而是在 ffdb 现有的单机
+Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。RSS 抓取是第一个使用方；
+调度状态仍属于 `SubscriptionState`，Task 只承载一次到期执行。
 
-## 定位与前提
+## 决策与边界
 
-- Pebble 单写者（文件锁）⇒ ffdb 进程是队列的唯一服务端，自身即 broker；不引入
-  Redis/RabbitMQ 等外部组件。
-- worker = gRPC 客户端。进程内 goroutine pool、同机 Python crawler、CLI 工具对
-  队列完全同构。ffdb 仅监听 loopback 的红线不变，worker 天然同机。
-- 进程内嵌 worker 只是 `ClaimTasks` 的一个直连调用方，单进程形态不为通用性付
-  额外复杂度。
+- ffdb 是 Pebble 唯一写者，也是唯一 broker；不引入 Redis/RabbitMQ。
+- worker 通过 loopback gRPC pull task；进程内 worker 使用同一 Queue API，不另造
+  dispatcher。
+- 交付语义是 **at-least-once**。外部 HTTP、R2 等副作用不能加入 Pebble 事务，
+  handler 必须幂等。
+- Task payload 只保存稳定引用和小参数，不保存 Profile/Service 快照、token、正文或
+  Cookie；handler 执行时读取最新数据。
+- READY/INFLIGHT 的权威状态在 Task 主记录中；Ready/Lease/Done 均为索引或历史，
+  不能反向取代主记录。
+- 旧 `EnqueJob`、`GetFeedJob`、`FinishJob` 和表 200-202 按兼容契约保留并标记
+  deprecated；新系统统一使用 Task 命名，不复用 FeedJob 符号。
+- timeline rebuild 已有 singleflight、并发上限和派生缓存收敛，不接 Task 队列。
+- `mirrorMedia` 仍是 `ArchiveFeed` 的同步契约；本设计不顺带异步化。
 
-## 现状：保留与废弃
+通用队列的成立前提是 RSS 之后确有外部 worker（例如 Python crawler）。若最终只有
+进程内 RSS 抓取，应在 M2 后重新评估是否继续暴露外部 worker RPC，而不是为了假想
+扩展提前实现所有消费者。
 
-保留（方向正确的部分）：
-
-- `jobMu` 串行化 claim、queued→running 在同一 Pebble batch 提交
-  （server/job.go:116-146，AGENTS 数据不变量）。
-
-废弃（审计十宗罪，详见 service_aggregation.md）：
-
-- FeedJob 无类型字段、载荷是含 token 的快照、无租约、入队无去重、history 写
-  空 key、claim 覆盖 Created、`FinishJob` 信任 worker 传入的 key。
-
-兼容边界（AGENTS 契约）：
-
-- `EnqueJob`/`GetFeedJob`/`FinishJob` 原样保留，标 deprecated；旧表
-  200/201/202 停止新写入，存量数据留待 M3 评估清理。纠错只能新增兼容 RPC。
-- **命名**：新系统一律用 Task（pb.Task / TableTask* / EnqueueTask），与受保护
-  的 legacy Job 符号（FeedJob / TableJobFeed / jobMu）消歧——两套系统长期
-  共存，grep 必须能分清。
-
-## 语义约定
-
-- **at-least-once + 幂等 handler**。副作用（HTTP 抓取、R2 上传）进不了 Pebble
-  事务，exactly-once 不可达成，不做此承诺。handler 必须幂等：同 key 覆盖写、
-  重复 mirror 无害。
-- **pull/claim，不 push**。worker 有容量才 claim，背压零成本；`types[]` 订阅
-  即路由，不引入命名 queue 层。
-- **延迟任务原生支持**：`run_at` 是就绪索引的排序键，定时/退避重试同构。
-
-## 代码结构
-
-通用组件，独立顶层包 `task/`，不 import server：
-
-- `task/`：Queue 引擎——Enqueue/Claim/Ack/Nack/Heartbeat 五个领域方法、taskMu、
-  key 编解码、backoff 注册表、`ReapLoop(ctx)`。依赖仅 store + model + pb，
-  引擎可脱离 ApiServer 单测。
-- `model/types.go`：只加五行表注册（203-207）——表号是全局命名空间，注册表
-  必须保持集中完整。
-- `server/task.go`：薄 gRPC 适配——参数校验后委托 `s.tasks`（*task.Queue）；
-  reaper 与进程内 worker pool 的生命周期挂既有
-  `beginBackgroundJob`/`wg`/`Shutdown`。worker pool 是消费者，不在引擎内。
-- `cli/tools`：经 task 包做审计与 replay-dead，与 RPC 走同一条状态迁移路径。
-
-依赖方向 `task → {store, model, pb}`、`server → task`，无环。outbox 生产者
-用 `EnqueueBatch(batch, task)` 变体把入队塞进业务写的同一 batch。
-
-## 存储（五个新表，纯新增）
+## 包与依赖
 
 ```text
-TableTask       = 203
-key   = prefix(4) | task_id(16, flake)
-value = pb.Task                                   // 主记录
+task/                 Queue 状态机、key codec、类型注册、reaper
+  ↓
+store + model + pb    Pebble、表注册、protobuf
 
-TableTaskReady  = 204                             // 就绪索引，时间序即出队序
-key   = prefix(4) | run_at(8, big-endian) | task_id(16)
-value = nil
+server/task.go        参数校验、gRPC 适配、生命周期
+  ↓
+task.Queue
 
-TableTaskLease  = 205                             // 租约索引，reaper 扫描用
-key   = prefix(4) | lease_until(8, big-endian) | task_id(16)
-value = nil
-
-TableTaskIdem   = 206                             // 入队去重
-key   = prefix(4) | idempotency_key(变长)
-value = task_id(16)
-
-TableTaskDone   = 207                             // 完成/死信，有界
-key   = prefix(4) | finished_at(8, big-endian) | task_id(16)
-value = pb.TaskResult{ type, status(OK|DEAD), attempts, last_error(截断),
-        created, finished }
+cli/tools             inspect/dead replay，经 task.Queue 改状态
 ```
 
-- task_id 用 flake（`s.mdb.NextId()`），与现有 key 实践一致，天然时间有序。
-- ready/lease 索引 value 为空，状态全在主记录；done 表用 RangeDelete 前缀裁剪
-  保留最近 N 条。
-- 表号与编码实施时按流程同步 AGENTS.md 契约清单。
+`task` 不 import `server`。reaper 和进程内 worker 的启动/停止由 ApiServer 挂入既有
+`beginBackgroundJob`、`wg`、`Shutdown` 生命周期；Queue 本身不拥有无约束 goroutine。
 
-## Task 模型
+## 持久化结构
+
+表号 203-207 是全局持久化契约，实施时同步 `model/types.go`、AGENTS.md、audit 和
+数据库设计文档。
+
+```text
+TableTask = 203
+key   = prefix(4) | task_id(16-byte raw flake)
+value = pb.Task                         // 权威主记录
+
+TableTaskReady = 204
+key   = prefix(4) | type_len(1) | type | run_at_ms(8 BE) | task_id(16)
+value = nil                             // READY 派生索引
+
+TableTaskLease = 205
+key   = prefix(4) | lease_until_ms(8 BE) | task_id(16)
+value = nil                             // INFLIGHT 派生索引
+
+TableTaskIdem = 206
+key   = prefix(4) | sha256(type + NUL + idempotency_key)(32)
+value = task_id(16)                     // 活跃任务去重
+
+TableTaskDone = 207
+key   = prefix(4) | finished_at_ms(8 BE) | task_id(16)
+value = pb.TaskCompletion               // 有界完成/死信历史
+```
+
+选择说明：
+
+- task id 使用现有 singleton flake generator。数据库 key 存 16-byte raw flake；RPC
+  中使用不带表前缀的 32 字符小写 hex，不混用 UUID 或完整 Pebble key。
+- 所有时间是非负 Unix milliseconds、UTC，以 `uint64` big-endian 编码；拒绝 epoch
+  前和溢出值。
+- Ready 把 type 放在时间前，使按类型 claim 只扫描相关前缀。订阅多个 type 时，
+  Queue 在**单次 claim 调用内**为每个 type 创建一个迭代器并做小规模 k-way merge，
+  取全局最早的 due task；返回前关闭全部迭代器，不跨调用持有，也不扫描无关类型
+  形成队头阻塞。
+- type 仅允许注册表中的 ASCII 标识，最长 64 字节；idempotency key 最长 256 字节，
+  payload 默认上限 64 KiB。哈希 idem key 固定数据库 key 长度，原字符串保留在 Task
+  供审计。
+- Done 保存完整 Task，而非只有结果摘要，否则 DEAD 无法 replay。
+- Done 按完成时间自然排序；清理使用 `[table prefix, cutoff key)` RangeDelete，不能
+  把“RangeDelete 前缀”误解为删除整张表。
+
+## protobuf 模型
+
+字段号实施时只追加，不复用；下列名称表达目标语义，不要求照抄序号。
 
 ```proto
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_READY = 1;
+  TASK_STATE_INFLIGHT = 2;
+}
+
+enum TaskCompletionStatus {
+  TASK_COMPLETION_STATUS_UNSPECIFIED = 0;
+  TASK_COMPLETION_STATUS_OK = 1;
+  TASK_COMPLETION_STATUS_DEAD = 2;
+}
+
 message Task {
-  string id = 1;               // flake hex
-  string type = 2;             // "rss.fetch" / "media.mirror" / "twitter.crawl"
-  bytes  payload = 3;          // 只放引用(UUID)+小参数；禁快照、禁 token
-  string idempotency_key = 4;  // 空 = 不去重
-  int64  run_at = 5;
-  int32  attempts = 6;
-  int32  max_attempts = 7;
-  int64  lease_until = 8;
-  string leased_by = 9;
-  uint64 lease_epoch = 10;     // fencing token
-  string last_error = 11;      // 截断
-  int64  created = 12;         // claim 不再覆盖
-  int64  updated = 13;
+  string id = 1;                 // 32-char raw flake hex
+  string type = 2;               // rss.fetch / twitter.crawl
+  bytes payload = 3;             // 该 type 的 protobuf，只有引用和小参数
+  uint32 payload_version = 4;
+  string idempotency_key = 5;
+  TaskState state = 6;
+  int64 run_at_ms = 7;
+  uint32 attempts = 8;           // 已经开始执行的次数
+  uint32 max_attempts = 9;
+  int64 lease_until_ms = 10;
+  string leased_by = 11;
+  uint64 lease_epoch = 12;       // fencing token，每次 claim +1
+  string last_error = 13;        // UTF-8，截断到固定上限
+  int64 created_at_ms = 14;
+  int64 updated_at_ms = 15;
+  int64 claimed_at_ms = 16;      // 本轮 claim 起点，READY 时为 0
+}
+
+message TaskCompletion {
+  Task task = 1;                 // replay DEAD 所需的完整定义
+  TaskCompletionStatus status = 2;
+  string last_error = 3;
+  int64 finished_at_ms = 4;
 }
 ```
 
-payload 约定：proto bytes，按 type 独立演进；只放引用（entry_uuid、feed_uuid）
-与小参数（cursor），handler 执行时现查现取——修掉"快照过期"与"token 落盘"
-两条罪。
+`max_attempts`、backoff、lease duration 不接受生产者自定义，来自服务端 type registry。
+Task 主记录的 state 与索引不一致属于数据损坏，运行路径返回明确错误，audit 给出修复
+建议；不能静默猜测状态。若损坏 Task 位于某 type 的队头，后续 claim 会持续明确失败，
+包含该 type 的整次多类型 claim 会持续明确失败；由 audit/reconcile 隔离或修复该记录
+后恢复消费。选择 loud failure 是为了防止跳过损坏后继续执行造成顺序和状态误判。
 
-## RPC（新增五个，旧三个保留）
+## 类型注册表
 
-```proto
-rpc EnqueueTask(Task) returns (EnqueueResponse);      // idem 命中返回已有 task
-                                                      // EnqueueResponse = {task, already_exists}
-rpc ClaimTasks(ClaimRequest) returns (ClaimResponse); // {worker_id, types[], max, lease_seconds}
-rpc AckTask(AckRequest) returns (google.protobuf.Empty);     // {worker_id, task_id, epoch}
-rpc NackTask(NackRequest) returns (google.protobuf.Empty);   // {worker_id, task_id, epoch, error}
-rpc HeartbeatTask(HeartbeatRequest) returns (Task);          // {worker_id, task_id, epoch, extend_seconds}
+每个 task type 在服务端注册：
+
+```go
+type Definition struct {
+    ValidatePayload func([]byte, uint32) error
+    MaxAttempts     uint32
+    LeaseDuration   time.Duration
+    MaxLease        time.Duration
+    BackoffBase     time.Duration
+    BackoffCap      time.Duration
+    Handler         Handler // 仅进程内消费者需要
+}
 ```
 
-空队列不做服务端 long-poll：worker 端指数退避（1s 起、30s 封顶），同机 IPC
-成本足够低——修掉"错误驱动 5s 轮询"。
+未知 type、未知 payload version 或非法 payload 在 enqueue 时拒绝，不能等 worker claim
+后才发现。注册表在服务启动时一次性校验：MaxAttempts 必须大于零，LeaseDuration 和
+MaxLease 必须为正且 `LeaseDuration <= MaxLease`，backoff base/cap 必须有效；任一配置
+非法则拒绝启动。错误摘要、type 和 worker id 也有长度上限。
 
-## 状态机与原子迁移
+## RPC API
 
-READY → INFLIGHT → done(OK)；INFLIGHT → READY（nack / 租约过期）；
-INFLIGHT → done(DEAD)（attempts 用尽）。
+客户端不能提交完整 Task，避免伪造 attempts、state、lease 或服务端时间字段。
 
-- **enqueue**：主记录 + ready key + idem，一条 batch。进程内生产者走 outbox——
-  塞进业务写的同一 batch（如 PutEntry + mirror task），入队与状态变更原子。
-- **claim**（taskMu 内，单 batch；沿用 jobMu 的串行化模式）：扫 ready 取
-  `run_at ≤ now` 且 type 匹配的前 max 条 → 主记录改 INFLIGHT、attempts+1、
-  lease_epoch+1、lease_until/leased_by；删 ready、写 lease。
-- **ack**（校验 worker+epoch）：删主记录、删 idem、删 lease、写 done(OK)，一条
-  batch。
-- **nack**（校验 fencing）：未满 → 主记录 `run_at = now + backoff(attempts)`、
-  写 ready、删 lease；已满 → 删主记录/idem/lease、写 done(DEAD)。
-- backoff：`min(base·2^attempts, cap)` ±20% jitter，base/cap/max_attempts 按
-  type 注册表配置。
+```proto
+rpc EnqueueTask(EnqueueTaskRequest) returns (EnqueueTaskResponse);
+rpc ClaimTasks(ClaimTasksRequest) returns (ClaimTasksResponse);
+rpc CompleteTask(CompleteTaskRequest) returns (google.protobuf.Empty);
+rpc FailTask(FailTaskRequest) returns (FailTaskResponse);
+rpc RenewTaskLease(RenewTaskLeaseRequest) returns (Task);
+```
 
-## 多 worker 正确性：租约与 fencing
+```proto
+message ClaimTasksResponse {
+  repeated Task tasks = 1;
+}
 
-- claim 不删 task，只推 `lease_until`；worker 崩溃后由 reaper 回收——修"无租约、
-  task 永久卡 running"。
-- `lease_epoch` 每次 claim 递增；Ack/Nack/Heartbeat 必须匹配
-  `(task_id, worker, epoch)`，僵尸 worker 的迟到写回收 FailedPrecondition。
-- 僵尸的副作用可能已发生 ⇒ 幂等 handler 兜底（见语义约定）。
-- 同一实体的互斥靠幂等键：同一 feed 同一时刻最多存在一个 `rss.fetch` task；
-  不引入 per-entity 锁表。
+enum FailTaskOutcome {
+  FAIL_TASK_OUTCOME_UNSPECIFIED = 0;
+  FAIL_TASK_OUTCOME_RETRY = 1;
+  FAIL_TASK_OUTCOME_DEAD = 2;
+}
+
+message FailTaskResponse {
+  FailTaskOutcome outcome = 1;
+  int64 next_run_at_ms = 2; // RETRY 时有效；DEAD 时为 0
+}
+```
+
+请求语义：
+
+- `EnqueueTaskRequest = {type, payload, payload_version, idempotency_key, run_at_ms}`；
+  response 返回服务端构造的 Task 和 `already_exists`。
+- `ClaimTasksRequest = {worker_id, types[], max_tasks}`；lease duration 由注册表决定，
+  不由 worker 指定。`max_tasks` 有服务端上限。空队列返回空列表和 OK，不用错误表示。
+- Complete/Fail/Renew 都必须携带 `{worker_id, task_id, lease_epoch}`。
+- Claim 把 `claimed_at_ms` 设为服务端当前时间。Renew 的新截止时间为
+  `min(now + LeaseDuration, claimed_at_ms + MaxLease)`；达到硬上限后拒绝继续续租。
+  Fail/reap 回到 READY 时清零 claimed_at，下一次 claim 才开始新的执行窗口。因此活着
+  但卡住的 worker 也不能无限占住 Task。
+- `now >= lease_until_ms` 表示 worker 已丢失租约，即使 reaper 尚未扫描到该 Lease，Renew
+  也返回 FailedPrecondition；不能利用 60 秒 reaper 窗口复活过期租约。
+- 参数错误用 InvalidArgument；未知 task 用 NotFound；worker/epoch/state 不匹配用
+  FailedPrecondition；存储故障用 Internal。
+- 不做服务端 long-poll。worker 空取后从 1 秒指数退避到 30 秒并加 jitter；成功 claim
+  后重置。
+
+命名使用 Complete/Fail/Renew 而不是 Ack/Nack/Heartbeat，直接表达领域行为，避免
+Heartbeat 被误认为 worker 存活探针。
+
+## 状态机与事务
+
+```text
+enqueue                   claim
+  ┌─────────┐          ┌──────────┐
+  │  READY  │─────────▶│ INFLIGHT │
+  └─────────┘          └──────────┘
+      ▲                  │   │   │
+      │ fail/reap retry  │   │   └── attempts exhausted ──▶ Done(DEAD)
+      └──────────────────┘   └────── complete ────────────▶ Done(OK)
+```
+
+每次迁移都在 `Queue.mu` 内完成读取、校验和单个 Pebble batch 提交：
+
+- enqueue：写 Task(READY)、Ready、可选 Idem。
+- claim：只处理 `run_at <= now`；验证 Task 存在、state=READY、type/run_at 与索引
+  一致；state→INFLIGHT，attempts+1、epoch+1、claimed_at=now、
+  lease_until=now+LeaseDuration，删除 Ready，写 Lease。
+- complete：验证 state/worker/epoch；删除 Task、Lease、Idem，写 Done(OK)。
+- fail：验证 fencing；仍可重试时 state→READY、清 lease/claimed_at 字段、计算新
+  run_at，删除 Lease、写 Ready；attempts 已达上限时删除 Task/Lease/Idem，写
+  Done(DEAD)。
+- renew：验证 fencing；删除旧 Lease key、更新主记录 lease_until、写新 Lease key。
+- reap：扫描到期 Lease，重新读取主记录并核对 state、epoch 和 lease_until；过期索引
+  不能回收已续租任务。合法过期任务复用内部 fail 迁移，reason=`lease_lost`。
+
+`attempts` 在 claim 时递增，第一次执行的 attempts=1。第 n 次失败后的退避定义为：
+
+```text
+min(base * 2^(n-1), cap) ± 20% jitter
+```
+
+因此第一次失败等待 base，不存在 off-by-one。时间源和 jitter source 可注入，保证测试
+确定性。
+
+### 幂等键语义
+
+Idem 只保证同一 type 的**活跃 Task**唯一：READY/INFLIGHT 期间重复 enqueue 返回原
+Task；完成或 DEAD 后 Idem 被删除，之后允许重新入队。它不是永久业务幂等记录，最终
+副作用仍由 handler 的 canonical key 保证幂等。
+
+发现 Idem 指向不存在的 Task 时视为孤儿：普通 enqueue 返回数据损坏错误，不在业务
+请求中静默修复；audit/reconcile 工具负责清理。
+
+## 与业务写原子提交（outbox）
+
+不得从已有 `Store.ApplyBatch` callback 内再次调用 Queue.Enqueue，否则会嵌套事务并
+造成锁顺序问题。Queue 提供唯一的组合入口：
+
+```go
+Queue.EnqueueWith(ctx, specs, func(batch *pebble.Batch) error {
+    // 业务 mutation
+    return nil
+}) ([]*pb.Task, error)
+```
+
+固定顺序是 `Queue.mu → Store.ApplyBatch(batchMu)`：Queue 先在锁内读取 Idem、准备 task
+id，并在一个本地集合中消解同批重复 spec；随后单个 ApplyBatch 同时写业务 mutation
+和 Task/Ready/Idem。callback 不得回调 Queue。普通 Enqueue 是该入口的空业务 callback
+封装。
+
+callback 在 Queue.mu 下执行，只允许快速、确定性的 batch mutation；不得做网络 I/O、
+等待其他 goroutine、启动事务或执行无界扫描。复杂读取和计算必须在进入 EnqueueWith
+前完成，并由业务层处理其结果过期风险。
+
+Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；response 中对应项返回
+已有 Task 并标记 `already_exists`。callback 必须自身满足业务写的幂等约束，不能依赖
+“Task 已存在”来跳过 canonical mutation。
+
+这样可以证明：业务写和 task 要么同时可见，要么都不可见；也避免公开一个要求调用方
+自行持锁的危险 `EnqueueBatch` API。
+
+## 租约、worker 与幂等 handler
+
+- lease + epoch 只阻止僵尸 worker 修改队列状态，不能阻止它已发出的 HTTP/R2 副作用。
+- handler 必须使用稳定业务 key：RSS Entry 使用规范化 item identity；媒体对象按内容
+  key 覆盖；重复执行不得制造第二份 canonical 数据。
+- worker 在预计超出租约时主动 Renew；超时后继续执行得到的结果不得 Complete/Fail。
+- `worker_id` 是诊断和 fencing 的一部分，不是身份认证。安全边界仍依赖 ffdb 仅监听
+  loopback；若未来允许远程 worker，必须先设计可信 principal，不能只相信 worker_id。
+
+## RSS 的一致性规则
+
+- `SubscriptionState.next_fetch` 决定何时调度；到期调度器 enqueue
+  `rss.fetch`，idem=`<feed_uuid>`。Queue 不复制 ETag、token 或完整 URL 快照。
+- handler 开始时重新读取 Subscription 与 State；源已删除、无 follower、或
+  `next_fetch` 已被一次较新的执行推进时，任务成为幂等 no-op 并 Complete。
+- handler 必须先提交 Entry 和新的 SubscriptionState，再 Complete Task。若提交后进程
+  崩溃，lease 重派会由最新 State/Entry identity 识别为重复执行。
+- 尚有队列重试次数的短期传输错误只调用 Fail，不推进业务 `next_fetch`；最后一次允许的
+  执行失败时，handler 先更新 SubscriptionState 的失败计数与下一轮业务调度时间，再
+  Fail 进入 DEAD。若更新 State 后崩溃，重派 handler 看到已推进的 State 后幂等 Complete。
+  ETag、HTTP 状态和长期失败退避始终只属于 SubscriptionState，不能产生两套真相。
+- 首版 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
+  多进程 RSS worker 前必须增加跨 worker 的 host 并发方案；进程内 mutex 不能冒充
+  分布式互斥。
 
 ## Reaper、关停与重启
 
-- reaper 为 ffdb 内 goroutine（挂既有 `beginBackgroundJob`/`wg`/`Shutdown`
-  设施），60s tick，扫 `lease_until < now`，按 nack 路径重派或入死信
-  （reason=lease_lost）。
-- 关停：GracefulStop 排干请求后停止接受新 claim，短等在飞 ack；未 ack 的靠
-  租约过期回收。kill -9 安全，重启后 reaper 自愈，无任何恢复流程。
+- reaper 每 60 秒扫描 `lease_until <= now`；因此实际重派延迟是 lease 剩余时间加最多
+  60 秒，这是明确 SLA。
+- 收到关停信号后先把 Queue 标记为不接受 enqueue/claim，并停止调度器和进程内 worker
+  领取新任务；随后 gRPC GracefulStop 排干正在执行的 Complete/Fail/Renew RPC。
+- 进程内 handler 在关停宽限期内完成；超过期限则停止续租并退出，任务由下次启动后的
+  reaper 回收。不能为等外部 HTTP 无限阻塞 Store.Close。
+- reaper/worker 退出并由既有 wg 确认后，才关闭 Pebble。kill -9 后不需特殊恢复流程。
 
-## 观测与运维
+## 审计、历史与运维
 
-- ready 深度 / 最老 task 年龄（lag）：扫 ready 前缀即得。
-- done 表给出错率与死信清单；`tools -c tasks`：list ready/inflight/dead、
-  replay-dead（done→ready 单条重放）。
-- 日志只记 type/task_id/耗时/错误摘要；payload 模型层面禁 secret，任何级别不
-  记正文。
+audit 至少验证：
 
-## 任务类型映射
+- READY 主记录恰有一个匹配 Ready key，且无 Lease；INFLIGHT 反之。
+- Ready/Lease 不得指向缺失 Task，索引时间/type 必须与主记录一致。
+- Idem hash、type、原 key 与目标 Task 一致，不得指向 Done 或缺失 Task。
+- Done key 的时间/task id 与 value 一致；DEAD 必须保留可校验、可 replay 的 Task。
 
-- `rss.fetch`：调度器（service_aggregation.md）到期入队，
-  idem=`fetch:<feed_uuid>`；worker 做条件 GET/解析/PostEntry/推进
-  SubscriptionState。分工：短期传输错误走队列 nack backoff；源级长期状态
-  （etag、退避、失败计数）留订阅表。每 host 串行（抓取 politeness）由 handler
-  内 per-host 锁实现，不进队列层。
-- `media.mirror`（将来异步化时）：outbox 随 PutEntry 同 batch 入队，
-  idem=`mirror:<entry_uuid>`。当前 mirrorMedia 是同步契约（AGENTS），不动。
-- `twitter.crawl`（将来）：Python crawler 改 `ClaimTasks(["twitter.crawl"])`
-  闭环，替换硬编码 `yinhm` 的 Go worker（cli/cmd/twitter.go:97）。
-- timeline rebuild **不接队列**：on-demand + singleflight + 并发上限已是最简
-  形态，可靠投递对它无意义。
+工具分两类：
+
+- `tasks list --state ready|inflight|dead --type ...` 只读、流式、有界输出。
+- `tasks replay-dead --task-id ...` 经 Queue 校验 payload/type，生成**新 task id 和新
+  attempts**；原 Done 历史保留，避免审计链被改写。
+
+Done 默认同时受时间和数量上限约束，裁剪流式执行。日志只记录 task id、type、worker、
+耗时和截断错误；不得记录 payload、正文或凭据。
 
 ## 分阶段实施
 
-- M1：pb.Task + 五表 + `task/` 包引擎 + server 薄适配 + 进程内 worker pool；
-  RSS 迁入。落位见"代码结构"一节。
-- M2：reaper + done 表裁剪 + `tools -c tasks`（cli/tools 经 task 包）。
-- M3：外部 worker 样例（Python crawler 闭环）；评估旧表 200-202 数据清理与旧
-  RPC 退役方案（按 AGENTS 契约需独立设计）。
+每阶段单独提交、可回退，不能把 RSS 与尚未验证的队列核心绑成一个大提交。
 
-## 测试清单
+### M1：持久化与纯 Queue 状态机
 
-- task 包（脱离 ApiServer）：五表 key/value 编码、边界（空 idem key、零
-  task_id、变长 idem 前缀冲突）；并发 claim 同一 task 仅一人成功；过期 epoch
-  的 Ack/Nack 被拒；租约过期重派；backoff 推进与封顶；attempts 用尽入 DEAD；
-  idem 重复入队返回已有；outbox 与业务写同 batch 原子。全部过 `-race`。
-- server：五个 RPC 的校验与委托、GracefulStop 排干、reaper 生命周期。
+- protobuf、五张表、key codec、type registry。
+- Enqueue/Claim/Complete/Fail/Renew 和 `EnqueueWith`，不接 gRPC、不接真实 handler。
+- 单测覆盖编码边界、注册表启动校验、同批/并发 idem、并发 claim、fencing、
+  renew/reap stale lease、过期租约 Renew 拒绝、Renew 固定硬上限、backoff 边界、
+  attempts→DEAD、outbox 原子失败；`go test -race ./task/...`。
+
+### M2：server 适配与生命周期
+
+- 五个新增 RPC、参数/状态码映射、空 claim 正常响应。
+- reaper、受控进程内 worker pool、GracefulStop/Store.Close 顺序。
+- 用假 handler 做崩溃、超时、续租、关停集成测试；此时队列核心可独立验收。
+
+### M3：RSS 接入
+
+- Subscription/State 调度只 enqueue due feed；RSS handler 按上述一致性规则执行。
+- 验证重复执行、状态更新后崩溃、无 follower、条件 GET、SSRF 和 host 串行。
+- 稳定后停止 legacy `RefetchJobTicker` 的启动，但保留旧符号和 RPC。
+
+### M4：运维闭环
+
+- audit、list、replay-dead、Done retention/reconcile。
+- 记录 ready depth、最老 ready age、inflight/expired/dead 数量和 handler 延迟。
+
+### M5：外部 worker
+
+- Python crawler 使用新 RPC 的样例和 systemd 部署方式。
+- 在开放多进程 RSS 或远程 worker 前，重新评审 principal、host 并发和 loopback 边界。
+- 单独设计旧表 200-202 的数据清理与旧 RPC 退役；不得随 Task 上线直接删除。
+
+## 非目标
+
+- 不承诺 exactly-once。
+- 不实现优先级、DAG、广播、跨主机 broker、无限 long-poll 或任意用户自定义 task type。
+- 不把 SubscriptionState、timeline 状态或业务失败历史塞进 Task 主记录。
+- 不因新 Task 系统顺手删除 legacy Job API、同步 mirrorMedia 或现有调试/迁移路径。
