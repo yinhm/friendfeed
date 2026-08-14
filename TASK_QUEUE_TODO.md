@@ -59,10 +59,10 @@
 
 ### 6. Subscription 数据模型
 
-- [ ] 注册 Subscription 111、SubscriptionState 112；定义 protobuf 和 key codec。
-- [ ] URL 规范化、全局 feed identity、Follow/Follower 原子订阅关系。
-- [ ] State 保存 ETag/Last-Modified/next_fetch/长期失败状态。
-- [ ] model/server 测试覆盖订阅幂等、退订和无 follower。
+- [x] 注册 Subscription 111、SubscriptionState 112；定义 protobuf 和 UUID key codec。
+- [x] URL 规范化、全局 feed identity、synthetic Profile、Follow/Follower 原子订阅关系。
+- [x] State 保存 ETag/Last-Modified/next_fetch/长期失败状态。
+- [ ] server RPC 与测试覆盖订阅幂等、退订、列表和无 follower。
 
 ### 7. RSS 调度与 handler
 
