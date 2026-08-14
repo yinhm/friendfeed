@@ -318,8 +318,10 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "same_second_groups=%d same_second_entries=%d\n", stats.sameSecondGroups, stats.sameSecondEntries)
 	fmt.Fprintf(out, "follow=%d follower=%d missing_follower=%d missing_follow=%d max_followers=%d\n",
 		stats.followEdges, stats.followerEdges, stats.missingFollowerEdges, stats.missingFollowEdges, stats.maxFollowers)
-	fmt.Fprintf(out, "tasks=%d ready=%d leases=%d idem=%d done=%d missing_ready=%d missing_lease=%d missing_idem=%d orphan_ready=%d orphan_lease=%d orphan_idem=%d invalid_done=%d\n",
+	fmt.Fprintf(out, "tasks=%d ready=%d leases=%d idem=%d done=%d missing_ready=%d missing_lease=%d missing_idem=%d orphan_ready=%d orphan_lease=%d orphan_idem=%d mismatched_ready=%d mismatched_lease=%d mismatched_idem=%d invalid_done=%d\n",
 		stats.tasks.Tasks, stats.tasks.Ready, stats.tasks.Leases, stats.tasks.Idempotency, stats.tasks.Done,
 		stats.tasks.MissingReady, stats.tasks.MissingLease, stats.tasks.MissingIdem,
-		stats.tasks.OrphanReady, stats.tasks.OrphanLease, stats.tasks.OrphanIdem, stats.tasks.InvalidDone)
+		stats.tasks.OrphanReady, stats.tasks.OrphanLease, stats.tasks.OrphanIdem,
+		stats.tasks.MismatchedReady, stats.tasks.MismatchedLease, stats.tasks.MismatchedIdem,
+		stats.tasks.InvalidDone)
 }

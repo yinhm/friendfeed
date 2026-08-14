@@ -15,10 +15,11 @@ import (
 // AuditStats is deliberately counter-only: queue audit must remain bounded in
 // memory even when the database contains millions of completed tasks.
 type AuditStats struct {
-	Tasks, Ready, Leases, Idempotency, Done int
-	MissingReady, MissingLease, MissingIdem int
-	OrphanReady, OrphanLease, OrphanIdem    int
-	InvalidDone                             int
+	Tasks, Ready, Leases, Idempotency, Done          int
+	MissingReady, MissingLease, MissingIdem          int
+	OrphanReady, OrphanLease, OrphanIdem             int
+	MismatchedReady, MismatchedLease, MismatchedIdem int
+	InvalidDone                                      int
 }
 
 func Audit(db *store.Store) (AuditStats, error) {
@@ -84,16 +85,17 @@ func Audit(db *store.Store) (AuditStats, error) {
 	}
 
 	if err := model.TaskReady.Iter(db, func(key, _ []byte) error {
-		_, _, id, err := ParseReadyKey(key)
+		taskType, runAt, id, err := ParseReadyKey(key)
 		if err != nil {
 			return err
 		}
-		exists, err := taskExists(db, id)
-		if err != nil {
-			return err
-		}
-		if !exists {
+		task, err := loadTaskForAudit(db, id)
+		if errors.Is(err, ErrNotFound) {
 			stats.OrphanReady++
+		} else if err != nil {
+			return err
+		} else if task.State != pb.TaskState_TASK_STATE_READY || task.Type != taskType || task.RunAtMs != runAt {
+			stats.MismatchedReady++
 		}
 		stats.Ready++
 		return nil
@@ -101,16 +103,17 @@ func Audit(db *store.Store) (AuditStats, error) {
 		return stats, err
 	}
 	if err := model.TaskLease.Iter(db, func(key, _ []byte) error {
-		_, id, err := ParseLeaseKey(key)
+		leaseUntil, id, err := ParseLeaseKey(key)
 		if err != nil {
 			return err
 		}
-		exists, err := taskExists(db, id)
-		if err != nil {
-			return err
-		}
-		if !exists {
+		task, err := loadTaskForAudit(db, id)
+		if errors.Is(err, ErrNotFound) {
 			stats.OrphanLease++
+		} else if err != nil {
+			return err
+		} else if task.State != pb.TaskState_TASK_STATE_INFLIGHT || task.LeaseUntilMs != leaseUntil {
+			stats.MismatchedLease++
 		}
 		stats.Leases++
 		return nil
@@ -126,12 +129,15 @@ func Audit(db *store.Store) (AuditStats, error) {
 		}
 		var id flake.Id
 		copy(id[:], value)
-		exists, err := taskExists(db, id)
-		if err != nil {
-			return err
-		}
-		if !exists {
+		task, err := loadTaskForAudit(db, id)
+		if errors.Is(err, ErrNotFound) {
 			stats.OrphanIdem++
+		} else if err != nil {
+			return err
+		} else if task.IdempotencyKey == "" {
+			stats.MismatchedIdem++
+		} else if expected, keyErr := IdemKey(task.Type, task.IdempotencyKey); keyErr != nil || !bytes.Equal(expected, key) {
+			stats.MismatchedIdem++
 		}
 		stats.Idempotency++
 		return nil
@@ -159,10 +165,21 @@ func Audit(db *store.Store) (AuditStats, error) {
 	return stats, nil
 }
 
-func taskExists(db *store.Store, id flake.Id) (bool, error) {
+func loadTaskForAudit(db *store.Store, id flake.Id) (*pb.Task, error) {
 	key, err := TaskKey(id)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return db.Exists(key)
+	raw, err := db.Get(key)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	task := new(pb.Task)
+	if err := proto.Unmarshal(raw, task); err != nil {
+		return nil, err
+	}
+	return task, nil
 }
