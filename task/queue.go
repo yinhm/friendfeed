@@ -26,6 +26,7 @@ var (
 	ErrNotFound           = errors.New("task: not found")
 	ErrFailedPrecondition = errors.New("task: failed precondition")
 	ErrCorrupt            = errors.New("task: corrupt queue")
+	ErrClosed             = errors.New("task: queue is not accepting new work")
 )
 
 const (
@@ -61,6 +62,7 @@ type Queue struct {
 	jitter    func(time.Duration) time.Duration
 	maxClaim  int
 	reapLimit int
+	accepting bool
 }
 
 type Options struct {
@@ -91,7 +93,7 @@ func NewQueue(db *store.Store, registry *Registry, options Options) (*Queue, err
 	}
 	return &Queue{
 		db: db, registry: registry, now: options.Now, jitter: options.Jitter,
-		maxClaim: options.MaxClaim, reapLimit: options.ReapLimit,
+		maxClaim: options.MaxClaim, reapLimit: options.ReapLimit, accepting: true,
 	}, nil
 }
 
@@ -113,6 +115,9 @@ func (q *Queue) EnqueueWith(ctx context.Context, specs []Spec, business func(*pe
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if !q.accepting {
+		return nil, ErrClosed
+	}
 	nowMS := q.now().UTC().UnixMilli()
 	if nowMS < 0 {
 		return nil, fmt.Errorf("%w: current time is before Unix epoch", ErrInvalidArgument)
@@ -204,6 +209,9 @@ func (q *Queue) Claim(ctx context.Context, workerID string, taskTypes []string, 
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if !q.accepting {
+		return nil, ErrClosed
+	}
 
 	nowMS := q.now().UTC().UnixMilli()
 	candidates, err := q.readyCandidates(taskTypes, nowMS, maxTasks)
@@ -263,6 +271,43 @@ func (q *Queue) Claim(ctx context.Context, workerID string, taskTypes []string, 
 		return nil, err
 	}
 	return claimed, nil
+}
+
+// StopAccepting rejects future enqueue and claim calls while leaving lease
+// completion methods available to drain already claimed work.
+func (q *Queue) StopAccepting() {
+	q.mu.Lock()
+	q.accepting = false
+	q.mu.Unlock()
+}
+
+func (q *Queue) Definition(taskType string) (Definition, bool) {
+	return q.registry.Definition(taskType)
+}
+
+func (q *Queue) TypesWithHandlers() []string {
+	return q.registry.TypesWithHandlers()
+}
+
+func (q *Queue) ReapLoop(ctx context.Context, interval time.Duration) error {
+	if interval <= 0 {
+		return fmt.Errorf("%w: reaper interval must be positive", ErrInvalidArgument)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if _, err := q.ReapOnce(ctx); err != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
+				return err
+			}
+		}
+	}
 }
 
 func (q *Queue) Complete(ctx context.Context, workerID, taskID string, epoch uint64) error {

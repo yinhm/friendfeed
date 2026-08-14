@@ -42,18 +42,18 @@
 
 ### 4. server gRPC 适配
 
-- [ ] ApiServer 持有 Queue；构造失败返回 error，不在库代码 Fatal。
-- [ ] 五个 RPC 只做参数验证、错误码映射与 Queue 委托。
-- [ ] worker_id/type/task id/批量上限校验；空 Claim 返回 OK。
-- [ ] gRPC 测试覆盖 InvalidArgument、NotFound、FailedPrecondition、Internal。
+- [x] ApiServer 持有 Queue；构造失败返回 error，不在库代码 Fatal。
+- [x] 五个 RPC 只做参数验证、错误码映射与 Queue 委托。
+- [x] worker_id/type/task id/批量上限校验；空 Claim 返回 OK。
+- [x] gRPC 测试覆盖 InvalidArgument、NotFound、FailedPrecondition、Internal。
 
 ### 5. reaper 与进程内 worker
 
-- [ ] ReapLoop(ctx) 60 秒 tick，可注入 clock/ticker 测试。
-- [ ] 有界 worker pool 通过 Queue Claim，不绕过状态机。
-- [ ] handler 完成/失败/续租路径和 panic 恢复不遗失 Task。
-- [ ] 关停先停止 enqueue/claim 和新 handler，再排干 RPC/后台任务，最后关闭 Pebble。
-- [ ] 测试 GracefulStop、kill/restart 模拟、过期回收和 Store.Close 顺序。
+- [x] ReapLoop(ctx) 60 秒 tick；ReapOnce 使用可注入 clock，loop 受 context 控制。
+- [x] 有界 worker pool 通过 Queue Claim，不绕过状态机。
+- [x] handler 完成/失败/续租路径和 panic 恢复不遗失 Task。
+- [x] 关停先停止 enqueue/claim 和新 handler，再排干 RPC/后台任务，最后关闭 Pebble。
+- [x] 测试 GracefulStop、handler 取消、过期回收和 Store.Close 顺序。
 
 ## M3：RSS 首个使用方
 

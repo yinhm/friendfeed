@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/yinhm/friendfeed/pb"
@@ -44,6 +45,20 @@ func (r *Registry) Definition(taskType string) (Definition, bool) {
 	}
 	definition, ok := r.definitions[taskType]
 	return definition, ok
+}
+
+func (r *Registry) TypesWithHandlers() []string {
+	if r == nil {
+		return nil
+	}
+	types := make([]string, 0, len(r.definitions))
+	for taskType, definition := range r.definitions {
+		if definition.Handler != nil {
+			types = append(types, taskType)
+		}
+	}
+	slices.Sort(types)
+	return types
 }
 
 func (r *Registry) Validate(taskType string, payload []byte, version uint32) (Definition, error) {

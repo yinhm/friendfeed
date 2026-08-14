@@ -271,3 +271,28 @@ func TestReapRetriesThenDeadLettersExpiredTask(t *testing.T) {
 	require.Zero(t, countRows(t, db, model.Task.Prefix))
 	require.Equal(t, 1, countRows(t, db, model.TaskDone.Prefix))
 }
+
+func TestStopAcceptingStillAllowsClaimedTaskToFinish(t *testing.T) {
+	queue, _, _ := newTestQueue(t, map[string]Definition{"rss.fetch": validDefinition()})
+	_, err := queue.Enqueue(context.Background(), Spec{Type: "rss.fetch"})
+	require.NoError(t, err)
+	claimed, err := queue.Claim(context.Background(), "worker", []string{"rss.fetch"}, 1)
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+
+	queue.StopAccepting()
+	_, err = queue.Enqueue(context.Background(), Spec{Type: "rss.fetch"})
+	require.ErrorIs(t, err, ErrClosed)
+	_, err = queue.Claim(context.Background(), "worker", []string{"rss.fetch"}, 1)
+	require.ErrorIs(t, err, ErrClosed)
+	require.NoError(t, queue.Complete(context.Background(), "worker", claimed[0].Id, claimed[0].LeaseEpoch))
+}
+
+func TestReapLoopStopsWithContext(t *testing.T) {
+	queue, _, _ := newTestQueue(t, map[string]Definition{"rss.fetch": validDefinition()})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- queue.ReapLoop(ctx, time.Millisecond) }()
+	cancel()
+	require.NoError(t, <-done)
+}
