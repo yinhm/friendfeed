@@ -46,6 +46,11 @@ const (
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
 	TableJobHistory store.KeyPrefix = 202
+	TableTask       store.KeyPrefix = 203
+	TableTaskReady  store.KeyPrefix = 204
+	TableTaskLease  store.KeyPrefix = 205
+	TableTaskIdem   store.KeyPrefix = 206
+	TableTaskDone   store.KeyPrefix = 207
 
 	TableConfig store.KeyPrefix = 300
 	TableTopic  store.KeyPrefix = 301
@@ -84,6 +89,11 @@ var (
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))
 	JobHistory = NewTable(KeyPrefixToBytes(TableJobHistory))
+	Task       = NewTable(KeyPrefixToBytes(TableTask))
+	TaskReady  = NewTable(KeyPrefixToBytes(TableTaskReady))
+	TaskLease  = NewTable(KeyPrefixToBytes(TableTaskLease))
+	TaskIdem   = NewTable(KeyPrefixToBytes(TableTaskIdem))
+	TaskDone   = NewTable(KeyPrefixToBytes(TableTaskDone))
 
 	Config = NewTable(KeyPrefixToBytes(TableConfig))
 	Topic  = NewTable(KeyPrefixToBytes(TableTopic))

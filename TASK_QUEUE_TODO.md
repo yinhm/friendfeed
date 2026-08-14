@@ -7,14 +7,14 @@
 
 ### 1. protobuf 与表注册
 
-- [ ] 新增 TaskState、TaskCompletionStatus、FailTaskOutcome。
-- [ ] 新增 Task、TaskCompletion 及五组 RPC request/response message；客户端不得提交
+- [x] 新增 TaskState、TaskCompletionStatus、FailTaskOutcome。
+- [x] 新增 Task、TaskCompletion 及五组 RPC request/response message；客户端不得提交
       state、attempts、lease 或服务端时间。
-- [ ] 在 Api service 追加 EnqueueTask、ClaimTasks、CompleteTask、FailTask、
+- [x] 在 Api service 追加 EnqueueTask、ClaimTasks、CompleteTask、FailTask、
       RenewTaskLease，不改旧 RPC。
-- [ ] 注册 TableTask 203、Ready 204、Lease 205、Idem 206、Done 207 和对应 Table。
-- [ ] 更新 protobuf 生成方式，确认生成物与当前 grpc/protobuf 版本兼容。
-- [ ] 测试表号、字段及旧 RPC descriptor 仍存在。
+- [x] 注册 TableTask 203、Ready 204、Lease 205、Idem 206、Done 207 和对应 Table。
+- [x] 使用仓库现有 protoc 流程重新生成，确认生成物与当前 grpc/protobuf 版本兼容。
+- [x] 测试表号、字段及旧 RPC descriptor 仍存在。
 
 ### 2. key codec 与注册表
 

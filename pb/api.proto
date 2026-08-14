@@ -8,12 +8,19 @@ option go_package = ".;pb";
 
 import "feed.proto";
 import "stock.proto";
+import "google/protobuf/empty.proto";
 
 service Api {
   rpc EnqueJob(FeedJob) returns (FeedJob) {}
 
   rpc GetFeedJob(Worker) returns (FeedJob) {}
   rpc FinishJob(FeedJob) returns (FeedJob) {}
+
+  rpc EnqueueTask(EnqueueTaskRequest) returns (EnqueueTaskResponse) {}
+  rpc ClaimTasks(ClaimTasksRequest) returns (ClaimTasksResponse) {}
+  rpc CompleteTask(CompleteTaskRequest) returns (google.protobuf.Empty) {}
+  rpc FailTask(FailTaskRequest) returns (FailTaskResponse) {}
+  rpc RenewTaskLease(RenewTaskLeaseRequest) returns (Task) {}
 
   rpc FetchProfile(ProfileRequest) returns (Profile) {}
   rpc FetchGraph(ProfileRequest) returns (Graph) {}
@@ -101,6 +108,97 @@ message FeedJob {
   // translate to new service(sync) job
   Service service = 14;
   Profile profile = 15;
+}
+
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_READY = 1;
+  TASK_STATE_INFLIGHT = 2;
+}
+
+enum TaskCompletionStatus {
+  TASK_COMPLETION_STATUS_UNSPECIFIED = 0;
+  TASK_COMPLETION_STATUS_OK = 1;
+  TASK_COMPLETION_STATUS_DEAD = 2;
+}
+
+enum FailTaskOutcome {
+  FAIL_TASK_OUTCOME_UNSPECIFIED = 0;
+  FAIL_TASK_OUTCOME_RETRY = 1;
+  FAIL_TASK_OUTCOME_DEAD = 2;
+}
+
+message Task {
+  string id = 1;
+  string type = 2;
+  bytes payload = 3;
+  uint32 payload_version = 4;
+  string idempotency_key = 5;
+  TaskState state = 6;
+  int64 run_at_ms = 7;
+  uint32 attempts = 8;
+  uint32 max_attempts = 9;
+  int64 lease_until_ms = 10;
+  string leased_by = 11;
+  uint64 lease_epoch = 12;
+  string last_error = 13;
+  int64 created_at_ms = 14;
+  int64 updated_at_ms = 15;
+  int64 claimed_at_ms = 16;
+}
+
+message TaskCompletion {
+  Task task = 1;
+  TaskCompletionStatus status = 2;
+  string last_error = 3;
+  int64 finished_at_ms = 4;
+}
+
+message EnqueueTaskRequest {
+  string type = 1;
+  bytes payload = 2;
+  uint32 payload_version = 3;
+  string idempotency_key = 4;
+  int64 run_at_ms = 5;
+}
+
+message EnqueueTaskResponse {
+  Task task = 1;
+  bool already_exists = 2;
+}
+
+message ClaimTasksRequest {
+  string worker_id = 1;
+  repeated string types = 2;
+  uint32 max_tasks = 3;
+}
+
+message ClaimTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message CompleteTaskRequest {
+  string worker_id = 1;
+  string task_id = 2;
+  uint64 lease_epoch = 3;
+}
+
+message FailTaskRequest {
+  string worker_id = 1;
+  string task_id = 2;
+  uint64 lease_epoch = 3;
+  string error = 4;
+}
+
+message FailTaskResponse {
+  FailTaskOutcome outcome = 1;
+  int64 next_run_at_ms = 2;
+}
+
+message RenewTaskLeaseRequest {
+  string worker_id = 1;
+  string task_id = 2;
+  uint64 lease_epoch = 3;
 }
 
 message FeedSummary {
