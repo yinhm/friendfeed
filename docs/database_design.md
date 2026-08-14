@@ -71,9 +71,16 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 108 | TimelineIndex | `T + viewer UUID + reverse Unix ms + entry UUID` | 空 | Home 排序派生数据 |
 | 109 | TimelinePosition | `T + viewer UUID + entry UUID` | Unix ms（8 B big-endian） | Home 位置派生数据 |
 | 110 | TimelineState | `T + viewer UUID` | last-access Unix ms（8 B big-endian） | Home 活跃状态派生数据 |
+| 111 | Subscription | `T + feed UUID` | `pb.Subscription` | RSS 规范化源 |
+| 112 | SubscriptionState | `T + feed UUID` | `pb.SubscriptionState` | RSS 调度/条件 GET 状态 |
 | 200 | JobFeed | `T + Flake ID` | job protobuf | queued job |
 | 201 | JobRunning | `T + Flake ID` | job protobuf | claimed job |
 | 202 | JobHistory | `T + target id` | `pb.FeedJob` | 历史记录 |
+| 203 | Task | `T + raw Flake ID` | `pb.Task` | Task 权威状态 |
+| 204 | TaskReady | `T + type + run time + task ID` | 空 | READY 派生索引 |
+| 205 | TaskLease | `T + lease time + task ID` | 空 | INFLIGHT 派生索引 |
+| 206 | TaskIdem | `T + SHA-256(type,idempotency key)` | raw Flake ID | 活跃去重索引 |
+| 207 | TaskDone | `T + finish time + task ID` | `pb.TaskCompletion` | 完成/死信历史 |
 | 300–303 | Config/Topic/Stock/KLine | 表专用 key | 各领域编码 | 独立领域数据 |
 
 Follow/Follower 必须在同一个 Pebble batch 中更新：

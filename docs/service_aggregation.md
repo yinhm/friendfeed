@@ -95,9 +95,9 @@ profile 页、搜索索引零改动复用。退订 = 删边；调度器跳过无
 - Entry 身份统一为 `UniqueKeyFrom("rss", normalizedURL, itemKey)`；itemKey 依次取
   GUID → link → `hash(title+published)`。全链路只此一套方案，显式吸取 twitter
   双 UUID 方案的教训。
-- 落库走既有 `PostEntry` 路径（参照 PostTweet 的内部调用方式，
-  server/server.go:1030-1070）：自动获得 mirrorMedia 的 R2 镜像（90s/20 对象预
-  算）、timeline fanout、搜索索引。重复抓取 = 同 key 覆盖写，天然幂等。
+- 落库走既有 `PostEntry` 路径，获得 timeline fanout 与搜索索引。首版不导入 RSS
+  远程图片，避免另开一条未经审计的下载路径；`ArchiveFeed` 的同步 mirrorMedia
+  契约保持不变。重复抓取由稳定 key 检测后跳过，天然幂等。
 - `Entry.Date` 取 item 发布时间（缺省回退抓取时刻），必须满足 model 的 RFC3339
   校验；`Via = { feed title, feed url }`。
 
@@ -105,10 +105,10 @@ profile 页、搜索索引零改动复用。退订 = 删边；调度器跳过无
 
 ```text
 每 60s 流式扫描 TableSubscriptionState，挑出 next_fetch <= now 的源
-  → 全局并发上限 8、每 host 同时在飞 1 个
+  → Queue worker 全局并发上限 4、每 host 同时在飞 1 个
   → 条件 GET（If-None-Match / If-Modified-Since），304 零解析
-  → 成功：自适应间隔（连续空转翻倍，30min 起、24h 封顶，±20% jitter）
-  → 失败：指数退避 5min 起、6h 封顶；失败次数入 State
+  → 成功：自适应间隔（连续空转翻倍，30min 起、24h 封顶）
+  → 最终失败：长期退避 1h 起、24h 封顶；失败次数入 State
   → 每源每次最多处理 25 个新 item，新→旧
 ```
 
@@ -129,10 +129,8 @@ profile 页、搜索索引零改动复用。退订 = 删边；调度器跳过无
 ### httpd 与前端
 
 - 新 RPC（纯新增）：`SubscribeService`（输入 URL，规范化、查重、建源、建 follow
-  边、立即异步首抓）、`UnsubscribeService`（删边）、`ListSubscriptions`（账户页
-  展示）。
-- 账户/import 页（React bundle，httpd/app/src/account.jsx）加"订阅 RSS"表单与
-  订阅列表；遵守 httpd/AGENTS（交互只在 bundle、零 ESLint warning）。
+  边、立即异步首抓）、`UnsubscribeService`（删边）、`ListSubscriptions`。首版只
+  交付 API；账户页 UI 不是 Task 队列成立条件，另行设计。
 
 ## 既有 Job 系统的处置
 

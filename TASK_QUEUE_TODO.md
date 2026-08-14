@@ -88,15 +88,15 @@
 
 ### 9. Python 示例和部署边界
 
-- [ ] Python 示例闭环 Claim/Complete/Fail/Renew，空队列客户端退避。
-- [ ] requirements 与 Fabric/systemd 文档使用现行 uv 流程。
-- [ ] 明确仅 loopback；不开放远程 worker，不把 worker_id 当 principal。
-- [ ] 多进程 RSS/per-host 限流留作重新评审，不用进程内锁冒充分布式锁。
+- [x] Python 示例闭环 Claim/Complete/Fail/Renew，空队列客户端退避。
+- [x] requirements 使用现行 uv 流程；没有真实外部 type 前不创建空转 systemd unit。
+- [x] 明确仅 loopback；不开放远程 worker，不把 worker_id 当 principal。
+- [x] 多进程 RSS/per-host 限流留作重新评审，不用进程内锁冒充分布式锁。
 
 ### 10. 收尾
 
-- [ ] AGENTS.md 只补 203-207 key/schema 与必要状态机不变量。
-- [ ] 更新 database/task/service aggregation/迁移和运维文档，删除过时描述。
+- [x] AGENTS.md 只补 111-112、203-207 key/schema 与必要状态机不变量。
+- [x] 更新 database/task/service aggregation/迁移和运维文档，删除过时描述。
 - [ ] 完整执行 `go build ./... && go vet ./... && go test ./...`，Task 并发测试加 race。
 - [ ] 前端无变化时不运行前端生成流程；若增加 UI，再跑完整前端门禁。
 - [ ] 删除本 TODO，确保工作区干净并形成可回退提交序列。

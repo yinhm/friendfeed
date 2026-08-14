@@ -324,11 +324,14 @@ audit 至少验证：
 
 工具分两类：
 
-- `tasks list --state ready|inflight|dead --type ...` 只读、流式、有界输出。
-- `tasks replay-dead --task-id ...` 经 Queue 校验 payload/type，生成**新 task id 和新
+- `tools -c list_tasks -task-state ready|inflight|dead -max-limit N` 只读、有界输出。
+- `tools -c inspect_task -id ID` 检查单条 active/Done 记录。
+- `tools -c replay_dead_task -id ID` 经 Queue 校验 payload/type，生成**新 task id 和新
   attempts**；原 Done 历史保留，避免审计链被改写。
+- `tools -c purge_task_done -before RFC3339 -dry-run` 先计数；去掉 dry-run 后以相同
+  cutoff 做 RangeDelete。没有隐式 retention，操作者必须明确给出边界。
 
-Done 默认同时受时间和数量上限约束，裁剪流式执行。日志只记录 task id、type、worker、
+Done 由显式时间 cutoff 裁剪，扫描与输出有界。日志只记录 task id、type、worker、
 耗时和截断错误；不得记录 payload、正文或凭据。
 
 ## 分阶段实施
@@ -353,7 +356,7 @@ Done 默认同时受时间和数量上限约束，裁剪流式执行。日志只
 
 - Subscription/State 调度只 enqueue due feed；RSS handler 按上述一致性规则执行。
 - 验证重复执行、状态更新后崩溃、无 follower、条件 GET、SSRF 和 host 串行。
-- 稳定后停止 legacy `RefetchJobTicker` 的启动，但保留旧符号和 RPC。
+- legacy `RefetchJobTicker` 已停止启动，但保留旧符号和 RPC。
 
 ### M4：运维闭环
 
@@ -365,6 +368,18 @@ Done 默认同时受时间和数量上限约束，裁剪流式执行。日志只
 - Python crawler 使用新 RPC 的样例和 systemd 部署方式。
 - 在开放多进程 RSS 或远程 worker 前，重新评审 principal、host 并发和 loopback 边界。
 - 单独设计旧表 200-202 的数据清理与旧 RPC 退役；不得随 Task 上线直接删除。
+
+参考 worker 为 `scripts/task_worker.py`。使用 `uv sync`/`uv pip install -r requirements.txt`
+准备环境后，可用如下形式运行本地 handler：
+
+```bash
+uv run python scripts/task_worker.py --worker-id crawler-1 --type twitter.crawl -- ./handler
+```
+
+handler 从 stdin 读取 protobuf payload，退出 0 表示 Complete，非零表示 Fail；wrapper
+在执行期间 Renew，并在空队列时 1-30 秒指数退避。示例强制 gRPC target 为 loopback，
+不提供 systemd unit：仓库目前没有已注册的外部 task type，部署一个空转 unit 没有价值。
+新增真实外部使用方时再以专用系统用户配置 unit，且不得记录 stdin/payload。
 
 ## 非目标
 

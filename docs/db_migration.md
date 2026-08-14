@@ -305,6 +305,23 @@ UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，
 sudo -u <ffdb-user> ./tools -to new_db -c rebuild_search_index
 ```
 
+## Task Queue / RSS 上线
+
+表 111-112、203-207 都是新增表，无历史数据迁移或 rebuild。部署前停止 ffdb 并备份
+Pebble 目录；升级二进制后正常启动即可。启动后检查：
+
+```bash
+./tools -to <db-copy> -c audit_store
+./tools -to <db-copy> -c list_tasks -task-state ready -max-limit 20
+./tools -to <db-copy> -c list_tasks -task-state inflight -max-limit 20
+./tools -to <db-copy> -c list_tasks -task-state dead -max-limit 20
+```
+
+这些离线工具仍需独占 Pebble lock，生产检查应针对停服目录或一致性副本执行。正常的
+旧库首次启动没有 Subscription/Task 行；不得为了“初始化”手工写空表。旧 FeedJob 表
+200-202 和 RPC 保留，但 RefetchJobTicker 不再启动。Done 清理必须先带 `-dry-run` 和
+明确 `-before`，确认计数后再执行同一 cutoff。
+
 # Pebble v2 / FMV 升级（2026-07，dev 与 production 已完成）
 
 代码基线：`v1.0.0` 是最后一个 pebble v1 / FMV 1 兼容版本（tag）；`deps: switch to pebble/v2 v2.1.6` 起为 v2 代码。
