@@ -26,6 +26,7 @@ var toPath string
 var command string
 var timelineUser string
 var timelineMaxLimit int
+var timelinePublic bool
 var debugTable string
 var inspectID string
 var indexPath string
@@ -37,6 +38,7 @@ func init() {
 	flag.StringVar(&command, "c", "", "command to do")
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
 	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump (0 is unlimited)")
+	flag.BoolVar(&timelinePublic, "public", false, "rebuild the shared public timeline instead of per-user Home timelines")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
 	flag.StringVar(&inspectID, "id", "", "profile or previous profile ID to inspect")
 	flag.StringVar(&indexPath, "index-path", "", "search index directory (defaults to <to>/index, matching the server layout)")
@@ -450,6 +452,91 @@ func rebuildTimelines(db *store.Store, options timelineRebuildOptions) (timeline
 	return stats, nil
 }
 
+// publicTimelineFeeds enumerates the non-private, non-deleted profiles whose
+// direct feeds may appear in the public timeline. Feeds without a resolvable
+// profile are excluded: their privacy cannot be established.
+func publicTimelineFeeds(db *store.Store) ([]uuid.UUID, error) {
+	feeds := []uuid.UUID{}
+	_, err := db.ForwardScan(model.TableProfile.Bytes(), func(_ int, _, value []byte) error {
+		profile := &pb.Profile{}
+		if err := proto.Unmarshal(value, profile); err != nil {
+			return err
+		}
+		if profile.Private || profile.Deleted {
+			return nil
+		}
+		feedUUID, err := uuid.FromString(profile.Uuid)
+		if err != nil {
+			return fmt.Errorf("profile %q has invalid UUID: %w", profile.Id, err)
+		}
+		feeds = append(feeds, feedUUID)
+		return nil
+	})
+	return feeds, err
+}
+
+// rebuildPublicTimeline backfills the shared public timeline from the direct
+// feeds of all non-private profiles. The initial activity of each row is its
+// publish time: historical push order has no event log and cannot be
+// recovered. Live bumps take over ordering after the cutover.
+func rebuildPublicTimeline(db *store.Store, options timelineRebuildOptions) error {
+	feeds, err := publicTimelineFeeds(db)
+	if err != nil {
+		return err
+	}
+	maxRows, retention, _ := timelineRebuildBounds(options)
+	if options.maxRows <= 0 {
+		maxRows = model.PublicTimelineMaxEntries
+	}
+	rows, err := model.BuildPublicTimeline(db, feeds, maxRows, retention, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("collect public timeline candidates: %w", err)
+	}
+	existing, mismatches, duplicates, err := compareTimelineRows(db, model.PublicTimelineUUID, rows)
+	if err != nil {
+		return err
+	}
+	if !options.dryRun {
+		if err := model.ReplacePublicTimeline(db, rows); err != nil {
+			return fmt.Errorf("replace public timeline: %w", err)
+		}
+	}
+	action := "rebuilt"
+	if options.dryRun {
+		action = "would rebuild"
+	}
+	log.Printf("%s public timeline: %d existing entries, %d source feeds, %d source entries, %d mismatches, %d duplicates",
+		action, existing, len(feeds), len(rows), mismatches, duplicates)
+	return nil
+}
+
+// runPurgePublicCacheCommand deletes the retired FeedIndex gob row (Meta
+// table, uuidv5("index:public:cache")). The public timeline on TimelineIndex
+// has replaced it; the row is derived cache and safe to drop once the new
+// read path is verified.
+func runPurgePublicCacheCommand(ndb *store.Store) {
+	key := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
+	raw, err := ndb.Get(key)
+	if errors.Is(err, store.ErrNotFound) {
+		log.Println("public cache row already absent; nothing to do")
+		return
+	}
+	if err != nil {
+		log.Fatalf("read public cache row: %v", err)
+	}
+	if dryRun {
+		log.Printf("would delete public cache row %x (%d bytes)", []byte(key), len(raw))
+		return
+	}
+	if err := ndb.Delete(key); err != nil {
+		log.Fatalf("delete public cache row: %v", err)
+	}
+	if err := ndb.Flush(); err != nil {
+		log.Fatalf("flush database: %v", err)
+	}
+	log.Printf("deleted public cache row %x (%d bytes)", []byte(key), len(raw))
+}
+
 func runDBCommand(db, ndb *store.Store) {
 	prefix := []byte("")
 
@@ -477,6 +564,17 @@ func runDBCommand(db, ndb *store.Store) {
 
 func runRebuildTimelineCommand(ndb *store.Store) {
 	options := timelineRebuildOptions{user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun}
+	if timelinePublic {
+		if err := rebuildPublicTimeline(ndb, options); err != nil {
+			log.Fatal(err)
+		}
+		if !dryRun {
+			if err := ndb.Flush(); err != nil {
+				log.Fatalf("flush database: %v", err)
+			}
+		}
+		return
+	}
 	stats, err := rebuildTimelines(ndb, options)
 	if err != nil {
 		log.Fatal(err)
@@ -1081,7 +1179,8 @@ func main() {
 		(command == "migrate_entry_keys" && dryRun) ||
 		(command == "migrate_interactions" && dryRun) ||
 		(command == "rebuild_entry_index" && dryRun) ||
-		(command == "backfill_actor_uuids" && dryRun)
+		(command == "backfill_actor_uuids" && dryRun) ||
+		(command == "purge_public_cache" && dryRun)
 	if command == "compact_timelines" && dryRun {
 		readOnly = true
 	}
@@ -1125,8 +1224,6 @@ func main() {
 	case "compact_timelines":
 		stats, err := compactTimelines(ndb, timelineCompactOptions{
 			user: timelineUser, dryRun: dryRun,
-			maxRows: model.TimelineMaxEntries, coldRows: model.TimelineColdEntries,
-			retention: model.TimelineRetentionMax,
 		})
 		if err != nil {
 			log.Fatal(err)
@@ -1155,6 +1252,8 @@ func main() {
 		runPurgeTimelineCommand(ndb)
 	case "purge_user_rename_map":
 		runPurgeUserRenameMapCommand(ndb)
+	case "purge_public_cache":
+		runPurgePublicCacheCommand(ndb)
 	case "inspect_profile":
 		runInspectProfileCommand(ndb, inspectID)
 	case "inspect_user_rename_map":

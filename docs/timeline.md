@@ -9,7 +9,8 @@ Profile/target feed 的 direct EntryIndex 仍按原帖发布时间排序，不�
 | --- | --- | --- |
 | Profile / target feed | `entry.Date` | 否 |
 | Home | viewer 对该 Entry 的 `activity_at` | 按规则有限 bump |
-| Public / Search | 各自现有规则 | 否 |
+| Public | 最后一次 push/bump 的服务器时间 | 是，见下文 Public Timeline 设计 |
+| Search | 各自现有规则 | 否 |
 
 Home 是会移动的 ranked stream，不是分页快照。翻页期间 Entry 移到 cursor 之前，可能造成
 跨请求暂时重复或漏看；这是预期的弱一致性。必须保证单页无重复、cursor 不死循环、删除
@@ -335,3 +336,169 @@ same derived tables, fewer rows
 
 若 compact 后发现某个 active 用户内容或排序不正确，应对该用户运行 `rebuild_timeline -user`，
 而不是再次 compact。
+
+## Public Timeline 迁移设计
+
+Public feed 从内存 `FeedIndex` 缓存迁移到 TimelineIndex 体系。已确认的决策：私有 feed
+的 Entry 不进入 public；仅新建 Entry、首次 Like、新建 Comment 触发 bump；新实现落地后
+`FeedIndex` 整体清理；部署空窗可接受，不做双写。可能引入请求路径 O(n) 开销或写放大的
+方案在设计阶段拒绝，见"性能约束"一节。
+
+### 现状行为（迁移基准）
+
+当前 public 是 `server/index.go` 的 `FeedIndex`：内存 buffer 保存最多 1000 条 hex Entry
+key，每秒重建一次，每 5 分钟及关停时 gob 序列化到 Meta 表（key 为
+`uuidv5("index:public:cache")`）。只支持 `Start/PageSize` 翻页。
+
+buffer 排序不是 `entry.Date`，而是**最后一次 push 的到达时间**：`rebuildFeedBuffer`
+把 pending push 按新到旧排列、按 key 去重后接在旧 buffer 前面，因此任何一次 push 都把
+对应 Entry 顶到最前。push 触发点：
+
+- `ArchiveFeed` / `ForceArchiveFeed` / `PostEntry`（`PostTweet` 复用 `PostEntry`）：
+  每次 `PutEntry` 成功都 push，包括重复 archive 已存在的 Entry。`PutEntry` 对已有 key
+  覆盖写成功，因此 refetch 周期中 crawler 重发的近期 Entry 会被反复顶到最前；
+- `LikeEntry`：`PutLike` 对重复 like 同样返回 Entry key，因此每次 like 请求都 bump，
+  没有 Home 的 7 天窗口和 10 分钟冷却；
+- `CommentEntry`：`PutComment` 对评论编辑也返回 Entry key，因此创建和编辑都 bump；
+- Unlike、DeleteComment、DeleteEntry 不 push；
+- 无任何隐私过滤：私有 feed 的 Entry 同样进入 public。
+
+### 目标语义
+
+Public 作为 TimelineIndex 体系中的一个特殊 viewer，不新增表，复用 108/109 的 key/value
+编码、cursor 编解码、懒删除、audit 与 DeleteRange 工具：
+
+```text
+publicTimelineUUID = uuidv5("timeline:public")   // 新的保留 UUID
+prefix = TableTimelineIndex | publicTimelineUUID
+```
+
+不复用旧的 `index:public:cache` UUID，避免与退役中的 gob 缓存 key 混淆。
+
+bump 规则在现状基础上收敛为"仅新建触发"，与现状的差异均为已确认决策：
+
+```text
+新建 Entry（PutEntry 且 Entry key 此前不存在）：activity_at = serverNow，插入到最前
+重复 archive 已有 Entry：不 bump（偏离现状：消除 refetch 周期重发造成的无效写放大，
+  并避免历史导入把旧内容冲刷到 public 首页）
+首次 Like：bump，无 7 天窗口、无 10 分钟冷却；重复 Like 不 bump（偏离现状）
+新建 Comment：bump；编辑 Comment 不 bump（偏离现状）
+Unlike / DeleteComment / DeleteEntry：不 bump、不回退
+```
+
+注意 public 的 `activity_at` 是 bump 事件的服务器时间，不是 `entry.Date`：今天新抓取
+到一条历史旧帖也会排到最前。移动直接复用 `MoveTimelineEntry`（position 读取在
+`ApplyBatch` 串行边界内，天然并发安全），`qualify` 为 nil，不做 Home 的资格检查。
+
+**隐私过滤**是本次有意改变的行为：bump 触发点在写入前解析 Entry 的 target feed
+（`FeedUuid`）profile，`Private` 为 true 时跳过。已入库的历史私有 Entry 由回填阶段的
+过滤保证不进入新 timeline。
+
+### 独立容量上限
+
+```go
+const publicTimelineMaxEntries = 10_000 // 独立于 homeTimelineMaxEntries
+```
+
+比现在 1,000 条深，public 长尾翻页能力随迁移自然获得。裁剪分两层：
+
+- 事件驱动的摊还裁剪：bump 计数每攒满 100 次（`publicTimelineTrimEvery`）就在后台
+  goroutine 执行一次 trim，从最新端前向数到第 Max 行，对尾部 `DeleteRange`，并从解析
+  出的 key 成对删除 Position；最多同时一个 trim，由 `ApiServer` 的关停 WaitGroup 排干。
+  不挂周期 ticker（job 系统即将退役），无 bump 时零开销，裁剪不进入任何请求路径；
+- `compact_timelines`：对 public viewer 使用 `publicTimelineMaxEntries`，永不进入
+  500 条冷缓存路径。
+
+### 性能约束
+
+以下方案因可能造成性能问题在设计阶段明确拒绝：
+
+- 请求路径内的裁剪或行数统计：任何 RPC 不做 O(Max) 扫描，裁剪只在后台 ticker 执行；
+- 每次 bump 后触发裁剪：bump 必须保持 O(1)，即一次 position 点读加一个三条记录的
+  小 batch；
+- 新旧双写过渡：旧 buffer 在新版本下没有读方，双写只会放大 archive 流的写延迟；
+- 为 created/隐私判断改动 `PutEntry`/`PutLike`/`PutComment` 签名：契约风险大于收益，
+  一律用主键点读前置判断；
+- 用 OAuth 或 Profile 全表扫描推导 public 成员资格：不存在该需求，逐事件点读即可。
+
+已知且接受的有界开销：
+
+- "仅新建 Entry bump" 的存在性判断为 `db.Exists(entryKey)` 点读，发生在 archive 流
+  的每条 Entry 上；archive 流内隐私结论按 `FeedUuid` 缓存，每个流每个 feed 只点读
+  一次 profile；
+- 旧 `?start=N` 链接兼容为 O(Start) iterator 步进，深度被 public Max（10,000）约束，
+  与 Home 的 legacy 兼容一致；cursor 分页无此开销；
+- 读路径每页为 PageSize 次 Entry 点读加 interaction 加载，与 Home/profile 读路径相同；
+- trim 单次为 O(Max + 尾部行数) 的 iterator 步进，每 100 次 bump 最多触发一次，无新
+  bump 时不执行。
+
+### TimelineState 特例
+
+Public 不受"30 天不访问过期"约束。新增 `model.IsPublicTimeline(uuid)` 判断：
+
+- `prepareHomeTimeline` 与活跃性判定对 public 短路，永远视为活跃，不写 State 行；
+- fanout 不会触及 public：bump fanout 只走向 follower/owner，public UUID 不是真实
+  用户，不会被枚举；
+- State 语义保持"真实用户活跃度"，不被特殊行污染。
+
+### 写路径
+
+`spread()` 的 5 个调用点（ArchiveFeed、ForceArchiveFeed、PostEntry、LikeEntry、
+CommentEntry）改为调用 public bump，调用前完成两个前置判断（均为主键点读）：
+
+1. created 判断：archive/post 路径用 `db.Exists(entryKey)`；like/comment 路径用导出的
+   `LikeKey`/`CommentKey` 前置点查，仅新建时继续。并发下偶发的重复 bump 由
+   `MoveTimelineEntry` 的单调性兜底，不产生不一致；
+2. 隐私判断：解析 Entry 的 target feed profile，`Private` 则跳过；archive 流内按
+   `FeedUuid` 缓存结论；
+
+随后复用 `MoveTimelineEntry` 提交原子 bump batch，失败必须返回错误，与 Home fanout
+的错误策略一致。ArchiveFeed/ForceArchiveFeed 的 bump 保持在 `entryLifecycleMu` 互斥锁
+外（与现状 `spread` 的位置一致）；PostEntry 的 bump 在锁内，新增开销为两次点读加一个
+小 batch，与锁内已有的 profile 读取同量级。
+
+### 读路径
+
+`FetchFeed("public")` 改走 `ForwardFetchFeedWithCursor`，prefix 为
+`TableTimelineIndex | publicTimelineUUID`：
+
+- cursor 分页直接可用，ffweb 后续可迁移；
+- 旧 `?start=N` 链接按 Home 已有的兼容方式在新索引上跳过 Start 行，不破坏已发出链接；
+- 读到指向缺失 Entry 的孤儿行时复用 Home 的懒删除逻辑。
+
+### 回填
+
+`rebuild_timeline` 增加 `-public` 模式：
+
+- 候选来自所有**非私有** feed 的 direct EntryIndex，从最新端前向扫描，用大小为
+  `publicTimelineMaxEntries` 的最小堆做 k-way 归并，同一时间只打开一个 iterator；
+- 初始 `activity_at = entry.Date`（发布时间的 reverse ms），写入 Index + Position；
+- 精度边界：历史 push 顺序（到达时间）没有 event log，无法恢复，回填只能按发布时间
+  近似；切换后的实时 bump 会迅速把活跃内容顶到前面，这与 `rebuild_timeline` 对 Home
+  的精度承诺一致；
+- 流式、内存有界、支持 dry-run，先针对小 feed 上限验证。
+
+### FeedIndex 退役清单
+
+新实现落地后清理：
+
+- `server/index.go` 整体（`FeedIndex`、`rebuildFeedBuffer`、`MinQueue`、gob load/dump）；
+- `ApiServer.cached`、`cachedFeed`、`FetchFeed` 的 cached 分支、`spread()` 中的 Push；
+- `IndexJobTicker` 的周期 dump 直接删除（job 系统即将退役，不往里加新任务），public
+  timeline 的裁剪由 bump 驱动的后台调度承担；
+- Meta 表中 `index:public:cache` 的 gob 行随迁移删除；
+- 引用它的测试（`index_test.go`、`entry_concurrency_test.go`、`server_test.go` 中的
+  public cache 用例）改写为 public timeline 用例。
+
+### 部署顺序
+
+```text
+1. 部署新代码（写路径 bump + 读路径 cursor，public timeline 初始为空）
+2. rebuild_timeline -public（先 dry-run 验证，再 apply）
+3. audit_store 验证 108/109 双向一致
+4. 确认 public 页面正常后执行 `purge_public_cache` 删除 index:public:cache meta 行
+```
+
+部署到回填完成之间 public 页面为空，该空窗已确认可接受。本阶段不做双写：`FeedIndex`
+在同一次变更中移除，回滚方式为回滚部署版本并重新跑回填（旧 gob 缓存在新版本下不再
+被读取）。

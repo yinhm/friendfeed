@@ -458,7 +458,7 @@ func TestFmtCommentOrLikeSkipsUnresolvable(t *testing.T) {
 // An entry whose author profile no longer resolves (deleted or archived
 // data) must still hydrate its comment/like refs: they carry their own
 // stable UUIDs. The author error is returned for strict callers, but
-// lenient paths (public cached feed) render the hydrated rest.
+// lenient paths render the hydrated rest.
 func TestFmtEntryProfilesHydratesRefsWhenAuthorMissing(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)

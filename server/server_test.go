@@ -1257,35 +1257,6 @@ func (s *RpcTestSuite) TestCommentEntryOverridesForgedFrom() {
 	assert.Equal(s.T(), "Real User", from.Name)
 }
 
-func (s *RpcTestSuite) TestFeedIndexLoadDump() {
-	// Given FeedIndex, load and dump to db
-	entryID := "c6f8dca854f011ddb489003048343a40"
-	index := NewFeedIndex(nil, "public", uuid.Must(uuid.NewV4()))
-	err := index.load(s.srv.mdb)
-	assert.Nil(s.T(), err)
-
-	for range 10 {
-		// index.itemCh <- uuid
-		index.Push(entryID)
-	}
-
-	index.rebuild(nil)
-	assert.Equal(s.T(), index.bufq[0], "c6f8dca854f011ddb489003048343a40")
-	index.bufq[len(index.bufq)-1] = "last"
-
-	err = index.dump(s.srv.mdb)
-	assert.Nil(s.T(), err)
-
-	err = index.load(s.srv.mdb)
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), index.bufq[0], "c6f8dca854f011ddb489003048343a40")
-
-	for i := 1; i < len(index.bufq)-1; i++ {
-		assert.Equal(s.T(), index.bufq[i], "")
-	}
-	assert.Equal(s.T(), index.bufq[len(index.bufq)-1], "last")
-}
-
 func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	ctx := context.Background()
 

@@ -18,8 +18,7 @@ Pebble
 ├── 必须随源数据原子维护的直接索引
 │   └── author feed / target feed EntryIndex
 └── 可重建派生数据
-    ├── TimelineIndex / TimelinePosition
-    ├── public FeedIndex cache
+    ├── TimelineIndex / TimelinePosition（含 public timeline）
     └── Bleve search index
 ```
 
@@ -188,7 +187,7 @@ FetchFeed(cursor mode)
   └── profile hydration + formatting
 ```
 
-profile/timeline 使用 cursor；旧客户端、public cache 和 search 保持 Start/PageSize。cursor
+profile/timeline 使用 cursor；旧客户端、public 和 search 保持 Start/PageSize。cursor
 不是 Entry UUID，不得脱离当前 feed prefix 解释。
 
 ## Home activity timeline
@@ -214,5 +213,5 @@ fanout；它解决排序和生命周期问题，不消除写放大。
 - `rebuild_entry_index` 从 Entry 恢复 direct index；`rebuild_timeline` 从 Entry、互动和当前
   社交图恢复 Home。全量重建还会清除旧 timeline 与 orphan EntryIndex 行。
 - 升级后不支持旧程序打开、Pebble v1 或降级写入。
-- Public FeedIndex、TimelineIndex/TimelinePosition 和 Bleve 是派生数据；Profile、OAuth、Entry、互动和社交边
+- TimelineIndex/TimelinePosition（含 public timeline）和 Bleve 是派生数据；Profile、OAuth、Entry、互动和社交边
   才是恢复时不可丢失的源数据。

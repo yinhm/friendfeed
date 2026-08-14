@@ -64,7 +64,8 @@ func timelineIndexHasRows(db *store.Store, viewer uuid.UUID) (bool, error) {
 
 func compactTimelines(db *store.Store, options timelineCompactOptions) (timelineCompactStats, error) {
 	stats := timelineCompactStats{}
-	if options.maxRows <= 0 {
+	maxRowsExplicit := options.maxRows > 0
+	if !maxRowsExplicit {
 		options.maxRows = model.TimelineMaxEntries
 	}
 	if options.coldRows <= 0 {
@@ -132,9 +133,14 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		if !positionStarted || viewer != positionViewer {
 			positionStarted = true
 			positionViewer = viewer
-			active, activeErr := model.TimelineIsActive(db, viewer, options.now)
-			if activeErr != nil {
-				return activeErr
+			// The public timeline has no TimelineState and never decays.
+			active := model.IsPublicTimeline(viewer)
+			if !active {
+				var activeErr error
+				active, activeErr = model.TimelineIsActive(db, viewer, options.now)
+				if activeErr != nil {
+					return activeErr
+				}
 			}
 			positionDeleteAll = false
 			if !active {
@@ -182,14 +188,20 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 				return err
 			}
 			current, currentRows, seenViewer = viewer, 0, true
-			currentActive, err = model.TimelineIsActive(db, viewer, options.now)
-			if err != nil {
-				return err
+			currentActive = model.IsPublicTimeline(viewer)
+			if !currentActive {
+				currentActive, err = model.TimelineIsActive(db, viewer, options.now)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		stats.indexes++
 		currentRows++
 		rowLimit := options.maxRows
+		if model.IsPublicTimeline(viewer) && !maxRowsExplicit {
+			rowLimit = model.PublicTimelineMaxEntries
+		}
 		if !currentActive {
 			rowLimit = options.coldRows
 		}
@@ -231,9 +243,12 @@ func compactTimelines(db *store.Store, options timelineCompactOptions) (timeline
 		}
 		if viewer != checkedViewer {
 			checkedViewer = viewer
-			checkedActive, err = model.TimelineIsActive(db, viewer, options.now)
-			if err != nil {
-				return err
+			checkedActive = model.IsPublicTimeline(viewer)
+			if !checkedActive {
+				checkedActive, err = model.TimelineIsActive(db, viewer, options.now)
+				if err != nil {
+					return err
+				}
 			}
 			checkedHasIndex = false
 			if !checkedActive {

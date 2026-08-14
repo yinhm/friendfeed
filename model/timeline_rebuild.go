@@ -41,17 +41,17 @@ func (h *timelineCandidateHeap) Pop() any {
 	return last
 }
 
-// BuildHomeTimeline scans each reverse-time direct feed forward and keeps a
-// maxRows min-heap of the globally newest unique publications. Only one
-// Pebble iterator is open at a time, even for viewers following thousands of
-// feeds. Long-tail entries outside the candidate set are deliberately not
+// SelectTimelineCandidates scans each reverse-time direct feed forward and
+// keeps a maxRows min-heap of the globally newest unique publications. Only
+// one Pebble iterator is open at a time, even for viewers following thousands
+// of feeds. Long-tail entries outside the candidate set are deliberately not
 // recovered without an activity index.
-func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retention time.Duration, now time.Time) (map[uuid.UUID]time.Time, int, error) {
+func SelectTimelineCandidates(db *store.Store, feeds []uuid.UUID, maxRows int, retention time.Duration, now time.Time) (map[uuid.UUID]time.Time, error) {
 	if maxRows <= 0 {
-		return nil, 0, errors.New("timeline max rows must be positive")
+		return nil, errors.New("timeline max rows must be positive")
 	}
 	if retention <= 0 {
-		return nil, 0, errors.New("timeline retention must be positive")
+		return nil, errors.New("timeline retention must be positive")
 	}
 	now = now.UTC()
 	selected := make(map[uuid.UUID]*timelineCandidate, maxRows)
@@ -59,17 +59,17 @@ func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retentio
 	cutoff := now.Add(-retention)
 	for _, feed := range feeds {
 		if feed == uuid.Nil {
-			return nil, 0, errors.New("timeline source feed UUID is zero")
+			return nil, errors.New("timeline source feed UUID is zero")
 		}
 		iter, err := db.NewIterator(NewUUIDKey(TableEntryIndex, feed))
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		for iter.First(); iter.Valid(); iter.Next() {
 			_, entry, published, err := ParseEntryIndexKey(iter.UnsafeKey())
 			if err != nil {
 				_ = iter.Close()
-				return nil, 0, err
+				return nil, err
 			}
 			if retention != TimelineRetentionMax && published.Before(cutoff) {
 				break
@@ -97,13 +97,25 @@ func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retentio
 		iterErr := iter.Error()
 		closeErr := iter.Close()
 		if err := errors.Join(iterErr, closeErr); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 	}
 
 	rows := make(map[uuid.UUID]time.Time, len(selected))
 	for entry, candidate := range selected {
 		rows[entry] = candidate.published
+	}
+	return rows, nil
+}
+
+// BuildHomeTimeline selects the newest publications across the viewer's
+// source feeds and recomputes each candidate's final activity from its
+// current Like/Comment rows. Long-tail entries outside the candidate set are
+// deliberately not recovered without an activity index.
+func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retention time.Duration, now time.Time) (map[uuid.UUID]time.Time, int, error) {
+	rows, err := SelectTimelineCandidates(db, feeds, maxRows, retention, now)
+	if err != nil {
+		return nil, 0, err
 	}
 	skipped, err := loadHomeTimelineActivities(db, rows, now)
 	return rows, skipped, err

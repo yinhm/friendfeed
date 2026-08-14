@@ -100,7 +100,7 @@ func fmtEntryProfilesWithResolver(resolver *profileResolver, entry *pb.Entry) (*
 		// stable UUIDs and must still be hydrated; only the author refresh
 		// is skipped. The error is still returned so callers that treat a
 		// missing author as fatal (FetchEntry, ForwardFetchFeed) keep their
-		// behavior, while lenient callers (cachedFeed) render the rest.
+		// behavior, while lenient callers render the rest.
 		for _, cmt := range entry.Comments {
 			if cmt != nil {
 				fmtCommentOrLikeWithResolver(resolver, cmt.From)

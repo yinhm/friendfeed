@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -614,4 +615,92 @@ func TestRebuildSocialGraphFromLegacyFeedinfo(t *testing.T) {
 	if !followExists || !followerExists {
 		t.Fatal("rebuild did not create both Follow and Follower keys")
 	}
+}
+
+func TestRebuildPublicTimelineFiltersPrivateFeeds(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	db.SetSync(false)
+
+	publicID := uuid.Must(uuid.NewV4())
+	privateID := uuid.Must(uuid.NewV4())
+	deletedID := uuid.Must(uuid.NewV4())
+	for _, profile := range map[uuid.UUID]*pb.Profile{
+		publicID:  {Uuid: publicID.String(), Id: "public-user", Type: "user"},
+		privateID: {Uuid: privateID.String(), Id: "private-user", Type: "user", Private: true},
+		deletedID: {Uuid: deletedID.String(), Id: "deleted-user", Type: "user", Deleted: true},
+	} {
+		if err := model.UpdateProfile(db, profile); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	published := time.Unix(100, 0).UTC()
+	publicEntry := uuid.Must(uuid.NewV4())
+	privateEntry := uuid.Must(uuid.NewV4())
+	deletedEntry := uuid.Must(uuid.NewV4())
+	for entryID, author := range map[uuid.UUID]uuid.UUID{
+		publicEntry: publicID, privateEntry: privateID, deletedEntry: deletedID,
+	} {
+		if _, err := model.PutEntry(db, &pb.Entry{
+			Id: entryID.String(), ProfileUuid: author.String(),
+			Date: published.Format(time.RFC3339),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Dry-run reports but does not write.
+	if err := rebuildPublicTimeline(db, timelineRebuildOptions{dryRun: true}); err != nil {
+		t.Fatal(err)
+	}
+	dryRows, err := db.ForwardScan(model.TimelineIndexPrefix(model.PublicTimelineUUID), func(int, []byte, []byte) error { return nil })
+	if err != nil || dryRows != 0 {
+		t.Fatalf("dry-run modified public timeline: rows=%d, err=%v", dryRows, err)
+	}
+
+	if err := rebuildPublicTimeline(db, timelineRebuildOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	position, err := model.TimelinePositionTime(db, model.PublicTimelineUUID, publicEntry)
+	if err != nil || !position.Equal(published) {
+		t.Fatalf("public entry activity = %v, want %v (err=%v)", position, published, err)
+	}
+	for _, excluded := range []uuid.UUID{privateEntry, deletedEntry} {
+		if _, err := model.TimelinePositionTime(db, model.PublicTimelineUUID, excluded); err == nil {
+			t.Fatalf("entry %s must stay out of the public timeline", excluded)
+		}
+	}
+	// The public viewer never gets a Home TimelineState row.
+	if _, err := model.TimelineLastAccess(db, model.PublicTimelineUUID); err == nil {
+		t.Fatal("public timeline must not carry TimelineState")
+	}
+}
+
+func TestPurgePublicCache(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	db.SetSync(false)
+
+	key := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
+	if err := db.Put(key, []byte("retired gob blob")); err != nil {
+		t.Fatal(err)
+	}
+
+	dryRun = true
+	runPurgePublicCacheCommand(db)
+	if _, err := db.Get(key); err != nil {
+		t.Fatalf("dry-run must keep the cache row: %v", err)
+	}
+
+	dryRun = false
+	runPurgePublicCacheCommand(db)
+	if _, err := db.Get(key); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("cache row should be deleted, err=%v", err)
+	}
+
+	// Idempotent when the row is already absent.
+	runPurgePublicCacheCommand(db)
 }

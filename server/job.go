@@ -33,27 +33,6 @@ func (s *ApiServer) RefetchJobTicker() {
 	}
 }
 
-func (s *ApiServer) IndexJobTicker() {
-	if !s.beginBackgroundJob() {
-		return
-	}
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-s.done:
-			return
-		case <-ticker.C:
-			log.Printf("dump index to db.")
-			for _, idx := range s.cached {
-				idx.dump(s.mdb)
-			}
-		}
-	}
-}
-
 func (s *ApiServer) RefetchUserFeed() error {
 	prefix := model.TableProfile
 	j := 0

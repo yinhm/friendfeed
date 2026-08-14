@@ -26,10 +26,9 @@
 
 - ffdb 仅允许监听 loopback，不得绑定通配地址、网卡地址或对外暴露 gRPC；改变此边界前必须先设计可信 principal。
 - job claim 使用独立 `jobMu`，queued→running 在同一 Pebble batch 提交。
-- `ApiServer.cached` 构造后只读；若允许动态增删，须用独立锁保护全部访问。
 - `PutEntry` 的 entry 与 author/group 直接索引原子提交；Home activity timeline 只 fanout 到 TimelineState 有效的 viewer，独立执行且错误必须返回。活跃 Home 最多 10,000 条，inactive 冷缓存保留 500 条，当前时间窗口为 MAX。`DeleteEntry` 不枚举 viewer，timeline 孤儿由读路径懒删及 audit/rebuild 清理。
-- FeedIndex 的 DB 检查在数据锁外；rebuild/load/dump 由 `rebuildMu` 串行，rebuild 期间的 Push 必须保留。
-- profile/timeline 通过 `FetchFeed` 的 cursor 模式分页，并兼容旧 Home `Start/PageSize` 链接；public cache 和 search 继续使用 `Start/PageSize`。cursor 只编码索引位置，解码后按当前 feed 前缀重建 key，不得解释为 entry UUID。
+- public timeline 是 TimelineIndex 的保留 viewer（`model.PublicTimelineUUID`），不是真实 profile：仅新建 Entry、首次 Like、新建 Comment 触发 bump，私有/已删除/不可解析的 target feed 一律不进入；不写 TimelineState，compact 永不把它当 inactive；trim 由 bump 计数驱动在后台 goroutine 执行，不进入请求路径。
+- profile/timeline/public 通过 `FetchFeed` 的 cursor 模式分页，并兼容旧 Home/public `Start/PageSize` 链接；search 继续使用 `Start/PageSize`。cursor 只编码索引位置，解码后按当前 feed 前缀重建 key，不得解释为 entry UUID。public 响应的 `Feed.Uuid == "Public"` 字面量是 httpd 的识别契约。
 - `Store.Close` 并发安全且幂等。生产关停先用 gRPC `GracefulStop` 排干请求，再关闭服务和数据库。
 
 ## 迁移边界

@@ -216,7 +216,9 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			stats.timelineInactiveRows += timelineViewerRows
 		}
 		limit := model.TimelineMaxEntries
-		if !timelineViewerActive {
+		if model.IsPublicTimeline(timelineViewer) {
+			limit = model.PublicTimelineMaxEntries
+		} else if !timelineViewerActive {
 			limit = model.TimelineColdEntries
 		}
 		if timelineViewerRows > limit {
@@ -231,9 +233,13 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		if timelineViewerRows == 0 || viewer != timelineViewer {
 			finishTimelineViewer()
 			timelineViewer, timelineViewerRows = viewer, 0
-			timelineViewerActive, err = model.TimelineIsActive(db, viewer, time.Now().UTC())
-			if err != nil {
-				return err
+			// The public timeline has no TimelineState and never decays.
+			timelineViewerActive = model.IsPublicTimeline(viewer)
+			if !timelineViewerActive {
+				timelineViewerActive, err = model.TimelineIsActive(db, viewer, time.Now().UTC())
+				if err != nil {
+					return err
+				}
 			}
 		}
 		timelineViewerRows++

@@ -10,6 +10,7 @@ import (
 	"log"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
@@ -35,7 +36,6 @@ const (
 
 // server implementation.
 type ApiServer struct {
-	sync.RWMutex
 	profileUpdateMu sync.Mutex
 	jobMu           sync.Mutex
 	// entryLifecycleMu lets independent interaction rows mutate concurrently,
@@ -53,8 +53,11 @@ type ApiServer struct {
 	// file system
 	fs media.Storage
 
-	// cached feed
-	cached map[string]*FeedIndex
+	// Public timeline trim state: bumps accumulates events since the last
+	// trim, trimming guarantees at most one background trim at a time.
+	// Trimming never runs inside a request path.
+	publicTimelineBumps    atomic.Int64
+	publicTimelineTrimming atomic.Bool
 
 	// background job lifecycle: done signals shutdown, wg tracks
 	// running job goroutines so Shutdown can wait for them before
@@ -106,15 +109,9 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	// The legacy meta store was unified into rdb; mdb is kept as an alias.
 	mdb := rdb
 
-	cached := make(map[string]*FeedIndex)
-	publicIndexUUID := uuid.NewV5(uuid.NamespaceURL, "index:public:cache")
-	cached["public"] = NewFeedIndex(rdb, "public", publicIndexUUID)
-	cached["public"].load(mdb)
-
 	srv := &ApiServer{
 		mdb:                mdb,
 		rdb:                rdb,
-		cached:             cached,
 		done:               make(chan struct{}),
 		timelineBuildSlots: make(chan struct{}, homeTimelineMaintenanceLimit),
 		timelineRetryAfter: make(map[uuid.UUID]time.Time),
@@ -124,8 +121,8 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	return srv, nil
 }
 
-// StartBackgroundJobs starts the periodic refetch and index dump jobs.
-// They are stopped by Shutdown before the database is closed.
+// StartBackgroundJobs starts the periodic refetch job. It is stopped by
+// Shutdown before the database is closed.
 func (s *ApiServer) StartBackgroundJobs() {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
@@ -134,7 +131,6 @@ func (s *ApiServer) StartBackgroundJobs() {
 	}
 	s.backgroundJobsStarted = true
 	go s.RefetchJobTicker()
-	go s.IndexJobTicker()
 }
 
 func (s *ApiServer) beginBackgroundJob() bool {
@@ -156,11 +152,6 @@ func (s *ApiServer) Shutdown() {
 		close(s.done)
 		s.lifecycleMu.Unlock()
 		s.wg.Wait()
-
-		idx := s.cached["public"]
-		idx.Stop()
-		slog.Debug("dump index to db...")
-		idx.dump(s.mdb)
 
 		s.rdb.Close()
 		// s.mdb.Close()
@@ -289,6 +280,7 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 	var dateEnd string
 	var lastEntry *pb.Entry
 	startTime := time.Now()
+	privateFeeds := make(map[string]bool)
 
 	// tooMuchExistsItem := 0
 	for {
@@ -309,15 +301,23 @@ func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {
 		// mirrored URLs are persisted with the entry.
 		s.mirrorMedia(s.fs, entry)
 		// key, err := store.PutEntry(s.rdb, entry, false) // always use false
-		s.entryLifecycleMu.Lock()
-		key, err := model.PutEntry(s.rdb, entry)
-		s.entryLifecycleMu.Unlock()
-		if err == nil {
-			// no error or new key
-			s.spread(key.String())
+		created, err := s.entryCreated(entry)
+		if err != nil {
+			return err
 		}
+		s.entryLifecycleMu.Lock()
+		_, err = model.PutEntry(s.rdb, entry)
+		s.entryLifecycleMu.Unlock()
 		if err != nil {
 			log.Println("db error:", err)
+			continue
+		}
+		// Only newly created entries bump the public timeline; re-archiving
+		// an existing entry must not churn it.
+		if created {
+			if err := s.bumpPublicTimeline(entry, privateFeeds); err != nil {
+				return err
+			}
 		}
 
 		if lastEntry == nil {
@@ -334,6 +334,7 @@ func (s *ApiServer) ForceArchiveFeed(stream pb.Api_ForceArchiveFeedServer) error
 	var dateEnd string
 	var lastEntry *pb.Entry
 	startTime := time.Now()
+	privateFeeds := make(map[string]bool)
 
 	// tooMuchExistsItem := 0
 	for {
@@ -351,14 +352,21 @@ func (s *ApiServer) ForceArchiveFeed(stream pb.Api_ForceArchiveFeedServer) error
 		}
 		entryCount++
 		// save db
+		created, err := s.entryCreated(entry)
+		if err != nil {
+			return err
+		}
 		s.entryLifecycleMu.Lock()
-		key, err := model.PutEntry(s.rdb, entry)
+		_, err = model.PutEntry(s.rdb, entry)
 		s.entryLifecycleMu.Unlock()
 		if err != nil {
 			log.Println("db error:", err)
-		} else {
-			// TODO: spread?
-			s.cached["public"].Push(key.String())
+			continue
+		}
+		if created {
+			if err := s.bumpPublicTimeline(entry, privateFeeds); err != nil {
+				return err
+			}
 		}
 
 		if lastEntry == nil {
@@ -434,78 +442,10 @@ func (s *ApiServer) mirrorMedia(client media.Storage, entry *pb.Entry) error {
 // from user profile and entries scaned from EntryIndex.
 func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
 	slog.Info("FetchFeed", "id", req.Id)
-	s.RLock()
-	if _, ok := s.cached[req.Id]; ok {
-		s.RUnlock()
-		slog.Debug("cachedFeed", "id", req.Id)
-		return s.cachedFeed(req)
-	}
-	s.RUnlock()
-	if req.CursorPaging || req.ProfileUuid != "" {
+	if req.CursorPaging || req.ProfileUuid != "" || isPublicFeedRequest(req) {
 		return s.ForwardFetchFeedWithCursor(ctx, req)
 	}
 	return s.ForwardFetchFeed(ctx, req)
-}
-
-func (s *ApiServer) cachedFeed(req *pb.FeedRequest) (*pb.Feed, error) {
-	if req.PageSize <= 0 || req.PageSize >= 100 {
-		req.PageSize = 50
-	}
-
-	start := req.Start
-	index := s.cached[req.Id]
-	bufq := index.snapshot()
-
-	var entries []*pb.Entry
-	found := 0
-	resolver := newProfileResolver(s.mdb)
-	for i := range bufq {
-		if start > 0 {
-			start--
-			continue
-		}
-
-		key := bufq[i]
-		if key == "" {
-			break
-		}
-
-		kb, _ := hex.DecodeString(key)
-		// slog.Debug("index.key", "key", key)
-		entry := new(pb.Entry)
-		rawdata, err := s.rdb.Get(kb)
-		if errors.Is(err, store.ErrNotFound) {
-			slog.Warn("index cached: data missing", "id", req.Id, "key", key)
-			s.cached[req.Id].markDirty()
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if err := proto.Unmarshal(rawdata, entry); err != nil {
-			return nil, err
-		}
-		if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
-			return nil, err
-		}
-		// slog.Debug("entry.rawBody", "id", entry.Id, "raw_body", entry.RawBody)
-		_ = formatFeedEntryWithResolver(resolver, req, entry)
-		entries = append(entries, entry)
-		found++
-		if found > int(req.PageSize) {
-			break
-		}
-	}
-
-	feed := &pb.Feed{
-		Uuid:    "Public",
-		Id:      "Public",
-		Name:    "Everyone's feed",
-		Type:    "group",
-		Private: false,
-		Entries: entries,
-	}
-	return feed, nil
 }
 
 func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
@@ -627,7 +567,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	if err != nil {
 		return nil, err
 	}
-	if activityTimeline {
+	if activityTimeline && !isPublicFeedRequest(req) {
 		viewer, parseErr := uuid.FromString(profile.Uuid)
 		if parseErr != nil {
 			return nil, status.Error(codes.Internal, "profile has invalid UUID")
@@ -659,10 +599,10 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		}
 	} else {
 		iter.First()
-		// Home links generated before cursor pagination used ?start=N. Keep
-		// them useful by applying the offset to the new TimelineIndex rather
-		// than falling back to the retired EntryIndex timeline.
-		if req.ProfileUuid != "" && !req.CursorPaging {
+		// Home and public links generated before cursor pagination used
+		// ?start=N. Keep them useful by applying the offset to the new
+		// TimelineIndex rather than falling back to retired storage.
+		if activityTimeline && !req.CursorPaging {
 			for skipped := int32(0); iter.Valid() && skipped < req.Start; skipped++ {
 				iter.Next()
 			}
@@ -879,6 +819,18 @@ func (s *ApiServer) maintainHomeTimeline(viewer uuid.UUID, now time.Time) error 
 }
 
 func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Key, bool, error) {
+	if isPublicFeedRequest(req) {
+		// The public timeline is a reserved TimelineIndex viewer, not a real
+		// profile. The pseudo profile keeps the historical wire values;
+		// httpd rewrites feed.Uuid == "Public" to the current user.
+		profile := &pb.Profile{
+			Uuid: "Public",
+			Id:   "Public",
+			Name: "Everyone's feed",
+			Type: "group",
+		}
+		return profile, model.TimelineIndexPrefix(model.PublicTimelineUUID), true, nil
+	}
 	if req.ProfileUuid != "" {
 		profileUUID, err := uuid.FromString(req.ProfileUuid)
 		if err != nil {
@@ -1019,11 +971,19 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 		return nil, err
 	}
 	// key, err := store.PutEntry(s.rdb, entry, false) // always use false
-	key, err := model.PutEntry(s.rdb, entry) // always use false
+	created, err := s.entryCreated(entry)
 	if err != nil {
 		return nil, err
 	}
-	s.spread(key.String())
+	_, err = model.PutEntry(s.rdb, entry) // always use false
+	if err != nil {
+		return nil, err
+	}
+	if created {
+		if err := s.bumpPublicTimeline(entry, nil); err != nil {
+			return nil, err
+		}
+	}
 	return entry, nil
 }
 
@@ -1115,10 +1075,15 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 	}
 
 	if req.Like {
-		var key store.Key
-		key, entry, err = model.PutLike(s.rdb, profile, entry)
-		if err == nil {
-			s.spread(key.String())
+		created, checkErr := s.likeCreated(entry, profile)
+		if checkErr != nil {
+			return nil, checkErr
+		}
+		_, entry, err = model.PutLike(s.rdb, profile, entry)
+		if err == nil && created {
+			if bumpErr := s.bumpPublicTimeline(entry, nil); bumpErr != nil {
+				return nil, bumpErr
+			}
 		}
 	} else {
 		entry, err = model.DeleteLike(s.rdb, profile, entry)
@@ -1166,11 +1131,19 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 		return nil, err
 	}
 
-	key, entry, err := model.PutComment(s.rdb, profile, entry, req.Comment)
+	created, err := s.commentCreated(entry, req.Comment)
 	if err != nil {
 		return nil, err
 	}
-	s.spread(key.String())
+	_, entry, err = model.PutComment(s.rdb, profile, entry, req.Comment)
+	if err != nil {
+		return nil, err
+	}
+	if created {
+		if err := s.bumpPublicTimeline(entry, nil); err != nil {
+			return nil, err
+		}
+	}
 	return entry, nil
 }
 
@@ -1189,13 +1162,6 @@ func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequ
 	}
 
 	return model.DeleteComment(s.rdb, profile, entry, req.Comment)
-}
-
-func (s *ApiServer) spread(key string) {
-	if key != "" {
-		s.cached["public"].Push(key)
-	}
-	// TODO: spread to friends?
 }
 
 func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {

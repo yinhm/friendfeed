@@ -16,15 +16,12 @@ import (
 func TestConcurrentLikesDoNotLoseUpdates(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
-	public := NewFeedIndex(db, "public", uuid.Must(uuid.NewV4()))
 	t.Cleanup(func() {
-		public.Stop()
 		db.Close()
 	})
 	srv := &ApiServer{
-		mdb:    db,
-		rdb:    db,
-		cached: map[string]*FeedIndex{"public": public},
+		mdb: db,
+		rdb: db,
 	}
 
 	authorUUID := uuid.Must(uuid.NewV4())
