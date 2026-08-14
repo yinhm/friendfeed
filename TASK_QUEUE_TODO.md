@@ -18,12 +18,12 @@
 
 ### 2. key codec 与注册表
 
-- [ ] 实现 raw flake task id 与 32-char hex RPC id 双向转换。
-- [ ] 实现 Task/Ready/Lease/Idem/Done key 编解码和严格长度、type、时间校验。
-- [ ] Ready type prefix 支持单次 Claim 内 k-way merge；所有 iterator 全路径关闭。
-- [ ] 实现 Definition registry，启动时校验 attempts、lease、max lease、backoff、
+- [x] 实现 raw flake task id 与 32-char hex RPC id 双向转换。
+- [x] 实现 Task/Ready/Lease/Idem/Done key 编解码和严格长度、type、时间校验。
+- [x] Ready type prefix 为单次 Claim 内 k-way merge 提供有界扫描前缀。
+- [x] 实现 Definition registry，启动时校验 attempts、lease、max lease、backoff、
       payload/version/大小限制。
-- [ ] 单测正常编码、损坏 key、type 前缀、时间边界、idem hash 和注册失败。
+- [x] 单测正常编码、零 ID、损坏 key、type 前缀、时间边界、idem hash 和注册失败。
 
 ### 3. Queue 状态机
 
