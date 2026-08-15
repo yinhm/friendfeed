@@ -307,9 +307,9 @@ UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，
 sudo -u <ffdb-user> ./tools -to new_db -c rebuild_search_index
 ```
 
-## Task Queue / RSS 上线
+## Task Queue / Service 聚合上线
 
-表 111-112、203-207 都是新增表，无历史数据迁移或 rebuild。部署前停止 ffdb 并备份
+表 111-113、203-207 都是新增表，无历史数据迁移或 rebuild。部署前停止 ffdb 并备份
 Pebble 目录；升级二进制后正常启动即可。启动后检查：
 
 ```bash
@@ -321,7 +321,8 @@ Pebble 目录；升级二进制后正常启动即可。启动后检查：
 
 这些工具会自行以只读或读写模式打开数据库，但 Pebble 仍不允许另一进程同时打开同一
 目录；生产检查应针对停服目录或一致性副本执行。正常的
-旧库首次启动没有 Subscription/Task 行；不得为了“初始化”手工写空表。旧 FeedJob 表
+旧库首次启动没有 Service/Task 行；不得为了“初始化”手工写空表。既有表 101 的
+Twitter FeedService 会按原字段号继续读取，但不会被 Web Feed 调度器抓取。旧 FeedJob 表
 200-202 和 RPC 保留，但 RefetchJobTicker 不再启动。Done 清理必须先带 `-dry-run` 和
 明确 `-before`，确认计数后再执行同一 cutoff。
 

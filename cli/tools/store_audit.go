@@ -41,6 +41,16 @@ type storeAuditStats struct {
 	missingFollowerEdges int
 	missingFollowEdges   int
 	maxFollowers         int
+	services             int
+	serviceStates        int
+	feedServices         int
+	serviceFeedIndexes   int
+	dormantServices      int
+	stateMissingService  int
+	bindingMissingSource int
+	bindingMissingIndex  int
+	disabledWithIndex    int
+	orphanServiceIndexes int
 	tasks                taskqueue.AuditStats
 }
 
@@ -157,6 +167,110 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 	stats.missingFollowEdges = stats.followerEdges - matchedGraphEdges
 	if stats.missingFollowEdges < 0 {
 		return stats, errors.New("Follower table contains duplicate keys")
+	}
+
+	if err := model.Service.Iter(db, func(key, _ []byte) error {
+		if len(key) != model.Service.Prefix.Len()+uuid.Size {
+			return fmt.Errorf("invalid Service key length %d", len(key))
+		}
+		serviceID, _ := uuid.FromBytes(key[model.Service.Prefix.Len():])
+		count, err := db.ForwardScan(model.ServiceFeedIndex.PrefixAppend(serviceID.Bytes()), func(int, []byte, []byte) error { return nil })
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			stats.dormantServices++
+		}
+		stats.services++
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+	if err := model.ServiceState.Iter(db, func(key, raw []byte) error {
+		if len(key) != model.ServiceState.Prefix.Len()+uuid.Size {
+			return fmt.Errorf("invalid ServiceState key length %d", len(key))
+		}
+		state := new(pb.ServiceState)
+		if err := proto.Unmarshal(raw, state); err != nil {
+			return fmt.Errorf("decode ServiceState[%x]: %w", key, err)
+		}
+		serviceID, _ := uuid.FromBytes(key[model.ServiceState.Prefix.Len():])
+		exists, err := db.Exists(model.Service.PrefixAppend(serviceID.Bytes()))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			stats.stateMissingService++
+		}
+		stats.serviceStates++
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+	if err := model.FeedService.Iter(db, func(key, raw []byte) error {
+		if len(key) <= model.FeedService.Prefix.Len()+uuid.Size {
+			return fmt.Errorf("invalid FeedService key length %d", len(key))
+		}
+		target, _ := uuid.FromBytes(key[model.FeedService.Prefix.Len() : model.FeedService.Prefix.Len()+uuid.Size])
+		serviceID := string(key[model.FeedService.Prefix.Len()+uuid.Size:])
+		binding := new(pb.FeedService)
+		if err := proto.Unmarshal(raw, binding); err != nil {
+			return fmt.Errorf("decode FeedService[%x]: %w", key, err)
+		}
+		if binding.ServiceUuid != "" {
+			source, err := uuid.FromString(binding.ServiceUuid)
+			if err != nil {
+				return fmt.Errorf("FeedService %s/%s service UUID: %w", target, serviceID, err)
+			}
+			exists, err := db.Exists(model.Service.PrefixAppend(source.Bytes()))
+			if err != nil {
+				return err
+			}
+			if !exists {
+				stats.bindingMissingSource++
+			}
+			indexKey, err := model.ServiceFeedIndexKey(source, target, serviceID)
+			if err != nil {
+				return err
+			}
+			indexed, err := db.Exists(indexKey)
+			if err != nil {
+				return err
+			}
+			if binding.Enabled && !indexed {
+				stats.bindingMissingIndex++
+			} else if !binding.Enabled && indexed {
+				stats.disabledWithIndex++
+			}
+		}
+		stats.feedServices++
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+	if err := model.ServiceFeedIndex.Iter(db, func(key, _ []byte) error {
+		const fixed = 2 * uuid.Size
+		if len(key) <= model.ServiceFeedIndex.Prefix.Len()+fixed {
+			return fmt.Errorf("invalid ServiceFeedIndex key length %d", len(key))
+		}
+		offset := model.ServiceFeedIndex.Prefix.Len()
+		target, _ := uuid.FromBytes(key[offset+uuid.Size : offset+fixed])
+		serviceID := string(key[offset+fixed:])
+		bindingKey, err := model.FeedServiceKey(target, serviceID)
+		if err != nil {
+			return err
+		}
+		exists, err := db.Exists(bindingKey)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			stats.orphanServiceIndexes++
+		}
+		stats.serviceFeedIndexes++
+		return nil
+	}); err != nil {
+		return stats, err
 	}
 
 	var groupOwner uuid.UUID
@@ -318,6 +432,10 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "same_second_groups=%d same_second_entries=%d\n", stats.sameSecondGroups, stats.sameSecondEntries)
 	fmt.Fprintf(out, "follow=%d follower=%d missing_follower=%d missing_follow=%d max_followers=%d\n",
 		stats.followEdges, stats.followerEdges, stats.missingFollowerEdges, stats.missingFollowEdges, stats.maxFollowers)
+	fmt.Fprintf(out, "services=%d states=%d feed_services=%d service_feed_indexes=%d dormant=%d state_missing_service=%d binding_missing_service=%d binding_missing_index=%d disabled_with_index=%d orphan_service_indexes=%d\n",
+		stats.services, stats.serviceStates, stats.feedServices, stats.serviceFeedIndexes, stats.dormantServices,
+		stats.stateMissingService, stats.bindingMissingSource, stats.bindingMissingIndex,
+		stats.disabledWithIndex, stats.orphanServiceIndexes)
 	fmt.Fprintf(out, "tasks=%d ready=%d leases=%d idem=%d done=%d missing_ready=%d missing_lease=%d missing_idem=%d orphan_ready=%d orphan_lease=%d orphan_idem=%d mismatched_ready=%d mismatched_lease=%d mismatched_idem=%d invalid_done=%d\n",
 		stats.tasks.Tasks, stats.tasks.Ready, stats.tasks.Leases, stats.tasks.Idempotency, stats.tasks.Done,
 		stats.tasks.MissingReady, stats.tasks.MissingLease, stats.tasks.MissingIdem,

@@ -183,9 +183,11 @@ UA 是抓取器配置常量，不由用户、Service 或 Task payload 覆盖。�
 目标 Group。它们尚未发布，应在本分支直接替换为：
 
 ```proto
-rpc AddFeedService(AddFeedServiceRequest) returns (Service);
+rpc AddFeedService(AddFeedServiceRequest) returns (FeedService);
 rpc RemoveFeedService(RemoveFeedServiceRequest) returns (google.protobuf.Empty);
 rpc ListFeedServices(ListFeedServicesRequest) returns (ListFeedServicesResponse);
+rpc SetFeedServiceEnabled(SetFeedServiceEnabledRequest) returns (FeedService);
+rpc RefreshFeedService(RefreshFeedServiceRequest) returns (google.protobuf.Empty);
 
 message AddFeedServiceRequest {
   string actor_uuid = 1;
@@ -234,6 +236,21 @@ Service、Service UUID、抓取状态或 Task 参数。
 5. **Web UI**：账户 Import 与 Group admin 页面复用 Service 管理组件。
 6. **运维**：audit 检查 FeedService↔ServiceFeedIndex、State↔Service、无 binding dormant
    Service；提供 inspect/refetch/disable 工具，不提供绕过授权的普通写接口。
+
+## 运维命令
+
+生产目录必须停服后操作；日常诊断优先针对一致性副本：
+
+```bash
+./tools -to <db> -c audit_store
+./tools -to <db> -c inspect_service -id <service-uuid>
+./tools -to <db> -c refetch_feed_service -user <target-feed-uuid> -id <service-id>
+./tools -to <db> -c disable_feed_service -user <target-feed-uuid> -id <service-id>
+```
+
+`inspect_service` 不输出 OAuth。`refetch_feed_service` 只入队标准 seed task；
+`disable_feed_service` 是停服维护用的显式管理员修复命令，原子更新 FeedService 与反向索引，
+不对 Web 暴露，也不替代有 actor 授权的 RPC。
 
 每一步独立提交并跑 Go 门禁；涉及前端时再跑完整 pnpm 与 e2e。111/112 未部署，因此
 本轮不写数据迁移工具，也不保留旧 `Subscription` API 的双写兼容层。

@@ -34,7 +34,7 @@
 
 ## 5. 运维与收尾
 
-- [ ] audit Service↔State、FeedService↔ServiceFeedIndex、孤儿和 dormant Service。
-- [ ] inspect/refetch/disable 工具均有界，不绕过服务端授权写普通配置。
-- [ ] 更新生成代码、数据库设计、部署说明和 API 测试。
+- [x] audit Service↔State、FeedService↔ServiceFeedIndex、孤儿和 dormant Service。
+- [x] inspect/refetch/disable 工具均有界，不绕过服务端授权写普通配置。
+- [x] 更新生成代码、数据库设计、部署说明和 API 测试。
 - [ ] Go、前端、e2e 门禁全绿后删除本文并提交收尾。

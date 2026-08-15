@@ -1248,6 +1248,7 @@ func main() {
 	// readOnly commands only inspect the target db; open it read-only so we
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
+		command == "inspect_service" ||
 		command == "audit_profiles" || command == "audit_store" ||
 		command == "list_tasks" || command == "inspect_task" ||
 		command == "rebuild_search_index" || command == "mirror_twimg" ||
@@ -1377,6 +1378,12 @@ func main() {
 		runListTasksCommand(ndb)
 	case "inspect_task":
 		runInspectTaskCommand(ndb)
+	case "inspect_service":
+		runInspectServiceCommand(ndb)
+	case "refetch_feed_service":
+		runRefetchFeedServiceCommand(ndb)
+	case "disable_feed_service":
+		runDisableFeedServiceCommand(ndb)
 	case "replay_dead_task":
 		runReplayDeadTaskCommand(ndb)
 	case "purge_task_done":
