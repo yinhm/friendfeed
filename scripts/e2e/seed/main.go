@@ -1,6 +1,8 @@
 // Seed an ffdb backend with deterministic entries for the E2E smoke test.
-// Entries are ingested through ForceArchiveFeed, the production archive path,
-// so they also land in the public feed index.
+// Entries are ingested through ForceArchiveFeed, the production archive path.
+// The public timeline only admits entries whose target feed resolves to a
+// non-private profile, so the bot author is seeded as a real profile and the
+// entries carry its UUID instead of a throwaway one.
 package main
 
 import (
@@ -64,19 +66,31 @@ func main() {
 		}
 	}
 
+	// The bot feed must resolve to a real, non-private profile or its
+	// entries are excluded from the public timeline.
+	botProfile, err := client.PutOAuth(ctx, &pb.OAuthUser{
+		UserId:   "e2e-bot-id",
+		Name:     "e2e-bot",
+		NickName: "E2E Bot",
+		Provider: "google",
+	})
+	if err != nil {
+		log.Fatalf("PutOAuth bot user: %v", err)
+	}
+
 	stream, err := client.ForceArchiveFeed(context.Background())
 	if err != nil {
 		log.Fatalf("ForceArchiveFeed: %v", err)
 	}
 
-	from := &pb.Feed{Id: "e2e-bot", Name: "E2E Bot", Type: "user"}
+	from := &pb.Feed{Id: botProfile.Id, Name: botProfile.Name, Type: botProfile.Type}
 	owner := &pb.Feed{Id: profile.Id, Name: profile.Name, Type: profile.Type}
 	rawBody := `[{"type":"p","children":[{"text":"E2E smoke "},{"text":"bold marker","bold":true}]}]`
 
 	for _, entry := range []*pb.Entry{
 		{
 			Id:          uuid.Must(uuid.NewV4()).String(),
-			ProfileUuid: uuid.Must(uuid.NewV4()).String(),
+			ProfileUuid: botProfile.Uuid,
 			From:        from,
 			Body:        `<p>E2E smoke <strong>bold marker</strong></p>`,
 			RawBody:     rawBody,
@@ -85,7 +99,7 @@ func main() {
 		},
 		{
 			Id:          uuid.Must(uuid.NewV4()).String(),
-			ProfileUuid: uuid.Must(uuid.NewV4()).String(),
+			ProfileUuid: botProfile.Uuid,
 			From:        from,
 			Body:        `<p>E2E second entry plain text</p>`,
 			Date:        time.Now().UTC().Format(time.RFC3339),
