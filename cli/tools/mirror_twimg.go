@@ -34,8 +34,8 @@ import (
 
 // mirror_twimg rescues rotting twimg media referenced by archived entries:
 // it scans the Entry table read-only, mirrors every URL that is still alive
-// into the production media storage (local + R2), falls back to the Wayback
-// Machine for dead ones, and records every outcome in a JSONL file. The
+// into the production media storage (local + R2), optionally falls back to
+// the Wayback Machine when explicitly enabled, and records every outcome in a JSONL file. The
 // database is never written; a later migration rewrites entry bodies from
 // the recorded URL mapping.
 
@@ -283,6 +283,7 @@ const (
 	waybackWebBase     = "https://web.archive.org"
 	waybackMaxAttempts = 3
 	waybackMaxBody     = 32 << 20 // mirrors media.maxFetchBytes
+	waybackLimitStatus = 498      // Internet Archive uses 498 for throttling
 )
 
 var (
@@ -323,31 +324,69 @@ func (w *waybackClient) backoff(d time.Duration) {
 	time.Sleep(d)
 }
 
+func waybackRetryDelay(resp *http.Response, attempt int) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+	base := 5 * time.Second
+	if resp != nil && (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == waybackLimitStatus) {
+		base = time.Minute
+		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+			if seconds, err := strconv.Atoi(retryAfter); err == nil && seconds >= 0 {
+				if delay := time.Duration(seconds) * time.Second; delay > base {
+					base = delay
+				}
+			} else if at, err := http.ParseTime(retryAfter); err == nil {
+				if delay := time.Until(at); delay > base {
+					base = delay
+				}
+			}
+		}
+	}
+	for i := 0; i < attempt && base < 10*time.Minute; i++ {
+		base *= 2
+	}
+	if base > 10*time.Minute {
+		return 10 * time.Minute
+	}
+	return base
+}
+
+func isWaybackRetryable(status int) bool {
+	return status == http.StatusTooManyRequests || status == waybackLimitStatus || status >= 500
+}
+
 // snapshotTimestamp returns the timestamp of the latest successful image
 // capture for rawURL from the Wayback CDX index. The CDX index is
 // authoritative: an empty answer means no capture exists and is final;
-// network errors and 5xx/429 (rate limiting) are retried with backoff.
+// network errors and 5xx/429/498 (rate limiting) are retried with backoff.
 func (w *waybackClient) snapshotTimestamp(rawURL string) (string, error) {
 	api := w.webBase + "/cdx/search/cdx?url=" + url.QueryEscape(rawURL) +
 		"&output=json&fl=timestamp&filter=statuscode:200&filter=mimetype:image.*&limit=-1"
 	var lastErr error
 	for attempt := 0; attempt < waybackMaxAttempts; attempt++ {
-		if attempt > 0 {
-			w.backoff(time.Duration(attempt*attempt) * time.Second)
-		}
 		resp, err := w.http.Get(api)
 		if err != nil {
 			lastErr = err
+			if attempt+1 < waybackMaxAttempts {
+				w.backoff(waybackRetryDelay(nil, attempt))
+			}
 			continue
 		}
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		resp.Body.Close()
 		if err != nil {
 			lastErr = err
+			if attempt+1 < waybackMaxAttempts {
+				w.backoff(waybackRetryDelay(nil, attempt))
+			}
 			continue
 		}
-		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+		if isWaybackRetryable(resp.StatusCode) {
 			lastErr = fmt.Errorf("wayback cdx: %s", resp.Status)
+			if attempt+1 < waybackMaxAttempts {
+				w.backoff(waybackRetryDelay(resp, attempt))
+			}
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
@@ -378,9 +417,24 @@ func (w *waybackClient) rawSnapshotURL(timestamp, rawURL string) string {
 // anything else (error pages, HTML rewrites) is a lookup failure, never
 // something to persist.
 func (w *waybackClient) fetchSnapshot(rawURL string) (content []byte, contentType string, err error) {
-	resp, err := w.http.Get(rawURL)
-	if err != nil {
-		return nil, "", err
+	var resp *http.Response
+	for attempt := 0; attempt < waybackMaxAttempts; attempt++ {
+		resp, err = w.http.Get(rawURL)
+		if err != nil {
+			if attempt+1 < waybackMaxAttempts {
+				w.backoff(waybackRetryDelay(nil, attempt))
+				continue
+			}
+			return nil, "", err
+		}
+		if !isWaybackRetryable(resp.StatusCode) {
+			break
+		}
+		resp.Body.Close()
+		if attempt+1 == waybackMaxAttempts {
+			return nil, "", fmt.Errorf("wayback snapshot: %s", resp.Status)
+		}
+		w.backoff(waybackRetryDelay(resp, attempt))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -423,14 +477,14 @@ func recoverViaWayback(wb *waybackClient, rawURL string) (snapshotURL string, co
 type mirrorTwimgOptions struct {
 	config       *util.Config   // required unless dryRun or storage is set
 	storage      media.Storage  // nil: built from config
-	wayback      *waybackClient // nil: default client (unless noWayback)
+	wayback      *waybackClient // nil: default client when useWayback is true
 	outPath      string
 	workers      int
 	requestDelay time.Duration
 	backoffBase  time.Duration
 	retries      int
 	maxURLs      int
-	noWayback    bool
+	useWayback   bool
 	waybackDelay time.Duration
 	dryRun       bool
 }
@@ -580,7 +634,7 @@ func runMirrorTwimg(db *store.Store, opts mirrorTwimgOptions) (mirrorTwimgStats,
 		mediaBase = strings.TrimRight(opts.config.MediaURL, "/")
 	}
 	wb := opts.wayback
-	if wb == nil && !opts.noWayback {
+	if wb == nil && opts.useWayback {
 		wb = newWaybackClient()
 	}
 	workers := opts.workers
@@ -644,7 +698,7 @@ func runMirrorTwimg(db *store.Store, opts mirrorTwimgOptions) (mirrorTwimgStats,
 	// polite clients, and live failures are rare compared to live successes.
 	wbJobs := make(chan liveFailure)
 	var wbWg sync.WaitGroup
-	if !opts.noWayback {
+	if opts.useWayback {
 		wbWg.Add(1)
 		go func() {
 			defer wbWg.Done()
@@ -739,7 +793,7 @@ func runMirrorTwimg(db *store.Store, opts mirrorTwimgOptions) (mirrorTwimgStats,
 				}
 				rec.HTTPStatus = fetchHTTPStatus(firstErr)
 				rec.Error = firstErr.Error()
-				if opts.noWayback {
+				if !opts.useWayback {
 					// Without the Wayback stage nothing is final: failures
 					// stay retriable so a later wayback-enabled run can
 					// still recover them.
@@ -757,7 +811,7 @@ func runMirrorTwimg(db *store.Store, opts mirrorTwimgOptions) (mirrorTwimgStats,
 	}
 	close(jobs)
 	wg.Wait()
-	if !opts.noWayback {
+	if opts.useWayback {
 		close(wbJobs)
 		wbWg.Wait()
 	}

@@ -54,7 +54,9 @@ DNS、HTTP 或 Wayback 请求，也不占用 `-max-limit`。旧 `p.twimg.com/<ba
 
 默认只启用 2 个 live-fetch worker，所有 worker 共享每秒最多一次的请求门控；网络错误、
 HTTP 5xx 和 429 最多重试 3 次，按 5、10、20 秒退避，429 的全局冷却不少于 60 秒。
-403/404 和 DNS NXDOMAIN 不重试。Wayback 单线程执行，不同 URL 之间默认等待 2 秒。
+403/404 和 DNS NXDOMAIN 不重试。Wayback 默认关闭；只有明确传入 `-wayback` 才会启用，
+不应作为全量 mirror 的默认来源。启用后它单线程执行，不同 URL 之间默认等待 2 秒；
+其 429 和非标准 498 响应均视为限流，优先遵守 `Retry-After`，否则至少等待 60 秒并指数退避。
 这些参数可通过 `-workers`、`-request-delay`、`-retries`、`-backoff-base` 和
 `-wayback-delay` 调低速率；批量抢救时不应提高默认请求速率。
 

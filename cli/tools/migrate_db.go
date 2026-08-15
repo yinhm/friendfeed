@@ -37,6 +37,7 @@ var mirrorWorkers int
 var mirrorRequestDelay time.Duration
 var mirrorBackoffBase time.Duration
 var mirrorRetries int
+var useWayback bool
 var noWayback bool
 var waybackDelay time.Duration
 var taskState string
@@ -59,7 +60,8 @@ func init() {
 	flag.DurationVar(&mirrorRequestDelay, "request-delay", time.Second, "mirror_twimg minimum global delay between live requests")
 	flag.DurationVar(&mirrorBackoffBase, "backoff-base", 5*time.Second, "mirror_twimg transient retry backoff base")
 	flag.IntVar(&mirrorRetries, "retries", 3, "mirror_twimg maximum transient retries per live candidate")
-	flag.BoolVar(&noWayback, "no-wayback", false, "mirror_twimg: skip Wayback Machine recovery for dead URLs")
+	flag.BoolVar(&useWayback, "wayback", false, "mirror_twimg: explicitly enable Wayback Machine recovery")
+	flag.BoolVar(&noWayback, "no-wayback", false, "mirror_twimg: deprecated compatibility flag; Wayback is disabled by default")
 	flag.DurationVar(&waybackDelay, "wayback-delay", 2*time.Second, "mirror_twimg: delay between Wayback Machine requests")
 	flag.StringVar(&taskState, "task-state", "", "task list state: ready, inflight, or dead")
 	flag.StringVar(&beforeTime, "before", "", "RFC3339 cutoff for retention commands")
@@ -1236,6 +1238,9 @@ func main() {
 	if toPath == "" {
 		log.Fatal("-to is required")
 	}
+	if useWayback && noWayback {
+		log.Fatal("-wayback and -no-wayback cannot be used together")
+	}
 	// Only a few commands read from a source db; everything else operates on
 	// the target (-to) alone. Default to not requiring -from and opt those in.
 	needsSource := command == "db" || command == "sync" ||
@@ -1328,7 +1333,7 @@ func main() {
 			config: cfg, outPath: outPath, workers: mirrorWorkers,
 			requestDelay: mirrorRequestDelay, backoffBase: mirrorBackoffBase,
 			retries: mirrorRetries,
-			maxURLs: timelineMaxLimit, noWayback: noWayback,
+			maxURLs: timelineMaxLimit, useWayback: useWayback && !noWayback,
 			waybackDelay: waybackDelay, dryRun: dryRun,
 		})
 		if err != nil {

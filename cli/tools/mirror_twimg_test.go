@@ -121,10 +121,12 @@ func TestTwimgRetryDelay(t *testing.T) {
 
 // waybackFixture serves the CDX index API and raw captures from one handler.
 type waybackFixture struct {
-	snapshots map[string]string // original url -> capture timestamp
-	images    map[string][]byte // raw capture path -> bytes
-	apiHits   *int32
-	failFirst bool
+	snapshots  map[string]string // original url -> capture timestamp
+	images     map[string][]byte // raw capture path -> bytes
+	apiHits    *int32
+	failFirst  bool
+	failCode   int
+	retryAfter string
 }
 
 func (f *waybackFixture) handler(t *testing.T) http.Handler {
@@ -135,7 +137,14 @@ func (f *waybackFixture) handler(t *testing.T) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/cdx/search/cdx") {
 			if f.apiHits != nil {
 				if hits := atomic.AddInt32(f.apiHits, 1); f.failFirst && hits == 1 {
-					w.WriteHeader(http.StatusServiceUnavailable)
+					if f.retryAfter != "" {
+						w.Header().Set("Retry-After", f.retryAfter)
+					}
+					code := f.failCode
+					if code == 0 {
+						code = http.StatusServiceUnavailable
+					}
+					w.WriteHeader(code)
 					return
 				}
 			}
@@ -193,6 +202,29 @@ func TestWaybackSnapshotTimestampRetriesTransientFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "20120601000000", ts)
 	require.Equal(t, int32(2), atomic.LoadInt32(fixture.apiHits))
+}
+
+func TestWaybackSnapshotTimestampBacksOffOn498(t *testing.T) {
+	live := "http://pbs.twimg.com/media/AAA.jpg"
+	fixture := &waybackFixture{
+		snapshots: map[string]string{live: "20120601000000"},
+		apiHits:   new(int32), failFirst: true, failCode: waybackLimitStatus,
+	}
+	srv := httptest.NewServer(fixture.handler(t))
+	defer srv.Close()
+	var delays []time.Duration
+	wb := &waybackClient{webBase: srv.URL, http: srv.Client(), sleep: func(d time.Duration) { delays = append(delays, d) }}
+
+	ts, err := wb.snapshotTimestamp(live)
+	require.NoError(t, err)
+	require.Equal(t, "20120601000000", ts)
+	require.Equal(t, []time.Duration{time.Minute}, delays)
+}
+
+func TestWaybackRetryDelayHonorsLongerRetryAfter(t *testing.T) {
+	resp := &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{"Retry-After": []string{"180"}}}
+	require.Equal(t, 180*time.Second, waybackRetryDelay(resp, 0))
+	require.Equal(t, 6*time.Minute, waybackRetryDelay(resp, 1))
 }
 
 func TestWaybackSnapshotTimestampEmptyIsFinal(t *testing.T) {
@@ -374,7 +406,7 @@ func TestRunMirrorTwimg(t *testing.T) {
 	outPath := filepath.Join(t.TempDir(), "sync.jsonl")
 	opts := mirrorTwimgOptions{
 		storage: storage, wayback: wb, outPath: outPath,
-		workers: 4, waybackDelay: time.Millisecond,
+		workers: 4, waybackDelay: time.Millisecond, useWayback: true,
 	}
 
 	stats, err := runMirrorTwimg(db, opts)
@@ -471,7 +503,7 @@ func TestRunMirrorTwimgNoWayback(t *testing.T) {
 	}
 	outPath := filepath.Join(t.TempDir(), "sync.jsonl")
 	stats, err := runMirrorTwimg(db, mirrorTwimgOptions{
-		storage: storage, outPath: outPath, workers: 2, noWayback: true,
+		storage: storage, outPath: outPath, workers: 2,
 	})
 	require.NoError(t, err)
 	// Without the Wayback stage no failure is final; everything is retriable.
