@@ -1308,11 +1308,10 @@ func (s *RpcTestSuite) TestNewProfileThenPostEntry() {
 	// assert.Nil(s.T(), err)
 
 	// delete service
-	dReq := &pb.ServiceRequest{
-		User:    profile.Uuid,
-		Service: "twitter",
+	dReq := &pb.RemoveFeedServiceRequest{
+		ActorUuid: profile.Uuid, TargetFeedUuid: profile.Uuid, ServiceId: "twitter",
 	}
-	_, err = s.srv.DeleteService(context.Background(), dReq)
+	_, err = s.srv.RemoveFeedService(context.Background(), dReq)
 	assert.Nil(s.T(), err)
 
 	// FetchGraph panic
@@ -1658,7 +1657,7 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 		active, activeErr := model.TimelineIsActive(s.srv.rdb, profileUUID, time.Now().UTC())
 		return activeErr == nil && active
 	}, 5*time.Second, 10*time.Millisecond)
-	services, err := model.GetServicesForProfile(s.srv.rdb, profileUUID)
+	services, err := model.GetFeedServices(s.srv.rdb, profileUUID)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 1, len(services))
 	svc := services[0]
@@ -1689,7 +1688,7 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 	assert.Equal(s.T(), "token-2", oauthUser.AccessToken)
 
 	// 仍然只有一个 service（重建而非追加）
-	services, err = model.GetServicesForProfile(s.srv.rdb, profileUUID)
+	services, err = model.GetFeedServices(s.srv.rdb, profileUUID)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 1, len(services))
 }
@@ -1710,7 +1709,7 @@ func (s *RpcTestSuite) TestPutOAuthGoogleLoginCreatesNoService() {
 
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	assert.Nil(s.T(), err)
-	services, err := model.GetServicesForProfile(s.srv.rdb, profileUUID)
+	services, err := model.GetFeedServices(s.srv.rdb, profileUUID)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), 0, len(services))
 

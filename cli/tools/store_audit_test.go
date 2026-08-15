@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/model"
@@ -57,6 +58,38 @@ func TestAuditStoreFindsIndexAndGraphDrift(t *testing.T) {
 	require.Zero(t, stats.missingFollowerEdges)
 	require.Zero(t, stats.missingFollowEdges)
 	require.Equal(t, 1, stats.maxFollowers)
+}
+
+func TestAuditStoreChecksServiceRelationships(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	target := uuid.Must(uuid.NewV4())
+	actor := uuid.Must(uuid.NewV4())
+	var binding *pb.FeedService
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		var stageErr error
+		binding, _, stageErr = model.StageAddWebFeedService(db, batch, target, actor, "https://example.com/feed", time.Now().UTC())
+		return stageErr
+	}))
+
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.services)
+	require.Equal(t, 1, stats.serviceStates)
+	require.Equal(t, 1, stats.feedServices)
+	require.Equal(t, 1, stats.serviceFeedIndexes)
+	require.Zero(t, stats.dormantServices)
+	require.Zero(t, stats.bindingMissingIndex)
+
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	indexKey, err := model.ServiceFeedIndexKey(serviceID, target, binding.Id)
+	require.NoError(t, err)
+	require.NoError(t, db.Delete(indexKey))
+	stats, err = auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.dormantServices)
+	require.Equal(t, 1, stats.bindingMissingIndex)
 }
 
 func TestAuditStoreReportsLegacyEntryIndexKey(t *testing.T) {

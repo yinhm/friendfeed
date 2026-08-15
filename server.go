@@ -41,6 +41,7 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer, health *healthC
 	// Flip health to NOT_SERVING before draining so new probes fail
 	// while in-flight requests finish.
 	health.shutdown()
+	apiSrv.StopTaskClaims()
 	rpcSrv.GracefulStop()
 	log.Println("rpc server stopped.")
 	apiSrv.Shutdown()

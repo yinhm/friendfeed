@@ -77,7 +77,7 @@ describe('AccountApp', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<AccountApp initialTab="import" profile={profile} services={services} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'remove twitter' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(screen.queryByText('Twitter')).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('link', { name: 'Edit Profile' }));

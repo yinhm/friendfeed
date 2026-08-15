@@ -32,7 +32,7 @@ const (
 	TableEntryIndex store.KeyPrefix = 5
 
 	TableProfile          store.KeyPrefix = 100
-	TableService          store.KeyPrefix = 101
+	TableFeedService      store.KeyPrefix = 101
 	TableFollow           store.KeyPrefix = 102
 	TableFollower         store.KeyPrefix = 103
 	TableOAuth            store.KeyPrefix = 104
@@ -42,10 +42,18 @@ const (
 	TableTimelineIndex    store.KeyPrefix = 108
 	TableTimelinePosition store.KeyPrefix = 109
 	TableTimelineState    store.KeyPrefix = 110
+	TableService          store.KeyPrefix = 111
+	TableServiceState     store.KeyPrefix = 112
+	TableServiceFeedIndex store.KeyPrefix = 113
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
 	TableJobHistory store.KeyPrefix = 202
+	TableTask       store.KeyPrefix = 203
+	TableTaskReady  store.KeyPrefix = 204
+	TableTaskLease  store.KeyPrefix = 205
+	TableTaskIdem   store.KeyPrefix = 206
+	TableTaskDone   store.KeyPrefix = 207
 
 	TableConfig store.KeyPrefix = 300
 	TableTopic  store.KeyPrefix = 301
@@ -70,7 +78,7 @@ var (
 	UserRenameMap = NewTable(KeyPrefixToBytes(TableUserRenameMap))
 	Profile       = NewTable(KeyPrefixToBytes(TableProfile))
 
-	Service          = NewTable(KeyPrefixToBytes(TableService))
+	FeedService      = NewTable(KeyPrefixToBytes(TableFeedService))
 	Follow           = NewTable(KeyPrefixToBytes(TableFollow))
 	Follower         = NewTable(KeyPrefixToBytes(TableFollower))
 	OAuth            = NewTable(KeyPrefixToBytes(TableOAuth))
@@ -80,10 +88,18 @@ var (
 	TimelineIndex    = NewTable(KeyPrefixToBytes(TableTimelineIndex))
 	TimelinePosition = NewTable(KeyPrefixToBytes(TableTimelinePosition))
 	TimelineState    = NewTable(KeyPrefixToBytes(TableTimelineState))
+	Service          = NewTable(KeyPrefixToBytes(TableService))
+	ServiceState     = NewTable(KeyPrefixToBytes(TableServiceState))
+	ServiceFeedIndex = NewTable(KeyPrefixToBytes(TableServiceFeedIndex))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))
 	JobHistory = NewTable(KeyPrefixToBytes(TableJobHistory))
+	Task       = NewTable(KeyPrefixToBytes(TableTask))
+	TaskReady  = NewTable(KeyPrefixToBytes(TableTaskReady))
+	TaskLease  = NewTable(KeyPrefixToBytes(TableTaskLease))
+	TaskIdem   = NewTable(KeyPrefixToBytes(TableTaskIdem))
+	TaskDone   = NewTable(KeyPrefixToBytes(TableTaskDone))
 
 	Config = NewTable(KeyPrefixToBytes(TableConfig))
 	Topic  = NewTable(KeyPrefixToBytes(TableTopic))

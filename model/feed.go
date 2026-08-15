@@ -42,24 +42,24 @@ func GetArchiveHistory(db *store.Store, id string) (*pb.FeedJob, error) {
 	return job, nil
 }
 
-func PutService(db *store.Store, profileUuid uuid.UUID, service *pb.Service) error {
+func PutFeedService(db *store.Store, profileUuid uuid.UUID, service *pb.FeedService) error {
 	key := NewKeyFrom(profileUuid.Bytes(), []byte(service.Id))
-	_, err := Service.Put(db, key, service)
+	_, err := FeedService.Put(db, key, service)
 	return err
 }
 
-func DeleteService(db *store.Store, profileUuid uuid.UUID, serviceId string) error {
+func DeleteFeedService(db *store.Store, profileUuid uuid.UUID, serviceId string) error {
 	key := NewKeyFrom(profileUuid.Bytes(), []byte(serviceId))
-	return Service.Delete(db, key)
+	return FeedService.Delete(db, key)
 }
 
-func GetServicesForProfile(db *store.Store, profileUuid uuid.UUID) ([]*pb.Service, error) {
-	prefix := NewPrefixKeyFrom(TableService, profileUuid.Bytes())
+func GetFeedServices(db *store.Store, profileUuid uuid.UUID) ([]*pb.FeedService, error) {
+	prefix := NewPrefixKeyFrom(TableFeedService, profileUuid.Bytes())
 	// fmt.Printf("scan key, %s\n", prefix.String())
 
-	var services []*pb.Service
+	var services []*pb.FeedService
 	_, err := db.ForwardScan(prefix, func(i int, k, v []byte) error {
-		service := &pb.Service{}
+		service := &pb.FeedService{}
 		if err := proto.Unmarshal(v, service); err != nil {
 			return err
 		}

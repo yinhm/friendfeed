@@ -20,6 +20,39 @@ syntax = "proto3";
 package pb;
 option go_package = ".;pb";
 
+message Service {
+  string uuid = 1;
+  string kind = 2;
+  string canonical_url = 3;
+  string title = 4;
+  string site_url = 5;
+  string icon_url = 6;
+  int64 created_at_ms = 7;
+  int64 updated_at_ms = 8;
+}
+
+message ServiceState {
+  string service_uuid = 1;
+  string etag = 2;
+  string last_modified = 3;
+  int64 last_fetch_ms = 4;
+  int64 next_fetch_ms = 5;
+  uint32 consecutive_failures = 6;
+  int32 http_status = 7;
+  uint32 empty_fetches = 8;
+  string last_error = 9;
+}
+
+message ServiceFetchPayload {
+  string service_uuid = 1;
+}
+
+message FeedServiceSeedPayload {
+  string service_uuid = 1;
+  string target_feed_uuid = 2;
+  string service_id = 3;
+}
+
 enum FeedType {
   user = 0;
   group = 1;
@@ -76,7 +109,7 @@ message Graph {
   map<string, Profile> followers = 2;
   map<string, Profile> admins = 3;
   map<string, Profile> feeds = 4;
-  map<string, Service> services = 5;
+  map<string, FeedService> services = 5;
 }
 
 message FollowRequest {
@@ -153,7 +186,7 @@ message Feedinfo {
   repeated Profile followers = 11;
   repeated Profile admins = 12;
   repeated Profile feeds = 13; // for list
-  repeated Service services = 14;
+  repeated FeedService services = 14;
 }
 
 // not really used
@@ -183,7 +216,7 @@ message Follower {
 //   * icon - the URL of the favicon for this service
 //   * profile? - the profile URL for this service, if any
 //   * username? - the username for this service, if any
-message Service {
+message FeedService {
   string id = 1;
   string name = 2;
   string icon = 3;
@@ -192,6 +225,11 @@ message Service {
   OAuthUser oauth = 6;
   int64 created = 7;
   int64 updated = 8;
+  string kind = 9;
+  string service_uuid = 10;
+  bool enabled = 11;
+  string added_by_uuid = 12;
+  string authorized_by_uuid = 13;
 }
 
 // message Connection {

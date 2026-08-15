@@ -54,7 +54,9 @@ DNS、HTTP 或 Wayback 请求，也不占用 `-max-limit`。旧 `p.twimg.com/<ba
 
 默认只启用 2 个 live-fetch worker，所有 worker 共享每秒最多一次的请求门控；网络错误、
 HTTP 5xx 和 429 最多重试 3 次，按 5、10、20 秒退避，429 的全局冷却不少于 60 秒。
-403/404 和 DNS NXDOMAIN 不重试。Wayback 单线程执行，不同 URL 之间默认等待 2 秒。
+403/404 和 DNS NXDOMAIN 不重试。Wayback 默认关闭；只有明确传入 `-wayback` 才会启用，
+不应作为全量 mirror 的默认来源。启用后它单线程执行，不同 URL 之间默认等待 2 秒；
+其 429 和非标准 498 响应均视为限流，优先遵守 `Retry-After`，否则至少等待 60 秒并指数退避。
 这些参数可通过 `-workers`、`-request-delay`、`-retries`、`-backoff-base` 和
 `-wayback-delay` 调低速率；批量抢救时不应提高默认请求速率。
 
@@ -304,6 +306,25 @@ UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，
 ```bash
 sudo -u <ffdb-user> ./tools -to new_db -c rebuild_search_index
 ```
+
+## Task Queue / Service 聚合上线
+
+表 111-113、203-207 都是新增表，无历史数据迁移或 rebuild。部署前停止 ffdb 并备份
+Pebble 目录；升级二进制后正常启动即可。启动后检查：
+
+```bash
+./tools -to <db-copy> -c audit_store
+./tools -to <db-copy> -c list_tasks -task-state ready -max-limit 20
+./tools -to <db-copy> -c list_tasks -task-state inflight -max-limit 20
+./tools -to <db-copy> -c list_tasks -task-state dead -max-limit 20
+```
+
+这些工具会自行以只读或读写模式打开数据库，但 Pebble 仍不允许另一进程同时打开同一
+目录；生产检查应针对停服目录或一致性副本执行。正常的
+旧库首次启动没有 Service/Task 行；不得为了“初始化”手工写空表。既有表 101 的
+Twitter FeedService 会按原字段号继续读取，但不会被 Web Feed 调度器抓取。旧 FeedJob 表
+200-202 和 RPC 保留，但 RefetchJobTicker 不再启动。Done 清理必须先带 `-dry-run` 和
+明确 `-before`，确认计数后再执行同一 cutoff。
 
 # Pebble v2 / FMV 升级（2026-07，dev 与 production 已完成）
 

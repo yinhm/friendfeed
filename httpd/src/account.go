@@ -18,20 +18,20 @@ func (s *Server) AccountHandler(c *gin.Context) {
 }
 
 func (s *Server) AccountProfileHandler(c *gin.Context) {
-	s.renderAccountPage(c, "profile")
+	s.renderAccountPage(c, "profile", CurrentUserUuid(c))
 }
 
 // renderAccountPage serves the unified React account app (see account.html).
 // Both /account/profile and /account/import load the same bundle; tab tells
 // the app which panel to show first.
-func (s *Server) renderAccountPage(c *gin.Context, tab string) {
+func (s *Server) renderAccountPage(c *gin.Context, tab, targetUUID string) {
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
 		c.String(http.StatusUnauthorized, "please login first")
 		return
 	}
 
-	profile, services, err := fetchAccountData(s.client, uuid)
+	profile, services, err := fetchAccountData(s.client, uuid, targetUUID)
 	if err != nil {
 		RequestError(c, err)
 		return
@@ -39,10 +39,16 @@ func (s *Server) renderAccountPage(c *gin.Context, tab string) {
 
 	// Hand the React app its data as JSON, mirroring the window.appData
 	// pattern in feed.html.
+	serviceMap := make(map[string]*pb.FeedService, len(services.Services))
+	for _, service := range services.Services {
+		serviceMap[service.Id] = service
+	}
 	accountJSON, err := json.Marshal(gin.H{
 		"tab":      tab,
 		"profile":  profile,
-		"services": services,
+		"services": serviceMap,
+		"states":   services.States,
+		"target":   targetUUID,
 	})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to encode account data")
@@ -60,13 +66,13 @@ func (s *Server) renderAccountPage(c *gin.Context, tab string) {
 // each with its own timeout: the unified account page needs both, and two
 // serial calls sharing one deadline would let a slow first call starve the
 // second.
-func fetchAccountData(client pb.ApiClient, userUuid string) (*pb.Profile, map[string]*pb.Service, error) {
-	req := &pb.ProfileRequest{Uuid: userUuid}
+func fetchAccountData(client pb.ApiClient, actorUUID, targetUUID string) (*pb.Profile, *pb.ListFeedServicesResponse, error) {
+	req := &pb.ProfileRequest{Uuid: targetUUID}
 
 	var wg sync.WaitGroup
 	var profile *pb.Profile
-	var graph *pb.Graph
-	var profileErr, graphErr error
+	var services *pb.ListFeedServicesResponse
+	var profileErr, servicesErr error
 
 	wg.Add(2)
 	go func() {
@@ -79,20 +85,20 @@ func fetchAccountData(client pb.ApiClient, userUuid string) (*pb.Profile, map[st
 		defer wg.Done()
 		ctx, cancel := DefaultTimeoutContext()
 		defer cancel()
-		graph, graphErr = client.FetchGraph(ctx, req)
+		services, servicesErr = client.ListFeedServices(ctx, &pb.ListFeedServicesRequest{
+			ActorUuid: actorUUID, TargetFeedUuid: targetUUID,
+		})
 	}()
 	wg.Wait()
 
 	if profileErr != nil {
 		return nil, nil, profileErr
 	}
-	if graphErr != nil {
-		return nil, nil, graphErr
+	if servicesErr != nil {
+		return nil, nil, servicesErr
 	}
-
-	services := graph.Services
 	if services == nil {
-		services = map[string]*pb.Service{}
+		services = &pb.ListFeedServicesResponse{}
 	}
 	return profile, services, nil
 }
@@ -159,7 +165,65 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 }
 
 func (s *Server) ImportHandler(c *gin.Context) {
-	s.renderAccountPage(c, "import")
+	s.renderAccountPage(c, "import", CurrentUserUuid(c))
+}
+
+func (s *Server) FeedServicePageHandler(c *gin.Context) {
+	s.renderAccountPage(c, "import", c.Param("uuid"))
+}
+
+func (s *Server) AddFeedServiceHandler(c *gin.Context) {
+	actor := CurrentUserUuid(c)
+	if actor == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "please login first"})
+		return
+	}
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+	binding, err := s.client.AddFeedService(ctx, &pb.AddFeedServiceRequest{
+		ActorUuid: actor, TargetFeedUuid: strings.TrimSpace(c.PostForm("target_uuid")),
+		Kind: "web_feed", Url: strings.TrimSpace(c.PostForm("url")),
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
+		return
+	}
+	c.JSON(http.StatusOK, binding)
+}
+
+func (s *Server) FeedServiceActionHandler(c *gin.Context) {
+	actor := CurrentUserUuid(c)
+	if actor == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "please login first"})
+		return
+	}
+	target := strings.TrimSpace(c.PostForm("target_uuid"))
+	serviceID := c.Param("service")
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+	switch c.Param("action") {
+	case "enable", "disable":
+		binding, err := s.client.SetFeedServiceEnabled(ctx, &pb.SetFeedServiceEnabledRequest{
+			ActorUuid: actor, TargetFeedUuid: target, ServiceId: serviceID,
+			Enabled: c.Param("action") == "enable",
+		})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
+			return
+		}
+		c.JSON(http.StatusOK, binding)
+	case "refresh":
+		_, err := s.client.RefreshFeedService(ctx, &pb.RefreshFeedServiceRequest{
+			ActorUuid: actor, TargetFeedUuid: target, ServiceId: serviceID,
+		})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"queued": serviceID})
+	default:
+		c.JSON(http.StatusNotFound, gin.H{"error": "unknown FeedService action"})
+	}
 }
 
 func (s *Server) TwitterImportHandler(c *gin.Context) {
@@ -176,11 +240,14 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "please login first"})
 		return
 	}
-	req := &pb.ServiceRequest{
-		User:    uuid,
-		Service: service,
+	target := strings.TrimSpace(c.Query("target"))
+	if target == "" {
+		target = uuid
 	}
-	_, err := s.client.DeleteService(ctx, req)
+	req := &pb.RemoveFeedServiceRequest{
+		ActorUuid: uuid, TargetFeedUuid: target, ServiceId: service,
+	}
+	_, err := s.client.RemoveFeedService(ctx, req)
 	if err != nil {
 		log.Printf("Error on deleting: %s, %s", uuid, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})

@@ -54,7 +54,7 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	// (re)build services if profile present
 	if strings.ToLower(authinfo.Provider) == "twitter" {
 		// WARN: goth user.NickName == screen_name which is twitter id
-		service := &pb.Service{
+		service := &pb.FeedService{
 			Id:       "twitter",
 			Name:     "Twitter",
 			Icon:     "/static/images/icons/twitter.png",
@@ -65,11 +65,11 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			Updated:  time.Now().Unix(),
 		}
 
-		err = model.PutService(s.rdb, profileUUID, service)
+		err = model.PutFeedService(s.rdb, profileUUID, service)
 		if err != nil {
 			return nil, err
 		}
-		slog.Debug("PutService", "uuid", profile.Uuid, "username", service.Username)
+		slog.Debug("PutFeedService", "uuid", profile.Uuid, "username", service.Username)
 	}
 	// Login must not wait for a potentially expensive Home rebuild. Prewarm in
 	// the same bounded, per-viewer background path used by FetchFeed.
@@ -93,14 +93,4 @@ func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*
 		return nil, err
 	}
 	return profile, nil
-}
-
-func (s *ApiServer) DeleteService(ctx context.Context, req *pb.ServiceRequest) (*pb.Feedinfo, error) {
-	slog.Debug("DeleteService", "user", req.User, "service", req.Service)
-	userUUID, err := uuid.FromString(req.User)
-	if err != nil {
-		return nil, err
-	}
-	model.DeleteService(s.rdb, userUUID, req.Service)
-	return &pb.Feedinfo{}, nil
 }

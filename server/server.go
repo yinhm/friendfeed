@@ -21,6 +21,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
 	"github.com/yinhm/friendfeed/store"
+	taskqueue "github.com/yinhm/friendfeed/task"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc/codes"
@@ -69,6 +70,15 @@ type ApiServer struct {
 	backgroundJobsStarted bool
 	shuttingDown          bool
 	shutdownOnce          sync.Once
+	tasks                 *taskqueue.Queue
+	taskCtx               context.Context
+	taskCancel            context.CancelFunc
+	taskWorkersStarted    bool
+	taskWorkerPollMin     time.Duration
+	taskWorkerPollMax     time.Duration
+	serviceFetch          serviceFetcher
+	rssNow                func() time.Time
+	rssHostLocks          [64]sync.Mutex
 }
 
 // grpcSlogLogger routes gRPC internal logs into slog. gRPC fatal-level
@@ -115,14 +125,29 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		done:               make(chan struct{}),
 		timelineBuildSlots: make(chan struct{}, homeTimelineMaintenanceLimit),
 		timelineRetryAfter: make(map[uuid.UUID]time.Time),
+		taskWorkerPollMin:  time.Second,
+		taskWorkerPollMax:  30 * time.Second,
+		rssNow:             func() time.Time { return time.Now().UTC() },
+	}
+	srv.taskCtx, srv.taskCancel = context.WithCancel(context.Background())
+	srv.serviceFetch = fetchServiceHTTP
+	taskRegistry, err := NewTaskRegistry(srv.handleServiceTask)
+	if err != nil {
+		rdb.Close()
+		return nil, fmt.Errorf("initialize task registry: %w", err)
+	}
+	srv.tasks, err = taskqueue.NewQueue(rdb, taskRegistry, taskqueue.Options{})
+	if err != nil {
+		rdb.Close()
+		return nil, fmt.Errorf("initialize task queue: %w", err)
 	}
 
 	srv.fs = media.NewStorage(cfg, 1024)
 	return srv, nil
 }
 
-// StartBackgroundJobs starts the periodic refetch job. It is stopped by
-// Shutdown before the database is closed.
+// StartBackgroundJobs starts periodic refetch and task queue maintenance.
+// They are stopped by Shutdown before the database is closed.
 func (s *ApiServer) StartBackgroundJobs() {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
@@ -131,6 +156,9 @@ func (s *ApiServer) StartBackgroundJobs() {
 	}
 	s.backgroundJobsStarted = true
 	go s.RefetchJobTicker()
+	go s.TaskReapLoop()
+	go s.ServiceScheduleLoop()
+	s.startTaskWorkersLocked()
 }
 
 func (s *ApiServer) beginBackgroundJob() bool {
@@ -145,6 +173,8 @@ func (s *ApiServer) beginBackgroundJob() bool {
 
 func (s *ApiServer) Shutdown() {
 	s.shutdownOnce.Do(func() {
+		s.StopTaskClaims()
+		s.taskCancel()
 		// Prevent new background jobs from starting, then wait for existing
 		// jobs to finish using the database.
 		s.lifecycleMu.Lock()
@@ -268,7 +298,7 @@ func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb
 	feedinfo := model.ProfileToFeedinfo(profile)
 
 	// scan services
-	ss, _ := model.GetServicesForProfile(s.rdb, profileUuid)
+	ss, _ := model.GetFeedServices(s.rdb, profileUuid)
 	feedinfo.Services = ss
 
 	return BuildGraph(feedinfo), nil

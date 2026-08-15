@@ -1,8 +1,8 @@
 # 通用 Task 队列设计
 
 本文定义 FeedJob 的后继系统。目标不是复刻消息中间件，而是在 ffdb 现有的单机
-Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。RSS 抓取是第一个使用方；
-调度状态仍属于 `SubscriptionState`，Task 只承载一次到期执行。
+Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。Service 抓取是第一个使用方；
+调度状态仍属于 `ServiceState`，Task 只承载一次到期执行。
 
 ## 决策与边界
 
@@ -104,7 +104,7 @@ enum TaskCompletionStatus {
 
 message Task {
   string id = 1;                 // 32-char raw flake hex
-  string type = 2;               // rss.fetch / twitter.crawl
+  string type = 2;               // service.fetch / feed_service.seed / twitter.crawl
   bytes payload = 3;             // 该 type 的 protobuf，只有引用和小参数
   uint32 payload_version = 4;
   string idempotency_key = 5;
@@ -287,18 +287,19 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
 - `worker_id` 是诊断和 fencing 的一部分，不是身份认证。安全边界仍依赖 ffdb 仅监听
   loopback；若未来允许远程 worker，必须先设计可信 principal，不能只相信 worker_id。
 
-## RSS 的一致性规则
+## Service 的一致性规则
 
-- `SubscriptionState.next_fetch` 决定何时调度；到期调度器 enqueue
-  `rss.fetch`，idem=`<feed_uuid>`。Queue 不复制 ETag、token 或完整 URL 快照。
-- handler 开始时重新读取 Subscription 与 State；源已删除、无 follower、或
+- `ServiceState.next_fetch` 决定何时调度；到期调度器 enqueue
+  `service.fetch`，idem 使用 service UUID 与 due window。Queue 不复制 ETag、token 或完整 URL 快照。
+- handler 开始时重新读取 Service、State 和 ServiceFeedIndex；源已删除、无 binding、或
   `next_fetch` 已被一次较新的执行推进时，任务成为幂等 no-op 并 Complete。
-- handler 必须先提交 Entry 和新的 SubscriptionState，再 Complete Task。若提交后进程
+- handler 必须先完成所有 FeedService 的幂等 Entry 投递并提交新的 ServiceState，
+  再 Complete Task。若提交后进程
   崩溃，lease 重派会由最新 State/Entry identity 识别为重复执行。
 - 尚有队列重试次数的短期传输错误只调用 Fail，不推进业务 `next_fetch`；最后一次允许的
-  执行失败时，handler 先更新 SubscriptionState 的失败计数与下一轮业务调度时间，再
+  执行失败时，handler 先更新 ServiceState 的失败计数与下一轮业务调度时间，再
   Fail 进入 DEAD。若更新 State 后崩溃，重派 handler 看到已推进的 State 后幂等 Complete。
-  ETag、HTTP 状态和长期失败退避始终只属于 SubscriptionState，不能产生两套真相。
+  ETag、HTTP 状态和长期失败退避始终只属于 ServiceState，不能产生两套真相。
 - 首版 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
   多进程 RSS worker 前必须增加跨 worker 的 host 并发方案；进程内 mutex 不能冒充
   分布式互斥。
@@ -309,8 +310,8 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
   60 秒，这是明确 SLA。
 - 收到关停信号后先把 Queue 标记为不接受 enqueue/claim，并停止调度器和进程内 worker
   领取新任务；随后 gRPC GracefulStop 排干正在执行的 Complete/Fail/Renew RPC。
-- 进程内 handler 在关停宽限期内完成；超过期限则停止续租并退出，任务由下次启动后的
-  reaper 回收。不能为等外部 HTTP 无限阻塞 Store.Close。
+- 排干 RPC 后取消进程内 handler context 并停止续租；未完成的 Task 保持 INFLIGHT，
+  由下次启动后的 reaper 回收。关停不为外部 HTTP 设置无限宽限期。
 - reaper/worker 退出并由既有 wg 确认后，才关闭 Pebble。kill -9 后不需特殊恢复流程。
 
 ## 审计、历史与运维
@@ -324,11 +325,14 @@ audit 至少验证：
 
 工具分两类：
 
-- `tasks list --state ready|inflight|dead --type ...` 只读、流式、有界输出。
-- `tasks replay-dead --task-id ...` 经 Queue 校验 payload/type，生成**新 task id 和新
+- `tools -c list_tasks -task-state ready|inflight|dead -max-limit N` 只读、有界输出。
+- `tools -c inspect_task -id ID` 检查单条 active/Done 记录。
+- `tools -c replay_dead_task -id ID` 经 Queue 校验 payload/type，生成**新 task id 和新
   attempts**；原 Done 历史保留，避免审计链被改写。
+- `tools -c purge_task_done -before RFC3339 -dry-run` 先计数；去掉 dry-run 后以相同
+  cutoff 做 RangeDelete。没有隐式 retention，操作者必须明确给出边界。
 
-Done 默认同时受时间和数量上限约束，裁剪流式执行。日志只记录 task id、type、worker、
+Done 由显式时间 cutoff 裁剪，扫描与输出有界。日志只记录 task id、type、worker、
 耗时和截断错误；不得记录 payload、正文或凭据。
 
 ## 分阶段实施
@@ -349,16 +353,17 @@ Done 默认同时受时间和数量上限约束，裁剪流式执行。日志只
 - reaper、受控进程内 worker pool、GracefulStop/Store.Close 顺序。
 - 用假 handler 做崩溃、超时、续租、关停集成测试；此时队列核心可独立验收。
 
-### M3：RSS 接入
+### M3：Service 接入
 
-- Subscription/State 调度只 enqueue due feed；RSS handler 按上述一致性规则执行。
-- 验证重复执行、状态更新后崩溃、无 follower、条件 GET、SSRF 和 host 串行。
-- 稳定后停止 legacy `RefetchJobTicker` 的启动，但保留旧符号和 RPC。
+- Service/State 调度只 enqueue 有 binding 的 due service；handler 按上述一致性规则执行。
+- 验证重复执行、状态更新后崩溃、无 binding、条件 GET、SSRF 和 host 串行。
+- legacy `RefetchJobTicker` 已停止启动，但保留旧符号和 RPC。
 
 ### M4：运维闭环
 
 - audit、list、replay-dead、Done retention/reconcile。
-- 记录 ready depth、最老 ready age、inflight/expired/dead 数量和 handler 延迟。
+- 运维状态由 `audit_store` 与有界 `list_tasks` 查看；需要常驻 metrics 时另行设计，
+  不在首版伪造一套未消费的指标。
 
 ### M5：外部 worker
 
@@ -366,9 +371,21 @@ Done 默认同时受时间和数量上限约束，裁剪流式执行。日志只
 - 在开放多进程 RSS 或远程 worker 前，重新评审 principal、host 并发和 loopback 边界。
 - 单独设计旧表 200-202 的数据清理与旧 RPC 退役；不得随 Task 上线直接删除。
 
+参考 worker 为 `scripts/task_worker.py`。使用 `uv sync`/`uv pip install -r requirements.txt`
+准备环境后，可用如下形式运行本地 handler：
+
+```bash
+uv run python scripts/task_worker.py --worker-id crawler-1 --type twitter.crawl -- ./handler
+```
+
+handler 从 stdin 读取 protobuf payload，退出 0 表示 Complete，非零表示 Fail；wrapper
+在执行期间 Renew，并在空队列时 1-30 秒指数退避。示例强制 gRPC target 为 loopback，
+不提供 systemd unit：仓库目前没有已注册的外部 task type，部署一个空转 unit 没有价值。
+新增真实外部使用方时再以专用系统用户配置 unit，且不得记录 stdin/payload。
+
 ## 非目标
 
 - 不承诺 exactly-once。
 - 不实现优先级、DAG、广播、跨主机 broker、无限 long-poll 或任意用户自定义 task type。
-- 不把 SubscriptionState、timeline 状态或业务失败历史塞进 Task 主记录。
+- 不把 ServiceState、timeline 状态或业务失败历史塞进 Task 主记录。
 - 不因新 Task 系统顺手删除 legacy Job API、同步 mirrorMedia 或现有调试/迁移路径。

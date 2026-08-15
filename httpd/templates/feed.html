@@ -11,6 +11,9 @@
         {% if feed.Description %}
           <div class="description">{{ feed.Description }}</div>
         {% endif %}
+        {% if manage_services_url %}
+          <div><a href="{{ manage_services_url|escape }}">Manage import services</a></div>
+        {% endif %}
       </div>
       <div class="clear"></div>
     </div>
