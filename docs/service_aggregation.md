@@ -117,6 +117,10 @@ value = nil
 是否仍有消费者。添加/删除 FeedService 时，主记录与该索引必须在同一个 Pebble batch 更新。
 不另建“订阅关系”表。
 
+删除 FeedService 只删除绑定及对应的 ServiceFeedIndex 行，不删除已经导入的 Entry，也不清理
+其 Like、Comment、direct index 或 timeline 行。历史内容可能已经产生互动，批量删除既无上限
+又容易误删，因此必须由另行设计、显式确认的维护命令处理；UI 的 Remove 不承担该语义。
+
 ## Entry 身份和投递
 
 外部 item 的稳定 key 依次取：规范化 GUID、规范化 item URL、最后才是内容字段哈希。

@@ -298,6 +298,35 @@ func StageSetFeedServiceEnabled(db *store.Store, batch *pebble.Batch, target uui
 	return binding, nil
 }
 
+func UpdateFeedServiceName(db *store.Store, target uuid.UUID, serviceID, name string) (*pb.FeedService, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return GetFeedService(db, target, serviceID)
+	}
+	var binding *pb.FeedService
+	err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		current, err := GetFeedService(db, target, serviceID)
+		if err != nil {
+			return err
+		}
+		current.Name = name
+		data, err := proto.Marshal(current)
+		if err != nil {
+			return err
+		}
+		key, err := FeedServiceKey(target, serviceID)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(key, data, nil); err != nil {
+			return err
+		}
+		binding = current
+		return nil
+	})
+	return binding, err
+}
+
 func setProto(batch *pebble.Batch, key store.Key, message proto.Message) error {
 	raw, err := proto.Marshal(message)
 	if err != nil {

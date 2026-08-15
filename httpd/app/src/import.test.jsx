@@ -10,7 +10,7 @@ const services = {
     username: 'ffuser',
     profile: 'https://twitter.com/ffuser',
   },
-  rss: { id: 'rss', name: 'RSS' },
+  rss: { id: 'rss', name: 'Tech Notes', kind: 'web_feed', enabled: true },
 };
 
 const jsonResponse = (value) => ({ json: vi.fn().mockResolvedValue(value) });
@@ -33,6 +33,7 @@ describe('ImportPanel', () => {
     expect(screen.getByRole('link', { name: 'ffuser' })).toHaveAttribute(
       'href', 'https://twitter.com/ffuser');
     expect(screen.getByText('RSS')).toBeInTheDocument();
+    expect(screen.getByText('Tech Notes')).toBeInTheDocument();
     // twitter already connected: no import entry point
     expect(screen.queryByRole('link', { name: 'Import Tweet' })).not.toBeInTheDocument();
   });
@@ -50,9 +51,9 @@ describe('ImportPanel', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<Harness initial={services} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'remove rss' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
 
-    await waitFor(() => expect(screen.queryByText('RSS')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Tech Notes')).not.toBeInTheDocument());
     expect(screen.getByText('Twitter')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       '/account/service/rss/delete?target=target-uuid', expect.objectContaining({ method: 'GET' }));
@@ -89,9 +90,9 @@ describe('ImportPanel', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<ImportPanel services={services} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'remove rss' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
 
-    expect(screen.getByText('RSS')).toBeInTheDocument();
+    expect(screen.getByText('Tech Notes')).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -101,9 +102,9 @@ describe('ImportPanel', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<ImportPanel services={services} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'remove rss' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('service busy'));
-    expect(screen.getByText('RSS')).toBeInTheDocument();
+    expect(screen.getByText('Tech Notes')).toBeInTheDocument();
   });
 });

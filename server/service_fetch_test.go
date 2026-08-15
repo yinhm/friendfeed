@@ -116,7 +116,7 @@ func TestServiceHandlerImportsStableEntriesAndAdvancesState(t *testing.T) {
 	require.NoError(t, err)
 	published := now.Add(-time.Hour)
 	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
-		return &serviceFetchResult{status: 200, etag: `"v1"`, feed: &gofeed.Feed{Items: []*gofeed.Item{{GUID: "item-1", Title: "Hello", Link: "https://example.com/1", Content: "<p>safe</p><script>bad()</script>", PublishedParsed: &published}}}}, nil
+		return &serviceFetchResult{status: 200, etag: `"v1"`, feed: &gofeed.Feed{Title: "Example Feed", Items: []*gofeed.Item{{GUID: "item-1", Title: "Hello", Link: "https://example.com/1", Content: "<p>safe</p><script>bad()</script>", PublishedParsed: &published}}}}, nil
 	}
 	payload, err := proto.Marshal(&pb.FeedServiceSeedPayload{ServiceUuid: binding.ServiceUuid, TargetFeedUuid: user.String(), ServiceId: binding.Id})
 	require.NoError(t, err)
@@ -124,6 +124,12 @@ func TestServiceHandlerImportsStableEntriesAndAdvancesState(t *testing.T) {
 	require.NoError(t, srv.handleServiceTask(context.Background(), task))
 	require.NoError(t, srv.handleServiceTask(context.Background(), task))
 	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	service, err := model.GetService(srv.rdb, serviceID)
+	require.NoError(t, err)
+	require.Equal(t, "Example Feed", service.Title)
+	binding, err = model.GetFeedService(srv.rdb, user, binding.Id)
+	require.NoError(t, err)
+	require.Equal(t, "Example Feed", binding.Name)
 	entryID := model.UniqueKeyFrom("external-entry", user.String(), serviceID.String(), "item-1")
 	entry, err := model.GetEntry(srv.rdb, entryID.String())
 	require.NoError(t, err)

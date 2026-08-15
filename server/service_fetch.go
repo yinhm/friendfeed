@@ -229,6 +229,13 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 		return err
 	}
 	if result.status != http.StatusNotModified {
+		if result.feed != nil && strings.TrimSpace(result.feed.Title) != "" {
+			service.Title = strings.TrimSpace(result.feed.Title)
+			service.UpdatedAtMs = now.UnixMilli()
+			if _, err := model.Service.Put(s.rdb, serviceID.Bytes(), service); err != nil {
+				return err
+			}
+		}
 		for _, ref := range bindings {
 			binding, err := model.GetFeedService(s.rdb, ref.TargetFeedUUID, ref.ServiceID)
 			if errors.Is(err, model.ErrNotFound) {
@@ -239,6 +246,12 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 			}
 			if !binding.Enabled || binding.ServiceUuid != serviceID.String() {
 				continue
+			}
+			if result.feed != nil && strings.TrimSpace(result.feed.Title) != "" {
+				binding, err = model.UpdateFeedServiceName(s.rdb, ref.TargetFeedUUID, ref.ServiceID, result.feed.Title)
+				if err != nil {
+					return err
+				}
 			}
 			if err := s.importServiceItems(ctx, service, binding, ref.TargetFeedUUID, result.feed, now); err != nil {
 				return err

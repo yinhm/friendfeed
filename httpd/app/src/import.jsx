@@ -45,7 +45,7 @@ export function ImportPanel(props) {
 
   /** @param {ServiceData} service */
   const handleRemove = (service) => {
-    if (!window.confirm(`Remove ${service.id}?`)) {
+    if (!window.confirm('Remove this import service? Historical entries will be kept.')) {
       return;
     }
     setError(null);
@@ -92,6 +92,11 @@ export function ImportPanel(props) {
     return `Last fetched ${new Date(state.last_fetch_ms).toLocaleString()}`;
   };
 
+  /** @param {ServiceData} service */
+  const serviceLabel = (service) => service.kind === 'web_feed'
+    ? {type: 'RSS', title: service.name || 'Untitled feed'}
+    : {type: service.name || service.id, title: ''};
+
   /** @param {ServiceData} service @param {'enable'|'disable'|'refresh'} action */
   const handleAction = (service, action) => {
     setError(null);
@@ -124,7 +129,9 @@ export function ImportPanel(props) {
             {list.map((service) => (
               <li key={service.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div className="text-sm">
-                  <span className="font-medium">{service.name}</span>
+                  <span className="font-semibold">{serviceLabel(service).type}</span>
+                  {serviceLabel(service).title &&
+                    <span className="ml-2 text-gray-700">{serviceLabel(service).title}</span>}
                   {service.username &&
                     <span className="ml-2 text-gray-500">
                       {service.profile
@@ -138,20 +145,20 @@ export function ImportPanel(props) {
                   {service.kind === 'web_feed' && <>
                     <button type="button" disabled={acting !== null}
                             onClick={() => handleAction(service, service.enabled ? 'disable' : 'enable')}
-                            className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 disabled:opacity-50">
+                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50">
                       {service.enabled ? 'Disable' : 'Enable'}
                     </button>
                     <button type="button" disabled={!service.enabled || acting !== null}
                             onClick={() => handleAction(service, 'refresh')}
-                            className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 disabled:opacity-50">
+                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50">
                       Refresh
                     </button>
                   </>}
                   <button type="button"
                           disabled={removing === service.id}
                           onClick={() => handleRemove(service)}
-                          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                    {removing === service.id ? 'Removing…' : `remove ${service.id}`}
+                          className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50 disabled:opacity-50">
+                    {removing === service.id ? 'Removing…' : 'Remove'}
                   </button>
                 </div>
               </li>
