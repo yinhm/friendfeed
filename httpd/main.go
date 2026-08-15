@@ -173,6 +173,9 @@ func Serve(s *server.Server, config *util.Config) error {
 		authorized.GET("/import/", s.ImportHandler)
 		// authorized.POST("/ffimport/", s.FriendFeedImportHandler)
 		authorized.GET("/import/twitter", s.TwitterImportHandler)
+		authorized.GET("/feed/:uuid/import", s.FeedServicePageHandler)
+		authorized.POST("/feed-service", s.AddFeedServiceHandler)
+		authorized.POST("/feed-service/:service/:action", s.FeedServiceActionHandler)
 		// TODO: fix get
 		authorized.GET("/service/:service/delete", s.DeleteServiceHandler)
 	}

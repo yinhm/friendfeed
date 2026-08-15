@@ -132,5 +132,73 @@ func (s *ApiServer) ListFeedServices(ctx context.Context, request *pb.ListFeedSe
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
-	return &pb.ListFeedServicesResponse{Services: services}, nil
+	states := make(map[string]*pb.ServiceState)
+	for _, binding := range services {
+		serviceID, err := uuid.FromString(binding.ServiceUuid)
+		if err != nil {
+			continue
+		}
+		state, err := model.GetServiceState(s.rdb, serviceID)
+		if err == nil {
+			states[binding.ServiceUuid] = state
+		}
+	}
+	return &pb.ListFeedServicesResponse{Services: services, States: states}, nil
+}
+
+func (s *ApiServer) SetFeedServiceEnabled(ctx context.Context, request *pb.SetFeedServiceEnabledRequest) (*pb.FeedService, error) {
+	if request == nil || request.ServiceId == "" {
+		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
+	}
+	actor, target, err := parseFeedServiceRequestIDs(request.ActorUuid, request.TargetFeedUuid)
+	if err != nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
+	}
+	if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
+	}
+	var binding *pb.FeedService
+	err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		var stageErr error
+		binding, stageErr = model.StageSetFeedServiceEnabled(s.rdb, batch, target, request.ServiceId, request.Enabled)
+		return stageErr
+	})
+	if err != nil {
+		return nil, taskRPCError(err)
+	}
+	return binding, nil
+}
+
+func (s *ApiServer) RefreshFeedService(ctx context.Context, request *pb.RefreshFeedServiceRequest) (*emptypb.Empty, error) {
+	if request == nil || request.ServiceId == "" {
+		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
+	}
+	actor, target, err := parseFeedServiceRequestIDs(request.ActorUuid, request.TargetFeedUuid)
+	if err != nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
+	}
+	if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
+	}
+	binding, err := model.GetFeedService(s.rdb, target, request.ServiceId)
+	if err != nil {
+		return nil, taskRPCError(err)
+	}
+	if !binding.Enabled {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, errors.New("FeedService is disabled")))
+	}
+	payload, err := proto.Marshal(&pb.FeedServiceSeedPayload{
+		ServiceUuid: binding.ServiceUuid, TargetFeedUuid: target.String(), ServiceId: binding.Id,
+	})
+	if err != nil {
+		return nil, taskRPCError(err)
+	}
+	_, err = s.tasks.Enqueue(ctx, taskqueue.Spec{
+		Type: feedServiceSeedTaskType, Payload: payload, PayloadVersion: 1,
+		IdempotencyKey: target.String() + ":" + binding.Id,
+	})
+	if err != nil {
+		return nil, taskRPCError(err)
+	}
+	return &emptypb.Empty{}, nil
 }

@@ -27,10 +27,10 @@
 
 ## 4. Web UI
 
-- [ ] 账户 Import 页管理当前用户 FeedService。
-- [ ] Group 管理页为 admin 提供同一组件；非 admin 不展示也不能调用。
-- [ ] 展示 pending/最近成功/安全错误状态；支持添加、停用、删除、刷新。
-- [ ] 前端不抓远程 Feed，不接触 OAuth token。
+- [x] 账户 Import 页管理当前用户 FeedService。
+- [x] Group 管理页为 admin 提供同一组件；非 admin 不展示也不能调用。
+- [x] 展示 pending/最近成功/安全错误状态；支持添加、停用、删除、刷新。
+- [x] 前端不抓远程 Feed，不接触 OAuth token。
 
 ## 5. 运维与收尾
 

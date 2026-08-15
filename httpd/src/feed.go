@@ -188,6 +188,16 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		data = cursorFeedContext(feed)
 	}
 	data["show_header"] = true
+	if actor := CurrentUserUuid(c); actor != "" {
+		ctx, cancel := DefaultTimeoutContext()
+		_, manageErr := s.client.ListFeedServices(ctx, &pb.ListFeedServicesRequest{
+			ActorUuid: actor, TargetFeedUuid: feed.Uuid,
+		})
+		cancel()
+		if manageErr == nil {
+			data["manage_services_url"] = "/account/feed/" + url.PathEscape(feed.Uuid) + "/import"
+		}
+	}
 	s.renderFeed(c, data)
 }
 

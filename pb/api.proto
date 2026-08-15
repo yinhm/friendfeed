@@ -56,6 +56,8 @@ service Api {
   rpc AddFeedService(AddFeedServiceRequest) returns (FeedService) {}
   rpc RemoveFeedService(RemoveFeedServiceRequest) returns (google.protobuf.Empty) {}
   rpc ListFeedServices(ListFeedServicesRequest) returns (ListFeedServicesResponse) {}
+  rpc SetFeedServiceEnabled(SetFeedServiceEnabledRequest) returns (FeedService) {}
+  rpc RefreshFeedService(RefreshFeedServiceRequest) returns (google.protobuf.Empty) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
@@ -317,6 +319,20 @@ message ListFeedServicesRequest {
 
 message ListFeedServicesResponse {
   repeated FeedService services = 1;
+  map<string, ServiceState> states = 2;
+}
+
+message SetFeedServiceEnabledRequest {
+  string actor_uuid = 1;
+  string target_feed_uuid = 2;
+  string service_id = 3;
+  bool enabled = 4;
+}
+
+message RefreshFeedServiceRequest {
+  string actor_uuid = 1;
+  string target_feed_uuid = 2;
+  string service_id = 3;
 }
 
 message SearchRequest {

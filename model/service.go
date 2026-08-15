@@ -262,6 +262,42 @@ func StageRemoveFeedService(db *store.Store, batch *pebble.Batch, target uuid.UU
 	return batch.Delete(key, nil)
 }
 
+func StageSetFeedServiceEnabled(db *store.Store, batch *pebble.Batch, target uuid.UUID, serviceID string, enabled bool) (*pb.FeedService, error) {
+	binding, err := GetFeedService(db, target, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	serviceUUID, err := uuid.FromString(binding.ServiceUuid)
+	if err != nil {
+		return nil, fmt.Errorf("FeedService %q has no canonical Service: %w", serviceID, err)
+	}
+	binding.Enabled = enabled
+	data, err := proto.Marshal(binding)
+	if err != nil {
+		return nil, err
+	}
+	bindingKey, err := FeedServiceKey(target, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := batch.Set(bindingKey, data, nil); err != nil {
+		return nil, err
+	}
+	indexKey, err := ServiceFeedIndexKey(serviceUUID, target, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	if enabled {
+		err = batch.Set(indexKey, nil, nil)
+	} else {
+		err = batch.Delete(indexKey, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return binding, nil
+}
+
 func setProto(batch *pebble.Batch, key store.Key, message proto.Message) error {
 	raw, err := proto.Marshal(message)
 	if err != nil {

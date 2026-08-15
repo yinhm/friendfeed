@@ -12,6 +12,8 @@ import {ImportPanel} from './import';
  * @property {AccountTab} tab
  * @property {ProfileData} profile
  * @property {Record<string, ServiceData>} services
+ * @property {Record<string, import('./import').ServiceState>} states
+ * @property {string} target
  */
 
 /** @type {Record<AccountTab, string>} */
@@ -40,7 +42,7 @@ export function tabFromPath(pathname) {
  * of letting a remount resurrect the server-injected snapshot.
  *
  * @param {{initialTab: AccountTab, profile: ProfileData,
- * services: Record<string, ServiceData>}} props
+ * services: Record<string, ServiceData>, states?: AccountData['states'], target?: string}} props
  */
 export function AccountApp(props) {
   const {initialTab} = props;
@@ -94,7 +96,8 @@ export function AccountApp(props) {
       </nav>
       {tab === 'profile'
         ? <ProfileForm profile={profile} onSaved={setProfile} />
-        : <ImportPanel services={services} onServicesChange={setServices} />}
+        : <ImportPanel services={services} states={props.states} target={props.target}
+            onServicesChange={setServices} />}
     </div>
   );
 }
@@ -103,5 +106,6 @@ export function AccountPage() {
   const data = /** @type {Window & {accountData: AccountData}} */ (
     /** @type {unknown} */ (window)
   ).accountData;
-  return <AccountApp initialTab={data.tab} profile={data.profile} services={data.services} />;
+  return <AccountApp initialTab={data.tab} profile={data.profile} services={data.services}
+    states={data.states ?? {}} target={data.target ?? data.profile.uuid} />;
 }

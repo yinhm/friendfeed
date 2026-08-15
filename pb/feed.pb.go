@@ -2802,7 +2802,7 @@ var file_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_feed_proto_goTypes = []interface{}{
 	(FeedType)(0),                  // 0: pb.FeedType
 	(StatusType)(0),                // 1: pb.StatusType
-	(*Service)(nil),                // 2: pb.FeedService
+	(*Service)(nil),                // 2: pb.Service
 	(*ServiceState)(nil),           // 3: pb.ServiceState
 	(*ServiceFetchPayload)(nil),    // 4: pb.ServiceFetchPayload
 	(*FeedServiceSeedPayload)(nil), // 5: pb.FeedServiceSeedPayload

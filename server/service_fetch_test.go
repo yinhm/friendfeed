@@ -63,6 +63,26 @@ func TestFeedServiceRPCsDoNotCreateSocialGraph(t *testing.T) {
 	listed, err := srv.ListFeedServices(context.Background(), &pb.ListFeedServicesRequest{ActorUuid: user.String(), TargetFeedUuid: user.String()})
 	require.NoError(t, err)
 	require.Len(t, listed.Services, 1)
+	disabled, err := srv.SetFeedServiceEnabled(context.Background(), &pb.SetFeedServiceEnabledRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), ServiceId: first.Id, Enabled: false,
+	})
+	require.NoError(t, err)
+	require.False(t, disabled.Enabled)
+	bindings, err = model.ListServiceFeedBindings(srv.rdb, serviceID)
+	require.NoError(t, err)
+	require.Empty(t, bindings)
+	_, err = srv.RefreshFeedService(context.Background(), &pb.RefreshFeedServiceRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), ServiceId: first.Id,
+	})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = srv.SetFeedServiceEnabled(context.Background(), &pb.SetFeedServiceEnabledRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), ServiceId: first.Id, Enabled: true,
+	})
+	require.NoError(t, err)
+	_, err = srv.RefreshFeedService(context.Background(), &pb.RefreshFeedServiceRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), ServiceId: first.Id,
+	})
+	require.NoError(t, err)
 	_, err = srv.RemoveFeedService(context.Background(), &pb.RemoveFeedServiceRequest{ActorUuid: user.String(), TargetFeedUuid: user.String(), ServiceId: first.Id})
 	require.NoError(t, err)
 	bindings, err = model.ListServiceFeedBindings(srv.rdb, serviceID)
