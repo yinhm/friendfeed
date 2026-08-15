@@ -36,6 +36,39 @@
 `friendfeed-media.com`；`http://m.friendfeed.me` 会被升级为 https。`Entry.Files`
 暂不迁移。命令只改 DB、不搬运对象；执行前应确认媒体目录中对象实际存在。
 
+### 抢救 Twitter 历史媒体
+
+`mirror_twimg` 只读扫描 Entry，抢救 `p.twimg.com` 与 `pbs.twimg.com` 媒体并写入本地和
+R2；它不修改数据库。已失效且无法确定映射的 `a0.twimg.com` 在扫描阶段直接排除，不发起
+DNS、HTTP 或 Wayback 请求，也不占用 `-max-limit`。旧 `p.twimg.com/<basename>` 会先尝试
+`https://pbs.twimg.com/media/<basename>` 及其 `format/name=orig` 形式。
+
+先在离线数据库副本上运行小批量：
+
+```bash
+./tools -to <offline-db> -c mirror_twimg -config <config.json> \
+  -out <twimg-sync.jsonl> -max-limit 100 -dry-run
+./tools -to <offline-db> -c mirror_twimg -config <config.json> \
+  -out <twimg-sync.jsonl> -max-limit 100
+```
+
+默认只启用 2 个 live-fetch worker，所有 worker 共享每秒最多一次的请求门控；网络错误、
+HTTP 5xx 和 429 最多重试 3 次，按 5、10、20 秒退避，429 的全局冷却不少于 60 秒。
+403/404 和 DNS NXDOMAIN 不重试。Wayback 单线程执行，不同 URL 之间默认等待 2 秒。
+这些参数可通过 `-workers`、`-request-delay`、`-retries`、`-backoff-base` 和
+`-wayback-delay` 调低速率；批量抢救时不应提高默认请求速率。
+
+结果文件采用 append-only JSONL，每个已处理 URL 一行。成功记录包含原 URL、候选来源、
+最终 `m.friendfeed.me` URL、R2 object key、内容 SHA-256、字节数、MIME、完整引用计数和
+最多 100 个 Entry ID 样本；失败记录包含 HTTP 状态与错误摘要。每行写入后都会 flush 并
+`fsync`，写盘失败会使命令失败。启动时先读取整个结果文件：格式完整的成功记录和 `dead`
+记录不会再次排队、抓取或追加记录，只有 `error` 会重试；同一次扫描也按原 URL 去重。
+R2 key 是内容 SHA-256，因此异常中断发生在上传成功但结果落盘之前时，极少量必要重试仍是幂等的。
+
+该 JSONL 是后续生产数据库 URL 改写的唯一输入。改写命令应重新流式扫描生产 Entry，并按
+`url -> new_url` 替换所有 Body/RawBody/Thumbnail/File 引用，不依赖样本 `refs`，且必须另行
+提供 dry-run、备份和逐 Entry 原子更新。在该改写命令完成并验证前，不要直接修改生产 DB。
+
 ## EntryIndex 44 B 格式迁移
 
 当前 EntryIndex 为 `T | owner UUID | reverse Unix ms(8) | entry UUID(16)`（44 B，value

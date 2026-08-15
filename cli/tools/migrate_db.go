@@ -17,6 +17,7 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -30,18 +31,34 @@ var debugTable string
 var inspectID string
 var indexPath string
 var dryRun bool
+var configPath string
+var outPath string
+var mirrorWorkers int
+var mirrorRequestDelay time.Duration
+var mirrorBackoffBase time.Duration
+var mirrorRetries int
+var noWayback bool
+var waybackDelay time.Duration
 
 func init() {
 	flag.StringVar(&fromPath, "from", "", "from directory")
 	flag.StringVar(&toPath, "to", "", "to directory")
 	flag.StringVar(&command, "c", "", "command to do")
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
-	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump (0 is unlimited)")
+	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "maximum source feeds per timeline / records per debug table dump / URLs per mirror_twimg run (0 is unlimited)")
 	flag.BoolVar(&timelinePublic, "public", false, "rebuild the shared public timeline instead of per-user Home timelines")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
 	flag.StringVar(&inspectID, "id", "", "profile or previous profile ID to inspect")
 	flag.StringVar(&indexPath, "index-path", "", "search index directory (defaults to <to>/index, matching the server layout)")
 	flag.BoolVar(&dryRun, "dry-run", false, "report supported migrations without writing changes")
+	flag.StringVar(&configPath, "config", "", "server config JSON with R2 credentials (mirror_twimg)")
+	flag.StringVar(&outPath, "out", "", "mirror_twimg sync mapping output (JSONL), defaults to twimg_sync.jsonl")
+	flag.IntVar(&mirrorWorkers, "workers", 2, "mirror_twimg concurrent live-fetch workers")
+	flag.DurationVar(&mirrorRequestDelay, "request-delay", time.Second, "mirror_twimg minimum global delay between live requests")
+	flag.DurationVar(&mirrorBackoffBase, "backoff-base", 5*time.Second, "mirror_twimg transient retry backoff base")
+	flag.IntVar(&mirrorRetries, "retries", 3, "mirror_twimg maximum transient retries per live candidate")
+	flag.BoolVar(&noWayback, "no-wayback", false, "mirror_twimg: skip Wayback Machine recovery for dead URLs")
+	flag.DurationVar(&waybackDelay, "wayback-delay", 2*time.Second, "mirror_twimg: delay between Wayback Machine requests")
 }
 
 func purge_table(db *store.Store, prefix store.Key) (int, error) {
@@ -1196,6 +1213,9 @@ func runDebugCommand(db, ndb *store.Store) {
 // ./tools -to new_db -c rebuild_social_graph -dry-run
 // migrate legacy GCS and FriendFeed media URLs in profiles and entries
 // ./tools -to new_db -c migrate_media_urls -dry-run
+// mirror rotting twimg media into local+R2 storage and record the URL mapping
+// (database is opened read-only; a later migration rewrites entries from the mapping)
+// ./tools -to backup_db -c mirror_twimg -config config.json -out twimg_sync.jsonl -dry-run
 // backfill stable actor UUIDs
 // ./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20 -dry-run
 // dump decoded table records
@@ -1220,7 +1240,7 @@ func main() {
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
 		command == "audit_profiles" || command == "audit_store" ||
-		command == "rebuild_search_index" ||
+		command == "rebuild_search_index" || command == "mirror_twimg" ||
 		(command == "debug" && debugTable != "") ||
 		(command == "migrate_entry_index" && dryRun) ||
 		(command == "migrate_entry_keys" && dryRun) ||
@@ -1282,6 +1302,33 @@ func main() {
 		runRebuildSocialGraphCommand(ndb)
 	case "migrate_media_urls":
 		runMigrateMediaURLsCommand(ndb)
+	case "mirror_twimg":
+		var cfg *util.Config
+		if !dryRun {
+			if configPath == "" {
+				log.Fatal("-config is required for mirror_twimg without -dry-run")
+			}
+			cfg, err = util.NewConfigFromJSON(configPath)
+			if err != nil {
+				log.Fatalf("load config %s: %v", configPath, err)
+			}
+		}
+		if outPath == "" {
+			outPath = "twimg_sync.jsonl"
+		}
+		stats, err := runMirrorTwimg(ndb, mirrorTwimgOptions{
+			config: cfg, outPath: outPath, workers: mirrorWorkers,
+			requestDelay: mirrorRequestDelay, backoffBase: mirrorBackoffBase,
+			retries: mirrorRetries,
+			maxURLs: timelineMaxLimit, noWayback: noWayback,
+			waybackDelay: waybackDelay, dryRun: dryRun,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("twimg mirror: entries=%d urls=%d resumed=%d pending=%d mirrored=%d wayback=%d dead=%d failed=%d dry-run=%t out=%s",
+			stats.entries, stats.urls, stats.resumed, stats.pending, stats.mirrored,
+			stats.wayback, stats.dead, stats.failed, dryRun, outPath)
 	case "backfill_actor_uuids":
 		runBackfillActorUUIDsCommand(ndb)
 	case "rebuild_search_index":
