@@ -192,20 +192,24 @@ func (s *Server) FeedHandler(c *gin.Context) {
 }
 
 func (s *Server) PublicHandler(c *gin.Context) {
-	start := ParseStart(c.Request)
 	req := &pb.FeedRequest{
 		Id:       "public",
-		Start:    int32(start),
 		PageSize: 30,
 	}
+	cursorPaging := configureFeedPagination(c.Request, req)
 
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}
 
+	// Public now reads from the shared TimelineIndex, which trims to exactly
+	// PageSize entries and reports older pages via NextCursor. Legacy
+	// ?start=N links still render, but only cursor mode shows a Next link.
 	data := feedContext(feed, req.Start, req.PageSize)
-	// s.HTML(c, 200, "_feed.html", data)
+	if cursorPaging {
+		data = cursorFeedContext(feed)
+	}
 	s.renderFeed(c, data)
 }
 
