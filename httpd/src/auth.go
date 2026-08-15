@@ -83,7 +83,7 @@ func AuthProvider(c *gin.Context) {
 
 	setGothProvider(c.Request, provider)
 	for attempt := 1; attempt <= 2; attempt++ {
-		authURL, err := gothic.GetAuthURL(c.Writer, c.Request)
+		authURL, err := authURLForProvider(c.Writer, c.Request, provider)
 		if err == nil {
 			http.Redirect(c.Writer, c.Request, authURL, http.StatusTemporaryRedirect)
 			return
@@ -100,6 +100,12 @@ func (s *Server) AuthCallback(c *gin.Context) {
 	setGothProvider(c.Request, c.Params.ByName("provider"))
 	provider, _ := gothic.GetProviderName(c.Request)
 	u, err := gothic.CompleteUserAuth(c.Writer, c.Request)
+	if err != nil && oauthRelay != nil {
+		// Debug-mode fallback for callbacks arriving on a different host
+		// than the one that started the handshake (e.g. LAN IP testing
+		// with a localhost-only provider callback).
+		u, err = completeUserAuthViaRelay(provider, c.Request)
+	}
 	if err != nil {
 		c.String(400, err.Error())
 		return

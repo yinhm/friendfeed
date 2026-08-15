@@ -105,6 +105,10 @@ func Serve(s *server.Server, config *util.Config) error {
 	}
 	if options.Debug {
 		gauthConfig.RedirectURL, _ = url.JoinPath(config.ServerDomain, "/auth/google/callback")
+		// Allow OAuth callbacks to complete on a different host than the one
+		// that started the handshake (LAN IP vs registered localhost
+		// callback), where the state cookie cannot follow.
+		server.EnableOAuthRelay()
 	}
 	goth.UseProviders(
 		twitter.New(config.TwitterApiKey, config.TwitterApiSecret, config.TwitterApiCallback),
@@ -132,6 +136,18 @@ func Serve(s *server.Server, config *util.Config) error {
 	r.HTMLRender = friendRender
 	// session
 	store := cookie.NewStore([]byte(options.SecretKey))
+	if options.Debug {
+		// gorilla/sessions v1.4 defaults cookies to Secure + SameSite=None,
+		// which browsers reject over plain HTTP on non-localhost hosts (e.g.
+		// 192.168.x.x); relax the policy so local debug logins stick.
+		store.Options(sessions.Options{
+			Path:     "/",
+			MaxAge:   86400 * 30,
+			Secure:   false,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
 	r.Use(sessions.Sessions("ffdbsess", store))
 	gothic.Store = store
 
