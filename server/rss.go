@@ -27,6 +27,7 @@ import (
 
 const (
 	rssFetchTaskType    = "rss.fetch"
+	rssUserAgent        = "Mozilla/5.0 (compatible; FriendFeed/1.0; +https://friendfeed.me/)"
 	rssScheduleInterval = time.Minute
 	rssFetchInterval    = 30 * time.Minute
 	rssFetchMaxInterval = 24 * time.Hour
@@ -281,7 +282,7 @@ func fetchRSS(ctx context.Context, subscription *pb.Subscription, state *pb.Subs
 	if err := validateRSSURL(req.URL); err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "ffdb-bot/1.0")
+	req.Header.Set("User-Agent", rssUserAgent)
 	if state.Etag != "" {
 		req.Header.Set("If-None-Match", state.Etag)
 	}

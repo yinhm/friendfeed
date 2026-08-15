@@ -1,172 +1,247 @@
-# 服务聚合（RSS/Atom）与 Job 系统重构设计
+# Service 聚合设计
 
-复刻 FriendFeed 的核心前提是把外部内容汇成流。本文先审计现有 Job/爬虫架构的
-缺陷，再给出替代架构：RSS/Atom 订阅模型，以及既有 Job 系统的处置方案。
+FriendFeed 的 Service 是附着在一个 Feed 上的外部内容来源。用户可以把博客、RSS、
+Atom 等来源导入自己的 Feed；Group 管理员也可以把来源导入 Group。Service 不是社交
+订阅关系，不创建虚拟用户，不写 Follow/Follower。
 
-## 现状审计：Job 系统与爬虫的实际形态
+本文替代此前的 `Subscription` 设计。`TableSubscription=111` 与
+`TableSubscriptionState=112` 尚未部署，可以直接改写，不提供旧格式迁移或兼容读取。
 
-### 调度层已经空转
+## 领域模型
 
-`RefetchJobTicker` 每 2 分钟调用 `RefetchUserFeed`（server/job.go:17-34），意图是
-给每个绑定了 twitter service 的用户入队一个抓取 job。但 `RefetchUserFeed` 用
-`model.ProfileToFeedinfo(profile)` 重建 feedinfo（server/job.go:66），该函数把
-`Services` 硬编码为空切片（model/profile.go:98）；`BuildGraph` 只从这个空切片构造
-`graph.Services`（server/helper.go:182-198），于是 `graph.Services["twitter"]` 恒不
-命中（server/job.go:69），**该 ticker 实际入队数恒为 0**。正确的补载写法在同仓库
-就有：`FetchGraph` 用 `model.GetServicesForProfile` 显式加载服务
-（server/server.go:278-281）。也就是说，服务端这套"定时调度 → 队列入队"链路当前
-不产生任何工作。
-
-### 队列与 worker 的设计缺陷
-
-1. **任务类型无法区分**：`FeedJob` 没有 type 字段（pb/api.proto:86-104）；消费端
-   `fetchService` 不看 `job.Service.Id`，无条件走 Twitter API（cli/cmd/twitter.go）。
-2. **死字段**：`max_limit` 仅被 `FixTooMuchJobs` 的 `==99` 分支匹配，而全仓库没有
-   任何地方把它设为 99（server/command.go:129,144 为不可达代码）；`force_update`
-   零使用；`target_id` 入队时从不赋值，但 `FinishJob` 用它做 history key
-   （server/job.go:194）——所有 history 记录写到同一个空 meta key 上互相覆盖。
-3. **入队无去重**：ticker 每 2 分钟无条件入队（server/job.go:57-96），不检查
-   pending/running；`PurgeJobs`/`FixTooMuchJobs` 这类手工命令就是为擦这个屁股
-   存在的。
-4. **无租约与心跳**：worker ID 是进程启动时的随机 hash（cli/cmd/root.go），worker
-   进程一死，job 永久卡在 `TableJobRunning`，只能人工 `RedoFailedJob` 重入队。
-5. **信任边界错位**：`FinishJob` 直接 `hex.DecodeString(job.Key)` 后删除
-   （server/job.go:188-189），worker 传什么删什么。
-6. **job 载荷是过期快照**：整个 `Profile` + `Service`（含 OAuth token）序列化进队
-   列表——敏感数据落盘副本 + 入队后改名/刷新 token 不会传播。
-7. **元数据语义混乱**：`EnqueJob` 写 `Created`，`GetFeedJob` claim 时又覆盖
-   `Created`（server/job.go:130），排队耗时永远丢失。
-8. **worker 目标硬编码**：`UserTimelineParams{ScreenName: "yinhm"}`（cli/cmd
-   /twitter.go:97）——名义上按 profile 调度，实际永远抓同一个人。
-9. **空队列靠错误驱动轮询**：`GetFeedJob` 返回 error，worker 打日志 sleep 5s
-   （cli/cmd/root.go:113-131），空转期每 5 秒刷一条错误日志。
-10. **Python crawler 从不消费队列**：`twitter/crawler.py` 全文无
-    `GetFeedJob`/`FinishJob` 调用，是 `--run init/user/list` 手动驱动的一次性
-    脚本，无常驻循环、无 systemd unit、无 fab task。
-
-### 入库路径的分裂
-
-tweet → Entry 的转换存在三份（Python `fetch_user` → PostEntry、Python
-`tweet_to_pb` + 服务端 `PostTweet`、Go worker → ArchiveFeed），UUID 方案两套：
-路径 1/3 用 `uuid5(canonical_url)`，路径 2 用 `UniqueKeyFrom("twitter", tweet.Id)`
-（server/server.go:1050）——同一条 tweet 经不同路径产生两个 entry，重复落库。
-只有 ArchiveFeed 路径带 R2 媒体镜像（mirrorMedia，server/server.go:310）；
-Python 两条路径保留 CDN 原始 URL，视频静默丢弃。`TableTweet`(6) 是 write-only
-表，全仓库无读取方。
-
-## 架构决策：订阅模型替代队列模型
-
-RSS/Atom 聚合**不接入 FeedJob 队列**，采用订阅模型。理由：
-
-- 周期抓取的本质是"拉状态"而非"派任务"。队列的价值是可靠投递；而抓取失败时
-  下一轮条件 GET 天然重试，可靠投递毫无意义。队列在这里只贡献了去重、租约、
-  尸体清理三类问题。
-- 抓取状态（ETag、Last-Modified、退避）是每订阅一份的长期状态，放 job 的
-  一次性历史记录里语义错位；独立状态表才是它的位置。
-- 同一 URL 被多人订阅时应只抓一次：队列模型按用户入队必然重复抓取，订阅模型
-  按 URL 唯一、靠既有 follow 边扇出。
-
-> **修订**：本节"不接入队列"仅指旧 FeedJob 队列。后续评审决定 RSS 抓取的
-> **执行**接入通用 Task 队列（`docs/task_queue.md`）：调度状态仍留
-> SubscriptionState，调度器到期仅入队 `rss.fetch` task；下文的进程内调度器
-> 并发控制由队列的进程内 worker pool 承载。
-
-### 存储（两个新表，纯新增）
+模型分成三层：
 
 ```text
-TableSubscription = 111                    // 抓取源，按规范化 URL 全局唯一
-key   = prefix(4) | feed UUID(16)          // feed UUID = UniqueKeyFrom("rss", normalizedURL)
-value = pb.Subscription{ url, title, added_by, created }
+Service                         FeedService                     Entry
+规范化外部来源                   目标 Feed 上的绑定                 导入后的本地内容
+全局抓取一次                     用户或 Group 各自管理               进入目标 Feed 和 timeline
 
-TableSubscriptionState = 112               // 抓取状态，与源表分离避免高频重写
-key   = prefix(4) | feed UUID(16)
-value = pb.SubscriptionState{ etag, last_modified, last_fetch, next_fetch,
-        consecutive_failures, http_status, empty_fetches }
+https://example.com/feed ──┬── personal-feed / blog
+                           └── group-feed / news
 ```
 
-订阅关系复用既有社交图：用户订阅 = 创建 `Follow(subscriber → 合成 feed
-profile)` 边（TableFollow/Follower，GraphFollow 已有的双边写入）。合成 profile
-的 UUID 即 feed UUID，`From`/`ProfileUuid` 都指向它——Home timeline、fanout、
-profile 页、搜索索引零改动复用。退订 = 删边；调度器跳过无任何 follower 的源
-（抓取前查一次 Follower 前缀，点查成本）。
+- **Service**：可抓取的外部端点，按 `kind + canonical URL` 全局唯一。它只负责
+  来源身份和抓取，不属于任何用户。
+- **FeedService**：既有 `TableFeedService(101)` 中的一条 Feed 绑定。key 的第一个 UUID 是
+  目标 Feed；目标可以是 user 或 group。FeedService 负责展示名称、启停、所有权和独立授权。
+- **Entry**：由 Service 导入后属于目标 Feed。相同来源绑定到两个 Feed 时，各生成一
+  条本地 Entry；其身份包含目标 Feed UUID，互不覆盖。
 
-### Entry 入库
+这种分层满足两个要求：同一 URL 只抓取一次，同时不同 Feed 可以独立添加、删除和展示
+自己的 Service。Follow 继续只表达“某个 profile 关注另一个 Feed”。
 
-- Entry 身份统一为 `UniqueKeyFrom("rss", normalizedURL, itemKey)`；itemKey 依次取
-  GUID → link → `hash(title+published)`。全链路只此一套方案，显式吸取 twitter
-  双 UUID 方案的教训。
-- 落库走既有 `PostEntry` 路径，获得 timeline fanout 与搜索索引。首版不导入 RSS
-  远程图片，避免另开一条未经审计的下载路径；`ArchiveFeed` 的同步 mirrorMedia
-  契约保持不变。重复抓取由稳定 key 检测后跳过，天然幂等。
-- `Entry.Date` 取 item 发布时间（缺省回退抓取时刻），必须满足 model 的 RFC3339
-  校验；`Via = { feed title, feed url }`。
+## 支持范围
 
-### 调度器（ffdb 进程内）
+第一阶段只实现公开 Web Feed，但解析格式不写死为 RSS 2.0：
+
+- RSS 2.0；
+- Atom 1.0；
+- JSON Feed；
+- 能由解析器识别的常见 RSS/RDF 变体。
+
+这些格式统一使用 `kind = "web_feed"`。以后接入 Flickr、GitHub 等 provider 时新增
+adapter；不得在通用调度器中堆 provider 分支。需要 OAuth/token 的 provider，其凭据
+只存 FeedService 或后续专用凭据记录，不进入 Task payload、日志或全局 Service。
+
+## 持久化结构
+
+### Service（111）
 
 ```text
-每 60s 流式扫描 TableSubscriptionState，挑出 next_fetch <= now 的源
-  → Queue worker 全局并发上限 4、每 host 同时在飞 1 个
-  → 条件 GET（If-None-Match / If-Modified-Since），304 零解析
-  → 成功：自适应间隔（连续空转翻倍，30min 起、24h 封顶）
-  → 最终失败：长期退避 1h 起、24h 封顶；失败次数入 State
-  → 每源每次最多处理 25 个新 item，新→旧
+TableService = 111
+key   = prefix(4) | service UUID(16)
+value = pb.Service {
+          uuid, kind, canonical_url,
+          title, site_url, icon_url,
+          created_at_ms, updated_at_ms
+        }
+
+service UUID = UniqueKeyFrom("service", kind, canonical_url)
 ```
 
-- 出站立即要做 **SSRF 防护**：只允许 http/https；解析域名后拒绝
-  loopback/RFC1918/link-local；跟随重定向（≤5 次）时每一跳都复查；响应上限
-  5MB、总超时 15s；UA 标识 `ffdb-bot`。
-- ffdb 已有出站抓取先例（mirrorMedia 拉远程媒体），调度器在 ffdb 进程内符合
-  现有职责边界，不新增部署单元；loopback 红线不受影响。
-- 关停挂入既有 `beginBackgroundJob`/`wg`/`Shutdown` 设施。
+URL 规范化只处理身份等价项：scheme/host 小写、默认端口移除、fragment 移除。不得随意
+排序或删除 query，因为部分 Feed 的 query 有业务含义。创建前执行 SSRF URL 静态校验，
+实际请求及每次 redirect 仍必须重新解析地址并校验 IP。
 
-### 新依赖决策
+### ServiceState（112）
 
-新增 `github.com/mmcdole/gofeed`（RSS2/Atom/JSON Feed 解析）。理由：RSS/Atom 的
-日期格式、命名空间、内容编码边缘 case 极多，手写最小解析器的长期成本高于引入
-一个成熟、无传递依赖负担的库。若评审不接受新依赖，备选是限定支持 RSS2/Atom
-的手写解析器并显式放弃 JSON Feed——需要在实施前单独确认。
+```text
+TableServiceState = 112
+key   = prefix(4) | service UUID(16)
+value = pb.ServiceState {
+          service_uuid,
+          etag, last_modified,
+          last_fetch_ms, next_fetch_ms,
+          consecutive_failures, empty_fetches,
+          http_status, last_error
+        }
+```
 
-### httpd 与前端
+Service 和高频 State 分表，避免每轮条件请求重写来源元数据。`last_error` 只存截断后的安全
+摘要，不得包含带 userinfo/query secret 的完整 URL 或响应正文。
 
-- 新 RPC（纯新增）：`SubscribeService`（输入 URL，规范化、查重、建源、建 follow
-  边、立即异步首抓）、`UnsubscribeService`（删边）、`ListSubscriptions`。首版只
-  交付 API；账户页 UI 不是 Task 队列成立条件，另行设计。
+### FeedService（既有 101）
 
-## 既有 Job 系统的处置
+```text
+TableFeedService = 101
+key   = prefix(4) | target Feed UUID(16) | service ID(bytes)
+value = pb.FeedService {
+          id, kind, service_uuid,
+          name, icon, profile, username,
+          enabled, added_by_uuid,
+          created, updated,
+          ...provider-specific compatible fields
+        }
+```
 
-`EnqueJob`/`GetFeedJob`/`FinishJob` 是受保护的 RPC 面（AGENTS 兼容契约），全部
-保留原路径与语义，仅供 twitter 遗留链路使用。通用队列的替代设计见
-`docs/task_queue.md`。处置建议：
+`service ID` 在目标 Feed 内唯一；Web Feed 使用由 service UUID 派生的稳定 ID。现有
+Twitter/OAuth FeedService 继续使用原 ID；它可以暂时没有 `service_uuid`，不强造全局来源。
 
-1. **停止 `RefetchJobTicker`**：它当前入队数恒为 0（见审计），每 2 分钟全表扫
-   profile 纯属空转。与其修复为正确加载 services，不如直接停掉——Go worker 的
-   抓取目标硬编码为 `yinhm`，这条链路即使修通调度也没有真实消费能力。停止方式：
-   不再启动该 goroutine，代码与命令保留。
-2. **Job 表（200/201/202）标注为 legacy**：不再接受新任务类型；已知缺陷（本文
-   审计清单）不再逐项修补，因为唯一的理论消费方是 twitter。
-3. **twitter 链路的整合是独立后续工作**：统一双 UUID 方案、让 Python 路径也走
-   ArchiveFeed 以获得 R2 镜像、TableTweet write-only 表的取舍，连同
-   `docs/open_decisions.md` 里的既有条目一起单独设计，不在本文范围内。
+OAuth 是某个本地 Feed 对外部账号的授权，不是全局来源属性，因此只属于 FeedService：
 
-## 安全与隐私
+- `Service` 只保存公开、稳定、可共享的来源身份，严禁保存 token；
+- `FeedService.oauth` 保持既有字段号与数据编码，个人 Feed 和 Group 的授权互相独立；
+- `authorized_by_uuid` 记录谁为该 Feed 授权，Group 管理员离开或撤权时可精确处理；
+- 如果以后确需多个 FeedService 共享一次授权，应新增独立 Credential 并显式引用，不能把
+  token 上移到全局 Service。
 
-- 订阅 URL 是用户输入：SSRF 防护见调度器一节；规范化（小写 scheme/host、去
-  默认端口、去 fragment）保证同一源不产生两份订阅。
-- 抓取不携带任何用户凭据；请求不转发用户 Cookie。
-- 日志只记录 URL host 与状态码，不记录响应正文；任何级别不记录 token/Cookie。
+### ServiceFeedIndex 索引（113）
 
-## 迁移与验收
+```text
+TableServiceFeedIndex = 113
+key   = prefix(4) | service UUID(16) | target Feed UUID(16) | service ID(bytes)
+value = nil
+```
 
-- 新表 111/112 纯新增，无需数据迁移；表号与编码按 AGENTS 流程同步进契约文档。
-- `audit_store` 可后续增加"无 follower 的订阅源"统计，非首版必需。
-- 验收清单：订阅一个公开 RSS → 新 item 在下次抓取周期内出现在该 feed 的
-  profile 页与订阅者 Home；重复抓取不产生重复 entry；源 404/超时按退避表
-  推进；退订后该源不再被调度（无其他 follower 时）。
+这是 `TableFeedService` 的派生反向索引，用于一次抓取后找到所有目标 Feed，也用于判断来源
+是否仍有消费者。添加/删除 FeedService 时，主记录与该索引必须在同一个 Pebble batch 更新。
+不另建“订阅关系”表。
 
-## 测试清单
+## Entry 身份和投递
 
-- model：两个新表的编码/解码、边界值（非法长度、零 UUID）。
-- server：调度器的 due 选择、退避推进、host 串行与全局并发上限、SSRF 地址族
-  拒绝（用 httptest 模拟）、Entry 幂等覆盖。
-- httpd：订阅/退订 RPC 的鉴权与参数校验。
-- 前端：订阅表单与列表的 vitest。
+外部 item 的稳定 key 依次取：规范化 GUID、规范化 item URL、最后才是内容字段哈希。
+
+```text
+entry UUID = UniqueKeyFrom(
+  "external-entry", target Feed UUID, service UUID, external item key)
+```
+
+- `ProfileUuid` 与 `FeedUuid` 都使用目标 Feed UUID；导入 Group 时 Entry 明确属于 Group，
+  不伪造执行抓取的管理员为作者。
+- `From` 是目标 Feed 的快照；`Via` 记录 Service 名称和来源站点 URL。
+- 入库走统一的 `PostEntry`/`PutEntry` 生命周期，获得 direct index、Home/public timeline
+  和 search 行为，不另写半套索引。
+- 重复抓取依靠稳定 Entry UUID 幂等。一次 Service 抓取对多个 FeedService 的投递可以逐 Feed
+  提交；只有全部投递成功后才推进 ServiceState。中途失败重试时，已完成部分不会重复。
+- 每轮每个目标 Feed 最多导入固定数量的新 item；按发布时间从旧到新提交，避免 timeline
+  顺序倒置。日期缺失时使用服务端抓取时间。
+
+新绑定必须能获得近期内容。添加 FeedService 后入队一次 `feed_service.seed`：对该 Service 做一次
+不带条件头的有界抓取，只投递到新目标 Feed。周期性 `service.fetch` 继续全局条件抓取并
+投递到所有有效 binding。这样不需要长期保存一份完整的外部 item cache。
+
+## Task 与调度
+
+Task 只表示一次执行，不承载长期抓取状态：
+
+```text
+service.fetch { service_uuid }
+feed_service.seed { service_uuid, target_feed_uuid, service_id }
+```
+
+- 调度器流式扫描 `ServiceState`，仅为存在有效 ServiceFeedIndex 的到期来源创建
+  `service.fetch`；idempotency key 使用 `service UUID + due window`。
+- Task payload 只含稳定 UUID/ID，不含 URL、Service 快照、token 或正文。
+- handler 执行时读取最新 Service、ServiceState 和 FeedService。Service 被删除后，陈旧 task 是
+  幂等 no-op。
+- Task 是 at-least-once；抓取、Entry 写入和状态推进都必须可重试。
+- 全局抓取并发和 per-host 并发由 handler pool 控制；ServiceState 的 ETag、退避和
+  `next_fetch` 不复制到 Task。
+
+成功无新内容时自适应放慢，默认从 30 分钟逐步增加到 24 小时；短期网络/5xx 由 Task
+Fail 重试，只有该 Task 最终失败时才推进 ServiceState 的长期失败退避。404/410 可在连续
+多次确认后停用来源，但不能第一次响应就删除用户配置。
+
+## HTTP 行为与 User-Agent
+
+请求只允许公开 `http`/`https`：拒绝 loopback、RFC1918、link-local、CGNAT 和其他
+非公网地址；DNS 的所有解析结果均须通过，连接使用已校验地址；每次 redirect 重新校验。
+限制 redirect 次数、响应大小和总超时，不转发 Cookie、Authorization 或用户请求头。
+
+部分旧 Feed 会拒绝陌生 bot UA。默认使用常见浏览器兼容形式，同时诚实标识产品：
+
+```text
+Mozilla/5.0 (compatible; FriendFeed/1.0; +https://friendfeed.me/)
+```
+
+UA 是抓取器配置常量，不由用户、Service 或 Task payload 覆盖。不得冒充具体 Chrome
+版本，也不得按来源维护 UA 例外表；若站点仍拒绝，应记录状态并退避。
+
+## API 命名与授权
+
+`SubscribeService`/`UnsubscribeService`/`ListSubscriptions` 混淆了 Follow，且无法表达
+目标 Group。它们尚未发布，应在本分支直接替换为：
+
+```proto
+rpc AddFeedService(AddFeedServiceRequest) returns (Service);
+rpc RemoveFeedService(RemoveFeedServiceRequest) returns (google.protobuf.Empty);
+rpc ListFeedServices(ListFeedServicesRequest) returns (ListFeedServicesResponse);
+
+message AddFeedServiceRequest {
+  string actor_uuid = 1;
+  string target_feed_uuid = 2;
+  string kind = 3;              // 第一阶段只接受 web_feed
+  string url = 4;
+}
+```
+
+Remove/List 使用 `target_feed_uuid` 和稳定 `service_id`。RPC 不接受客户端提交完整
+Service、Service UUID、抓取状态或 Task 参数。
+
+授权规则：
+
+- user Feed：仅本人可以添加、删除和手动刷新 Service；
+- group Feed：仅明确的 Group admin 可以管理 Service，普通 follower/可发帖成员不行；
+- super 可用于运维恢复，但必须走相同审计路径；
+- List 可按 Feed 可见性返回安全展示字段，永不返回 OAuth/token 或抓取错误详情。
+
+服务端从可信 actor principal 做授权；`actor_uuid` 是当前 loopback RPC 的过渡字段，未来
+若 gRPC 对外开放必须先建立认证 principal，不能继续信任请求自报身份。
+
+## Web 管理界面
+
+账户 Import 页面管理当前用户 Feed 的 Service。Group 管理页面增加同一套 Service
+组件，只有 Group admin 可见：
+
+- 列出现有 Service：名称、来源 host、最近成功时间、状态；
+- 添加公开 Feed URL，服务端探测并返回解析后的 title/site URL 供确认；
+- 启用/停用、删除、显式“立即刷新”；
+- 不在浏览器直接抓取 URL，不显示完整内部错误或敏感 query。
+
+前端组件以 `target_feed_uuid` 为输入复用，不能分别实现 user/group 两套 API。添加成功
+立即显示 pending 状态；`feed_service.seed` 异步完成后更新最近抓取状态。
+
+## 实施顺序
+
+1. **纠正模型和命名**：直接替换未发布的 111/112 protobuf、表变量、model API 和
+   RPC；新增 113；删除 synthetic profile、Follow/Follower 复用及 Subscription 命名。
+2. **FeedService 写路径**：实现 user/group 授权，FeedService + ServiceFeedIndex 原子写，
+   相同 URL 全局 Service 去重，删除最后 FeedService 后 Service 转 dormant。
+3. **抓取 adapter**：统一 RSS/Atom/JSON Feed 解析、SSRF、条件请求、UA、限制和
+   ServiceState。
+4. **Task 投递**：实现 `service.fetch` 与 `feed_service.seed`，锁定幂等、部分投递重试、
+   陈旧任务 no-op 和关停排干。
+5. **Web UI**：账户 Import 与 Group admin 页面复用 Service 管理组件。
+6. **运维**：audit 检查 FeedService↔ServiceFeedIndex、State↔Service、无 binding dormant
+   Service；提供 inspect/refetch/disable 工具，不提供绕过授权的普通写接口。
+
+每一步独立提交并跑 Go 门禁；涉及前端时再跑完整 pnpm 与 e2e。111/112 未部署，因此
+本轮不写数据迁移工具，也不保留旧 `Subscription` API 的双写兼容层。
+
+## 非目标
+
+- 不把 RSS 来源建成 Profile，不通过 Follow 表表达导入；
+- 不让每个绑定重复抓取相同 URL；
+- 不在首版镜像 Feed 中的远程图片或执行 HTML 内脚本；
+- 不在本轮重构 legacy Twitter `FeedJob`、ArchiveFeed 或 OAuth Service；
+- 不引入 Redis、消息中间件或独立 scheduler 服务。

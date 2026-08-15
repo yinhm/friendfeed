@@ -61,7 +61,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 6 | Tweet | `T + tweet key` | `pb.Tweet` | 导入数据 |
 | 7 | UserRenameMap | `T + old profile id` | 16 B profile UUID | soft rename metadata |
 | 100 | Profile | `T + profile UUID` | `pb.Profile` | 源数据 |
-| 101 | Service | `T + profile UUID + service id` | `pb.Service` | 源数据 |
+| 101 | FeedService | `T + target Feed UUID + service id` | `pb.FeedService` | Feed 外部服务绑定及独立授权 |
 | 102 | Follow | `T + follower UUID + feed UUID` | `"1"` | 正向社交边 |
 | 103 | Follower | `T + feed UUID + follower UUID` | `"1"` | 反向社交边 |
 | 104 | OAuth | `T + provider:user_id` | `pb.OAuthUser` | 稳定上游身份 |
@@ -71,8 +71,9 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 108 | TimelineIndex | `T + viewer UUID + reverse Unix ms + entry UUID` | 空 | Home 排序派生数据 |
 | 109 | TimelinePosition | `T + viewer UUID + entry UUID` | Unix ms（8 B big-endian） | Home 位置派生数据 |
 | 110 | TimelineState | `T + viewer UUID` | last-access Unix ms（8 B big-endian） | Home 活跃状态派生数据 |
-| 111 | Subscription | `T + feed UUID` | `pb.Subscription` | RSS 规范化源 |
-| 112 | SubscriptionState | `T + feed UUID` | `pb.SubscriptionState` | RSS 调度/条件 GET 状态 |
+| 111 | Service | `T + service UUID` | `pb.Service` | 全局规范化外部来源，不含凭据 |
+| 112 | ServiceState | `T + service UUID` | `pb.ServiceState` | 条件 GET 与调度状态 |
+| 113 | ServiceFeedIndex | `T + service UUID + target Feed UUID + service ID` | 空 | Service→FeedService 派生索引 |
 | 200 | JobFeed | `T + Flake ID` | job protobuf | queued job |
 | 201 | JobRunning | `T + Flake ID` | job protobuf | claimed job |
 | 202 | JobHistory | `T + target id` | `pb.FeedJob` | 历史记录 |

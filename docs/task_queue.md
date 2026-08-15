@@ -1,8 +1,8 @@
 # 通用 Task 队列设计
 
 本文定义 FeedJob 的后继系统。目标不是复刻消息中间件，而是在 ffdb 现有的单机
-Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。RSS 抓取是第一个使用方；
-调度状态仍属于 `SubscriptionState`，Task 只承载一次到期执行。
+Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。Service 抓取是第一个使用方；
+调度状态仍属于 `ServiceState`，Task 只承载一次到期执行。
 
 ## 决策与边界
 
@@ -104,7 +104,7 @@ enum TaskCompletionStatus {
 
 message Task {
   string id = 1;                 // 32-char raw flake hex
-  string type = 2;               // rss.fetch / twitter.crawl
+  string type = 2;               // service.fetch / feed_service.seed / twitter.crawl
   bytes payload = 3;             // 该 type 的 protobuf，只有引用和小参数
   uint32 payload_version = 4;
   string idempotency_key = 5;
@@ -287,18 +287,19 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
 - `worker_id` 是诊断和 fencing 的一部分，不是身份认证。安全边界仍依赖 ffdb 仅监听
   loopback；若未来允许远程 worker，必须先设计可信 principal，不能只相信 worker_id。
 
-## RSS 的一致性规则
+## Service 的一致性规则
 
-- `SubscriptionState.next_fetch` 决定何时调度；到期调度器 enqueue
-  `rss.fetch`，idem=`<feed_uuid>`。Queue 不复制 ETag、token 或完整 URL 快照。
-- handler 开始时重新读取 Subscription 与 State；源已删除、无 follower、或
+- `ServiceState.next_fetch` 决定何时调度；到期调度器 enqueue
+  `service.fetch`，idem 使用 service UUID 与 due window。Queue 不复制 ETag、token 或完整 URL 快照。
+- handler 开始时重新读取 Service、State 和 ServiceFeedIndex；源已删除、无 binding、或
   `next_fetch` 已被一次较新的执行推进时，任务成为幂等 no-op 并 Complete。
-- handler 必须先提交 Entry 和新的 SubscriptionState，再 Complete Task。若提交后进程
+- handler 必须先完成所有 FeedService 的幂等 Entry 投递并提交新的 ServiceState，
+  再 Complete Task。若提交后进程
   崩溃，lease 重派会由最新 State/Entry identity 识别为重复执行。
 - 尚有队列重试次数的短期传输错误只调用 Fail，不推进业务 `next_fetch`；最后一次允许的
-  执行失败时，handler 先更新 SubscriptionState 的失败计数与下一轮业务调度时间，再
+  执行失败时，handler 先更新 ServiceState 的失败计数与下一轮业务调度时间，再
   Fail 进入 DEAD。若更新 State 后崩溃，重派 handler 看到已推进的 State 后幂等 Complete。
-  ETag、HTTP 状态和长期失败退避始终只属于 SubscriptionState，不能产生两套真相。
+  ETag、HTTP 状态和长期失败退避始终只属于 ServiceState，不能产生两套真相。
 - 首版 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
   多进程 RSS worker 前必须增加跨 worker 的 host 并发方案；进程内 mutex 不能冒充
   分布式互斥。
@@ -352,10 +353,10 @@ Done 由显式时间 cutoff 裁剪，扫描与输出有界。日志只记录 tas
 - reaper、受控进程内 worker pool、GracefulStop/Store.Close 顺序。
 - 用假 handler 做崩溃、超时、续租、关停集成测试；此时队列核心可独立验收。
 
-### M3：RSS 接入
+### M3：Service 接入
 
-- Subscription/State 调度只 enqueue due feed；RSS handler 按上述一致性规则执行。
-- 验证重复执行、状态更新后崩溃、无 follower、条件 GET、SSRF 和 host 串行。
+- Service/State 调度只 enqueue 有 binding 的 due service；handler 按上述一致性规则执行。
+- 验证重复执行、状态更新后崩溃、无 binding、条件 GET、SSRF 和 host 串行。
 - legacy `RefetchJobTicker` 已停止启动，但保留旧符号和 RPC。
 
 ### M4：运维闭环
@@ -386,5 +387,5 @@ handler 从 stdin 读取 protobuf payload，退出 0 表示 Complete，非零表
 
 - 不承诺 exactly-once。
 - 不实现优先级、DAG、广播、跨主机 broker、无限 long-poll 或任意用户自定义 task type。
-- 不把 SubscriptionState、timeline 状态或业务失败历史塞进 Task 主记录。
+- 不把 ServiceState、timeline 状态或业务失败历史塞进 Task 主记录。
 - 不因新 Task 系统顺手删除 legacy Job API、同步 mirrorMedia 或现有调试/迁移路径。
