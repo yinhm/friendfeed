@@ -4,26 +4,26 @@
 
 ## 1. 模型与命名
 
-- [ ] `pb.Service` 表示全局来源；原绑定消息改为 `pb.FeedService`，字段号保持既有数据可读。
-- [ ] 表变量改为 FeedService(101)、Service(111)、ServiceState(112)、ServiceFeedIndex(113)。
-- [ ] 删除未发布的 Subscription protobuf、RPC、model API 和 synthetic Profile/Follow 逻辑。
-- [ ] 增加四表 codec、非法 UUID/key、既有 Twitter FeedService 解码测试。
+- [x] `pb.Service` 表示全局来源；原绑定消息改为 `pb.FeedService`，字段号保持既有数据可读。
+- [x] 表变量改为 FeedService(101)、Service(111)、ServiceState(112)、ServiceFeedIndex(113)。
+- [x] 删除未发布的 Subscription protobuf、RPC、model API 和 synthetic Profile/Follow 逻辑。
+- [x] 增加四表 codec、非法 UUID/key、既有 Twitter FeedService 解码测试。
 
 ## 2. FeedService 写路径与授权
 
-- [ ] Add/Remove/List FeedService RPC 使用 actor UUID 与 target Feed UUID。
-- [ ] user 仅本人管理；group 仅 admin 管理；普通 follower 不获得权限。
-- [ ] Service 去重创建、FeedService 与 ServiceFeedIndex 同批写入/删除。
-- [ ] OAuth 只保存在 FeedService；Service 严禁凭据。
-- [ ] 添加 Web Feed 时原子入队 `feed_service.seed`。
+- [x] Add/Remove/List FeedService RPC 使用 actor UUID 与 target Feed UUID。
+- [x] user 仅本人管理；group 仅 admin 管理；普通 follower 不获得权限。
+- [x] Service 去重创建、FeedService 与 ServiceFeedIndex 同批写入/删除。
+- [x] OAuth 只保存在 FeedService；Service 严禁凭据。
+- [x] 添加 Web Feed 时原子入队 `feed_service.seed`。
 
 ## 3. 抓取与 Task
 
-- [ ] `service.fetch` 读取 ServiceState 并投递全部有效 FeedService。
-- [ ] `feed_service.seed` 无条件抓取近期 item，只投递新增绑定。
-- [ ] 支持 RSS/Atom/JSON Feed，统一稳定 item identity 和 Entry UUID。
-- [ ] 使用统一 UA、SSRF/redirect/大小/超时限制、条件 GET 和长期退避。
-- [ ] 部分投递失败可重试；删除后的 Service/FeedService task 是 no-op。
+- [x] `service.fetch` 读取 ServiceState 并投递全部有效 FeedService。
+- [x] `feed_service.seed` 无条件抓取近期 item，只投递新增绑定。
+- [x] 支持 RSS/Atom/JSON Feed，统一稳定 item identity 和 Entry UUID。
+- [x] 使用统一 UA、SSRF/redirect/大小/超时限制、条件 GET 和长期退避。
+- [x] 部分投递失败可重试；删除后的 Service/FeedService task 是 no-op。
 
 ## 4. Web UI
 

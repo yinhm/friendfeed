@@ -13,8 +13,10 @@ func TestTaskTablePrefixes(t *testing.T) {
 		{"TaskLease", TaskLease.Prefix, KeyPrefixToBytes(TableTaskLease)},
 		{"TaskIdem", TaskIdem.Prefix, KeyPrefixToBytes(TableTaskIdem)},
 		{"TaskDone", TaskDone.Prefix, KeyPrefixToBytes(TableTaskDone)},
-		{"Subscription", Subscription.Prefix, KeyPrefixToBytes(TableSubscription)},
-		{"SubscriptionState", SubscriptionState.Prefix, KeyPrefixToBytes(TableSubscriptionState)},
+		{"FeedService", FeedService.Prefix, KeyPrefixToBytes(TableFeedService)},
+		{"Service", Service.Prefix, KeyPrefixToBytes(TableService)},
+		{"ServiceState", ServiceState.Prefix, KeyPrefixToBytes(TableServiceState)},
+		{"ServiceFeedIndex", ServiceFeedIndex.Prefix, KeyPrefixToBytes(TableServiceFeedIndex)},
 	}
 	for _, table := range tables {
 		if string(table.got) != string(table.want) {

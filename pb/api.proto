@@ -53,10 +53,9 @@ service Api {
   rpc BindUserFeed(OAuthUser) returns (OAuthUser) {}
 
   // service
-  rpc DeleteService(ServiceRequest) returns (Feedinfo) {}
-  rpc SubscribeService(SubscribeServiceRequest) returns (Subscription) {}
-  rpc UnsubscribeService(UnsubscribeServiceRequest) returns (google.protobuf.Empty) {}
-  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse) {}
+  rpc AddFeedService(AddFeedServiceRequest) returns (FeedService) {}
+  rpc RemoveFeedService(RemoveFeedServiceRequest) returns (google.protobuf.Empty) {}
+  rpc ListFeedServices(ListFeedServicesRequest) returns (ListFeedServicesResponse) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
@@ -109,7 +108,7 @@ message FeedJob {
   bool force_update = 13;
 
   // translate to new service(sync) job
-  Service service = 14;
+  FeedService service = 14;
   Profile profile = 15;
 }
 
@@ -298,27 +297,26 @@ message CommentDeleteRequest {
   string user_uuid = 4;  // stable principal; required
 }
 
-message ServiceRequest {
-  string user = 1;
-  string service = 2;
+message AddFeedServiceRequest {
+  string actor_uuid = 1;
+  string target_feed_uuid = 2;
+  string kind = 3;
+  string url = 4;
 }
 
-message SubscribeServiceRequest {
-  string user_uuid = 1;
-  string url = 2;
+message RemoveFeedServiceRequest {
+  string actor_uuid = 1;
+  string target_feed_uuid = 2;
+  string service_id = 3;
 }
 
-message UnsubscribeServiceRequest {
-  string user_uuid = 1;
-  string feed_uuid = 2;
+message ListFeedServicesRequest {
+  string actor_uuid = 1;
+  string target_feed_uuid = 2;
 }
 
-message ListSubscriptionsRequest {
-  string user_uuid = 1;
-}
-
-message ListSubscriptionsResponse {
-  repeated Subscription subscriptions = 1;
+message ListFeedServicesResponse {
+  repeated FeedService services = 1;
 }
 
 message SearchRequest {

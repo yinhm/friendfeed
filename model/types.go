@@ -31,19 +31,20 @@ const (
 	// TableEntryIndex store.KeyPrefix = 4
 	TableEntryIndex store.KeyPrefix = 5
 
-	TableProfile           store.KeyPrefix = 100
-	TableService           store.KeyPrefix = 101
-	TableFollow            store.KeyPrefix = 102
-	TableFollower          store.KeyPrefix = 103
-	TableOAuth             store.KeyPrefix = 104
-	TableFile              store.KeyPrefix = 105
-	TableLike              store.KeyPrefix = 106
-	TableComment           store.KeyPrefix = 107
-	TableTimelineIndex     store.KeyPrefix = 108
-	TableTimelinePosition  store.KeyPrefix = 109
-	TableTimelineState     store.KeyPrefix = 110
-	TableSubscription      store.KeyPrefix = 111
-	TableSubscriptionState store.KeyPrefix = 112
+	TableProfile          store.KeyPrefix = 100
+	TableFeedService      store.KeyPrefix = 101
+	TableFollow           store.KeyPrefix = 102
+	TableFollower         store.KeyPrefix = 103
+	TableOAuth            store.KeyPrefix = 104
+	TableFile             store.KeyPrefix = 105
+	TableLike             store.KeyPrefix = 106
+	TableComment          store.KeyPrefix = 107
+	TableTimelineIndex    store.KeyPrefix = 108
+	TableTimelinePosition store.KeyPrefix = 109
+	TableTimelineState    store.KeyPrefix = 110
+	TableService          store.KeyPrefix = 111
+	TableServiceState     store.KeyPrefix = 112
+	TableServiceFeedIndex store.KeyPrefix = 113
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -77,18 +78,19 @@ var (
 	UserRenameMap = NewTable(KeyPrefixToBytes(TableUserRenameMap))
 	Profile       = NewTable(KeyPrefixToBytes(TableProfile))
 
-	Service           = NewTable(KeyPrefixToBytes(TableService))
-	Follow            = NewTable(KeyPrefixToBytes(TableFollow))
-	Follower          = NewTable(KeyPrefixToBytes(TableFollower))
-	OAuth             = NewTable(KeyPrefixToBytes(TableOAuth))
-	File              = NewTable(KeyPrefixToBytes(TableFile))
-	Like              = NewTable(KeyPrefixToBytes(TableLike))
-	Comment           = NewTable(KeyPrefixToBytes(TableComment))
-	TimelineIndex     = NewTable(KeyPrefixToBytes(TableTimelineIndex))
-	TimelinePosition  = NewTable(KeyPrefixToBytes(TableTimelinePosition))
-	TimelineState     = NewTable(KeyPrefixToBytes(TableTimelineState))
-	Subscription      = NewTable(KeyPrefixToBytes(TableSubscription))
-	SubscriptionState = NewTable(KeyPrefixToBytes(TableSubscriptionState))
+	FeedService      = NewTable(KeyPrefixToBytes(TableFeedService))
+	Follow           = NewTable(KeyPrefixToBytes(TableFollow))
+	Follower         = NewTable(KeyPrefixToBytes(TableFollower))
+	OAuth            = NewTable(KeyPrefixToBytes(TableOAuth))
+	File             = NewTable(KeyPrefixToBytes(TableFile))
+	Like             = NewTable(KeyPrefixToBytes(TableLike))
+	Comment          = NewTable(KeyPrefixToBytes(TableComment))
+	TimelineIndex    = NewTable(KeyPrefixToBytes(TableTimelineIndex))
+	TimelinePosition = NewTable(KeyPrefixToBytes(TableTimelinePosition))
+	TimelineState    = NewTable(KeyPrefixToBytes(TableTimelineState))
+	Service          = NewTable(KeyPrefixToBytes(TableService))
+	ServiceState     = NewTable(KeyPrefixToBytes(TableServiceState))
+	ServiceFeedIndex = NewTable(KeyPrefixToBytes(TableServiceFeedIndex))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))

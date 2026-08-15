@@ -183,7 +183,7 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 	graph := &pb.Graph{
 		Following: make(map[string]*pb.Profile),
 		Admins:    make(map[string]*pb.Profile),
-		Services:  make(map[string]*pb.Service),
+		Services:  make(map[string]*pb.FeedService),
 	}
 	// FIXME: subscriptions may huge
 	// for _, item := range info.Subscriptions {

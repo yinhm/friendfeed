@@ -36,10 +36,10 @@ func TestFeedFromProfile(t *testing.T) {
 func TestFeedFromProfileRejectsInvalidIdentity(t *testing.T) {
 	valid := uuid.Must(uuid.NewV4()).String()
 	cases := map[string]*pb.Profile{
-		"nil profile":   nil,
-		"empty uuid":    {Id: "yinhm"},
+		"nil profile":    nil,
+		"empty uuid":     {Id: "yinhm"},
 		"malformed uuid": {Uuid: "not-a-uuid", Id: "yinhm"},
-		"zero uuid":     {Uuid: uuid.Nil.String(), Id: "yinhm"},
+		"zero uuid":      {Uuid: uuid.Nil.String(), Id: "yinhm"},
 	}
 	for name, profile := range cases {
 		t.Run(name, func(t *testing.T) {

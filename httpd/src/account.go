@@ -60,7 +60,7 @@ func (s *Server) renderAccountPage(c *gin.Context, tab string) {
 // each with its own timeout: the unified account page needs both, and two
 // serial calls sharing one deadline would let a slow first call starve the
 // second.
-func fetchAccountData(client pb.ApiClient, userUuid string) (*pb.Profile, map[string]*pb.Service, error) {
+func fetchAccountData(client pb.ApiClient, userUuid string) (*pb.Profile, map[string]*pb.FeedService, error) {
 	req := &pb.ProfileRequest{Uuid: userUuid}
 
 	var wg sync.WaitGroup
@@ -92,7 +92,7 @@ func fetchAccountData(client pb.ApiClient, userUuid string) (*pb.Profile, map[st
 
 	services := graph.Services
 	if services == nil {
-		services = map[string]*pb.Service{}
+		services = map[string]*pb.FeedService{}
 	}
 	return profile, services, nil
 }
@@ -176,11 +176,10 @@ func (s *Server) DeleteServiceHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "please login first"})
 		return
 	}
-	req := &pb.ServiceRequest{
-		User:    uuid,
-		Service: service,
+	req := &pb.RemoveFeedServiceRequest{
+		ActorUuid: uuid, TargetFeedUuid: uuid, ServiceId: service,
 	}
-	_, err := s.client.DeleteService(ctx, req)
+	_, err := s.client.RemoveFeedService(ctx, req)
 	if err != nil {
 		log.Printf("Error on deleting: %s, %s", uuid, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})

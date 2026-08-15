@@ -41,7 +41,7 @@ func (f *fakeAccountClient) FetchGraph(ctx context.Context, req *pb.ProfileReque
 func TestFetchAccountData(t *testing.T) {
 	profile := &pb.Profile{Uuid: "u1", Id: "yinhm"}
 	graph := &pb.Graph{
-		Services: map[string]*pb.Service{
+		Services: map[string]*pb.FeedService{
 			"twitter": {Id: "twitter", Name: "Twitter"},
 		},
 	}

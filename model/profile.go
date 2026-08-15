@@ -95,7 +95,7 @@ func ProfileToFeedinfo(profile *pb.Profile) *pb.Feedinfo {
 		Followers:   []*pb.Profile{},
 		Admins:      []*pb.Profile{},
 		Feeds:       []*pb.Profile{},
-		Services:    []*pb.Service{},
+		Services:    []*pb.FeedService{},
 	}
 }
 

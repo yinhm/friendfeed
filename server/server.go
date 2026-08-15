@@ -76,7 +76,7 @@ type ApiServer struct {
 	taskWorkersStarted    bool
 	taskWorkerPollMin     time.Duration
 	taskWorkerPollMax     time.Duration
-	rssFetch              rssFetcher
+	serviceFetch          serviceFetcher
 	rssNow                func() time.Time
 	rssHostLocks          [64]sync.Mutex
 }
@@ -130,8 +130,8 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		rssNow:             func() time.Time { return time.Now().UTC() },
 	}
 	srv.taskCtx, srv.taskCancel = context.WithCancel(context.Background())
-	srv.rssFetch = fetchRSS
-	taskRegistry, err := NewTaskRegistry(srv.handleRSSFetchTask)
+	srv.serviceFetch = fetchServiceHTTP
+	taskRegistry, err := NewTaskRegistry(srv.handleServiceTask)
 	if err != nil {
 		rdb.Close()
 		return nil, fmt.Errorf("initialize task registry: %w", err)
@@ -157,7 +157,7 @@ func (s *ApiServer) StartBackgroundJobs() {
 	s.backgroundJobsStarted = true
 	go s.RefetchJobTicker()
 	go s.TaskReapLoop()
-	go s.RSSScheduleLoop()
+	go s.ServiceScheduleLoop()
 	s.startTaskWorkersLocked()
 }
 
@@ -298,7 +298,7 @@ func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb
 	feedinfo := model.ProfileToFeedinfo(profile)
 
 	// scan services
-	ss, _ := model.GetServicesForProfile(s.rdb, profileUuid)
+	ss, _ := model.GetFeedServices(s.rdb, profileUuid)
 	feedinfo.Services = ss
 
 	return BuildGraph(feedinfo), nil
