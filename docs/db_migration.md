@@ -23,9 +23,18 @@
 
     ./tools -to new_db -c rebuild_timeline
 
-迁移媒体 URL 到 R2：
+迁移媒体 URL 到 R2（先 -dry-run 看计数再实跑，可重复执行）：
 
+    ./tools -to new_db -c migrate_media_urls -dry-run
     ./tools -to new_db -c migrate_media_urls
+
+覆盖 `Profile.Picture`、`Entry.Thumbnails[].Url` 与 `Entry.Thumbnails[].Link`（模板
+渲染媒体块的 `<a href>`），以及 `Entry.Body`/`RawBody` 内嵌的媒体 URL（`<img src>`
+与媒体链接均处理，外部链接不动）。已退役 host 一律改写为
+`https://m.friendfeed.me` 且对象路径不变（serving 契约见 conf/nginx_media.conf）：
+`storage.googleapis.com/lastff01/*`、`m.friendfeed-media.com`、`i.friendfeed.com`、
+`friendfeed-media.com`；`http://m.friendfeed.me` 会被升级为 https。`Entry.Files`
+暂不迁移。命令只改 DB、不搬运对象；执行前应确认媒体目录中对象实际存在。
 
 ## EntryIndex 44 B 格式迁移
 

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,29 +106,56 @@ type mediaURLMigrationStats struct {
 	profiles   int
 	entries    int
 	thumbnails int
+	links      int
+	bodies     int
 }
 
+// mediaOrigin is the canonical public media origin (media.defaultMediaBaseURL,
+// conf/nginx_media.conf). Legacy media URLs are rewritten onto it with the
+// object path preserved: the origin serves the path verbatim from disk.
+const mediaOrigin = "https://m.friendfeed.me"
+
+// mediaURLRewrites maps legacy media URL prefixes to the current origin,
+// first match wins. All rewrites upgrade to https. The GCS rules include the
+// bucket name because objects lived at the bucket root.
+var mediaURLRewrites = []struct{ old, new string }{
+	{"https://storage.googleapis.com/lastff01/", mediaOrigin + "/"},
+	{"http://storage.googleapis.com/lastff01/", mediaOrigin + "/"},
+	{"https://m.friendfeed-media.com/", mediaOrigin + "/"},
+	{"http://m.friendfeed-media.com/", mediaOrigin + "/"},
+	{"https://i.friendfeed.com/", mediaOrigin + "/"},
+	{"http://i.friendfeed.com/", mediaOrigin + "/"},
+	{"https://friendfeed-media.com/", mediaOrigin + "/"},
+	{"http://friendfeed-media.com/", mediaOrigin + "/"},
+	// Scheme self-repair for URLs migrated before https was enforced.
+	{"http://m.friendfeed.me/", mediaOrigin + "/"},
+}
+
+// migrateMediaURL rewrites one legacy media URL. The scheme/host prefix match
+// is case-insensitive; the object path is preserved byte-for-byte.
 func migrateMediaURL(rawURL string) (string, bool) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return rawURL, false
-	}
-
-	switch strings.ToLower(parsed.Hostname()) {
-	case "storage.googleapis.com":
-		const bucketPrefix = "/lastff01/"
-		if !strings.HasPrefix(parsed.Path, bucketPrefix) {
-			return rawURL, false
+	lower := strings.ToLower(rawURL)
+	for _, rule := range mediaURLRewrites {
+		if strings.HasPrefix(lower, rule.old) {
+			return rule.new + rawURL[len(rule.old):], true
 		}
-		parsed.Path = "/" + strings.TrimPrefix(parsed.Path, bucketPrefix)
-	case "m.friendfeed-media.com":
-		// The object path and URL scheme are already correct for R2.
-	default:
-		return rawURL, false
 	}
+	return rawURL, false
+}
 
-	parsed.Host = "m.friendfeed.me"
-	return parsed.String(), true
+// migrateMediaText rewrites legacy media URLs embedded in a larger text:
+// entry bodies are sanitized HTML fragments whose <img src> may point at
+// legacy hosts. Matching is exact and lowercase, which is how archived
+// fragments store URLs.
+func migrateMediaText(text string) (string, bool) {
+	changed := false
+	for _, rule := range mediaURLRewrites {
+		if strings.Contains(text, rule.old) {
+			text = strings.ReplaceAll(text, rule.old, rule.new)
+			changed = true
+		}
+	}
+	return text, changed
 }
 
 func migrateMediaURLs(db *store.Store, dryRun bool) (mediaURLMigrationStats, error) {
@@ -176,6 +202,26 @@ func migrateMediaURLs(db *store.Store, dryRun bool) (mediaURLMigrationStats, err
 				stats.thumbnails++
 				changed = true
 			}
+			// Link is the media page the thumbnail points at; templates render
+			// it as the <a href> wrapping the image. External links never match
+			// the retired-host table and pass through unchanged.
+			if migrated, ok := migrateMediaURL(thumbnail.Link); ok {
+				thumbnail.Link = migrated
+				stats.links++
+				changed = true
+			}
+		}
+		// Bodies are sanitized HTML fragments that embed media URLs directly
+		// (e.g. <img src="http://i.friendfeed.com/...">).
+		if body, ok := migrateMediaText(entry.Body); ok {
+			entry.Body = body
+			stats.bodies++
+			changed = true
+		}
+		if rawBody, ok := migrateMediaText(entry.RawBody); ok {
+			entry.RawBody = rawBody
+			stats.bodies++
+			changed = true
 		}
 		if !changed {
 			return nil
@@ -610,7 +656,8 @@ func runMigrateMediaURLsCommand(ndb *store.Store) {
 			log.Fatalf("flush database: %v", err)
 		}
 	}
-	log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, dry-run=%t", stats.profiles, stats.entries, stats.thumbnails, dryRun)
+	log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, %d links, %d bodies, dry-run=%t",
+		stats.profiles, stats.entries, stats.thumbnails, stats.links, stats.bodies, dryRun)
 }
 
 func runBackfillActorUUIDsCommand(ndb *store.Store) {

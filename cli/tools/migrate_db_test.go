@@ -253,10 +253,46 @@ func TestMigrateMediaURL(t *testing.T) {
 		{
 			name: "legacy thumbnail host",
 			in:   "http://m.friendfeed-media.com/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
-			want: "http://m.friendfeed.me/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
+			want: "https://m.friendfeed.me/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
+			ok:   true,
+		},
+		{
+			name: "friendfeed image CDN",
+			in:   "http://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188",
+			want: "https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188",
+			ok:   true,
+		},
+		{
+			name: "friendfeed image CDN https",
+			in:   "https://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188",
+			want: "https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188",
+			ok:   true,
+		},
+		{
+			name: "bare friendfeed-media host",
+			in:   "http://friendfeed-media.com/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
+			want: "https://m.friendfeed.me/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
+			ok:   true,
+		},
+		{
+			name: "GCS http",
+			in:   "http://storage.googleapis.com/lastff01/p-avatar-large",
+			want: "https://m.friendfeed.me/p-avatar-large",
+			ok:   true,
+		},
+		{
+			name: "GCS other bucket untouched",
+			in:   "https://storage.googleapis.com/otherbucket/p-avatar-large",
+			want: "https://storage.googleapis.com/otherbucket/p-avatar-large",
+		},
+		{
+			name: "scheme self-repair",
+			in:   "http://m.friendfeed.me/image.jpg",
+			want: "https://m.friendfeed.me/image.jpg",
 			ok:   true,
 		},
 		{name: "external image", in: "https://example.com/image.jpg", want: "https://example.com/image.jpg"},
+		{name: "twitter CDN untouched", in: "http://pbs.twimg.com/media/ABC.jpg", want: "http://pbs.twimg.com/media/ABC.jpg"},
 		{name: "already migrated", in: "https://m.friendfeed.me/image.jpg", want: "https://m.friendfeed.me/image.jpg"},
 	}
 
@@ -267,6 +303,39 @@ func TestMigrateMediaURL(t *testing.T) {
 				t.Fatalf("migrateMediaURL(%q) = %q, %t; want %q, %t", tt.in, got, ok, tt.want, tt.ok)
 			}
 		})
+	}
+}
+
+func TestMigrateMediaText(t *testing.T) {
+	// Image URLs on retired hosts are rewritten; external links are not.
+	body := `<div class="media"><a href="http://online.wsj.com/article/SB124535285705228571.html" aria-label="Open media"><img alt="" src="http://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188" style="width: 262px; height: 174px;"></a></div>`
+	got, ok := migrateMediaText(body)
+	if !ok {
+		t.Fatal("expected body to be rewritten")
+	}
+	if !strings.Contains(got, `src="https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188"`) {
+		t.Fatalf("image src not migrated: %q", got)
+	}
+	if !strings.Contains(got, `href="http://online.wsj.com/article/SB124535285705228571.html"`) {
+		t.Fatalf("external link was changed: %q", got)
+	}
+
+	// Media links on the retired friendfeed-media host are rewritten too, and
+	// already-migrated http URLs are upgraded to https.
+	linked := `<div class="media"><a href="http://m.friendfeed-media.com/07a1ee699cef1999e03bcbaaec661ef77ac8852d" aria-label="Open media"><img alt="" src="http://m.friendfeed.me/46b97c2da4b7596dfb4f78613d65080cbdca2439" style="width: 405px; height: 175px;"></a></div>`
+	got, ok = migrateMediaText(linked)
+	if !ok {
+		t.Fatal("expected linked media body to be rewritten")
+	}
+	if !strings.Contains(got, `href="https://m.friendfeed.me/07a1ee699cef1999e03bcbaaec661ef77ac8852d"`) {
+		t.Fatalf("media link not migrated: %q", got)
+	}
+	if !strings.Contains(got, `src="https://m.friendfeed.me/46b97c2da4b7596dfb4f78613d65080cbdca2439"`) {
+		t.Fatalf("image src not upgraded to https: %q", got)
+	}
+
+	if _, ok := migrateMediaText(`<p>plain text</p>`); ok {
+		t.Fatal("plain text should not be rewritten")
 	}
 }
 
@@ -289,9 +358,11 @@ func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
 	entry := &pb.Entry{
 		Id: entryID.String(),
 		Thumbnails: []*pb.Thumbnail{
-			{Url: "http://m.friendfeed-media.com/thumbnail"},
+			{Url: "http://m.friendfeed-media.com/thumbnail",
+				Link: "http://m.friendfeed-media.com/07a1ee699cef1999e03bcbaaec661ef77ac8852d"},
 			{Url: "https://example.com/external.jpg"},
 		},
+		Body: `<div class="media"><a href="http://online.wsj.com/article/SB124535285705228571.html" aria-label="Open media"><img alt="" src="http://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188" style="width: 262px; height: 174px;"></a></div>`,
 	}
 	if _, err := model.Entry.Put(db, entryID.Bytes(), entry); err != nil {
 		t.Fatal(err)
@@ -301,7 +372,8 @@ func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dryStats.profiles != 1 || dryStats.entries != 1 || dryStats.thumbnails != 1 {
+	if dryStats.profiles != 1 || dryStats.entries != 1 || dryStats.thumbnails != 1 ||
+		dryStats.links != 1 || dryStats.bodies != 1 {
 		t.Fatalf("unexpected dry-run stats: %+v", dryStats)
 	}
 	unchanged, err := model.GetProfileFromUuid(db, profileID)
@@ -330,11 +402,20 @@ func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := migratedEntry.Thumbnails[0].Url; got != "http://m.friendfeed.me/thumbnail" {
+	if got := migratedEntry.Thumbnails[0].Url; got != "https://m.friendfeed.me/thumbnail" {
 		t.Fatalf("unexpected thumbnail URL: %q", got)
+	}
+	if got := migratedEntry.Thumbnails[0].Link; got != "https://m.friendfeed.me/07a1ee699cef1999e03bcbaaec661ef77ac8852d" {
+		t.Fatalf("unexpected thumbnail link: %q", got)
 	}
 	if got := migratedEntry.Thumbnails[1].Url; got != "https://example.com/external.jpg" {
 		t.Fatalf("external thumbnail was changed: %q", got)
+	}
+	if !strings.Contains(migratedEntry.Body, `src="https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188"`) {
+		t.Fatalf("body image not migrated: %q", migratedEntry.Body)
+	}
+	if !strings.Contains(migratedEntry.Body, "http://online.wsj.com/") {
+		t.Fatalf("body external link was changed: %q", migratedEntry.Body)
 	}
 }
 
