@@ -157,12 +157,7 @@ func (s *ApiServer) SetFeedServiceEnabled(ctx context.Context, request *pb.SetFe
 	if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
-	var binding *pb.FeedService
-	err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
-		var stageErr error
-		binding, stageErr = model.StageSetFeedServiceEnabled(s.rdb, batch, target, request.ServiceId, request.Enabled)
-		return stageErr
-	})
+	binding, err := model.SetFeedServiceEnabled(s.rdb, target, request.ServiceId, request.Enabled)
 	if err != nil {
 		return nil, taskRPCError(err)
 	}

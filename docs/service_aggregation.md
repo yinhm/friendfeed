@@ -161,6 +161,9 @@ feed_service.seed { service_uuid, target_feed_uuid, service_id }
 - Task 是 at-least-once；抓取、Entry 写入和状态推进都必须可重试。
 - 全局抓取并发和 per-host 并发由 handler pool 控制；ServiceState 的 ETag、退避和
   `next_fetch` 不复制到 Task。
+- 单次抓取必须尝试全部 binding，不能让列表中第一个投递错误阻止后续健康目标。目标 Profile
+  已删除或不存在属于失效配置：原子 disable FeedService 并移除 ServiceFeedIndex 后继续；
+  其他写入错误汇总并使 Task 重试，不能自动停用。
 
 成功无新内容时自适应放慢，默认从 30 分钟逐步增加到 24 小时；短期网络/5xx 由 Task
 Fail 重试，只有该 Task 最终失败时才推进 ServiceState 的长期失败退避。404/410 可在连续

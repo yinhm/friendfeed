@@ -298,6 +298,16 @@ func StageSetFeedServiceEnabled(db *store.Store, batch *pebble.Batch, target uui
 	return binding, nil
 }
 
+func SetFeedServiceEnabled(db *store.Store, target uuid.UUID, serviceID string, enabled bool) (*pb.FeedService, error) {
+	var binding *pb.FeedService
+	err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		var stageErr error
+		binding, stageErr = StageSetFeedServiceEnabled(db, batch, target, serviceID, enabled)
+		return stageErr
+	})
+	return binding, err
+}
+
 func UpdateFeedServiceName(db *store.Store, target uuid.UUID, serviceID, name string) (*pb.FeedService, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {

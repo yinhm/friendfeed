@@ -132,7 +132,7 @@ message TaskCompletion {
 `max_attempts`、backoff、lease duration 不接受生产者自定义，来自服务端 type registry。
 Task 主记录的 state 与索引不一致属于数据损坏，运行路径返回明确错误，audit 给出修复
 建议；不能静默猜测状态。若损坏 Task 位于某 type 的队头，后续 claim 会持续明确失败，
-包含该 type 的整次多类型 claim 会持续明确失败；由 audit/reconcile 隔离或修复该记录
+包含该 type 的整次多类型 claim 会持续明确失败；由 audit 定位后按本节 runbook 恢复
 后恢复消费。选择 loud failure 是为了防止跳过损坏后继续执行造成顺序和状态误判。
 
 ## 类型注册表
@@ -248,7 +248,7 @@ Task；完成或 DEAD 后 Idem 被删除，之后允许重新入队。它不是�
 副作用仍由 handler 的 canonical key 保证幂等。
 
 发现 Idem 指向不存在的 Task 时视为孤儿：普通 enqueue 返回数据损坏错误，不在业务
-请求中静默修复；audit/reconcile 工具负责清理。
+请求中静默修复；当前 audit 只诊断、不猜测修复。
 
 ## 与业务写原子提交（outbox）
 
@@ -296,13 +296,18 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
 - handler 必须先完成所有 FeedService 的幂等 Entry 投递并提交新的 ServiceState，
   再 Complete Task。若提交后进程
   崩溃，lease 重派会由最新 State/Entry identity 识别为重复执行。
-- 尚有队列重试次数的短期传输错误只调用 Fail，不推进业务 `next_fetch`；最后一次允许的
-  执行失败时，handler 先更新 ServiceState 的失败计数与下一轮业务调度时间，再
+- 尚有队列重试次数的短期远程抓取错误只调用 Fail，不推进业务 `next_fetch`；最后一次允许
+  的远程抓取仍失败时，handler 先更新 ServiceState 的失败计数与下一轮业务调度时间，再
   Fail 进入 DEAD。若更新 State 后崩溃，重派 handler 看到已推进的 State 后幂等 Complete。
-  ETag、HTTP 状态和长期失败退避始终只属于 ServiceState，不能产生两套真相。
+  binding 投递错误不是来源抓取失败：handler 尝试全部 binding 后汇总返回，且不推进共享
+  ServiceState；目标已删除的 binding 自动 disable，其他持久错误保持 loud failure 并会在来源
+  仍到期时再次调度。ETag、HTTP 状态和长期失败退避始终只属于 ServiceState，不能产生两套真相。
 - 首版 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
   多进程 RSS worker 前必须增加跨 worker 的 host 并发方案；进程内 mutex 不能冒充
   分布式互斥。
+- 同一 Service 的 ServiceState 读改写目前也依赖这条单进程、per-host 串行边界。修改
+  host 锁粒度或开放第二个 worker 进程前，必须先引入按 Service UUID 的持久化 lease/CAS，
+  不能把内存 mutex 当作数据层并发契约。
 
 ## Reaper、关停与重启
 
@@ -332,8 +337,15 @@ audit 至少验证：
 - `tools -c purge_task_done -before RFC3339 -dry-run` 先计数；去掉 dry-run 后以相同
   cutoff 做 RangeDelete。没有隐式 retention，操作者必须明确给出边界。
 
-Done 由显式时间 cutoff 裁剪，扫描与输出有界。日志只记录 task id、type、worker、
+Done 由显式时间 cutoff 裁剪。list/inspect 的输出和内存有界，但检查稀疏 DEAD 或按 task ID
+查 Done 的扫描时间可能随 TaskDone 总量增长；运维必须定期以明确 cutoff 执行 purge。日志只记录 task id、type、worker、
 耗时和截断错误；不得记录 payload、正文或凭据。
+
+损坏 Task/Ready/Lease/Idem 行采取 loud-failure：停止 ffdb，对数据库做一致性备份，再在副本
+运行 `audit_store` 和 `inspect_task` 保存证据。当前没有自动 reconcile 命令；无法由主记录和
+索引唯一确定正确状态时必须从备份恢复，不能直接用 Pebble 工具猜测删 key。确需原地修复时，
+应针对已确认的不变量新增带 dry-run、精确 task ID 和回归测试的一次性命令，验证副本后再操作
+停服目录。
 
 ## 分阶段实施
 
@@ -357,11 +369,12 @@ Done 由显式时间 cutoff 裁剪，扫描与输出有界。日志只记录 tas
 
 - Service/State 调度只 enqueue 有 binding 的 due service；handler 按上述一致性规则执行。
 - 验证重复执行、状态更新后崩溃、无 binding、条件 GET、SSRF 和 host 串行。
-- legacy `RefetchJobTicker` 已停止启动，但保留旧符号和 RPC。
+- legacy `RefetchJobTicker` 继续为 Twitter FeedJob 表 200-202 和 FeedAgent 服务；它与
+  Service/RSS Task 并行运行。只有 Twitter 生产链路另行迁移并验收后才能退役。
 
 ### M4：运维闭环
 
-- audit、list、replay-dead、Done retention/reconcile。
+- audit、list、replay-dead 和 Done retention；首版不提供会猜测状态的自动 reconcile。
 - 运维状态由 `audit_store` 与有界 `list_tasks` 查看；需要常驻 metrics 时另行设计，
   不在首版伪造一套未消费的指标。
 

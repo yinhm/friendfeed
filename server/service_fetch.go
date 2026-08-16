@@ -236,26 +236,44 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 				return err
 			}
 		}
+		var deliveryErrors []error
 		for _, ref := range bindings {
 			binding, err := model.GetFeedService(s.rdb, ref.TargetFeedUUID, ref.ServiceID)
 			if errors.Is(err, model.ErrNotFound) {
 				continue
 			}
 			if err != nil {
-				return err
+				deliveryErrors = append(deliveryErrors, fmt.Errorf("load FeedService %s/%s: %w", ref.TargetFeedUUID, ref.ServiceID, err))
+				continue
 			}
 			if !binding.Enabled || binding.ServiceUuid != serviceID.String() {
+				continue
+			}
+			if _, err := model.GetProfileFromUuid(s.rdb, ref.TargetFeedUUID); err != nil {
+				if errors.Is(err, model.ErrNotFound) || errors.Is(err, model.ErrProfileDeleted) {
+					if _, disableErr := model.SetFeedServiceEnabled(s.rdb, ref.TargetFeedUUID, ref.ServiceID, false); disableErr != nil && !errors.Is(disableErr, model.ErrNotFound) {
+						deliveryErrors = append(deliveryErrors, fmt.Errorf("disable stale FeedService %s/%s: %w", ref.TargetFeedUUID, ref.ServiceID, disableErr))
+					} else {
+						slog.Warn("disabled FeedService for missing target", "service_uuid", serviceID, "target_feed_uuid", ref.TargetFeedUUID, "service_id", ref.ServiceID)
+					}
+					continue
+				}
+				deliveryErrors = append(deliveryErrors, fmt.Errorf("load FeedService target %s: %w", ref.TargetFeedUUID, err))
 				continue
 			}
 			if result.feed != nil && strings.TrimSpace(result.feed.Title) != "" {
 				binding, err = model.UpdateFeedServiceName(s.rdb, ref.TargetFeedUUID, ref.ServiceID, result.feed.Title)
 				if err != nil {
-					return err
+					deliveryErrors = append(deliveryErrors, fmt.Errorf("update FeedService %s/%s title: %w", ref.TargetFeedUUID, ref.ServiceID, err))
+					continue
 				}
 			}
 			if err := s.importServiceItems(ctx, service, binding, ref.TargetFeedUUID, result.feed, now); err != nil {
-				return err
+				deliveryErrors = append(deliveryErrors, fmt.Errorf("deliver Service %s to %s/%s: %w", serviceID, ref.TargetFeedUUID, ref.ServiceID, err))
 			}
+		}
+		if len(deliveryErrors) != 0 {
+			return errors.Join(deliveryErrors...)
 		}
 	}
 	state.LastFetchMs = now.UnixMilli()
