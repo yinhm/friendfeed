@@ -11,6 +11,7 @@
   - `TableUserRenameMap = 7`，编码为 `old_id -> 16-byte user UUID`。
   - `TableTimelineIndex = 108`、`TableTimelinePosition = 109`、`TableTimelineState = 110` 及其 key/value 编码。
   - FeedService 表 101、Service 表 111-113 与 Task 表 203-207 的表号及相关设计文档所列编码。
+  - `TableGroupAdmin = 114` 预留；LikeTimeline/CommentTimeline/CommentTimelinePosition 固定为 115/116/117，编码见 `docs/feed.md`。
   - Entry 与 EntryIndex 中的 Entry key 固定为 `4-byte table prefix + 16-byte raw UUID`，不得写 UUID/hex 字符串。
 - 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/client.py` 的 `get_ohlcs/adjust`、`twitter/config.py` 的 `zh_names` 和 Fabric task。
 - `model/feed.go` 的旧 Feedinfo、`UserMap` 仍用于迁移，不按运行时零引用删除。所有 iterator 必须关闭。

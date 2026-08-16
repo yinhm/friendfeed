@@ -37,6 +37,7 @@ service Api {
   rpc ForceArchiveFeed(stream Entry) returns (FeedSummary) {}
 
   rpc FetchFeed(FeedRequest) returns (Feed) {}
+  rpc FetchInteractionFeed(InteractionFeedRequest) returns (InteractionFeedResponse) {}
 
   // Entry page return Feed as well
   rpc FetchEntry(EntryRequest) returns (Feed) {}
@@ -269,6 +270,32 @@ message FeedRequest {
   // historical behavior. Cursor values are opaque to clients.
   string cursor = 8;
   bool cursor_paging = 9;
+}
+
+enum InteractionKind {
+  INTERACTION_KIND_UNSPECIFIED = 0;
+  INTERACTION_KIND_LIKE = 1;
+  INTERACTION_KIND_COMMENT = 2;
+}
+
+message InteractionFeedRequest {
+  string profile_uuid = 1;
+  InteractionKind kind = 2;
+  string cursor = 3;
+  int32 page_size = 4;
+  string viewer_uuid = 5;
+}
+
+message InteractionItem {
+  Entry entry = 1;
+  Like like = 2;
+  Comment latest_comment = 3;
+}
+
+message InteractionFeedResponse {
+  Profile profile = 1;
+  repeated InteractionItem items = 2;
+  string next_cursor = 3;
 }
 
 message EntryRequest {

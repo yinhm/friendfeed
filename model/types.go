@@ -45,6 +45,10 @@ const (
 	TableService          store.KeyPrefix = 111
 	TableServiceState     store.KeyPrefix = 112
 	TableServiceFeedIndex store.KeyPrefix = 113
+	// 114 is reserved for TableGroupAdmin by docs/group.md.
+	TableLikeTimeline            store.KeyPrefix = 115
+	TableCommentTimeline         store.KeyPrefix = 116
+	TableCommentTimelinePosition store.KeyPrefix = 117
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -70,13 +74,16 @@ var (
 	// Feed = NewTable(KeyPrefixToBytes(TableFeed))
 	// TODO:
 	// Feedinfo should be generated from Profile and Feed?
-	Feedinfo      = NewTable(KeyPrefixToBytes(TableFeedinfo))
-	Entry         = NewTable(KeyPrefixToBytes(TableEntry))
-	Tweet         = NewTable(KeyPrefixToBytes(TableTweet))
-	EntryIndex    = NewTable(KeyPrefixToBytes(TableEntryIndex))
-	UserMap       = NewTable(KeyPrefixToBytes(TableUserMap))
-	UserRenameMap = NewTable(KeyPrefixToBytes(TableUserRenameMap))
-	Profile       = NewTable(KeyPrefixToBytes(TableProfile))
+	Feedinfo                = NewTable(KeyPrefixToBytes(TableFeedinfo))
+	Entry                   = NewTable(KeyPrefixToBytes(TableEntry))
+	Tweet                   = NewTable(KeyPrefixToBytes(TableTweet))
+	EntryIndex              = NewTable(KeyPrefixToBytes(TableEntryIndex))
+	UserMap                 = NewTable(KeyPrefixToBytes(TableUserMap))
+	UserRenameMap           = NewTable(KeyPrefixToBytes(TableUserRenameMap))
+	Profile                 = NewTable(KeyPrefixToBytes(TableProfile))
+	LikeTimeline            = NewTable(KeyPrefixToBytes(TableLikeTimeline))
+	CommentTimeline         = NewTable(KeyPrefixToBytes(TableCommentTimeline))
+	CommentTimelinePosition = NewTable(KeyPrefixToBytes(TableCommentTimelinePosition))
 
 	FeedService      = NewTable(KeyPrefixToBytes(TableFeedService))
 	Follow           = NewTable(KeyPrefixToBytes(TableFollow))
