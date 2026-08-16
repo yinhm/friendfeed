@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
 
@@ -24,71 +28,81 @@ func main() {
 	log.Println("Starting Group audit checks...")
 
 	issues := 0
-	issues += auditAdminNonMembers(context.Background(), db)
-	issues += auditGroupsWithoutAdmins(context.Background(), db)
-	issues += auditOrphanedMemberships(context.Background(), db)
-	issues += auditDeletedGroupResiduals(context.Background(), db)
+	issues += len(auditAdminNonMembers(context.Background(), db))
+	issues += len(auditGroupsWithoutAdmins(context.Background(), db))
+	issues += len(auditOrphanedMemberships(context.Background(), db))
+	issues += len(auditUnpairedMemberships(context.Background(), db))
+	issues += len(auditDeletedGroupResiduals(context.Background(), db))
 
 	if issues == 0 {
 		log.Println("✓ All audit checks passed")
 	} else {
 		log.Printf("✗ Found %d issue(s)", issues)
+		os.Exit(1)
 	}
 }
 
+// getRawProfile reads the Profile row directly, bypassing GetProfileFromUuid
+// so that soft-deleted profiles are distinguishable from missing ones.
+func getRawProfile(db *store.Store, profileUUID uuid.UUID) (*pb.Profile, error) {
+	profile := new(pb.Profile)
+	if err := model.Profile.Get(db, profileUUID.Bytes(), profile); err != nil {
+		return nil, err
+	}
+	return profile, nil
+}
+
 // auditAdminNonMembers checks for GroupAdmin entries where the admin is not a member
-func auditAdminNonMembers(ctx context.Context, db *store.Store) int {
+func auditAdminNonMembers(ctx context.Context, db *store.Store) []string {
 	log.Println("Checking for admins who are not members...")
-	issues := 0
+	var issues []string
 
 	// Scan all GroupAdmin entries
 	prefix := model.NewKeyFrom(model.GroupAdmin.Prefix)
 	_, err := db.ForwardScan(prefix, func(_ int, key, value []byte) error {
 		// Parse GroupAdmin key: prefix + groupUUID(16) + userUUID(16)
 		if len(key) < len(prefix)+32 {
-			log.Printf("  ✗ Malformed GroupAdmin key: too short")
-			issues++
+			issues = append(issues, "malformed GroupAdmin key: too short")
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 			return nil
 		}
 
 		groupUUID, err := uuid.FromBytes(key[len(prefix) : len(prefix)+16])
 		if err != nil {
-			log.Printf("  ✗ Malformed GroupAdmin group UUID: %v", err)
-			issues++
+			issues = append(issues, "malformed GroupAdmin group UUID: "+err.Error())
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 			return nil
 		}
 
 		userUUID, err := uuid.FromBytes(key[len(prefix)+16 : len(prefix)+32])
 		if err != nil {
-			log.Printf("  ✗ Malformed GroupAdmin user UUID: %v", err)
-			issues++
+			issues = append(issues, "malformed GroupAdmin user UUID: "+err.Error())
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 			return nil
 		}
 
-		// Check if corresponding Follow edge exists (group -> user)
-		followKey := model.NewKeyFrom(model.Follow.Prefix, groupUUID.Bytes(), userUUID.Bytes())
-		exists, err := db.Exists(followKey)
+		// Membership is the Follow edge user -> group (see model.IsGroupMember).
+		isMember, err := model.IsGroupMember(db, groupUUID, userUUID)
 		if err != nil {
-			log.Printf("  ✗ Error checking membership for admin %s in group %s: %v",
-				userUUID, groupUUID, err)
-			issues++
+			issues = append(issues, "error checking membership for admin "+userUUID.String()+" in group "+groupUUID.String()+": "+err.Error())
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 			return nil
 		}
 
-		if !exists {
-			log.Printf("  ✗ Admin %s is not a member of group %s", userUUID, groupUUID)
-			issues++
+		if !isMember {
+			issues = append(issues, "admin "+userUUID.String()+" is not a member of group "+groupUUID.String())
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		log.Printf("  ✗ Error scanning GroupAdmin: %v", err)
-		issues++
+		issues = append(issues, "error scanning GroupAdmin: "+err.Error())
+		log.Printf("  ✗ %s", issues[len(issues)-1])
 	}
 
-	if issues == 0 {
+	if len(issues) == 0 {
 		log.Println("  ✓ No orphaned admins found")
 	}
 
@@ -96,9 +110,9 @@ func auditAdminNonMembers(ctx context.Context, db *store.Store) int {
 }
 
 // auditGroupsWithoutAdmins checks for groups that have no admins
-func auditGroupsWithoutAdmins(ctx context.Context, db *store.Store) int {
+func auditGroupsWithoutAdmins(ctx context.Context, db *store.Store) []string {
 	log.Println("Checking for groups without admins...")
-	issues := 0
+	var issues []string
 
 	// Scan all Profile entries with type="group"
 	prefix := model.NewKeyFrom(model.Profile.Prefix)
@@ -130,36 +144,38 @@ func auditGroupsWithoutAdmins(ctx context.Context, db *store.Store) int {
 		})
 		if err != nil {
 			if scanErr, ok := err.(*store.Error); !ok || scanErr.Code != store.StopIteration {
-				log.Printf("  ✗ Error scanning admins for group %s: %v", profileUUID, err)
-				issues++
+				issues = append(issues, "error scanning admins for group "+profileUUID.String()+": "+err.Error())
+				log.Printf("  ✗ %s", issues[len(issues)-1])
 				return nil
 			}
 		}
 
 		if !hasAdmin {
-			log.Printf("  ✗ Group %s (%s) has no admins", profileUUID, profile.Name)
-			issues++
+			issues = append(issues, "group "+profileUUID.String()+" ("+profile.Name+") has no admins")
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		log.Printf("  ✗ Error scanning profiles: %v", err)
-		issues++
+		issues = append(issues, "error scanning profiles: "+err.Error())
+		log.Printf("  ✗ %s", issues[len(issues)-1])
 	}
 
-	if issues == 0 {
+	if len(issues) == 0 {
 		log.Println("  ✓ All groups have at least one admin")
 	}
 
 	return issues
 }
 
-// auditOrphanedMemberships checks for Follow edges to deleted groups
-func auditOrphanedMemberships(ctx context.Context, db *store.Store) int {
+// auditOrphanedMemberships checks for Follow edges pointing to missing or
+// deleted group profiles. The raw Profile read distinguishes soft-deleted
+// rows from truly absent ones.
+func auditOrphanedMemberships(ctx context.Context, db *store.Store) []string {
 	log.Println("Checking for orphaned memberships...")
-	issues := 0
+	var issues []string
 
 	// Scan all Follow edges
 	prefix := model.NewKeyFrom(model.Follow.Prefix)
@@ -178,42 +194,137 @@ func auditOrphanedMemberships(ctx context.Context, db *store.Store) int {
 			return nil
 		}
 
-		// Check if target profile exists
-		profile, err := model.GetProfileFromUuid(db, targetUUID)
+		// Check if target profile exists, including soft-deleted rows.
+		profile, err := getRawProfile(db, targetUUID)
 		if err != nil {
-			if err == store.ErrNotFound {
-				log.Printf("  ✗ Follow edge points to non-existent profile %s", targetUUID)
-				issues++
+			if errors.Is(err, model.ErrNotFound) {
+				issues = append(issues, "Follow edge points to non-existent profile "+targetUUID.String())
+				log.Printf("  ✗ %s", issues[len(issues)-1])
 			}
 			return nil
 		}
 
 		// Only flag if it's a deleted group
 		if profile.Type == "group" && profile.Deleted {
-			log.Printf("  ✗ Follow edge points to deleted group %s (%s)",
-				profile.Uuid, profile.Name)
-			issues++
+			issues = append(issues, "Follow edge points to deleted group "+profile.Uuid+" ("+profile.Name+")")
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		log.Printf("  ✗ Error scanning Follow edges: %v", err)
-		issues++
+		issues = append(issues, "error scanning Follow edges: "+err.Error())
+		log.Printf("  ✗ %s", issues[len(issues)-1])
 	}
 
-	if issues == 0 {
+	if len(issues) == 0 {
 		log.Printf("  ✓ No orphaned memberships found (checked %d edges)", checked)
 	}
 
 	return issues
 }
 
-// auditDeletedGroupResiduals checks for GroupAdmin entries for deleted groups
-func auditDeletedGroupResiduals(ctx context.Context, db *store.Store) int {
+// auditUnpairedMemberships checks that every membership edge to a live group
+// exists in both directions: Follow(user -> group) must pair with
+// Follower(group -> user) and vice versa. A one-sided edge is reported once,
+// from whichever side exists.
+func auditUnpairedMemberships(ctx context.Context, db *store.Store) []string {
+	log.Println("Checking for unpaired memberships...")
+	var issues []string
+
+	report := func(format string, args ...interface{}) {
+		issues = append(issues, fmt.Sprintf(format, args...))
+		log.Printf("  ✗ %s", issues[len(issues)-1])
+	}
+
+	// isLiveGroup reports whether uuid is an existing, non-deleted group
+	// profile. Missing or deleted groups are skipped here; those residuals
+	// are covered by the orphaned-membership and deleted-group checks.
+	isLiveGroup := func(groupUUID uuid.UUID) bool {
+		profile, err := getRawProfile(db, groupUUID)
+		if err != nil {
+			return false
+		}
+		return profile.Type == "group" && !profile.Deleted
+	}
+
+	// Follow edges: prefix + userUUID(16) + groupUUID(16)
+	followPrefix := model.NewKeyFrom(model.Follow.Prefix)
+	_, err := db.ForwardScan(followPrefix, func(_ int, key, _ []byte) error {
+		if len(key) < len(followPrefix)+32 {
+			return nil
+		}
+		userUUID, err := uuid.FromBytes(key[len(followPrefix) : len(followPrefix)+16])
+		if err != nil {
+			return nil
+		}
+		groupUUID, err := uuid.FromBytes(key[len(followPrefix)+16 : len(followPrefix)+32])
+		if err != nil {
+			return nil
+		}
+		if !isLiveGroup(groupUUID) {
+			return nil
+		}
+		followerKey := model.NewKeyFrom(model.Follower.Prefix, groupUUID.Bytes(), userUUID.Bytes())
+		exists, err := db.Exists(followerKey)
+		if err != nil {
+			report("error checking Follower edge for user %s in group %s: %v", userUUID, groupUUID, err)
+			return nil
+		}
+		if !exists {
+			report("Follow edge user %s -> group %s has no matching Follower edge", userUUID, groupUUID)
+		}
+		return nil
+	})
+	if err != nil {
+		report("error scanning Follow edges: %v", err)
+	}
+
+	// Follower edges: prefix + groupUUID(16) + userUUID(16)
+	followerPrefix := model.NewKeyFrom(model.Follower.Prefix)
+	_, err = db.ForwardScan(followerPrefix, func(_ int, key, _ []byte) error {
+		if len(key) < len(followerPrefix)+32 {
+			return nil
+		}
+		groupUUID, err := uuid.FromBytes(key[len(followerPrefix) : len(followerPrefix)+16])
+		if err != nil {
+			return nil
+		}
+		userUUID, err := uuid.FromBytes(key[len(followerPrefix)+16 : len(followerPrefix)+32])
+		if err != nil {
+			return nil
+		}
+		if !isLiveGroup(groupUUID) {
+			return nil
+		}
+		followKey := model.NewKeyFrom(model.Follow.Prefix, userUUID.Bytes(), groupUUID.Bytes())
+		exists, err := db.Exists(followKey)
+		if err != nil {
+			report("error checking Follow edge for user %s in group %s: %v", userUUID, groupUUID, err)
+			return nil
+		}
+		if !exists {
+			report("Follower edge group %s -> user %s has no matching Follow edge", groupUUID, userUUID)
+		}
+		return nil
+	})
+	if err != nil {
+		report("error scanning Follower edges: %v", err)
+	}
+
+	if len(issues) == 0 {
+		log.Println("  ✓ All group memberships are paired")
+	}
+
+	return issues
+}
+
+// auditDeletedGroupResiduals checks for GroupAdmin entries whose group
+// profile is missing or soft-deleted.
+func auditDeletedGroupResiduals(ctx context.Context, db *store.Store) []string {
 	log.Println("Checking for deleted group residuals...")
-	issues := 0
+	var issues []string
 
 	// Scan all GroupAdmin entries
 	prefix := model.NewKeyFrom(model.GroupAdmin.Prefix)
@@ -228,31 +339,30 @@ func auditDeletedGroupResiduals(ctx context.Context, db *store.Store) int {
 			return nil
 		}
 
-		// Check if group profile exists and is not deleted
-		profile, err := model.GetProfileFromUuid(db, groupUUID)
+		// Raw read distinguishes a soft-deleted group from a missing one.
+		profile, err := getRawProfile(db, groupUUID)
 		if err != nil {
-			if err == store.ErrNotFound {
-				log.Printf("  ✗ GroupAdmin entry for non-existent group %s", groupUUID)
-				issues++
+			if errors.Is(err, model.ErrNotFound) {
+				issues = append(issues, "GroupAdmin entry for non-existent group "+groupUUID.String())
+				log.Printf("  ✗ %s", issues[len(issues)-1])
 			}
 			return nil
 		}
 
 		if profile.Deleted {
-			log.Printf("  ✗ GroupAdmin entry for deleted group %s (%s)",
-				profile.Uuid, profile.Name)
-			issues++
+			issues = append(issues, "GroupAdmin entry for deleted group "+profile.Uuid+" ("+profile.Name+")")
+			log.Printf("  ✗ %s", issues[len(issues)-1])
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		log.Printf("  ✗ Error scanning GroupAdmin: %v", err)
-		issues++
+		issues = append(issues, "error scanning GroupAdmin: "+err.Error())
+		log.Printf("  ✗ %s", issues[len(issues)-1])
 	}
 
-	if issues == 0 {
+	if len(issues) == 0 {
 		log.Println("  ✓ No deleted group residuals found")
 	}
 

@@ -1,67 +1,25 @@
-# Group Audit Tool
+# tools/audit
 
-This tool performs integrity checks on the Group-related data in the database to detect inconsistencies and data corruption.
+Group 领域的数据库完整性审计工具（docs/group.md 实施顺序第 8 步）。
 
-## Usage
+检查项：
 
-```bash
-go run ./tools/audit -data /path/to/database
-```
+1. **admin 非成员**：GroupAdmin 行对应的 Follow(user -> group) 成员边是否存在。
+2. **无 admin Group**：Type=group 且未删除的 profile 是否至少有一行 GroupAdmin。
+3. **孤儿 membership**：Follow 边指向不存在或已软删除的 group。
+4. **单边 membership**：指向存活 group 的 Follow(user -> group) 与 Follower(group -> user) 是否成对存在。
+5. **deleted Group 残留**：GroupAdmin 行指向不存在或已软删除的 group。
 
-Or build and run:
-
-```bash
-go build -o audit ./tools/audit
-./audit -data /srv/ffdb/data
-```
-
-## Checks Performed
-
-### 1. Admin Non-Members
-Detects GroupAdmin entries where the admin user is not a member of the group.
-- **Issue**: Admin exists but corresponding Follow edge is missing
-- **Expected**: Every admin must also be a member (Follow edge must exist)
-
-### 2. Groups Without Admins
-Detects groups that have no admin users.
-- **Issue**: Group exists but has zero GroupAdmin entries
-- **Expected**: Every group must have at least one admin
-
-### 3. Orphaned Memberships
-Detects Follow edges pointing to deleted or non-existent groups.
-- **Issue**: User has membership to a deleted/missing group
-- **Expected**: Follow edges should only point to active groups
-
-### 4. Deleted Group Residuals
-Detects GroupAdmin entries for groups that have been deleted.
-- **Issue**: GroupAdmin entry exists for a deleted group
-- **Expected**: When a group is deleted, all admin entries should be cleaned up
-
-## Exit Code
-
-- `0`: All checks passed, no issues found
-- Non-zero: Issues detected (see log output)
-
-## Example Output
+## 用法
 
 ```
-2026/08/16 19:30:00 Opening database at /srv/ffdb/data
-2026/08/16 19:30:00 Starting Group audit checks...
-2026/08/16 19:30:00 Checking for admins who are not members...
-2026/08/16 19:30:00   ✓ No orphaned admins found
-2026/08/16 19:30:00 Checking for groups without admins...
-2026/08/16 19:30:00   ✓ All groups have at least one admin
-2026/08/16 19:30:00 Checking for orphaned memberships...
-2026/08/16 19:30:00   ✓ No orphaned memberships found (checked 42 edges)
-2026/08/16 19:30:00 Checking for deleted group residuals...
-2026/08/16 19:30:00   ✓ No deleted group residuals found
-2026/08/16 19:30:00 ✓ All audit checks passed
+go run ./tools/audit -data /srv/ffdb/data
 ```
 
-## When to Run
+全部通过退出码为 0；发现任何 issue 退出码为 1。
 
-- After database migrations
-- After implementing new group features
-- Periodically as part of maintenance
-- When investigating data consistency issues
-- Before and after running data cleanup scripts
+## 已知噪音
+
+stock/系统 feed 也是 Type=group 且刻意没有成员/admin（见 docs/group.md
+差距清单），检查 2「无 admin Group」会报告它们。这是有意保留的现状，
+属可接受噪音，工具不加豁免逻辑。
