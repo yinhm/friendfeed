@@ -1,6 +1,7 @@
 package server
 
 import (
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -293,5 +294,20 @@ func TestRequestErrorReturnsRetryableTimelineInitialization(t *testing.T) {
 	}
 	if got := recorder.Header().Get("Refresh"); got != "2" {
 		t.Fatalf("Refresh = %q; want 2", got)
+	}
+}
+
+func TestRequestErrorReturnsForbiddenForPermissionDenied(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.SetHTMLTemplate(template.Must(template.New("403.html").Parse("forbidden")))
+	engine.GET("/private", func(ctx *gin.Context) {
+		RequestError(ctx, status.Error(codes.PermissionDenied, "private"))
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/private", nil)
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d; want %d", recorder.Code, http.StatusForbidden)
 	}
 }

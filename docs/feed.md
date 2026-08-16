@@ -80,7 +80,10 @@ Comment  (107): entry UUID | comment UUID -> pb.Comment
 `model/types.go`、`docs/database_design.md` 和根 `AGENTS.md` 登记最终表号与编码；三处未同步
 不得合并。
 
-`reverse_ms = ^uint64(created_at.UnixMilli())`，使 Pebble 前向扫描直接得到最新互动。Entry UUID
+`reverse_ms = ^uint64(created_at.UnixMilli())`，使 Pebble 前向扫描直接得到最新互动。运行时
+以 RFC3339Nano 保存截断到毫秒的服务端时间，使权威 Date 能精确重建排序 key；历史秒精度
+Date 继续兼容。同一 actor、Entry 若恰在同一毫秒产生多条 Comment，以 Comment UUID 字典序
+较大者作为折叠后的确定性最新项，运行时、rebuild 与 audit 使用同一规则。Entry UUID
 和 Comment UUID 都使用 raw 16 bytes，禁止写 UUID/hex 字符串。cursor 只编码表内位置后缀，
 服务端按当前 actor UUID 重建完整 seek key，不信任 cursor 携带身份。
 
@@ -184,7 +187,9 @@ rebuild_interaction_timelines [-user <profile-uuid>] [-dry-run]
   position；每批提交即清空，禁止按全表或完整 Entry 聚合；
 - `-user` 仍需扫描权威表，但只为指定 actor 生成索引，适合上线前小范围验证；
 - apply 使用小 batch 增量写入，重建前用对应派生表的 range delete 清理目标范围；
-- dry-run 输出 scanned/indexed/unresolved_actor/missing_date/invalid_entry/duplicates；
+- dry-run 输出 likes/comments、indexed_likes/indexed_comments、unresolved_actor 和
+  missing_date。孤儿 Entry、非法派生行和重复/不成对索引统一由 `audit_store` 的
+  interaction_orphans/interaction_mismatches 报告，rebuild 不重复维护第二套诊断口径；
 - 命令可重复执行，结果确定。
 
 `audit_store` 增加双向检查：权威互动缺 timeline、timeline/position 不成对、二者位置或最新

@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -40,10 +39,10 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 		} else if !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
-		// The authoritative protobuf stores RFC3339 seconds. Use the same
-		// precision in the derived key so delete/rebuild can reproduce it.
-		activity = time.Now().UTC().Truncate(time.Second)
-		like := &pb.Like{Date: activity.Format(time.RFC3339), From: from}
+		// The derived key has millisecond precision. Persist exactly that
+		// precision so delete/rebuild can reproduce it.
+		activity = time.Now().UTC().Truncate(time.Millisecond)
+		like := &pb.Like{Date: activity.Format(time.RFC3339Nano), From: from}
 		raw, err := proto.Marshal(like)
 		if err != nil {
 			return err
@@ -97,15 +96,17 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 		if err := proto.Unmarshal(raw, like); err != nil {
 			return err
 		}
+		if err := batch.Delete(dataKey, nil); err != nil {
+			return err
+		}
 		created, err := time.Parse(time.RFC3339, like.Date)
 		if err != nil {
-			return fmt.Errorf("parse like date: %w", err)
+			// Legacy malformed Likes never had a reproducible derived key.
+			// Removing the authoritative row must still remain possible.
+			return nil
 		}
 		indexKey, err := LikeTimelineKey(actorUUID, entryUUID, created)
 		if err != nil {
-			return err
-		}
-		if err := batch.Delete(dataKey, nil); err != nil {
 			return err
 		}
 		return batch.Delete(indexKey, nil)
@@ -151,10 +152,10 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 			comment = stored
 		} else if errors.Is(getErr, store.ErrNotFound) {
 			comment.From = from
-			// The authoritative protobuf stores RFC3339 seconds. Use the same
-			// precision in the derived key so delete/rebuild can reproduce it.
-			activity = time.Now().UTC().Truncate(time.Second)
-			comment.Date = activity.Format(time.RFC3339)
+			// The derived key has millisecond precision. Persist exactly that
+			// precision so delete/rebuild can reproduce it.
+			activity = time.Now().UTC().Truncate(time.Millisecond)
+			comment.Date = activity.Format(time.RFC3339Nano)
 			created = true
 		} else {
 			return getErr
@@ -171,9 +172,13 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 		}
 		positionKey := CommentTimelinePositionKey(actorUUID, entryUUID)
 		if oldRaw, err := db.Get(positionKey); err == nil {
-			oldTime, _, err := DecodeCommentTimelinePosition(oldRaw)
+			oldTime, oldComment, err := DecodeCommentTimelinePosition(oldRaw)
 			if err != nil {
 				return err
+			}
+			if activity.Before(oldTime) ||
+				(activity.Equal(oldTime) && commentUUID.String() <= oldComment.String()) {
+				return nil
 			}
 			oldKey, err := CommentTimelineKey(actorUUID, entryUUID, oldTime)
 			if err != nil {
@@ -320,7 +325,9 @@ func latestActorComment(db *store.Store, entry, actor, exclude uuid.UUID) (*pb.C
 		}
 		at, err := time.Parse(time.RFC3339, candidate.Date)
 		if err != nil {
-			return err
+			// A malformed legacy candidate cannot define a stable sorting
+			// position, but must not prevent deletion of a valid comment.
+			return nil
 		}
 		if best == nil || at.After(bestTime) || (at.Equal(bestTime) && id.String() > bestID.String()) {
 			best, bestTime, bestID = candidate, at, id

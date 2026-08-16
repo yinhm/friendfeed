@@ -482,6 +482,8 @@ func RequestError(c *gin.Context, err error) bool {
 			c.String(http.StatusServiceUnavailable, "Server busy, try later.")
 		} else if codes.NotFound == errStatus.Code() {
 			c.HTML(404, "404.html", pongo2.Context{})
+		} else if codes.PermissionDenied == errStatus.Code() {
+			c.HTML(http.StatusForbidden, "403.html", pongo2.Context{})
 		} else {
 			msg := "Server error."
 			c.String(http.StatusInternalServerError, msg)

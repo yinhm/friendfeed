@@ -75,6 +75,7 @@ func TestFetchCommentInteractionFeedReturnsLatestCommentOnly(t *testing.T) {
 	latest := uuid.Must(uuid.NewV4())
 	_, entry, err = model.PutComment(srv.rdb, profile, entry, &pb.Comment{Id: first.String(), Body: "first"})
 	require.NoError(t, err)
+	time.Sleep(2 * time.Millisecond)
 	_, _, err = model.PutComment(srv.rdb, profile, entry, &pb.Comment{Id: latest.String(), Body: "latest"})
 	require.NoError(t, err)
 

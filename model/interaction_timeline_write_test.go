@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestLikeMaintainsInteractionTimeline(t *testing.T) {
@@ -42,6 +43,7 @@ func TestCommentTimelineCollapsesEditsAndFallsBackOnDelete(t *testing.T) {
 
 	_, entry, err := PutComment(db, owner, entry, &pb.Comment{Id: firstID.String(), Body: "first"})
 	require.NoError(t, err)
+	time.Sleep(2 * time.Millisecond)
 	_, entry, err = PutComment(db, owner, entry, &pb.Comment{Id: secondID.String(), Body: "second"})
 	require.NoError(t, err)
 
@@ -74,6 +76,44 @@ func TestCommentTimelineCollapsesEditsAndFallsBackOnDelete(t *testing.T) {
 	_, err = db.Get(positionKey)
 	require.ErrorIs(t, err, store.ErrNotFound)
 	requireInteractionRowCount(t, db, CommentTimelinePrefix(likeTestOwnerUUID), 0)
+}
+
+func TestUnlikeRemovesLegacyLikeWithInvalidDate(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+	entry := newLikeTestEntry()
+	entryID := uuid.Must(uuid.FromString(entry.Id))
+	key := LikeKey(entryID, likeTestOwnerUUID)
+	raw, err := proto.Marshal(&pb.Like{Date: "", From: &pb.Feed{Uuid: owner.Uuid}})
+	require.NoError(t, err)
+	require.NoError(t, db.Put(key, raw))
+
+	_, err = DeleteLike(db, owner, entry)
+	require.NoError(t, err)
+	_, err = db.Get(key)
+	require.ErrorIs(t, err, store.ErrNotFound)
+}
+
+func TestDeleteLatestCommentSkipsLegacyFallbackWithInvalidDate(t *testing.T) {
+	db := likeTestDB(t)
+	owner := likeTestProfileFor("owner", likeTestOwnerUUID)
+	entry := newLikeTestEntry()
+	entryID := uuid.Must(uuid.FromString(entry.Id))
+	latestID := uuid.Must(uuid.NewV4())
+	legacyID := uuid.Must(uuid.NewV4())
+
+	_, entry, err := PutComment(db, owner, entry, &pb.Comment{Id: latestID.String(), Body: "latest"})
+	require.NoError(t, err)
+	legacy, err := proto.Marshal(&pb.Comment{
+		Id: legacyID.String(), Date: "", Body: "legacy", From: &pb.Feed{Uuid: owner.Uuid},
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.Put(CommentKey(entryID, legacyID), legacy))
+
+	_, err = DeleteComment(db, owner, entry, latestID.String())
+	require.NoError(t, err)
+	_, err = db.Get(CommentTimelinePositionKey(likeTestOwnerUUID, entryID))
+	require.ErrorIs(t, err, store.ErrNotFound)
 }
 
 func requireInteractionRowCount(t *testing.T, db *store.Store, prefix store.Key, want int) {

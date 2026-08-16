@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const interactionScanBudget = 300
+const minimumInteractionScanBudget = 300
 
 func interactionCursor(key, prefix store.Key) string {
 	if !bytes.HasPrefix(key, prefix) || len(key)-len(prefix) != feedCursorPositionSize {
@@ -63,6 +63,10 @@ func (s *ApiServer) FetchInteractionFeed(ctx context.Context, req *pb.Interactio
 	if pageSize > 100 {
 		pageSize = 100
 	}
+	scanBudget := pageSize * 10
+	if scanBudget < minimumInteractionScanBudget {
+		scanBudget = minimumInteractionScanBudget
+	}
 	var prefix store.Key
 	switch req.Kind {
 	case pb.InteractionKind_INTERACTION_KIND_LIKE:
@@ -94,7 +98,7 @@ func (s *ApiServer) FetchInteractionFeed(ctx context.Context, req *pb.Interactio
 	resolver := newProfileResolver(s.mdb)
 	scanned := 0
 	var lastScanned store.Key
-	for iter.Valid() && len(items) <= pageSize && scanned < interactionScanBudget {
+	for iter.Valid() && len(items) <= pageSize && scanned < scanBudget {
 		scanned++
 		key := iter.Key()
 		lastScanned = key
@@ -169,7 +173,7 @@ func (s *ApiServer) FetchInteractionFeed(ctx context.Context, req *pb.Interactio
 		response.NextCursor = interactionCursor(keys[pageSize-1], prefix)
 	} else {
 		response.Items = items
-		if scanned >= interactionScanBudget && iter.Valid() {
+		if scanned >= scanBudget && iter.Valid() {
 			response.NextCursor = interactionCursor(lastScanned, prefix)
 		}
 	}
