@@ -21,6 +21,13 @@ import (
 // super may manage members/admins. It reads the GroupAdmin table directly,
 // the sole authoritative admin-role source.
 func (s *ApiServer) authorizeGroupManage(actor, group uuid.UUID) error {
+	groupProfile, err := model.GetProfileFromUuid(s.rdb, group)
+	if err != nil {
+		return err
+	}
+	if groupProfile.Type != "group" {
+		return errors.New("target profile is not a Group")
+	}
 	actorProfile, err := model.GetProfileFromUuid(s.rdb, actor)
 	if err != nil {
 		return err
@@ -111,10 +118,12 @@ func (s *ApiServer) AddGroupAdmin(ctx context.Context, request *pb.GroupMembersh
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
-	if err := s.authorizeGroupManage(actor, group); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
-	if err := model.AddGroupAdmin(s.rdb, group, target); err != nil {
+	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := s.authorizeGroupManage(actor, group); err != nil {
+			return err
+		}
+		return model.StageAddGroupAdmin(s.rdb, batch, group, target)
+	}); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
 	return &emptypb.Empty{}, nil
@@ -130,10 +139,12 @@ func (s *ApiServer) RemoveGroupAdmin(ctx context.Context, request *pb.GroupMembe
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
-	if err := s.authorizeGroupManage(actor, group); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
-	if err := model.RemoveGroupAdmin(s.rdb, group, target); err != nil {
+	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := s.authorizeGroupManage(actor, group); err != nil {
+			return err
+		}
+		return model.StageRemoveGroupAdmin(s.rdb, batch, group, target)
+	}); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
 	return &emptypb.Empty{}, nil
@@ -151,14 +162,14 @@ func (s *ApiServer) RemoveGroupMember(ctx context.Context, request *pb.GroupMemb
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
-	if err := s.authorizeGroupManage(actor, group); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
 	spec, err := homeRebuildSpec(target)
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
 	if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
+		if err := s.authorizeGroupManage(actor, group); err != nil {
+			return err
+		}
 		return model.StageRemoveGroupMember(s.rdb, batch, group, target)
 	}); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
@@ -186,10 +197,12 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, request *pb.DeleteGroupRequ
 	if err := ctx.Err(); err != nil {
 		return nil, taskRPCError(err)
 	}
-	if err := s.authorizeGroupManage(actor, group); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
-	if err := model.DeleteGroup(s.rdb, group); err != nil {
+	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := s.authorizeGroupManage(actor, group); err != nil {
+			return err
+		}
+		return model.StageDeleteGroup(s.rdb, batch, group)
+	}); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
 	return &emptypb.Empty{}, nil
@@ -215,10 +228,13 @@ func (s *ApiServer) GetGroup(ctx context.Context, request *pb.GetGroupRequest) (
 	if profile.Type != "group" {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrNotFound, errors.New("profile is not a Group")))
 	}
+	if err := s.enforcePrivateGroupRead(profile, request.ViewerUuid); err != nil {
+		return nil, err
+	}
 	view := &pb.GroupView{Group: profile}
 	if request.ViewerUuid != "" {
 		viewer, err := uuid.FromString(request.ViewerUuid)
-		if err != nil {
+		if err != nil || viewer == uuid.Nil {
 			return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("invalid viewer_uuid")))
 		}
 		if view.IsMember, err = model.IsGroupMember(s.rdb, group, viewer); err != nil {
@@ -246,8 +262,15 @@ func (s *ApiServer) ListGroupMembers(ctx context.Context, request *pb.ListGroupM
 	if err := ctx.Err(); err != nil {
 		return nil, taskRPCError(err)
 	}
-	if _, err := model.GetProfileFromUuid(s.rdb, group); err != nil {
+	profile, err := model.GetProfileFromUuid(s.rdb, group)
+	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrNotFound, err))
+	}
+	if profile.Type != "group" {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrNotFound, errors.New("profile is not a Group")))
+	}
+	if err := s.enforcePrivateGroupRead(profile, request.ViewerUuid); err != nil {
+		return nil, err
 	}
 
 	limit := int(request.Limit)
@@ -362,10 +385,15 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, request *pb.UpdateGroupRequ
 	if err := ctx.Err(); err != nil {
 		return nil, taskRPCError(err)
 	}
-	if err := s.authorizeGroupManage(actor, group); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
-	updated, err := model.UpdateGroup(s.rdb, group, request.Name, request.Description, request.Picture)
+	var updated *pb.Profile
+	err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := s.authorizeGroupManage(actor, group); err != nil {
+			return err
+		}
+		var stageErr error
+		updated, stageErr = model.StageUpdateGroup(s.rdb, batch, group, request.Name, request.Description, request.Picture)
+		return stageErr
+	})
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
@@ -392,6 +420,13 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGrou
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, taskRPCError(err)
+	}
+	userProfile, err := model.GetProfileFromUuid(s.rdb, user)
+	if err != nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrNotFound, err))
+	}
+	if userProfile.Type != "user" {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("profile is not a user")))
 	}
 
 	limit := int(request.Limit)
@@ -473,6 +508,9 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGrou
 // Returns nil if access is allowed, error otherwise.
 // Access is granted to: group members, super users.
 func (s *ApiServer) canAccessPrivateGroup(groupUUID, viewerUUID uuid.UUID) error {
+	if groupUUID == uuid.Nil || viewerUUID == uuid.Nil {
+		return errors.New("valid group and viewer UUIDs are required")
+	}
 	// Check if viewer is super
 	viewer, err := model.GetProfileFromUuid(s.mdb, viewerUUID)
 	if err == nil && viewer.IsSuper {
@@ -502,7 +540,7 @@ func (s *ApiServer) enforcePrivateGroupRead(profile *pb.Profile, viewerRaw strin
 		return status.Errorf(codes.PermissionDenied, "authentication required for private group")
 	}
 	viewerUUID, err := uuid.FromString(viewerRaw)
-	if err != nil {
+	if err != nil || viewerUUID == uuid.Nil {
 		return status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
 	}
 	groupUUID, err := uuid.FromString(profile.Uuid)

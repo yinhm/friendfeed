@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -18,6 +19,9 @@ import (
 // two edges, so admin-leave protection and last-admin protection apply
 // uniformly regardless of entry point.
 func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb.FollowResponse, error) {
+	if req == nil {
+		return nil, errors.New("follow request is required")
+	}
 	slog.Debug("GraphFollow", "profile_uuid", req.ProfileUuid, "feed_uuid", req.FeedUuid)
 
 	profileUUID, err := uuid.FromString(req.ProfileUuid)
@@ -30,6 +34,11 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 	}
 
 	target, err := model.GetProfileFromUuid(s.rdb, feedUUID)
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
+		// In particular, never fall back to generic edge writes for a
+		// soft-deleted Group/Profile.
+		return nil, err
+	}
 	isGroup := err == nil && target.Type == "group"
 
 	followed := false

@@ -342,6 +342,12 @@ func stageRemoveGroupMembership(db *store.Store, batch *pebble.Batch, group, use
 	if batch == nil || group == uuid.Nil || user == uuid.Nil {
 		return errors.New("batch, group UUID, and user UUID are required")
 	}
+	if _, err := getGroupProfile(db, group); err != nil {
+		return err
+	}
+	if _, err := getGroupMemberProfile(db, user); err != nil {
+		return err
+	}
 	isAdmin, err := IsGroupAdmin(db, group, user)
 	if err != nil {
 		return err
@@ -404,6 +410,12 @@ func StageAddGroupAdmin(db *store.Store, batch *pebble.Batch, group, target uuid
 	if batch == nil || group == uuid.Nil || target == uuid.Nil {
 		return errors.New("batch, group UUID, and target UUID are required")
 	}
+	if _, err := getGroupProfile(db, group); err != nil {
+		return err
+	}
+	if _, err := getGroupMemberProfile(db, target); err != nil {
+		return err
+	}
 	isMember, err := IsGroupMember(db, group, target)
 	if err != nil {
 		return err
@@ -435,6 +447,12 @@ func AddGroupAdmin(db *store.Store, group, target uuid.UUID) error {
 func StageRemoveGroupAdmin(db *store.Store, batch *pebble.Batch, group, target uuid.UUID) error {
 	if batch == nil || group == uuid.Nil || target == uuid.Nil {
 		return errors.New("batch, group UUID, and target UUID are required")
+	}
+	if _, err := getGroupProfile(db, group); err != nil {
+		return err
+	}
+	if _, err := getGroupMemberProfile(db, target); err != nil {
+		return err
 	}
 	isAdmin, err := IsGroupAdmin(db, group, target)
 	if err != nil {
@@ -519,6 +537,76 @@ func StageSoftDeleteProfile(db *store.Store, batch *pebble.Batch, profile *pb.Pr
 	}
 	profile.Deleted = true
 	return setProto(batch, Profile.PrefixAppend(profileUUID.Bytes()), profile)
+}
+
+// StageExitAllGroups removes every Group membership and admin role held by
+// user. It runs inside the same ApplyBatch critical section as account soft
+// deletion, so no concurrent promotion/demotion can leave a live Group with
+// no admin. Non-Group Follow edges are deliberately untouched.
+func StageExitAllGroups(db *store.Store, batch *pebble.Batch, user uuid.UUID) error {
+	if batch == nil || user == uuid.Nil {
+		return errors.New("batch and user UUID are required")
+	}
+
+	// Admin rows are group-first, so stream the small metadata table to also
+	// clean corrupted admin-without-membership rows. Live sole-admin Groups
+	// block deletion; deleted Groups impose no such constraint.
+	if err := GroupAdmin.Iter(db, func(key, _ []byte) error {
+		suffix := key[len(GroupAdmin.Prefix):]
+		if len(suffix) != 2*uuid.Size {
+			return nil
+		}
+		admin, err := uuid.FromBytes(suffix[uuid.Size:])
+		if err != nil || admin != user {
+			return nil
+		}
+		group, err := uuid.FromBytes(suffix[:uuid.Size])
+		if err != nil {
+			return nil
+		}
+		profile := new(pb.Profile)
+		if err := Profile.Get(db, group.Bytes(), profile); err == nil &&
+			profile.Type == "group" && !profile.Deleted {
+			count, err := CountGroupAdmins(db, group)
+			if err != nil {
+				return err
+			}
+			if count <= 1 {
+				return ErrSoleGroupAdmin
+			}
+		}
+		return batch.Delete(key, nil)
+	}); err != nil {
+		return err
+	}
+
+	followPrefix := NewKeyFrom(Follow.Prefix, user.Bytes())
+	_, err := db.ForwardScan(followPrefix, func(_ int, key, _ []byte) error {
+		suffix := key[len(followPrefix):]
+		if len(suffix) != uuid.Size {
+			return nil
+		}
+		group, err := uuid.FromBytes(suffix)
+		if err != nil {
+			return nil
+		}
+		profile := new(pb.Profile)
+		if err := Profile.Get(db, group.Bytes(), profile); err != nil || profile.Type != "group" {
+			return nil
+		}
+		if err := batch.Delete(key, nil); err != nil {
+			return err
+		}
+		if err := batch.Delete(NewKeyFrom(Follower.Prefix, group.Bytes(), user.Bytes()), nil); err != nil {
+			return err
+		}
+		adminKey, err := GroupAdminKey(group, user)
+		if err != nil {
+			return err
+		}
+		return batch.Delete(adminKey, nil)
+	})
+	return err
 }
 
 // StageDeleteGroup stages a soft delete of group per docs/group.md: marking

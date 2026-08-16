@@ -56,6 +56,12 @@ type storeAuditStats struct {
 	commentPositionRows   int
 	interactionOrphans    int
 	interactionMismatches int
+	groups                int
+	groupAdmins           int
+	invalidGroupAdmins    int
+	adminMissingMember    int
+	groupsWithoutAdmins   int
+	deletedGroupResiduals int
 	tasks                 taskqueue.AuditStats
 }
 
@@ -424,8 +430,110 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 	if err == nil {
 		err = auditInteractionTimelines(db, &stats)
 	}
+	if err == nil {
+		err = auditGroups(db, &stats)
+	}
 	stats.tasks = taskStats
 	return stats, err
+}
+
+func prefixHasAny(db *store.Store, prefix store.Key) (bool, error) {
+	iter, err := db.NewIterator(prefix)
+	if err != nil {
+		return false, err
+	}
+	defer iter.Close()
+	iter.First()
+	if err := iter.Error(); err != nil {
+		return false, err
+	}
+	return iter.Valid(), nil
+}
+
+func auditGroups(db *store.Store, stats *storeAuditStats) error {
+	if err := model.Profile.Iter(db, func(key, raw []byte) error {
+		profile := new(pb.Profile)
+		if err := proto.Unmarshal(raw, profile); err != nil {
+			return err
+		}
+		if profile.Type != "group" {
+			return nil
+		}
+		stats.groups++
+		if len(key) != model.Profile.Prefix.Len()+uuid.Size {
+			return fmt.Errorf("invalid Group Profile key length %d", len(key))
+		}
+		group, err := uuid.FromBytes(key[model.Profile.Prefix.Len():])
+		if err != nil {
+			return err
+		}
+		adminPrefix := model.NewKeyFrom(model.GroupAdmin.Prefix, group.Bytes())
+		if !profile.Deleted {
+			hasAdmin, err := prefixHasAny(db, adminPrefix)
+			if err != nil {
+				return err
+			}
+			if !hasAdmin {
+				stats.groupsWithoutAdmins++
+			}
+			return nil
+		}
+		for _, prefix := range []store.Key{
+			adminPrefix,
+			model.NewKeyFrom(model.Follower.Prefix, group.Bytes()),
+			model.NewKeyFrom(model.FeedService.Prefix, group.Bytes()),
+		} {
+			hasRows, err := prefixHasAny(db, prefix)
+			if err != nil {
+				return err
+			}
+			if hasRows {
+				stats.deletedGroupResiduals++
+				break
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return model.GroupAdmin.Iter(db, func(key, _ []byte) error {
+		stats.groupAdmins++
+		if len(key) != model.GroupAdmin.Prefix.Len()+2*uuid.Size {
+			stats.invalidGroupAdmins++
+			return nil
+		}
+		suffix := key[model.GroupAdmin.Prefix.Len():]
+		group, groupErr := uuid.FromBytes(suffix[:uuid.Size])
+		admin, adminErr := uuid.FromBytes(suffix[uuid.Size:])
+		if groupErr != nil || adminErr != nil || group == uuid.Nil || admin == uuid.Nil {
+			stats.invalidGroupAdmins++
+			return nil
+		}
+		groupProfile := new(pb.Profile)
+		if err := model.Profile.Get(db, group.Bytes(), groupProfile); err != nil ||
+			groupProfile.Type != "group" || groupProfile.Deleted {
+			stats.invalidGroupAdmins++
+			return nil
+		}
+		adminProfile, err := model.GetProfileFromUuid(db, admin)
+		if err != nil || adminProfile.Type != "user" {
+			stats.invalidGroupAdmins++
+			return nil
+		}
+		follow, err := db.Exists(model.NewKeyFrom(model.Follow.Prefix, admin.Bytes(), group.Bytes()))
+		if err != nil {
+			return err
+		}
+		follower, err := db.Exists(model.NewKeyFrom(model.Follower.Prefix, group.Bytes(), admin.Bytes()))
+		if err != nil {
+			return err
+		}
+		if !follow || !follower {
+			stats.adminMissingMember++
+		}
+		return nil
+	})
 }
 
 func auditInteractionTimelines(db *store.Store, stats *storeAuditStats) error {
@@ -610,6 +718,9 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "like_timeline=%d comment_timeline=%d comment_positions=%d interaction_orphans=%d interaction_mismatches=%d\n",
 		stats.likeTimelineRows, stats.commentTimelineRows, stats.commentPositionRows,
 		stats.interactionOrphans, stats.interactionMismatches)
+	fmt.Fprintf(out, "groups=%d group_admins=%d invalid_group_admins=%d admin_missing_membership=%d groups_without_admins=%d deleted_group_residuals=%d\n",
+		stats.groups, stats.groupAdmins, stats.invalidGroupAdmins, stats.adminMissingMember,
+		stats.groupsWithoutAdmins, stats.deletedGroupResiduals)
 	fmt.Fprintf(out, "tasks=%d ready=%d leases=%d idem=%d done=%d missing_ready=%d missing_lease=%d missing_idem=%d orphan_ready=%d orphan_lease=%d orphan_idem=%d mismatched_ready=%d mismatched_lease=%d mismatched_idem=%d invalid_done=%d\n",
 		stats.tasks.Tasks, stats.tasks.Ready, stats.tasks.Leases, stats.tasks.Idempotency, stats.tasks.Done,
 		stats.tasks.MissingReady, stats.tasks.MissingLease, stats.tasks.MissingIdem,

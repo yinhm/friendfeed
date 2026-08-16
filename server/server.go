@@ -1005,6 +1005,16 @@ func canonicalizeEntryTo(mdb *store.Store, entry *pb.Entry, authorUUID uuid.UUID
 }
 
 func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, error) {
+	return s.postEntry(ctx, entry, false)
+}
+
+// postEntry is the single Entry write boundary. allowSystemFeedSelfPost is
+// reserved for in-process Service/system-feed producers; the public RPC must
+// never let a caller impersonate a Group by setting ProfileUuid == FeedUuid.
+func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemFeedSelfPost bool) (*pb.Entry, error) {
+	if entry == nil {
+		return nil, errors.New("entry is required")
+	}
 	s.entryLifecycleMu.Lock()
 	defer s.entryLifecycleMu.Unlock()
 
@@ -1016,15 +1026,20 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 	if err != nil || profile == nil {
 		return nil, err
 	}
-	if entry.From == nil {
-		entry.From = &pb.Feed{
-			Id:   profile.Id,
-			Name: profile.Name,
-			Type: profile.Type,
-		}
+	// From is a display snapshot, but it must still be minted from the
+	// canonical author Profile rather than trusted from the client.
+	entry.From = &pb.Feed{
+		Uuid:    profile.Uuid,
+		Id:      profile.Id,
+		Name:    profile.Name,
+		Type:    profile.Type,
+		Picture: profile.Picture,
 	}
 	if err := canonicalizeEntryTo(s.mdb, entry, profileUuid); err != nil {
 		return nil, err
+	}
+	if profile.Type == "group" && (!allowSystemFeedSelfPost || entry.FeedUuid != profile.Uuid) {
+		return nil, status.Error(codes.PermissionDenied, "a Group cannot act as a user principal")
 	}
 	if err := s.authorizeEntryPost(entry, profileUuid); err != nil {
 		return nil, err
@@ -1048,22 +1063,20 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 
 // authorizeEntryPost enforces Group posting membership at the mutation
 // boundary per docs/group.md: httpd's feedWritable is display-only and must
-// not be the sole check. It only applies when entry.FeedUuid resolves to a
-// Group Profile other than the author itself; a Group posting to its own
-// feed (the FeedService import path in importServiceItems, which sets
-// ProfileUuid == FeedUuid == the Group's own UUID) is a self-post and is
-// exempt, same as any other profile posting to itself.
+// not be the sole check. A public RPC may never use a Group as its actor;
+// only trusted in-process producers such as FeedService imports may create
+// a Group-authored Entry, via the private postEntry boundary.
 func (s *ApiServer) authorizeEntryPost(entry *pb.Entry, authorUUID uuid.UUID) error {
 	feedUUID, err := uuid.FromString(entry.FeedUuid)
 	if err != nil {
 		return fmt.Errorf("entry FeedUuid is invalid: %w", err)
 	}
-	if feedUUID == authorUUID {
-		return nil
-	}
 	target, err := model.GetProfileFromUuid(s.mdb, feedUUID)
 	if err != nil {
 		return err
+	}
+	if feedUUID == authorUUID {
+		return nil
 	}
 	if target.Type != "group" {
 		return nil

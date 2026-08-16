@@ -236,6 +236,9 @@ func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
 			}
 			return fmt.Errorf("%w: %s", model.ErrSoleGroupAdmin, strings.Join(ids, ", "))
 		}
+		if err := model.StageExitAllGroups(s.rdb, batch, profileUUID); err != nil {
+			return err
+		}
 		return model.StageSoftDeleteProfile(s.rdb, batch, profile)
 	})
 	if err != nil {

@@ -9,6 +9,8 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestCreateGroupAtomicMembershipAndAdmin(t *testing.T) {
@@ -346,8 +348,48 @@ func TestPostEntryExemptsGroupSelfPostFromMembershipCheck(t *testing.T) {
 		FeedUuid:    group.String(),
 		Via:         &pb.Via{Name: "Example Service", Url: "https://example.com"},
 	}
-	_, err := srv.PostEntry(context.Background(), entry)
+	_, err := srv.postEntry(context.Background(), entry, true)
 	require.NoError(t, err)
+}
+
+func TestPublicPostEntryRejectsGroupAsPrincipal(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	group := createTestGroup(t, srv, creator, "no-group-principal")
+	entry := &pb.Entry{
+		Id: uuid.Must(uuid.NewV4()).String(), Date: "2026-08-16T00:00:00Z",
+		ProfileUuid: group.String(), FeedUuid: group.String(), Body: "forged",
+	}
+	_, err := srv.PostEntry(context.Background(), entry)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// Changing the destination must not turn a Group UUID into a valid
+	// caller identity. The trusted internal escape hatch is self-feed only.
+	user := createServiceUser(t, srv, "ordinary-target")
+	entry.Id = uuid.Must(uuid.NewV4()).String()
+	entry.FeedUuid = user.String()
+	_, err = srv.PostEntry(context.Background(), entry)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+	_, err = srv.postEntry(context.Background(), entry, true)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestPostEntryMintsCanonicalAuthorSnapshot(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "real-member")
+	group := createTestGroup(t, srv, creator, "canonical-author")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, member))
+	entry := &pb.Entry{
+		Id: uuid.Must(uuid.NewV4()).String(), Date: "2026-08-16T00:00:00Z",
+		ProfileUuid: member.String(), FeedUuid: group.String(),
+		From: &pb.Feed{Uuid: creator.String(), Id: "forged", Name: "Forged"},
+	}
+	posted, err := srv.PostEntry(context.Background(), entry)
+	require.NoError(t, err)
+	require.Equal(t, member.String(), posted.From.Uuid)
+	require.Equal(t, "real-member", posted.From.Id)
+	require.Empty(t, posted.From.Name)
 }
 
 func TestDeleteEntryAllowsGroupAdminButNotOrdinaryMember(t *testing.T) {
@@ -630,6 +672,28 @@ func TestPrivateGroupAccessControl(t *testing.T) {
 		require.NotNil(t, feed)
 		require.Len(t, feed.Entries, 1)
 	})
+
+	t.Run("Direct Group metadata and member APIs enforce private visibility", func(t *testing.T) {
+		_, err := srv.GetGroup(context.Background(), &pb.GetGroupRequest{
+			GroupUuid: groupUUID.String(), ViewerUuid: outsider.String(),
+		})
+		require.Equal(t, codes.PermissionDenied, status.Code(err))
+		_, err = srv.ListGroupMembers(context.Background(), &pb.ListGroupMembersRequest{
+			GroupUuid: groupUUID.String(), ViewerUuid: outsider.String(),
+		})
+		require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+		view, err := srv.GetGroup(context.Background(), &pb.GetGroupRequest{
+			GroupUuid: groupUUID.String(), ViewerUuid: member.String(),
+		})
+		require.NoError(t, err)
+		require.True(t, view.IsMember)
+		members, err := srv.ListGroupMembers(context.Background(), &pb.ListGroupMembersRequest{
+			GroupUuid: groupUUID.String(), ViewerUuid: member.String(),
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, members.Members)
+	})
 }
 
 // runHomeRebuildTasks claims and executes every pending home.rebuild task,
@@ -747,6 +811,33 @@ func TestMarkDeleteRejectsSoleGroupAdmin(t *testing.T) {
 	require.NoError(t, err)
 	_, err = model.GetProfileFromUuid(srv.rdb, creator)
 	require.ErrorIs(t, err, model.ErrProfileDeleted)
+	isMember, err := model.IsGroupMember(srv.rdb, group, creator)
+	require.NoError(t, err)
+	require.False(t, isMember)
+	isAdmin, err := model.IsGroupAdmin(srv.rdb, group, creator)
+	require.NoError(t, err)
+	require.False(t, isAdmin)
+	follower, err := srv.rdb.Exists(model.NewKeyFrom(model.Follower.Prefix, group.Bytes(), creator.Bytes()))
+	require.NoError(t, err)
+	require.False(t, follower)
+}
+
+func TestGraphFollowCannotReviveDeletedGroup(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	group := createTestGroup(t, srv, creator, "deleted-follow")
+	_, err := srv.DeleteGroup(context.Background(), &pb.DeleteGroupRequest{
+		ActorUuid: creator.String(), GroupUuid: group.String(),
+	})
+	require.NoError(t, err)
+	_, err = srv.GraphFollow(context.Background(), &pb.FollowRequest{
+		ProfileUuid: member.String(), FeedUuid: group.String(), Action: "follow",
+	})
+	require.ErrorIs(t, err, model.ErrProfileDeleted)
+	exists, err := srv.rdb.Exists(model.NewKeyFrom(model.Follow.Prefix, member.Bytes(), group.Bytes()))
+	require.NoError(t, err)
+	require.False(t, exists)
 }
 
 func TestListGroupMembersPagesWithAdminFlags(t *testing.T) {
@@ -783,6 +874,13 @@ func TestListGroupMembersPagesWithAdminFlags(t *testing.T) {
 	require.True(t, adminFlags[creator.String()])
 	require.False(t, adminFlags[memberA.String()])
 	require.False(t, adminFlags[memberB.String()])
+}
+
+func TestListGroupMembersRejectsNonGroupProfile(t *testing.T) {
+	srv := newServiceServer(t)
+	user := createServiceUser(t, srv, "plain-user")
+	_, err := srv.ListGroupMembers(context.Background(), &pb.ListGroupMembersRequest{GroupUuid: user.String()})
+	require.Equal(t, codes.NotFound, status.Code(err))
 }
 
 // A cursor whose edge was deleted between pages must resume at its successor,

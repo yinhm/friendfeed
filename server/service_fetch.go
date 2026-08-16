@@ -429,7 +429,7 @@ func (s *ApiServer) importServiceItems(ctx context.Context, service *pb.Service,
 			ProfileUuid: target.String(), FeedUuid: target.String(), Type: "service",
 			Via: &pb.Via{Name: binding.Name, Url: service.SiteUrl},
 		}
-		if _, err := s.PostEntry(ctx, entry); err != nil {
+		if _, err := s.postEntry(ctx, entry, true); err != nil {
 			return err
 		}
 	}

@@ -56,9 +56,6 @@ func (s *ApiServer) AddFeedService(ctx context.Context, request *pb.AddFeedServi
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
-	if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
 	now := s.rssNow().UTC()
 	_, serviceUUID, err := model.ServiceIdentity(request.Kind, request.Url)
 	if err != nil {
@@ -75,6 +72,9 @@ func (s *ApiServer) AddFeedService(ctx context.Context, request *pb.AddFeedServi
 		Type: feedServiceSeedTaskType, Payload: payload, PayloadVersion: 1,
 		IdempotencyKey: target.String() + ":" + serviceUUID.String(),
 	}}, func(batch *pebble.Batch) error {
+		if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+			return errors.Join(taskqueue.ErrFailedPrecondition, err)
+		}
 		created, _, err := model.StageAddWebFeedService(s.rdb, batch, target, actor, request.Url, now)
 		binding = created
 		return err
@@ -96,13 +96,13 @@ func (s *ApiServer) RemoveFeedService(ctx context.Context, request *pb.RemoveFee
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
-	if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, taskRPCError(err)
 	}
 	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+			return errors.Join(taskqueue.ErrFailedPrecondition, err)
+		}
 		return model.StageRemoveFeedService(s.rdb, batch, target, request.ServiceId)
 	}); err != nil {
 		return nil, taskRPCError(err)
@@ -150,10 +150,15 @@ func (s *ApiServer) SetFeedServiceEnabled(ctx context.Context, request *pb.SetFe
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
-	if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
-		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
-	}
-	binding, err := model.SetFeedServiceEnabled(s.rdb, target, request.ServiceId, request.Enabled)
+	var binding *pb.FeedService
+	err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+			return errors.Join(taskqueue.ErrFailedPrecondition, err)
+		}
+		var stageErr error
+		binding, stageErr = model.StageSetFeedServiceEnabled(s.rdb, batch, target, request.ServiceId, request.Enabled)
+		return stageErr
+	})
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
@@ -168,6 +173,8 @@ func (s *ApiServer) RefreshFeedService(ctx context.Context, request *pb.RefreshF
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
+	// Protect the binding lookup from unauthorized callers; EnqueueWith
+	// repeats this check inside its atomic mutation boundary.
 	if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
@@ -184,9 +191,21 @@ func (s *ApiServer) RefreshFeedService(ctx context.Context, request *pb.RefreshF
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
-	_, err = s.tasks.Enqueue(ctx, taskqueue.Spec{
+	_, err = s.tasks.EnqueueWith(ctx, []taskqueue.Spec{{
 		Type: feedServiceSeedTaskType, Payload: payload, PayloadVersion: 1,
 		IdempotencyKey: target.String() + ":" + binding.Id,
+	}}, func(_ *pebble.Batch) error {
+		if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+			return errors.Join(taskqueue.ErrFailedPrecondition, err)
+		}
+		current, err := model.GetFeedService(s.rdb, target, request.ServiceId)
+		if err != nil {
+			return err
+		}
+		if !current.Enabled || current.ServiceUuid != binding.ServiceUuid {
+			return errors.New("FeedService changed before refresh could be queued")
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, taskRPCError(err)

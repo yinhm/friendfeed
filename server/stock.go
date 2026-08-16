@@ -451,6 +451,6 @@ func (s *ApiServer) SendReport(ctx context.Context, req *pb.Report) (*pb.Respons
 	}
 	entry.From = from
 
-	_, err = s.PostEntry(ctx, entry)
+	_, err = s.postEntry(ctx, entry, true)
 	return &pb.Response{IsSuccess: true}, err
 }

@@ -463,6 +463,7 @@ message ListGroupMembersRequest {
   string group_uuid = 1;
   int32 limit = 2;   // Max members to return (default 100, cap 200)
   string cursor = 3; // Opaque continuation token from previous response
+  string viewer_uuid = 4; // session user; required for private Groups
 }
 
 // GroupMember is one member Profile with its admin-role flag.

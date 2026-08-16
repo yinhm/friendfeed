@@ -223,8 +223,9 @@ following，不得为此把全量订阅塞回 Graph 响应。
   引导，或运行一次性 backfill 命令（当前默认无生产 Group，暂未实现 backfill）；
 - ✅ GraphFollow 对 Group 目标已路由进 Join/Leave 领域层（admin 退出拦截、最后 admin
   保护在所有入口一致生效）。
-- ✅ PostEntry 已在 mutation 边界验证 Group 成员资格（`authorizeEntryPost`），
-  FeedService 自发帖（ProfileUuid == FeedUuid）豁免；
+- ✅ PostEntry 已在 mutation 边界验证 Group 成员资格，并用服务端读取的 Profile
+  重建 `Entry.From`。公开 RPC 不允许 Group 充当用户 principal；FeedService、stock 等
+  可信进程内 producer 只能通过不导出的内部入口创建 Group/system-authored Entry；
 - ✅ private Group 读取已闭环：legacy 与 cursor 两条 Feed 路径、FetchEntry、Home stale
   行重校验、Search 结果过滤均执行成员/super 可见性检查；private Group 的 Join 在审批
   流程落地前一律拒绝（`StageJoinGroup` 与 CreateGroup 一致）。
@@ -234,7 +235,12 @@ following，不得为此把全量订阅塞回 Graph 响应。
   读取 API 已落地。
 - ✅ Group admin 的 Entry/Comment moderation 已落地（delete-only，admin 不可编辑
   他人内容）。UpdateGroup、DeleteGroup RPC 已实现。
-- 账号注销（MarkDelete）已执行唯一 admin 拦截并列出阻塞 Group。
+- ✅ 账号注销与 Group 退出在同一 batch 完成：唯一 admin 会被拒绝；其余情况删除该用户
+  的全部 Group membership/admin 行，不触碰普通 Follow。
+- ✅ Group mutation 的授权读取与实际写入位于同一 `ApplyBatch`/`EnqueueWith` 临界区，
+  且领域层会验证目标 Profile 确实为 Group、成员确实为有效 user Profile。
+- ✅ `audit_store` 已检查无 admin 的存活 Group、admin 非成员、非法 admin，以及已删除
+  Group 遗留的 admin/member/FeedService 行。
 
 有意暂缓（规范允许的缺口）：
 

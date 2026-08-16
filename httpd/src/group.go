@@ -135,8 +135,9 @@ func (s *Server) renderGroupMembers(c *gin.Context, view *pb.GroupView, errMsg s
 	defer cancel()
 
 	resp, err := s.client.ListGroupMembers(ctx, &pb.ListGroupMembersRequest{
-		GroupUuid: view.Group.Uuid,
-		Limit:     200,
+		GroupUuid:  view.Group.Uuid,
+		Limit:      200,
+		ViewerUuid: CurrentUserUuid(c),
 	})
 	if RequestError(c, err) {
 		return

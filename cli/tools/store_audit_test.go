@@ -92,6 +92,47 @@ func TestAuditStoreChecksServiceRelationships(t *testing.T) {
 	require.Equal(t, 1, stats.bindingMissingIndex)
 }
 
+func TestAuditStoreChecksGroupInvariants(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	creator := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: creator.String(), Id: "group-auditor", Name: "Group Auditor", Type: "user",
+	}))
+	groupProfile, err := model.CreateGroup(db, creator, "audit-group", "Audit Group", "", "", false, time.Now().UTC())
+	require.NoError(t, err)
+	group := uuid.Must(uuid.FromString(groupProfile.Uuid))
+
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.groups)
+	require.Equal(t, 1, stats.groupAdmins)
+	require.Zero(t, stats.invalidGroupAdmins)
+	require.Zero(t, stats.adminMissingMember)
+	require.Zero(t, stats.groupsWithoutAdmins)
+
+	require.NoError(t, db.Delete(model.NewKeyFrom(model.Follow.Prefix, creator.Bytes(), group.Bytes())))
+	stats, err = auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.adminMissingMember)
+
+	require.NoError(t, db.Set(model.NewKeyFrom(model.Follow.Prefix, creator.Bytes(), group.Bytes()), []byte("1")))
+	adminKey, err := model.GroupAdminKey(group, creator)
+	require.NoError(t, err)
+	require.NoError(t, db.Delete(adminKey))
+	stats, err = auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.groupsWithoutAdmins)
+
+	require.NoError(t, db.Set(adminKey, nil))
+	require.NoError(t, model.DeleteGroup(db, group))
+	stats, err = auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.deletedGroupResiduals)
+	require.Equal(t, 1, stats.invalidGroupAdmins)
+}
+
 func TestAuditStoreReportsLegacyEntryIndexKey(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
