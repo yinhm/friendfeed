@@ -334,6 +334,38 @@ func TestExhaustedSourceFailureCompletesTaskAndPersistsDeadLifecycle(t *testing.
 	require.Equal(t, uint32(servicePermanentLimit), state.PermanentFailures)
 }
 
+func TestFailedSeedProbeOnDeadSourceReentersScheduling(t *testing.T) {
+	srv := newServiceServer(t)
+	now := time.Date(2026, 8, 16, 12, 30, 0, 0, time.UTC)
+	srv.rssNow = func() time.Time { return now }
+	user := createServiceUser(t, srv, "dead-reader")
+	binding, err := srv.AddFeedService(context.Background(), &pb.AddFeedServiceRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), Kind: model.WebFeedServiceKind, Url: "https://dead.example/feed",
+	})
+	require.NoError(t, err)
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	deadState, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	deadState.Status = model.ServiceStatusDead
+	deadState.PermanentFailures = servicePermanentLimit
+	deadState.PermanentFailureSinceMs = now.Add(-10 * 24 * time.Hour).UnixMilli()
+	deadState.DeadAtMs = now.Add(-time.Hour).UnixMilli()
+	deadState.NextFetchMs = 0
+	require.NoError(t, model.PutServiceState(srv.rdb, serviceID, deadState))
+	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
+		return &serviceFetchResult{status: http.StatusServiceUnavailable}, errors.New("temporary network failure")
+	}
+	payload, err := proto.Marshal(&pb.FeedServiceSeedPayload{ServiceUuid: binding.ServiceUuid, TargetFeedUuid: user.String(), ServiceId: binding.Id})
+	require.NoError(t, err)
+	task := &pb.Task{Type: feedServiceSeedTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 3, MaxAttempts: 3}
+	require.NoError(t, srv.handleServiceTask(context.Background(), task), "a resolved lifecycle outcome completes the exhausted seed Task")
+	state, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	require.Equal(t, model.ServiceStatusDegraded, state.Status, "a failed manual probe must re-enter scheduling, not stay frozen dead")
+	require.Zero(t, state.DeadAtMs)
+	require.Greater(t, state.NextFetchMs, now.UnixMilli(), "the source must get a real next-fetch time instead of 0")
+}
+
 func TestServiceHandlerPersistsPermanentRedirectWithoutChangingIdentity(t *testing.T) {
 	srv := newServiceServer(t)
 	now := time.Date(2026, 8, 16, 13, 0, 0, 0, time.UTC)
