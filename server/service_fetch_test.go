@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/netip"
 	"path/filepath"
 	"testing"
@@ -115,6 +117,13 @@ func TestServiceHandlerImportsStableEntriesAndAdvancesState(t *testing.T) {
 	srv.rssNow = func() time.Time { return now }
 	binding, err := srv.AddFeedService(context.Background(), &pb.AddFeedServiceRequest{ActorUuid: user.String(), TargetFeedUuid: user.String(), Kind: model.WebFeedServiceKind, Url: "https://example.com/feed"})
 	require.NoError(t, err)
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	deadState, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	deadState.Status = model.ServiceStatusDead
+	deadState.PermanentFailures = servicePermanentLimit
+	deadState.DeadAtMs = now.Add(-time.Hour).UnixMilli()
+	require.NoError(t, model.PutServiceState(srv.rdb, serviceID, deadState))
 	published := now.Add(-time.Hour)
 	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
 		return &serviceFetchResult{status: 200, etag: `"v1"`, feed: &gofeed.Feed{Title: "Example Feed", Items: []*gofeed.Item{{GUID: "item-1", Title: "Hello", Link: "https://example.com/1", Content: "<p>safe</p><script>bad()</script>", PublishedParsed: &published}}}}, nil
@@ -124,7 +133,6 @@ func TestServiceHandlerImportsStableEntriesAndAdvancesState(t *testing.T) {
 	task := &pb.Task{Type: feedServiceSeedTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 1, MaxAttempts: 3}
 	require.NoError(t, srv.handleServiceTask(context.Background(), task))
 	require.NoError(t, srv.handleServiceTask(context.Background(), task))
-	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
 	service, err := model.GetService(srv.rdb, serviceID)
 	require.NoError(t, err)
 	require.Equal(t, "Example Feed", service.Title)
@@ -140,6 +148,8 @@ func TestServiceHandlerImportsStableEntriesAndAdvancesState(t *testing.T) {
 	state, err := model.GetServiceState(srv.rdb, serviceID)
 	require.NoError(t, err)
 	require.Equal(t, now.Add(serviceFetchInterval).UnixMilli(), state.NextFetchMs)
+	require.Equal(t, model.ServiceStatusActive, state.Status)
+	require.Equal(t, now.UnixMilli(), state.LastSuccessMs)
 }
 
 func TestServiceHandlerTreatsDeletedBindingAsNoop(t *testing.T) {
@@ -247,15 +257,114 @@ func TestServiceHandlerAttemptsLaterBindingsBeforeReturningErrors(t *testing.T) 
 	payload, err := proto.Marshal(&pb.ServiceFetchPayload{ServiceUuid: serviceID.String()})
 	require.NoError(t, err)
 	err = srv.handleServiceTask(context.Background(), &pb.Task{
-		Type: serviceFetchTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 1, MaxAttempts: 3,
+		Type: serviceFetchTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 3, MaxAttempts: 3,
 	})
-	require.ErrorContains(t, err, "load FeedService")
+	require.NoError(t, err, "persisted delivery cooldown resolves the exhausted Task")
 	healthyEntryID := model.UniqueKeyFrom("external-entry", healthyTarget.String(), serviceID.String(), "isolation-item")
 	_, getErr := model.GetEntry(srv.rdb, healthyEntryID.String())
 	require.NoError(t, getErr)
 	state, stateErr := model.GetServiceState(srv.rdb, serviceID)
 	require.NoError(t, stateErr)
-	require.Equal(t, now.UnixMilli(), state.NextFetchMs, "delivery errors must not advance shared source state")
+	require.Equal(t, now.Add(time.Hour).UnixMilli(), state.NextFetchMs, "delivery errors must enter a bounded cooldown")
+	require.Equal(t, model.ServiceStatusDegraded, state.Status)
+	require.Equal(t, uint32(1), state.DeliveryFailures)
+}
+
+func TestPermanentServiceFailuresBecomeDead(t *testing.T) {
+	now := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
+	err404 := &serviceSourceError{err: errors.New("Service HTTP status 404"), permanent: true}
+	shortOutage := &pb.ServiceState{ServiceUuid: uuid.Must(uuid.NewV4()).String()}
+	for attempt := range servicePermanentLimit {
+		applyServiceFetchFailure(shortOutage, &serviceFetchResult{status: http.StatusNotFound}, err404, now.Add(time.Duration(attempt)*time.Hour))
+	}
+	require.Equal(t, model.ServiceStatusDegraded, shortOutage.Status, "failure count alone must not kill a source")
+	applyServiceFetchFailure(shortOutage, nil, errors.New("temporary network failure"), now.Add(7*time.Hour))
+	require.Zero(t, shortOutage.PermanentFailures)
+	require.Zero(t, shortOutage.PermanentFailureSinceMs, "a transient failure breaks the permanent-candidate sequence")
+
+	state := &pb.ServiceState{ServiceUuid: uuid.Must(uuid.NewV4()).String()}
+	for attempt := uint32(1); attempt <= servicePermanentLimit; attempt++ {
+		attemptTime := now.Add(time.Duration(attempt-1) * 2 * 24 * time.Hour)
+		applyServiceFetchFailure(state, &serviceFetchResult{status: http.StatusNotFound}, err404, attemptTime)
+		if attempt < servicePermanentLimit {
+			require.Equal(t, model.ServiceStatusDegraded, state.Status)
+			require.Greater(t, state.NextFetchMs, attemptTime.UnixMilli())
+		}
+	}
+	require.Equal(t, model.ServiceStatusDead, state.Status)
+	require.Equal(t, now.Add(10*24*time.Hour).UnixMilli(), state.DeadAtMs)
+	require.Zero(t, state.NextFetchMs)
+	require.Equal(t, now.UnixMilli(), state.PermanentFailureSinceMs)
+}
+
+func TestExhaustedSourceFailureCompletesTaskAndPersistsDeadLifecycle(t *testing.T) {
+	srv := newServiceServer(t)
+	now := time.Date(2026, 8, 16, 12, 30, 0, 0, time.UTC)
+	srv.rssNow = func() time.Time { return now }
+	user := createServiceUser(t, srv, "gone-reader")
+	binding, err := srv.AddFeedService(context.Background(), &pb.AddFeedServiceRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), Kind: model.WebFeedServiceKind, Url: "https://gone.example/feed",
+	})
+	require.NoError(t, err)
+	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
+		result := &serviceFetchResult{status: http.StatusGone}
+		return result, &serviceSourceError{err: errors.New("Service HTTP status 410"), permanent: true}
+	}
+	payload, err := proto.Marshal(&pb.FeedServiceSeedPayload{ServiceUuid: binding.ServiceUuid, TargetFeedUuid: user.String(), ServiceId: binding.Id})
+	require.NoError(t, err)
+	for range servicePermanentLimit {
+		err = srv.handleServiceTask(context.Background(), &pb.Task{Type: feedServiceSeedTaskType, Payload: payload, Attempts: 3, MaxAttempts: 3})
+		require.NoError(t, err, "a persisted lifecycle outcome completes the exhausted Task")
+		now = now.Add(2 * 24 * time.Hour)
+	}
+	state, err := model.GetServiceState(srv.rdb, uuid.Must(uuid.FromString(binding.ServiceUuid)))
+	require.NoError(t, err)
+	require.Equal(t, model.ServiceStatusDead, state.Status)
+	require.Equal(t, uint32(servicePermanentLimit), state.PermanentFailures)
+}
+
+func TestServiceHandlerPersistsPermanentRedirectWithoutChangingIdentity(t *testing.T) {
+	srv := newServiceServer(t)
+	now := time.Date(2026, 8, 16, 13, 0, 0, 0, time.UTC)
+	srv.rssNow = func() time.Time { return now }
+	user := createServiceUser(t, srv, "moved-reader")
+	binding, err := srv.AddFeedService(context.Background(), &pb.AddFeedServiceRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), Kind: model.WebFeedServiceKind,
+		Url: "https://old.example/feed",
+	})
+	require.NoError(t, err)
+	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
+		return &serviceFetchResult{status: http.StatusOK, feed: &gofeed.Feed{}, permanentRedirect: true, finalURL: "https://new.example/feed"}, nil
+	}
+	payload, err := proto.Marshal(&pb.ServiceFetchPayload{ServiceUuid: binding.ServiceUuid})
+	require.NoError(t, err)
+	require.NoError(t, srv.handleServiceTask(context.Background(), &pb.Task{Type: serviceFetchTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 1, MaxAttempts: 3}))
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	service, err := model.GetService(srv.rdb, serviceID)
+	require.NoError(t, err)
+	require.Equal(t, "https://old.example/feed", service.CanonicalUrl)
+	require.Equal(t, "https://new.example/feed", service.FetchUrl)
+	require.Equal(t, serviceID.String(), service.Uuid)
+}
+
+func TestSchedulerSkipsDeadService(t *testing.T) {
+	srv := newServiceServer(t)
+	now := time.Date(2026, 8, 16, 14, 0, 0, 0, time.UTC)
+	user := createServiceUser(t, srv, "dead-reader")
+	binding, err := srv.AddFeedService(context.Background(), &pb.AddFeedServiceRequest{ActorUuid: user.String(), TargetFeedUuid: user.String(), Kind: model.WebFeedServiceKind, Url: "https://dead.example/feed"})
+	require.NoError(t, err)
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	state, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	state.Status = model.ServiceStatusDead
+	state.NextFetchMs = 0
+	require.NoError(t, model.PutServiceState(srv.rdb, serviceID, state))
+	require.NoError(t, srv.scheduleDueServices(context.Background(), now))
+	records, err := taskqueue.List(srv.rdb, "ready", 10)
+	require.NoError(t, err)
+	for _, record := range records {
+		require.NotEqual(t, serviceFetchTaskType, record.Task.Type)
+	}
 }
 
 func TestServiceSchedulerSkipsCorruptStateAndContinues(t *testing.T) {

@@ -51,7 +51,7 @@ adapter；不得在通用调度器中堆 provider 分支。需要 OAuth/token �
 TableService = 111
 key   = prefix(4) | service UUID(16)
 value = pb.Service {
-          uuid, kind, canonical_url,
+          uuid, kind, canonical_url, fetch_url,
           title, site_url, icon_url,
           created_at_ms, updated_at_ms
         }
@@ -63,6 +63,10 @@ URL 规范化只处理身份等价项：scheme/host 小写、默认端口移除�
 排序或删除 query，因为部分 Feed 的 query 有业务含义。创建前执行 SSRF URL 静态校验，
 实际请求及每次 redirect 仍必须重新解析地址并校验 IP。
 
+`canonical_url` 是不可变身份，继续决定 Service UUID；`fetch_url` 是可变抓取端点，空值回退到
+`canonical_url`。成功跟随 301/308 后保存最终 `fetch_url`，不改变 UUID、绑定或历史 Entry。
+302/303/307 只在当次请求内跟随。这样来源搬迁不会生成新 Service，也不会破坏已有幂等键。
+
 ### ServiceState（112）
 
 ```text
@@ -73,12 +77,17 @@ value = pb.ServiceState {
           etag, last_modified,
           last_fetch_ms, next_fetch_ms,
           consecutive_failures, empty_fetches,
-          http_status, last_error
+          http_status, last_error,
+          status, permanent_failures, permanent_failure_since_ms, delivery_failures,
+          last_success_ms, dead_at_ms
         }
 ```
 
 Service 和高频 State 分表，避免每轮条件请求重写来源元数据。`last_error` 只存截断后的安全
 摘要，不得包含带 userinfo/query secret 的完整 URL 或响应正文。
+
+`status` 取 `active/degraded/dead`；旧记录空值视为 active。状态是来源级运行状态，不改变
+FeedService 的用户配置。DEAD 也不自动删除绑定或历史 Entry。
 
 ### FeedService（既有 101）
 
@@ -165,9 +174,20 @@ feed_service.seed { service_uuid, target_feed_uuid, service_id }
   已删除或不存在属于失效配置：原子 disable FeedService 并移除 ServiceFeedIndex 后继续；
   其他写入错误汇总并使 Task 重试，不能自动停用。
 
-成功无新内容时自适应放慢，默认从 30 分钟逐步增加到 24 小时；短期网络/5xx 由 Task
-Fail 重试，只有该 Task 最终失败时才推进 ServiceState 的长期失败退避。404/410 可在连续
-多次确认后停用来源，但不能第一次响应就删除用户配置。
+成功无新内容时自适应放慢，默认从 30 分钟逐步增加到 24 小时。来源失败按正常生命周期处理：
+
+- 网络、DNS、TLS、408/425/429 和 5xx 是临时失败；Task 内重试结束后置 degraded，并按
+  1 小时至 24 小时退避，仍持续探测；
+- 其他 4xx、响应过大和持续无法解析是永久失败候选；每个调度周期只计一次。只有连续至少
+  6 次并且从首次候选错误起已持续至少 7 天，才置 dead 并停止自动入队。临时错误会中断并
+  清除此候选窗口；单次 404/410 不删除配置；
+- 任意成功响应把状态恢复为 active，清空失败计数；手动 Refresh 即使对 dead 来源也会执行
+  无条件探测，成功即可复活；
+- 某个 binding 的持久投递错误不归咎于远端来源，但最终失败必须推进独立的 delivery 退避，
+  不能让调度器每分钟产生新的 task。失败已持久化为来源生命周期状态后，当前 Task 正常完成，
+  不再额外生成 TaskDone(DEAD)；健康 binding 已完成的幂等投递保留；
+- dead 来源只停止自动抓取，用户仍可 Disable、Remove 或 Refresh。运维通过 `inspect_service`
+  查看状态；不得依赖不断增长的 TaskDone 充当来源状态。
 
 ## HTTP 行为与 User-Agent
 
@@ -222,7 +242,7 @@ Service、Service UUID、抓取状态或 Task 参数。
 账户 Import 页面管理当前用户 Feed 的 Service。Group 管理页面增加同一套 Service
 组件，只有 Group admin 可见：
 
-- 列出现有 Service：名称、来源 host、最近成功时间、状态；
+- 列出现有 Service：名称、来源 host、最近成功时间、active/degraded/dead 状态；
 - 添加公开 Feed URL，服务端探测并返回解析后的 title/site URL 供确认；
 - 启用/停用、删除、显式“立即刷新”；
 - 不在浏览器直接抓取 URL，不显示完整内部错误或敏感 query。

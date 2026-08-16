@@ -32,17 +32,29 @@ const (
 	rssScheduleInterval     = time.Minute
 	serviceFetchInterval    = 30 * time.Minute
 	serviceFetchMaxInterval = 24 * time.Hour
+	servicePermanentLimit   = 6
+	servicePermanentWindow  = 7 * 24 * time.Hour
 	rssHTTPTimeout          = 15 * time.Second
 	rssMaxBodyBytes         = 5 << 20
 	rssMaxItems             = 25
 )
 
 type serviceFetchResult struct {
-	feed         *gofeed.Feed
-	status       int
-	etag         string
-	lastModified string
+	feed              *gofeed.Feed
+	status            int
+	etag              string
+	lastModified      string
+	finalURL          string
+	permanentRedirect bool
 }
+
+type serviceSourceError struct {
+	err       error
+	permanent bool
+}
+
+func (e *serviceSourceError) Error() string { return e.err.Error() }
+func (e *serviceSourceError) Unwrap() error { return e.err }
 
 type serviceFetcher func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error)
 
@@ -122,6 +134,9 @@ func (s *ApiServer) scheduleDueServices(ctx context.Context, now time.Time) erro
 			return nil
 		}
 		if state.NextFetchMs > now.UnixMilli() {
+			return nil
+		}
+		if state.Status == model.ServiceStatusDead {
 			return nil
 		}
 		serviceID, err := uuid.FromString(state.ServiceUuid)
@@ -208,7 +223,7 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 	if seed {
 		fetchState = &pb.ServiceState{ServiceUuid: serviceID.String()}
 	}
-	hostLock, err := s.rssHostLock(service.CanonicalUrl)
+	hostLock, err := s.rssHostLock(model.ServiceFetchURL(service))
 	if err != nil {
 		return err
 	}
@@ -218,15 +233,23 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 	now := s.rssNow().UTC()
 	if err != nil {
 		if task.Attempts >= task.MaxAttempts {
-			state.ConsecutiveFailures++
-			state.LastFetchMs = now.UnixMilli()
-			state.NextFetchMs = now.Add(longServiceBackoff(state.ConsecutiveFailures)).UnixMilli()
-			state.LastError = truncateServiceError(err)
+			applyServiceFetchFailure(state, result, err, now)
 			if putErr := model.PutServiceState(s.rdb, serviceID, state); putErr != nil {
 				return fmt.Errorf("fetch failed (%v), persist failure: %w", err, putErr)
 			}
+			// The source lifecycle now owns this resolved failure. Completing the
+			// exhausted Task prevents normal dead/degraded sources from filling
+			// TaskDone with an unbounded stream of DEAD executions.
+			return nil
 		}
 		return err
+	}
+	if result.permanentRedirect && result.finalURL != "" && result.finalURL != model.ServiceFetchURL(service) {
+		service.FetchUrl = result.finalURL
+		service.UpdatedAtMs = now.UnixMilli()
+		if _, err := model.Service.Put(s.rdb, serviceID.Bytes(), service); err != nil {
+			return err
+		}
 	}
 	if result.status != http.StatusNotModified {
 		if result.feed != nil && strings.TrimSpace(result.feed.Title) != "" {
@@ -273,14 +296,31 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 			}
 		}
 		if len(deliveryErrors) != 0 {
+			if task.Attempts >= task.MaxAttempts {
+				state.DeliveryFailures++
+				state.Status = model.ServiceStatusDegraded
+				state.LastFetchMs = now.UnixMilli()
+				state.LastError = truncateServiceError(errors.Join(deliveryErrors...))
+				state.NextFetchMs = now.Add(longServiceBackoff(state.DeliveryFailures)).UnixMilli()
+				if putErr := model.PutServiceState(s.rdb, serviceID, state); putErr != nil {
+					return fmt.Errorf("delivery failed (%v), persist cooldown: %w", errors.Join(deliveryErrors...), putErr)
+				}
+				return nil
+			}
 			return errors.Join(deliveryErrors...)
 		}
 	}
 	state.LastFetchMs = now.UnixMilli()
+	state.LastSuccessMs = now.UnixMilli()
 	state.HttpStatus = int32(result.status)
 	state.Etag = result.etag
 	state.LastModified = result.lastModified
 	state.ConsecutiveFailures = 0
+	state.PermanentFailures = 0
+	state.PermanentFailureSinceMs = 0
+	state.DeliveryFailures = 0
+	state.Status = model.ServiceStatusActive
+	state.DeadAtMs = 0
 	state.LastError = ""
 	if result.status == http.StatusNotModified || result.feed == nil || len(result.feed.Items) == 0 {
 		state.EmptyFetches++
@@ -289,6 +329,37 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 	}
 	state.NextFetchMs = now.Add(serviceNextInterval(state.EmptyFetches)).UnixMilli()
 	return model.PutServiceState(s.rdb, serviceID, state)
+}
+
+func applyServiceFetchFailure(state *pb.ServiceState, result *serviceFetchResult, fetchErr error, now time.Time) {
+	state.LastFetchMs = now.UnixMilli()
+	state.LastError = truncateServiceError(fetchErr)
+	if result != nil {
+		state.HttpStatus = int32(result.status)
+	}
+	var sourceErr *serviceSourceError
+	if errors.As(fetchErr, &sourceErr) && sourceErr.permanent {
+		if state.PermanentFailures == 0 || state.PermanentFailureSinceMs == 0 {
+			state.PermanentFailureSinceMs = now.UnixMilli()
+		}
+		state.PermanentFailures++
+		state.ConsecutiveFailures = 0
+		state.Status = model.ServiceStatusDegraded
+		failureAge := now.Sub(time.UnixMilli(state.PermanentFailureSinceMs))
+		if state.PermanentFailures >= servicePermanentLimit && failureAge >= servicePermanentWindow {
+			state.Status = model.ServiceStatusDead
+			state.DeadAtMs = now.UnixMilli()
+			state.NextFetchMs = 0
+			return
+		}
+		state.NextFetchMs = now.Add(longServiceBackoff(state.PermanentFailures)).UnixMilli()
+		return
+	}
+	state.ConsecutiveFailures++
+	state.PermanentFailures = 0
+	state.PermanentFailureSinceMs = 0
+	state.Status = model.ServiceStatusDegraded
+	state.NextFetchMs = now.Add(longServiceBackoff(state.ConsecutiveFailures)).UnixMilli()
 }
 
 func truncateServiceError(err error) string {
@@ -376,13 +447,20 @@ func (s *ApiServer) rssHostLock(raw string) (*sync.Mutex, error) {
 func fetchServiceHTTP(ctx context.Context, service *pb.Service, state *pb.ServiceState) (*serviceFetchResult, error) {
 	transport := &http.Transport{DialContext: safeRSSDialContext}
 	client := &http.Client{Transport: transport, Timeout: rssHTTPTimeout}
+	permanentRedirect := false
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
 			return errors.New("too many Service redirects")
 		}
-		return validateRSSURL(req.URL)
+		if err := validateRSSURL(req.URL); err != nil {
+			return err
+		}
+		if req.Response != nil && (req.Response.StatusCode == http.StatusMovedPermanently || req.Response.StatusCode == http.StatusPermanentRedirect) {
+			permanentRedirect = true
+		}
+		return nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, service.CanonicalUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, model.ServiceFetchURL(service), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -405,22 +483,33 @@ func fetchServiceHTTP(ctx context.Context, service *pb.Service, state *pb.Servic
 		return nil, err
 	}
 	defer resp.Body.Close()
-	result := &serviceFetchResult{status: resp.StatusCode, etag: resp.Header.Get("ETag"), lastModified: resp.Header.Get("Last-Modified")}
+	finalURL, err := model.NormalizeServiceURL(resp.Request.URL.String())
+	if err != nil {
+		return nil, err
+	}
+	result := &serviceFetchResult{status: resp.StatusCode, etag: resp.Header.Get("ETag"), lastModified: resp.Header.Get("Last-Modified"), finalURL: finalURL, permanentRedirect: permanentRedirect}
 	if resp.StatusCode == http.StatusNotModified {
 		return result, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("Service HTTP status %d", resp.StatusCode)
+		return result, &serviceSourceError{err: fmt.Errorf("Service HTTP status %d", resp.StatusCode), permanent: permanentHTTPStatus(resp.StatusCode)}
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, rssMaxBodyBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if len(body) > rssMaxBodyBytes {
-		return nil, errors.New("Service response exceeds 5 MiB")
+		return result, &serviceSourceError{err: errors.New("Service response exceeds 5 MiB"), permanent: true}
 	}
 	result.feed, err = gofeed.NewParser().ParseString(string(body))
-	return result, err
+	if err != nil {
+		return result, &serviceSourceError{err: fmt.Errorf("parse Service feed: %w", err), permanent: true}
+	}
+	return result, nil
+}
+
+func permanentHTTPStatus(status int) bool {
+	return status >= 400 && status < 500 && status != http.StatusRequestTimeout && status != http.StatusTooEarly && status != http.StatusTooManyRequests
 }
 
 func validateRSSURL(target *url.URL) error {

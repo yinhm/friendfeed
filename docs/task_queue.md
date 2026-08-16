@@ -296,12 +296,14 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
 - handler 必须先完成所有 FeedService 的幂等 Entry 投递并提交新的 ServiceState，
   再 Complete Task。若提交后进程
   崩溃，lease 重派会由最新 State/Entry identity 识别为重复执行。
-- 尚有队列重试次数的短期远程抓取错误只调用 Fail，不推进业务 `next_fetch`；最后一次允许
-  的远程抓取仍失败时，handler 先更新 ServiceState 的失败计数与下一轮业务调度时间，再
-  Fail 进入 DEAD。若更新 State 后崩溃，重派 handler 看到已推进的 State 后幂等 Complete。
-  binding 投递错误不是来源抓取失败：handler 尝试全部 binding 后汇总返回，且不推进共享
-  ServiceState；目标已删除的 binding 自动 disable，其他持久错误保持 loud failure 并会在来源
-  仍到期时再次调度。ETag、HTTP 状态和长期失败退避始终只属于 ServiceState，不能产生两套真相。
+- 尚有队列重试次数的抓取或投递错误调用 Fail；最后一次仍失败时，handler 必须先推进
+  ServiceState 的来源退避或独立 delivery 退避，再 Complete 当前 Task，禁止下一分钟再次入队，
+  也禁止把正常来源生命周期复制成持续增长的 TaskDone(DEAD)。只有失败状态无法持久化等未处理
+  故障才让 Task 进入 DEAD。
+  临时远程故障持续探测；确定性 4xx/解析失败连续至少六次且持续至少七天后才把来源置为 dead，调度器停止
+  自动入队，手动 seed 成功可复活。binding 投递错误不增加来源失败计数；目标已删除的 binding
+  自动 disable。ETag、HTTP 状态、来源生命周期和长期退避始终只属于 ServiceState，不能产生
+  两套真相。若更新 State 后崩溃，重派 handler 由已推进的 `next_fetch` 幂等 Complete。
 - 首版 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
   多进程 RSS worker 前必须增加跨 worker 的 host 并发方案；进程内 mutex 不能冒充
   分布式互斥。

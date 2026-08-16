@@ -29,11 +29,11 @@ func runInspectServiceCommand(db *store.Store) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("uuid=%s kind=%s url=%q title=%q site_url=%q bindings=%d\n",
-		service.Uuid, service.Kind, service.CanonicalUrl, service.Title, service.SiteUrl, len(bindings))
+	fmt.Printf("uuid=%s kind=%s canonical_url=%q fetch_url=%q title=%q site_url=%q bindings=%d\n",
+		service.Uuid, service.Kind, service.CanonicalUrl, model.ServiceFetchURL(service), service.Title, service.SiteUrl, len(bindings))
 	if stateErr == nil {
-		fmt.Printf("last_fetch_ms=%d next_fetch_ms=%d failures=%d http_status=%d last_error=%q\n",
-			state.LastFetchMs, state.NextFetchMs, state.ConsecutiveFailures, state.HttpStatus, state.LastError)
+		fmt.Printf("status=%s last_fetch_ms=%d last_success_ms=%d next_fetch_ms=%d failures=%d permanent_failures=%d permanent_failure_since_ms=%d delivery_failures=%d http_status=%d last_error=%q\n",
+			state.Status, state.LastFetchMs, state.LastSuccessMs, state.NextFetchMs, state.ConsecutiveFailures, state.PermanentFailures, state.PermanentFailureSinceMs, state.DeliveryFailures, state.HttpStatus, state.LastError)
 	}
 	for _, binding := range bindings {
 		feedService, err := model.GetFeedService(db, binding.TargetFeedUUID, binding.ServiceID)

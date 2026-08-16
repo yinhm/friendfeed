@@ -84,6 +84,14 @@ describe('ImportPanel', () => {
     expect(screen.getByText('Last fetch failed: timeout')).toBeInTheDocument();
   });
 
+  it('shows dead sources as manually recoverable', () => {
+    render(<ImportPanel services={{rss: {
+      id: 'rss', name: 'RSS', kind: 'web_feed', service_uuid: 'source', enabled: true,
+    }}} states={{source: {last_fetch_ms: 1000, status: 'dead'}}} />);
+    expect(screen.getByText('Source is no longer available. Use Refresh to retry.')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Refresh'})).toBeEnabled();
+  });
+
   it('keeps the service when confirmation is cancelled', () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(false));
     const fetchMock = vi.fn();

@@ -29,6 +29,9 @@ message Service {
   string icon_url = 6;
   int64 created_at_ms = 7;
   int64 updated_at_ms = 8;
+  // Mutable endpoint learned from a verified permanent redirect. canonical_url
+  // remains the immutable identity used to derive uuid.
+  string fetch_url = 9;
 }
 
 message ServiceState {
@@ -41,6 +44,13 @@ message ServiceState {
   int32 http_status = 7;
   uint32 empty_fetches = 8;
   string last_error = 9;
+  // active, degraded, or dead. Empty is active for existing rows.
+  string status = 10;
+  uint32 permanent_failures = 11;
+  uint32 delivery_failures = 12;
+  int64 last_success_ms = 13;
+  int64 dead_at_ms = 14;
+  int64 permanent_failure_since_ms = 15;
 }
 
 message ServiceFetchPayload {

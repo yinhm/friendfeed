@@ -17,6 +17,22 @@ import (
 
 const WebFeedServiceKind = "web_feed"
 
+const (
+	ServiceStatusActive   = "active"
+	ServiceStatusDegraded = "degraded"
+	ServiceStatusDead     = "dead"
+)
+
+func ServiceFetchURL(service *pb.Service) string {
+	if service == nil {
+		return ""
+	}
+	if strings.TrimSpace(service.FetchUrl) != "" {
+		return service.FetchUrl
+	}
+	return service.CanonicalUrl
+}
+
 func NormalizeServiceURL(rawURL string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
@@ -195,7 +211,7 @@ func StageAddWebFeedService(db *store.Store, batch *pebble.Batch, target, actor 
 		return nil, nil, err
 	}
 
-	state := &pb.ServiceState{ServiceUuid: serviceUUID.String(), NextFetchMs: now.UTC().UnixMilli()}
+	state := &pb.ServiceState{ServiceUuid: serviceUUID.String(), NextFetchMs: now.UTC().UnixMilli(), Status: ServiceStatusActive}
 	if _, getErr := ServiceState.GetRaw(db, serviceUUID.Bytes()); errors.Is(getErr, store.ErrNotFound) {
 		if err := setProto(batch, ServiceState.PrefixAppend(serviceUUID.Bytes()), state); err != nil {
 			return nil, nil, err

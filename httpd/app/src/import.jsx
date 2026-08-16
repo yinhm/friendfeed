@@ -20,6 +20,8 @@ import {getJSON, postJSON} from './utils';
  * @property {number} [last_fetch_ms]
  * @property {number} [next_fetch_ms]
  * @property {string} [last_error]
+ * @property {string} [status]
+ * @property {number} [last_success_ms]
  */
 
 /**
@@ -88,8 +90,10 @@ export function ImportPanel(props) {
     if (service.kind !== 'web_feed') return null;
     const state = props.states?.[service.service_uuid ?? ''];
     if (!state?.last_fetch_ms) return 'Pending first fetch';
+    if (state.status === 'dead') return 'Source is no longer available. Use Refresh to retry.';
     if (state.last_error) return `Last fetch failed: ${state.last_error}`;
-    return `Last fetched ${new Date(state.last_fetch_ms).toLocaleString()}`;
+    const timestamp = state.last_success_ms || state.last_fetch_ms;
+    return `Last fetched ${new Date(timestamp).toLocaleString()}`;
   };
 
   /** @param {ServiceData} service */
