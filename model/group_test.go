@@ -2,10 +2,12 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 )
 
@@ -115,4 +117,85 @@ func TestGroupActionAllowedMatrix(t *testing.T) {
 			require.Equal(t, tc.want, GroupActionAllowed(tc.role, tc.action))
 		})
 	}
+}
+
+func TestCreateGroupRejectsMissingActor(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	actor := uuid.Must(uuid.NewV4())
+	_, err = CreateGroup(db, actor, "ghost-club", "Ghost Club", "", "", false, time.Now())
+	require.Error(t, err)
+
+	// No residue: the ID must remain unclaimed.
+	_, err = db.Get(NewKeyFrom(TableUserMap.Bytes(), []byte("ghost-club")))
+	require.ErrorIs(t, err, store.ErrNotFound)
+}
+
+func TestCreateGroupRejectsNonUserActor(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group := uuid.Must(uuid.NewV4())
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: group.String(), Id: "existing-group", Type: "group"}))
+
+	_, err = CreateGroup(db, group, "nested-club", "Nested Club", "", "", false, time.Now())
+	require.Error(t, err)
+}
+
+func TestCreateGroupRejectsPrivate(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	actor := uuid.Must(uuid.NewV4())
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: actor.String(), Id: "creator", Type: "user"}))
+
+	_, err = CreateGroup(db, actor, "private-club", "Private Club", "", "", true, time.Now())
+	require.ErrorIs(t, err, ErrPrivateGroupUnsupported)
+
+	_, err = db.Get(NewKeyFrom(TableUserMap.Bytes(), []byte("private-club")))
+	require.ErrorIs(t, err, store.ErrNotFound)
+}
+
+func TestCreateGroupAtomicWrites(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	actor := uuid.Must(uuid.NewV4())
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: actor.String(), Id: "creator", Type: "user"}))
+
+	now := time.Now()
+	group, err := CreateGroup(db, actor, "Book-Club", "Book Club", "for readers", "pic.png", false, now)
+	require.NoError(t, err)
+	require.Equal(t, "group", group.Type)
+	require.Equal(t, "book-club", group.Id) // normalized lowercase
+
+	groupUUID, err := uuid.FromString(group.Uuid)
+	require.NoError(t, err)
+
+	isAdmin, err := IsGroupAdmin(db, groupUUID, actor)
+	require.NoError(t, err)
+	require.True(t, isAdmin)
+
+	followed, err := db.Exists(NewKeyFrom(Follow.Prefix, actor.Bytes(), groupUUID.Bytes()))
+	require.NoError(t, err)
+	require.True(t, followed)
+
+	followerExists, err := db.Exists(NewKeyFrom(Follower.Prefix, groupUUID.Bytes(), actor.Bytes()))
+	require.NoError(t, err)
+	require.True(t, followerExists)
+
+	// Duplicate ID must be rejected without disturbing the existing Group.
+	other := uuid.Must(uuid.NewV4())
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: other.String(), Id: "other", Type: "user"}))
+	_, err = CreateGroup(db, other, "book-club", "Book Club Dup", "", "", false, now)
+	require.Error(t, err)
+
+	adminCount, err := CountGroupAdmins(db, groupUUID)
+	require.NoError(t, err)
+	require.Equal(t, 1, adminCount)
 }

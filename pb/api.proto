@@ -60,6 +60,9 @@ service Api {
   rpc SetFeedServiceEnabled(SetFeedServiceEnabledRequest) returns (FeedService) {}
   rpc RefreshFeedService(RefreshFeedServiceRequest) returns (google.protobuf.Empty) {}
 
+  // group
+  rpc CreateGroup(CreateGroupRequest) returns (Profile) {}
+
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
   // Stock
@@ -366,4 +369,13 @@ message SearchRequest {
   string query = 1;
   int32 start = 2;
   int32 page_size = 3;
+}
+
+message CreateGroupRequest {
+  string actor_uuid = 1;
+  string id = 2;
+  string name = 3;
+  string description = 4;
+  string picture = 5;
+  bool private = 6;
 }
