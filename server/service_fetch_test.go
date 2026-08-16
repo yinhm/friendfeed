@@ -256,6 +256,16 @@ func TestServiceHandlerAttemptsLaterBindingsBeforeReturningErrors(t *testing.T) 
 	serviceID := uuid.Must(uuid.FromString(bindings[0].ServiceUuid))
 	payload, err := proto.Marshal(&pb.ServiceFetchPayload{ServiceUuid: serviceID.String()})
 	require.NoError(t, err)
+	initialState, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	err = srv.handleServiceTask(context.Background(), &pb.Task{
+		Type: serviceFetchTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 1, MaxAttempts: 3,
+	})
+	require.ErrorContains(t, err, "load FeedService")
+	midState, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	require.Equal(t, initialState.NextFetchMs, midState.NextFetchMs)
+	require.Zero(t, midState.DeliveryFailures, "an attempt that can still retry must not advance business cooldown")
 	err = srv.handleServiceTask(context.Background(), &pb.Task{
 		Type: serviceFetchTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 3, MaxAttempts: 3,
 	})
@@ -266,8 +276,9 @@ func TestServiceHandlerAttemptsLaterBindingsBeforeReturningErrors(t *testing.T) 
 	state, stateErr := model.GetServiceState(srv.rdb, serviceID)
 	require.NoError(t, stateErr)
 	require.Equal(t, now.Add(time.Hour).UnixMilli(), state.NextFetchMs, "delivery errors must enter a bounded cooldown")
-	require.Equal(t, model.ServiceStatusDegraded, state.Status)
+	require.Equal(t, model.ServiceStatusActive, state.Status)
 	require.Equal(t, uint32(1), state.DeliveryFailures)
+	require.Empty(t, state.LastError, "binding details must not leak through source status")
 }
 
 func TestPermanentServiceFailuresBecomeDead(t *testing.T) {
@@ -359,6 +370,17 @@ func TestSchedulerSkipsDeadService(t *testing.T) {
 	state.Status = model.ServiceStatusDead
 	state.NextFetchMs = 0
 	require.NoError(t, model.PutServiceState(srv.rdb, serviceID, state))
+	fetched := false
+	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
+		fetched = true
+		return &serviceFetchResult{status: http.StatusOK}, nil
+	}
+	payload, err := proto.Marshal(&pb.ServiceFetchPayload{ServiceUuid: serviceID.String()})
+	require.NoError(t, err)
+	require.NoError(t, srv.handleServiceTask(context.Background(), &pb.Task{
+		Type: serviceFetchTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 1, MaxAttempts: 3,
+	}))
+	require.False(t, fetched, "a stale scheduled task cannot revive a dead source")
 	require.NoError(t, srv.scheduleDueServices(context.Background(), now))
 	records, err := taskqueue.List(srv.rdb, "ready", 10)
 	require.NoError(t, err)

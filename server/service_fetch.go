@@ -216,6 +216,9 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 	if err != nil {
 		return err
 	}
+	if !seed && state.Status == model.ServiceStatusDead {
+		return nil
+	}
 	if !seed && state.NextFetchMs > task.CreatedAtMs {
 		return nil
 	}
@@ -298,13 +301,20 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 		if len(deliveryErrors) != 0 {
 			if task.Attempts >= task.MaxAttempts {
 				state.DeliveryFailures++
-				state.Status = model.ServiceStatusDegraded
+				state.Status = model.ServiceStatusActive
 				state.LastFetchMs = now.UnixMilli()
-				state.LastError = truncateServiceError(errors.Join(deliveryErrors...))
+				state.LastSuccessMs = now.UnixMilli()
+				state.HttpStatus = int32(result.status)
+				state.ConsecutiveFailures = 0
+				state.PermanentFailures = 0
+				state.PermanentFailureSinceMs = 0
+				state.DeadAtMs = 0
+				state.LastError = ""
 				state.NextFetchMs = now.Add(longServiceBackoff(state.DeliveryFailures)).UnixMilli()
 				if putErr := model.PutServiceState(s.rdb, serviceID, state); putErr != nil {
 					return fmt.Errorf("delivery failed (%v), persist cooldown: %w", errors.Join(deliveryErrors...), putErr)
 				}
+				slog.Warn("Service delivery entered cooldown", "service_uuid", serviceID, "failures", state.DeliveryFailures, "next_fetch_ms", state.NextFetchMs)
 				return nil
 			}
 			return errors.Join(deliveryErrors...)

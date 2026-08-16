@@ -185,9 +185,12 @@ feed_service.seed { service_uuid, target_feed_uuid, service_id }
   无条件探测，成功即可复活；
 - 某个 binding 的持久投递错误不归咎于远端来源，但最终失败必须推进独立的 delivery 退避，
   不能让调度器每分钟产生新的 task。失败已持久化为来源生命周期状态后，当前 Task 正常完成，
-  不再额外生成 TaskDone(DEAD)；健康 binding 已完成的幂等投递保留；
+  不再额外生成 TaskDone(DEAD)；来源保持 active，内部投递错误不得写入会返回 Web 的
+  `last_error`；健康 binding 已完成的幂等投递保留；
 - dead 来源只停止自动抓取，用户仍可 Disable、Remove 或 Refresh。运维通过 `inspect_service`
   查看状态；不得依赖不断增长的 TaskDone 充当来源状态。
+- 删除后重新添加相同 URL 会复用原 ServiceState；若来源仍为 dead，用户需显式 Refresh 探测
+  并复活，重新绑定本身不隐式改变来源状态。
 
 ## HTTP 行为与 User-Agent
 
