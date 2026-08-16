@@ -29,18 +29,14 @@ func (s *ApiServer) authorizeFeedServiceAdmin(actorID, targetID uuid.UUID) error
 	if target.Type != "group" {
 		return errors.New("FeedService target is not manageable by actor")
 	}
-	// Legacy Feedinfo is currently the canonical source for explicit group
-	// admins. Follow membership is deliberately not an administration grant.
-	info, err := model.GetFeedinfo(s.rdb, targetID.String())
+	isAdmin, err := model.IsGroupAdmin(s.rdb, targetID, actorID)
 	if err != nil {
-		return errors.New("group has no explicit administrator metadata")
+		return err
 	}
-	for _, admin := range info.Admins {
-		if admin != nil && admin.Uuid == actorID.String() {
-			return nil
-		}
+	if !isAdmin {
+		return errors.New("actor is not a group administrator")
 	}
-	return errors.New("actor is not a group administrator")
+	return nil
 }
 
 func parseFeedServiceRequestIDs(actorRaw, targetRaw string) (uuid.UUID, uuid.UUID, error) {

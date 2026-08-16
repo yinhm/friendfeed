@@ -67,6 +67,7 @@ service Api {
   rpc AddGroupAdmin(GroupMembershipRequest) returns (google.protobuf.Empty) {}
   rpc RemoveGroupAdmin(GroupMembershipRequest) returns (google.protobuf.Empty) {}
   rpc RemoveGroupMember(GroupMembershipRequest) returns (google.protobuf.Empty) {}
+  rpc UpdateGroup(UpdateGroupRequest) returns (Profile) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
@@ -394,4 +395,15 @@ message GroupMembershipRequest {
   string actor_uuid = 1;
   string group_uuid = 2;
   string target_uuid = 3;
+}
+
+// UpdateGroupRequest edits a Group's mutable metadata. actor_uuid must be a
+// Group admin or super, per docs/group.md's manage_group permission. id,
+// type and private are not editable through this RPC.
+message UpdateGroupRequest {
+  string actor_uuid = 1;
+  string group_uuid = 2;
+  string name = 3;
+  string description = 4;
+  string picture = 5;
 }

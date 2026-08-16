@@ -278,3 +278,128 @@ func TestGraphFollowRoutesGroupThroughJoinLeave(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+func postGroupEntry(t *testing.T, srv *ApiServer, poster, group uuid.UUID) (*pb.Entry, error) {
+	t.Helper()
+	name := poster.String() + "/" + group.String() + "/" + uuid.Must(uuid.NewV4()).String()
+	entry := &pb.Entry{
+		Id:          uuid.NewV5(uuid.NamespaceURL, name).String(),
+		Date:        "2026-08-16T00:00:00Z",
+		Body:        "hello group",
+		ProfileUuid: poster.String(),
+		FeedUuid:    group.String(),
+	}
+	return srv.PostEntry(context.Background(), entry)
+}
+
+func TestPostEntryRejectsNonMemberPostingToGroup(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	outsider := createServiceUser(t, srv, "outsider")
+	group := createTestGroup(t, srv, creator, "posters-club")
+
+	_, err := postGroupEntry(t, srv, outsider, group)
+	require.Error(t, err)
+}
+
+func TestPostEntryAllowsMemberPostingToGroup(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	group := createTestGroup(t, srv, creator, "posters-club2")
+
+	require.NoError(t, model.JoinGroup(srv.rdb, group, member))
+
+	entry, err := postGroupEntry(t, srv, member, group)
+	require.NoError(t, err)
+	require.Equal(t, group.String(), entry.FeedUuid)
+}
+
+func TestPostEntryAllowsGroupAdminAndSuperEvenWithoutMembership(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	group := createTestGroup(t, srv, creator, "posters-club3")
+
+	// Creator is already a member and admin from CreateGroup.
+	_, err := postGroupEntry(t, srv, creator, group)
+	require.NoError(t, err)
+
+	super := createServiceUser(t, srv, "super")
+	require.NoError(t, model.UpdateProfile(srv.rdb, &pb.Profile{Uuid: super.String(), Id: "super", Type: "user", IsSuper: true}))
+	_, err = postGroupEntry(t, srv, super, group)
+	require.NoError(t, err)
+}
+
+func TestPostEntryExemptsGroupSelfPostFromMembershipCheck(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	group := createTestGroup(t, srv, creator, "posters-club4")
+
+	// FeedService imports post as the Group itself (ProfileUuid == FeedUuid);
+	// this must succeed even though a Group is never "a member of itself".
+	entry := &pb.Entry{
+		Id:          uuid.NewV5(uuid.NamespaceURL, group.String()+"/self-post").String(),
+		Date:        "2026-08-16T00:00:00Z",
+		Body:        "imported item",
+		ProfileUuid: group.String(),
+		FeedUuid:    group.String(),
+		Via:         &pb.Via{Name: "Example Service", Url: "https://example.com"},
+	}
+	_, err := srv.PostEntry(context.Background(), entry)
+	require.NoError(t, err)
+}
+
+func TestDeleteEntryAllowsGroupAdminButNotOrdinaryMember(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	group := createTestGroup(t, srv, creator, "moderators-club")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, member))
+
+	entry, err := postGroupEntry(t, srv, member, group)
+	require.NoError(t, err)
+
+	// A different plain member may not delete another member's Entry.
+	otherMember := createServiceUser(t, srv, "other-member")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, otherMember))
+	_, err = srv.DeleteEntry(context.Background(), &pb.EntryRequest{Uuid: entry.Id, User: otherMember.String()})
+	require.Error(t, err)
+
+	// The Group admin (creator) may delete it despite not being the author.
+	_, err = srv.DeleteEntry(context.Background(), &pb.EntryRequest{Uuid: entry.Id, User: creator.String()})
+	require.NoError(t, err)
+}
+
+func TestUpdateGroupRequiresAdmin(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	outsider := createServiceUser(t, srv, "outsider")
+	group := createTestGroup(t, srv, creator, "editable-club")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, member))
+
+	updateReq := &pb.UpdateGroupRequest{
+		GroupUuid:   group.String(),
+		Name:        "Renamed Club",
+		Description: "new description",
+		Picture:     "https://example.com/new.png",
+	}
+
+	// Outsider cannot edit.
+	updateReq.ActorUuid = outsider.String()
+	_, err := srv.UpdateGroup(context.Background(), updateReq)
+	require.Error(t, err)
+
+	// Plain member cannot edit.
+	updateReq.ActorUuid = member.String()
+	_, err = srv.UpdateGroup(context.Background(), updateReq)
+	require.Error(t, err)
+
+	// Admin can edit.
+	updateReq.ActorUuid = creator.String()
+	updated, err := srv.UpdateGroup(context.Background(), updateReq)
+	require.NoError(t, err)
+	require.Equal(t, "Renamed Club", updated.Name)
+	require.Equal(t, "new description", updated.Description)
+	require.Equal(t, "https://example.com/new.png", updated.Picture)
+}

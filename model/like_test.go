@@ -308,6 +308,64 @@ func TestOtherUserCannotDeleteComment(t *testing.T) {
 	}
 }
 
+// A Group admin may delete a comment on an Entry posted into their Group
+// (entry.FeedUuid), even though they are neither the comment author nor the
+// entry author, but per docs/group.md this grant is delete-only.
+func TestGroupAdminCanDeleteCommentOnGroupEntry(t *testing.T) {
+	db := likeTestDB(t)
+	group, admin := setupGroupWithCreator(t, db)
+
+	entry := newLikeTestEntry()
+	entry.FeedUuid = group.String()
+	entry.Comments = []*pb.Comment{ownerComment()}
+
+	adminProfile, err := GetProfileFromUuid(db, admin)
+	require.NoError(t, err)
+
+	entry, err = testDeleteComment(t, db, adminProfile, entry, likeTestCommentID)
+	require.NoError(t, err)
+	require.Empty(t, entry.Comments)
+}
+
+// The Group-admin moderation grant is delete-only: it must not let an admin
+// edit another member's comment in place.
+func TestGroupAdminCannotEditCommentOnGroupEntry(t *testing.T) {
+	db := likeTestDB(t)
+	group, admin := setupGroupWithCreator(t, db)
+
+	entry := newLikeTestEntry()
+	entry.FeedUuid = group.String()
+	entry.Comments = []*pb.Comment{ownerComment()}
+	seedLikeTestInteractions(t, db, entry)
+
+	adminProfile, err := GetProfileFromUuid(db, admin)
+	require.NoError(t, err)
+
+	edit := &pb.Comment{Id: likeTestCommentID, Body: "edited by admin"}
+	_, _, err = PutComment(db, adminProfile, entry, edit)
+	require.ErrorIs(t, err, errCommentPerm)
+}
+
+// A plain Group member without the admin role must not moderate other
+// members' comments, even on an Entry posted into their shared Group.
+func TestGroupMemberWithoutAdminCannotDeleteComment(t *testing.T) {
+	db := likeTestDB(t)
+	group, _ := setupGroupWithCreator(t, db)
+	member := newGroupUser(t, db, "member")
+	require.NoError(t, JoinGroup(db, group, member))
+
+	entry := newLikeTestEntry()
+	entry.FeedUuid = group.String()
+	entry.Comments = []*pb.Comment{ownerComment()}
+
+	memberProfile, err := GetProfileFromUuid(db, member)
+	require.NoError(t, err)
+
+	entry, err = testDeleteComment(t, db, memberProfile, entry, likeTestCommentID)
+	require.Error(t, err)
+	require.Len(t, entry.Comments, 1)
+}
+
 func TestLikeNotDuplicated(t *testing.T) {
 	db := likeTestDB(t)
 	owner := likeTestProfileFor("owner", likeTestOwnerUUID)

@@ -104,6 +104,42 @@ func GroupActionAllowed(role GroupRole, action GroupAction) bool {
 	}
 }
 
+// ResolveGroupRole derives user's GroupRole against group from Profile.IsSuper,
+// Follow (membership) and GroupAdmin (admin role) — the same authoritative
+// sources IsGroupMember/IsGroupAdmin read.
+func ResolveGroupRole(db *store.Store, group, user uuid.UUID) (GroupRole, error) {
+	profile, err := GetProfileFromUuid(db, user)
+	if err != nil {
+		return GroupRole{}, err
+	}
+	isMember, err := IsGroupMember(db, group, user)
+	if err != nil {
+		return GroupRole{}, err
+	}
+	isAdmin, err := IsGroupAdmin(db, group, user)
+	if err != nil {
+		return GroupRole{}, err
+	}
+	return GroupRole{IsSuper: profile.IsSuper, IsMember: isMember, IsAdmin: isAdmin}, nil
+}
+
+// ErrGroupActionForbidden is returned when an actor's resolved GroupRole does
+// not permit the requested GroupAction.
+var ErrGroupActionForbidden = errors.New("actor is not permitted to perform this Group action")
+
+// CheckGroupAction resolves user's role against group and enforces action per
+// the permission matrix in GroupActionAllowed.
+func CheckGroupAction(db *store.Store, group, user uuid.UUID, action GroupAction) error {
+	role, err := ResolveGroupRole(db, group, user)
+	if err != nil {
+		return err
+	}
+	if !GroupActionAllowed(role, action) {
+		return ErrGroupActionForbidden
+	}
+	return nil
+}
+
 // ErrPrivateGroupUnsupported is returned when a caller attempts to create a
 // private Group before the approval/invite flow exists. docs/group.md
 // requires rejecting private=true outright rather than creating a Group
@@ -429,4 +465,42 @@ func RemoveGroupAdmin(db *store.Store, group, target uuid.UUID) error {
 	return db.ApplyBatch(func(batch *pebble.Batch) error {
 		return StageRemoveGroupAdmin(db, batch, group, target)
 	})
+}
+
+// StageUpdateGroup stages editing a Group's mutable metadata (name,
+// description, picture). It does not itself authorize the caller — per
+// docs/group.md, callers must check GroupActionManageGroup (admin or super)
+// before staging this write. Group ID, Type, and Private are immutable
+// through this path: renames go through the existing UserRenameMap flow, and
+// there is no private-Group flow yet (StageCreateGroup already rejects
+// private=true at creation).
+func StageUpdateGroup(db *store.Store, batch *pebble.Batch, group uuid.UUID, name, description, picture string) (*pb.Profile, error) {
+	if batch == nil || group == uuid.Nil {
+		return nil, errors.New("batch and group UUID are required")
+	}
+	profile, err := getGroupProfile(db, group)
+	if err != nil {
+		return nil, err
+	}
+	profile.Name = name
+	profile.Description = description
+	profile.Picture = picture
+	if err := setProto(batch, Profile.PrefixAppend(group.Bytes()), profile); err != nil {
+		return nil, fmt.Errorf("stage Profile: %w", err)
+	}
+	return profile, nil
+}
+
+// UpdateGroup opens an atomic batch and applies StageUpdateGroup.
+func UpdateGroup(db *store.Store, group uuid.UUID, name, description, picture string) (*pb.Profile, error) {
+	var updated *pb.Profile
+	err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		var stageErr error
+		updated, stageErr = StageUpdateGroup(db, batch, group, name, description, picture)
+		return stageErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
 }

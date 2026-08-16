@@ -99,7 +99,8 @@ func TestGroupFeedServiceRequiresExplicitAdmin(t *testing.T) {
 	member := createServiceUser(t, srv, "member")
 	group := uuid.Must(uuid.NewV4())
 	require.NoError(t, model.UpdateProfile(srv.rdb, &pb.Profile{Uuid: group.String(), Id: "group", Type: "group"}))
-	require.NoError(t, model.PutFeedinfo(srv.rdb, group.String(), &pb.Feedinfo{Uuid: group.String(), Id: "group", Type: "group", Admins: []*pb.Profile{{Uuid: admin.String(), Id: "admin"}}}))
+	require.NoError(t, model.JoinGroup(srv.rdb, group, admin))
+	require.NoError(t, model.AddGroupAdmin(srv.rdb, group, admin))
 	require.NoError(t, srv.rdb.Set(model.NewKeyFrom(model.Follow.Prefix, member.Bytes(), group.Bytes()), []byte("1")))
 
 	request := &pb.AddFeedServiceRequest{ActorUuid: member.String(), TargetFeedUuid: group.String(), Kind: model.WebFeedServiceKind, Url: "https://example.com/feed"}

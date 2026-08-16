@@ -159,3 +159,28 @@ func (s *ApiServer) CreateGroup(ctx context.Context, request *pb.CreateGroupRequ
 	}
 	return group, nil
 }
+
+func (s *ApiServer) UpdateGroup(ctx context.Context, request *pb.UpdateGroupRequest) (*pb.Profile, error) {
+	if request == nil || request.GroupUuid == "" {
+		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
+	}
+	actor, err := uuid.FromString(request.ActorUuid)
+	if err != nil || actor == uuid.Nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("valid actor_uuid is required")))
+	}
+	group, err := uuid.FromString(request.GroupUuid)
+	if err != nil || group == uuid.Nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("valid group_uuid is required")))
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, taskRPCError(err)
+	}
+	if err := s.authorizeGroupManage(actor, group); err != nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
+	}
+	updated, err := model.UpdateGroup(s.rdb, group, request.Name, request.Description, request.Picture)
+	if err != nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
+	}
+	return updated, nil
+}

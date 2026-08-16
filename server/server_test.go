@@ -1354,6 +1354,7 @@ func (s *RpcTestSuite) TestPostEntryCanonicalizesTo() {
 	}
 	groupA := newGroup("groupa")
 	groupB := newGroup("groupb")
+	assert.Nil(s.T(), model.JoinGroup(s.srv.rdb, uuid.Must(uuid.FromString(groupA.Uuid)), uuid.Must(uuid.FromString(profile.Uuid))))
 
 	newEntry := func(feedUuid string, to []*pb.Feed) *pb.Entry {
 		name := profile.Uuid + "/" + time.Now().UTC().Format(time.RFC3339Nano)

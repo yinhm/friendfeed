@@ -245,7 +245,7 @@ func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commen
 		if err := proto.Unmarshal(raw, comment); err != nil {
 			return err
 		}
-		if !canModerateComment(profile, entry, comment) {
+		if !canModerateComment(db, profile, entry, comment) {
 			return errCommentPerm
 		}
 		actorUUID, err := uuid.FromString(comment.From.Uuid)
@@ -339,9 +339,11 @@ func latestActorComment(db *store.Store, entry, actor, exclude uuid.UUID) (*pb.C
 
 // canModerateComment reports whether profile may delete cmt: the comment
 // author (stable UUID), the entry author (via entry.ProfileUuid only —
-// entry.From.Id is a recyclable snapshot and grants nothing), or a super
-// admin.
-func canModerateComment(profile *pb.Profile, entry *pb.Entry, cmt *pb.Comment) bool {
+// entry.From.Id is a recyclable snapshot and grants nothing), a super admin,
+// or a Group admin of entry.FeedUuid (delete-only, per docs/group.md — a
+// Group admin may never edit or impersonate the comment author, so this
+// branch is not consulted from PutComment's edit-in-place path).
+func canModerateComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, cmt *pb.Comment) bool {
 	if profile.IsSuper {
 		return true
 	}
@@ -349,12 +351,27 @@ func canModerateComment(profile *pb.Profile, entry *pb.Entry, cmt *pb.Comment) b
 		return true
 	}
 	entryUUID, err := uuid.FromString(entry.ProfileUuid)
-	if err != nil || entryUUID == uuid.Nil {
+	if err == nil && entryUUID != uuid.Nil {
+		profileUUID, err := uuid.FromString(profile.Uuid)
+		if err == nil && entryUUID == profileUUID {
+			return true
+		}
+	}
+	feedUUID, err := uuid.FromString(entry.FeedUuid)
+	if err != nil || feedUUID == uuid.Nil {
+		return false
+	}
+	feedProfile, err := GetProfileFromUuid(db, feedUUID)
+	if err != nil || feedProfile.Type != "group" {
 		return false
 	}
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
 		return false
 	}
-	return entryUUID == profileUUID
+	isAdmin, err := IsGroupAdmin(db, feedUUID, profileUUID)
+	if err != nil {
+		return false
+	}
+	return isAdmin
 }

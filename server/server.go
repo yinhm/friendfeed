@@ -1000,6 +1000,9 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 	if err := canonicalizeEntryTo(s.mdb, entry, profileUuid); err != nil {
 		return nil, err
 	}
+	if err := s.authorizeEntryPost(entry, profileUuid); err != nil {
+		return nil, err
+	}
 	// key, err := store.PutEntry(s.rdb, entry, false) // always use false
 	created, err := s.entryCreated(entry)
 	if err != nil {
@@ -1015,6 +1018,57 @@ func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, 
 		}
 	}
 	return entry, nil
+}
+
+// authorizeEntryPost enforces Group posting membership at the mutation
+// boundary per docs/group.md: httpd's feedWritable is display-only and must
+// not be the sole check. It only applies when entry.FeedUuid resolves to a
+// Group Profile other than the author itself; a Group posting to its own
+// feed (the FeedService import path in importServiceItems, which sets
+// ProfileUuid == FeedUuid == the Group's own UUID) is a self-post and is
+// exempt, same as any other profile posting to itself.
+func (s *ApiServer) authorizeEntryPost(entry *pb.Entry, authorUUID uuid.UUID) error {
+	feedUUID, err := uuid.FromString(entry.FeedUuid)
+	if err != nil {
+		return fmt.Errorf("entry FeedUuid is invalid: %w", err)
+	}
+	if feedUUID == authorUUID {
+		return nil
+	}
+	target, err := model.GetProfileFromUuid(s.mdb, feedUUID)
+	if err != nil {
+		return err
+	}
+	if target.Type != "group" {
+		return nil
+	}
+	if err := model.CheckGroupAction(s.mdb, feedUUID, authorUUID, model.GroupActionPost); err != nil {
+		return status.Errorf(codes.PermissionDenied, "actor may not post to this Group: %v", err)
+	}
+	return nil
+}
+
+// isGroupAdminOfEntryFeed reports whether actor is a Group admin of the
+// Group entry.FeedUuid resolves to, per docs/group.md's moderation rule: a
+// Group admin may delete any Entry posted into their Group, scoped strictly
+// to entry.FeedUuid (not any other snapshot field, and never a grant to
+// edit). Any lookup failure or non-Group FeedUuid resolves to false rather
+// than propagating an error, since this is only ever consulted as a
+// permission fallback after the author/super checks have failed.
+func (s *ApiServer) isGroupAdminOfEntryFeed(entry *pb.Entry, actor uuid.UUID) bool {
+	feedUUID, err := uuid.FromString(entry.FeedUuid)
+	if err != nil || feedUUID == uuid.Nil {
+		return false
+	}
+	target, err := model.GetProfileFromUuid(s.mdb, feedUUID)
+	if err != nil || target.Type != "group" {
+		return false
+	}
+	isAdmin, err := model.IsGroupAdmin(s.mdb, feedUUID, actor)
+	if err != nil {
+		return false
+	}
+	return isAdmin
 }
 
 func (s *ApiServer) PostTweet(ctx context.Context, tweet *pb.Tweet) (*pb.Entry, error) {
@@ -1075,8 +1129,8 @@ func (s *ApiServer) DeleteEntry(ctx context.Context, req *pb.EntryRequest) (*pb.
 	if err != nil || profile == nil {
 		return nil, err
 	}
-	// not superadmin and not creator
-	if !profile.IsSuper && entry.ProfileUuid != req.User {
+	// not superadmin, not creator, and not a Group admin of entry.FeedUuid
+	if !profile.IsSuper && entry.ProfileUuid != req.User && !s.isGroupAdminOfEntryFeed(entry, userUuid) {
 		return nil, status.Errorf(codes.PermissionDenied, "no perm")
 	}
 	err = model.DeleteEntry(s.rdb, req.Uuid)

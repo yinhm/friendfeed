@@ -215,16 +215,17 @@ following，不得为此把全量订阅塞回 Graph 响应。
 
 - 没有用户可调用的原子 CreateGroup API；`PostFeedinfo` 仍可隐式创建任意 Type 的
   Profile，且不写 Follow/GroupAdmin；
-- admin 权威仍来自 legacy Feedinfo Profile 快照。FeedService 的 group 管理授权已在
-  ffdb 检查（`server/feed_service.go` 按 UUID 比对 `Feedinfo.Admins`），但数据来源
-  必须在 GroupAdmin 表上线后切换；
+- ✅ admin 权威已切换到 GroupAdmin 表。**迁移注意**：现有 Group 的 admin 若仅存在于
+  legacy Feedinfo.Admins 快照中，需通过 super 手动执行 JoinGroup + AddGroupAdmin
+  引导，或运行一次性 backfill 命令（当前默认无生产 Group，暂未实现 backfill）；
 - GraphFollow 会无条件修改边，admin 可以退出，目标也未按 Group 规则校验；
-- Group 投稿权限主要由 httpd 的 `feedWritable` Follow 查询决定，ffdb `PostEntry`
-  尚未在 mutation 边界验证 Group 成员资格；
+- ✅ PostEntry 已在 mutation 边界验证 Group 成员资格（`authorizeEntryPost`），
+  FeedService 自发帖（ProfileUuid == FeedUuid）豁免；
 - private Group 的成员读取没有闭环；
 - Join/Leave 不会主动刷新现有 Home timeline；
 - 没有「用户已加入的 Group」读取 API（FetchGraph 不返回 following）；
-- Group admin 的 Entry/Comment moderation 尚未落地。
+- ✅ Group admin 的 Entry/Comment moderation 已落地（delete-only，admin 不可编辑
+  他人内容）。UpdateGroup RPC 已实现但暂无 httpd 调用方。
 
 ## 实施顺序与验收
 
