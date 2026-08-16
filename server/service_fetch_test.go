@@ -367,6 +367,53 @@ func TestFailedSeedProbeOnDeadSourceReentersScheduling(t *testing.T) {
 	require.Greater(t, state.NextFetchMs, now.UnixMilli(), "the source must get a real next-fetch time instead of 0")
 }
 
+func TestFailedSeedProbeWithPermanentErrorReentersScheduling(t *testing.T) {
+	srv := newServiceServer(t)
+	now := time.Date(2026, 8, 16, 12, 30, 0, 0, time.UTC)
+	srv.rssNow = func() time.Time { return now }
+	user := createServiceUser(t, srv, "dead-reader-perm")
+	binding, err := srv.AddFeedService(context.Background(), &pb.AddFeedServiceRequest{
+		ActorUuid: user.String(), TargetFeedUuid: user.String(), Kind: model.WebFeedServiceKind, Url: "https://dead-perm.example/feed",
+	})
+	require.NoError(t, err)
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+
+	// Set up a dead state: PermanentFailures >= 6, window expired, NextFetchMs=0
+	deadState, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	deadState.Status = model.ServiceStatusDead
+	deadState.PermanentFailures = servicePermanentLimit
+	deadState.PermanentFailureSinceMs = now.Add(-10 * 24 * time.Hour).UnixMilli()
+	deadState.DeadAtMs = now.Add(-time.Hour).UnixMilli()
+	deadState.NextFetchMs = 0
+	require.NoError(t, model.PutServiceState(srv.rdb, serviceID, deadState))
+
+	// Mock a permanent error (410 Gone)
+	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
+		return &serviceFetchResult{status: http.StatusGone}, &serviceSourceError{permanent: true, err: errors.New("feed gone")}
+	}
+
+	payload, err := proto.Marshal(&pb.FeedServiceSeedPayload{ServiceUuid: binding.ServiceUuid, TargetFeedUuid: user.String(), ServiceId: binding.Id})
+	require.NoError(t, err)
+	task := &pb.Task{Type: feedServiceSeedTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 3, MaxAttempts: 3}
+	require.NoError(t, srv.handleServiceTask(context.Background(), task), "exhausted seed task must complete even with permanent error")
+
+	state, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+
+	// The key fix: permanent error resets the candidate window (PF=1, degraded, 1h backoff)
+	// instead of immediately returning to Dead with NextFetchMs=0
+	require.Equal(t, model.ServiceStatusDegraded, state.Status, "permanent error on dead source should enter degraded, not stay dead")
+	require.Equal(t, uint32(1), state.PermanentFailures, "candidate window should be reset to PF=1")
+	require.Zero(t, state.DeadAtMs, "DeadAtMs should be cleared")
+	require.Greater(t, state.NextFetchMs, now.UnixMilli(), "must schedule next fetch (1h backoff), not freeze at 0")
+
+	// Verify it's actually scheduled for ~1 hour later (degraded + PF=1 backoff)
+	nextFetch := time.UnixMilli(state.NextFetchMs)
+	expectedBackoff := now.Add(time.Hour)
+	require.WithinDuration(t, expectedBackoff, nextFetch, 5*time.Minute, "should have ~1h backoff")
+}
+
 func TestServiceHandlerPersistsPermanentRedirectWithoutChangingIdentity(t *testing.T) {
 	srv := newServiceServer(t)
 	now := time.Date(2026, 8, 16, 13, 0, 0, 0, time.UTC)
