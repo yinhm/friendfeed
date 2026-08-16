@@ -307,7 +307,10 @@ func (s *Server) ExpandLikeHandler(c *gin.Context) {
 
 func (s *Server) expandEntry(c *gin.Context, comments bool) {
 	uuid := c.Params.ByName("uuid")
-	req := &pb.EntryRequest{Uuid: uuid}
+	req := &pb.EntryRequest{
+		Uuid:       uuid,
+		ViewerUuid: CurrentUserUuid(c),
+	}
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()

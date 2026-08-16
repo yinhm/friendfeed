@@ -268,7 +268,7 @@ message FeedRequest {
   int32 page_size = 3;
   // Include raw text entry and comment bodies in addition to the HTML bodies
   // included by default. The raw text bodies are available as rawBody on all
-  // returned entries and comments. This also adds rawLink on all entries. 
+  // returned entries and comments. This also adds rawLink on all entries.
   bool raw = 4;
   // NOTICE: this is not the same as original friendfeed api
   // auto should be default it not set.
@@ -280,6 +280,9 @@ message FeedRequest {
   // historical behavior. Cursor values are opaque to clients.
   string cursor = 8;
   bool cursor_paging = 9;
+  // UUID of the user viewing this feed. Used for private group access control.
+  // Optional for backwards compatibility; if empty, assumes public access only.
+  string viewer_uuid = 10;
 }
 
 enum InteractionKind {
@@ -311,6 +314,9 @@ message InteractionFeedResponse {
 message EntryRequest {
   string uuid = 1;
   string user = 2;
+  // UUID of the user viewing this entry. Used for private group access control.
+  // Optional for backwards compatibility; if empty, assumes public access only.
+  string viewer_uuid = 3;
 }
 
 message ProfileRequest {

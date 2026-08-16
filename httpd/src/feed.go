@@ -200,6 +200,7 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		Id:          "home",
 		ProfileUuid: userUuid,
 		PageSize:    30,
+		ViewerUuid:  userUuid,
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
 
@@ -220,8 +221,9 @@ func (s *Server) HomeHandler(c *gin.Context) {
 func (s *Server) FeedHandler(c *gin.Context) {
 	feedname := c.Params.ByName("name")
 	req := &pb.FeedRequest{
-		Id:       feedname,
-		PageSize: 30,
+		Id:         feedname,
+		PageSize:   30,
+		ViewerUuid: CurrentUserUuid(c),
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
 	_, feed, err := s.FetchFeed(c, req)
@@ -259,8 +261,9 @@ func (s *Server) FeedHandler(c *gin.Context) {
 
 func (s *Server) PublicHandler(c *gin.Context) {
 	req := &pb.FeedRequest{
-		Id:       "public",
-		PageSize: 30,
+		Id:         "public",
+		PageSize:   30,
+		ViewerUuid: CurrentUserUuid(c),
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
 

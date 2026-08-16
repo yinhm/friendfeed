@@ -490,3 +490,110 @@ func TestListUserGroupsSkipsDeletedProfiles(t *testing.T) {
 	require.Len(t, resp.Groups, 1)
 	require.Equal(t, group1.String(), resp.Groups[0].Uuid)
 }
+
+func TestPrivateGroupAccessControl(t *testing.T) {
+	srv := newServiceServer(t)
+	admin := createServiceUser(t, srv, "admin")
+	member := createServiceUser(t, srv, "member")
+	outsider := createServiceUser(t, srv, "outsider")
+
+	// Create a group
+	groupResp, err := srv.CreateGroup(context.Background(), &pb.CreateGroupRequest{
+		ActorUuid:   admin.String(),
+		Id:          "secret-club",
+		Name:        "Secret Club",
+		Description: "private group",
+	})
+	require.NoError(t, err)
+	groupUUID, _ := uuid.FromString(groupResp.Uuid)
+
+	// Update group to make it private
+	profile, err := model.GetProfileFromUuid(srv.rdb, groupUUID)
+	require.NoError(t, err)
+	profile.Private = true
+	_, err = model.Profile.Put(srv.rdb, groupUUID.Bytes(), profile)
+	require.NoError(t, err)
+
+	// Member joins the group
+	_, err = srv.JoinGroup(context.Background(), &pb.GroupMembershipRequest{
+		ActorUuid:  member.String(),
+		GroupUuid:  groupResp.Uuid,
+		TargetUuid: member.String(),
+	})
+	require.NoError(t, err)
+
+	// Post an entry to the private group
+	entryUUID := uuid.Must(uuid.NewV4())
+	entry := &pb.Entry{
+		Id:          entryUUID.String(),
+		ProfileUuid: admin.String(),
+		FeedUuid:    groupResp.Uuid,
+		Body:        "Secret message",
+		Date:        "2026-08-16T00:00:00Z",
+	}
+	entryKey, err := model.PutEntry(srv.rdb, entry)
+	require.NoError(t, err)
+	require.NotNil(t, entryKey)
+
+	// Test FetchFeed access control
+	t.Run("Admin can access private group feed", func(t *testing.T) {
+		feed, err := srv.ForwardFetchFeed(context.Background(), &pb.FeedRequest{
+			Id:         "secret-club",
+			PageSize:   30,
+			ViewerUuid: admin.String(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, feed)
+		require.Equal(t, groupResp.Uuid, feed.Uuid)
+	})
+
+	t.Run("Member can access private group feed", func(t *testing.T) {
+		feed, err := srv.ForwardFetchFeed(context.Background(), &pb.FeedRequest{
+			Id:         "secret-club",
+			PageSize:   30,
+			ViewerUuid: member.String(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, feed)
+	})
+
+	t.Run("Outsider cannot access private group feed", func(t *testing.T) {
+		_, err := srv.ForwardFetchFeed(context.Background(), &pb.FeedRequest{
+			Id:         "secret-club",
+			PageSize:   30,
+			ViewerUuid: outsider.String(),
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("Unauthenticated cannot access private group feed", func(t *testing.T) {
+		_, err := srv.ForwardFetchFeed(context.Background(), &pb.FeedRequest{
+			Id:       "secret-club",
+			PageSize: 30,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "authentication required")
+	})
+
+	t.Run("Outsider cannot access private group entry", func(t *testing.T) {
+		entryUUID := entry.Id
+		_, err := srv.FetchEntry(context.Background(), &pb.EntryRequest{
+			Uuid:       entryUUID,
+			ViewerUuid: outsider.String(),
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("Member can access private group entry", func(t *testing.T) {
+		entryUUID := entry.Id
+		feed, err := srv.FetchEntry(context.Background(), &pb.EntryRequest{
+			Uuid:       entryUUID,
+			ViewerUuid: member.String(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, feed)
+		require.Len(t, feed.Entries, 1)
+	})
+}

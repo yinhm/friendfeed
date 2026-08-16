@@ -511,6 +511,22 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		profileUuid, _ := uuid.FromString(profile.Uuid)
 		prefix = store.NewUUIDKey(model.TableEntryIndex, profileUuid).Bytes()
 	}
+
+	// Access control for private groups
+	if profile.Type == "group" && profile.Private {
+		if req.ViewerUuid == "" {
+			return nil, status.Errorf(codes.PermissionDenied, "authentication required for private group")
+		}
+		viewerUUID, err := uuid.FromString(req.ViewerUuid)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
+		}
+		groupUUID, _ := uuid.FromString(profile.Uuid)
+		if err := s.canAccessPrivateGroup(groupUUID, viewerUUID); err != nil {
+			return nil, status.Errorf(codes.PermissionDenied, "access denied to private group")
+		}
+	}
+
 	slog.Info("ForwardFetchFeed", "prefix", hex.EncodeToString(prefix))
 
 	start := req.Start
@@ -932,6 +948,26 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 	profile, err := fmtEntryProfiles(s.mdb, entry)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
+	}
+
+	// Access control for entries in private groups
+	if entry.FeedUuid != "" && entry.FeedUuid != entry.ProfileUuid {
+		feedUUID, err := uuid.FromString(entry.FeedUuid)
+		if err == nil {
+			feedProfile, err := model.GetProfileFromUuid(s.mdb, feedUUID)
+			if err == nil && feedProfile.Type == "group" && feedProfile.Private {
+				if req.ViewerUuid == "" {
+					return nil, status.Errorf(codes.PermissionDenied, "authentication required for private group entry")
+				}
+				viewerUUID, err := uuid.FromString(req.ViewerUuid)
+				if err != nil {
+					return nil, status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
+				}
+				if err := s.canAccessPrivateGroup(feedUUID, viewerUUID); err != nil {
+					return nil, status.Errorf(codes.PermissionDenied, "access denied to private group entry")
+				}
+			}
+		}
 	}
 
 	feed := &pb.Feed{

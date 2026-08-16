@@ -299,13 +299,11 @@ func StageJoinGroup(db *store.Store, batch *pebble.Batch, group, user uuid.UUID)
 	if batch == nil || group == uuid.Nil || user == uuid.Nil {
 		return errors.New("batch, group UUID, and user UUID are required")
 	}
-	groupProfile, err := getGroupProfile(db, group)
-	if err != nil {
+	// Validate group exists
+	if _, err := getGroupProfile(db, group); err != nil {
 		return err
 	}
-	if groupProfile.Private {
-		return ErrPrivateGroupUnsupported
-	}
+	// Private group access control is now enforced at the RPC layer via viewer_uuid
 	if _, err := getGroupMemberProfile(db, user); err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/gofrs/uuid"
@@ -299,4 +300,26 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGrou
 		response.NextCursor = lastGroupFeed.String()
 	}
 	return response, nil
+}
+
+// canAccessPrivateGroup checks if viewer can access a private group's content.
+// Returns nil if access is allowed, error otherwise.
+// Access is granted to: group members, super users.
+func (s *ApiServer) canAccessPrivateGroup(groupUUID, viewerUUID uuid.UUID) error {
+	// Check if viewer is super
+	viewer, err := model.GetProfileFromUuid(s.mdb, viewerUUID)
+	if err == nil && viewer.IsSuper {
+		return nil // super can access all groups
+	}
+
+	// Check if viewer is a member (Follow edge exists)
+	followKey := model.NewKeyFrom(model.Follow.Prefix, viewerUUID.Bytes(), groupUUID.Bytes())
+	isMember, err := s.rdb.Exists(followKey)
+	if err != nil {
+		return fmt.Errorf("failed to check membership: %w", err)
+	}
+	if !isMember {
+		return fmt.Errorf("access denied: not a member of private group")
+	}
+	return nil
 }

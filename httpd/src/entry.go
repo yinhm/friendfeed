@@ -23,7 +23,10 @@ import (
 const maxUploadRequestBytes = 20 << 20
 
 func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
-	req := &pb.EntryRequest{Uuid: uuid}
+	req := &pb.EntryRequest{
+		Uuid:       uuid,
+		ViewerUuid: CurrentUserUuid(c),
+	}
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
@@ -57,7 +60,10 @@ func entryTitle(entry *pb.Entry) string {
 
 func (s *Server) EntryHandler(c *gin.Context) {
 	uuid := c.Params.ByName("uuid")
-	req := &pb.EntryRequest{Uuid: uuid}
+	req := &pb.EntryRequest{
+		Uuid:       uuid,
+		ViewerUuid: CurrentUserUuid(c),
+	}
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
@@ -175,8 +181,9 @@ func (s *Server) EntryDeleteHandler(c *gin.Context) {
 
 	uuid := CurrentUserUuid(c)
 	req := &pb.EntryRequest{
-		Uuid: entryId,
-		User: uuid,
+		Uuid:       entryId,
+		User:       uuid,
+		ViewerUuid: uuid,
 	}
 
 	ctx, cancel := DefaultTimeoutContext()
