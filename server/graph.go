@@ -9,6 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
+	taskqueue "github.com/yinhm/friendfeed/task"
 )
 
 // GraphFollow is a compatible entry point for the generic Follow/Unfollow
@@ -36,17 +37,17 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 	switch req.Action {
 	case "follow":
 		if isGroup {
-			if err := model.JoinGroup(s.rdb, feedUUID, profileUUID); err != nil {
+			// Group membership and the Home rebuild task commit in one
+			// batch, per docs/group.md's timeline rule.
+			spec, err := homeRebuildSpec(profileUUID)
+			if err != nil {
 				return nil, err
 			}
-			// Trigger Home timeline rebuild asynchronously
-			s.wg.Add(1)
-			go func() {
-				defer s.wg.Done()
-				if err := model.DeleteTimelineState(s.rdb, profileUUID); err != nil {
-					slog.Warn("failed to clear timeline state after GraphFollow join", "user", profileUUID, "group", feedUUID, "error", err)
-				}
-			}()
+			if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
+				return model.StageJoinGroup(s.rdb, batch, feedUUID, profileUUID)
+			}); err != nil {
+				return nil, err
+			}
 			followed = true
 			break
 		}
@@ -66,17 +67,15 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		followed = true
 	case "unfollow":
 		if isGroup {
-			if err := model.LeaveGroup(s.rdb, feedUUID, profileUUID); err != nil {
+			spec, err := homeRebuildSpec(profileUUID)
+			if err != nil {
 				return nil, err
 			}
-			// Trigger Home timeline rebuild asynchronously
-			s.wg.Add(1)
-			go func() {
-				defer s.wg.Done()
-				if err := model.DeleteTimelineState(s.rdb, profileUUID); err != nil {
-					slog.Warn("failed to clear timeline state after GraphFollow leave", "user", profileUUID, "group", feedUUID, "error", err)
-				}
-			}()
+			if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
+				return model.StageLeaveGroup(s.rdb, batch, feedUUID, profileUUID)
+			}); err != nil {
+				return nil, err
+			}
 			followed = false
 			break
 		}

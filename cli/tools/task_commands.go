@@ -50,7 +50,7 @@ func runReplayDeadTaskCommand(db *store.Store) {
 	if inspectID == "" {
 		log.Fatal("-id is required for replay_dead_task")
 	}
-	registry, err := server.NewTaskRegistry(nil)
+	registry, err := server.NewTaskRegistry(nil, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

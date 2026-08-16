@@ -211,21 +211,37 @@ following，不得为此把全量订阅塞回 Graph 响应。
 
 ## 当前实现差距
 
-当前代码不能视为已经满足本规范：
+实现状态追踪（✅ 为已落地项）：
 
-- 没有用户可调用的原子 CreateGroup API；`PostFeedinfo` 仍可隐式创建任意 Type 的
-  Profile，且不写 Follow/GroupAdmin；
+- ✅ 原子 CreateGroup RPC 已落地（创建者同事务成为成员/admin，ID 冲突与失败无残留）。
+  `PostFeedinfo` 仍可隐式创建任意 Type 的 Profile——这是**有意保留**：stock/系统
+  feed（`server/stock.go`、`CreateSystemProfile`）依赖它创建无成员语义的 Type=group
+  系统 feed，用户面 Group 创建事实收口于 CreateGroup。若将来要彻底关闭此旁路，需先
+  给系统 feed 独立 Type 或内部直写路径。
 - ✅ admin 权威已切换到 GroupAdmin 表。**迁移注意**：现有 Group 的 admin 若仅存在于
   legacy Feedinfo.Admins 快照中，需通过 super 手动执行 JoinGroup + AddGroupAdmin
   引导，或运行一次性 backfill 命令（当前默认无生产 Group，暂未实现 backfill）；
-- GraphFollow 会无条件修改边，admin 可以退出，目标也未按 Group 规则校验；
+- ✅ GraphFollow 对 Group 目标已路由进 Join/Leave 领域层（admin 退出拦截、最后 admin
+  保护在所有入口一致生效）。
 - ✅ PostEntry 已在 mutation 边界验证 Group 成员资格（`authorizeEntryPost`），
   FeedService 自发帖（ProfileUuid == FeedUuid）豁免；
-- private Group 的成员读取没有闭环；
-- Join/Leave 不会主动刷新现有 Home timeline；
-- 没有「用户已加入的 Group」读取 API（FetchGraph 不返回 following）；
+- ✅ private Group 读取已闭环：legacy 与 cursor 两条 Feed 路径、FetchEntry、Home stale
+  行重校验、Search 结果过滤均执行成员/super 可见性检查；private Group 的 Join 在审批
+  流程落地前一律拒绝（`StageJoinGroup` 与 CreateGroup 一致）。
+- ✅ Join/Leave/RemoveMember 在同一 batch 入队幂等 `home.rebuild` task，按当前 Follow
+  边有界重建 Home（docs/task_queue.md）。
+- ✅ `ListUserGroups`（docs/group_navigation.md 契约）与 `GetGroup`/`ListGroupMembers`
+  读取 API 已落地。
 - ✅ Group admin 的 Entry/Comment moderation 已落地（delete-only，admin 不可编辑
-  他人内容）。UpdateGroup RPC 已实现但暂无 httpd 调用方。
+  他人内容）。UpdateGroup、DeleteGroup RPC 已实现。
+- 账号注销（MarkDelete）已执行唯一 admin 拦截并列出阻塞 Group。
+
+有意暂缓（规范允许的缺口）：
+
+- private Group 的邀请/join request 审批流程（在此之前 private 创建与加入均拒绝）；
+- 删除 Group 后 Follow/Follower、timeline、FeedService 的无上限清理（由 audit 报告，
+  后台/运维命令有界清理）；
+- `/groups` 完整列表页（sidebar 超过 20 个时只截断，不出死链）。
 
 ## 实施顺序与验收
 

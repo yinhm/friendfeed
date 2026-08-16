@@ -11,7 +11,10 @@ import (
 	"time"
 
 	"context"
+	"strings"
+
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -209,8 +212,35 @@ func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	profile.Deleted = true
-	model.UpdateProfile(s.mdb, profile)
+	profileUUID, err := uuid.FromString(profile.Uuid)
+	if err != nil {
+		return false, err
+	}
+	// docs/group.md: soft-deleting an account is leaving all its Groups, so
+	// the sole-admin constraint applies and the check must share the soft
+	// delete's critical section — otherwise a concurrent demotion could
+	// leave an undeleted Group with no valid admin.
+	err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		blocking, checkErr := model.SoleAdminLiveGroups(s.rdb, profileUUID)
+		if checkErr != nil {
+			return checkErr
+		}
+		if len(blocking) > 0 {
+			ids := make([]string, 0, len(blocking))
+			for _, groupUUID := range blocking {
+				if groupProfile, err := model.GetProfileFromUuid(s.rdb, groupUUID); err == nil {
+					ids = append(ids, groupProfile.Id)
+				} else {
+					ids = append(ids, groupUUID.String())
+				}
+			}
+			return fmt.Errorf("%w: %s", model.ErrSoleGroupAdmin, strings.Join(ids, ", "))
+		}
+		return model.StageSoftDeleteProfile(s.rdb, batch, profile)
+	})
+	if err != nil {
+		return false, err
+	}
 	return true, nil
 }
 

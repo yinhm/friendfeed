@@ -96,10 +96,11 @@ func serviceTaskDefinition(taskType string, handler taskqueue.Handler) taskqueue
 	}
 }
 
-func NewTaskRegistry(serviceHandler taskqueue.Handler) (*taskqueue.Registry, error) {
+func NewTaskRegistry(serviceHandler, homeRebuildHandler taskqueue.Handler) (*taskqueue.Registry, error) {
 	return taskqueue.NewRegistry(map[string]taskqueue.Definition{
 		serviceFetchTaskType:    serviceTaskDefinition(serviceFetchTaskType, serviceHandler),
 		feedServiceSeedTaskType: serviceTaskDefinition(feedServiceSeedTaskType, serviceHandler),
+		homeRebuildTaskType:     homeRebuildTaskDefinition(homeRebuildHandler),
 	})
 }
 

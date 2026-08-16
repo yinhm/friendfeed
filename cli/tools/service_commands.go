@@ -86,7 +86,7 @@ func runRefetchFeedServiceCommand(db *store.Store) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	registry, err := server.NewTaskRegistry(nil)
+	registry, err := server.NewTaskRegistry(nil, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

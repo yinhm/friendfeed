@@ -104,7 +104,7 @@ enum TaskCompletionStatus {
 
 message Task {
   string id = 1;                 // 32-char raw flake hex
-  string type = 2;               // service.fetch / feed_service.seed / twitter.crawl
+  string type = 2;               // service.fetch / feed_service.seed / home.rebuild / twitter.crawl
   bytes payload = 3;             // 该 type 的 protobuf，只有引用和小参数
   uint32 payload_version = 4;
   string idempotency_key = 5;
@@ -314,6 +314,16 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
 - 同一 Service 的 ServiceState 读改写目前也依赖这条单进程、per-host 串行边界。修改
   host 锁粒度或开放第二个 worker 进程前，必须先引入按 Service UUID 的持久化 lease/CAS，
   不能把内存 mutex 当作数据层并发契约。
+
+## Home rebuild task
+
+- `home.rebuild` 由 Group 成员变化触发（docs/group.md Timeline）：JoinGroup、LeaveGroup、
+  RemoveGroupMember 及 GraphFollow 的 group 分支把成员边写入与 task 入队放在同一 Pebble
+  batch（EnqueueWith），成功即必有重建任务，不再需要第二套后台失效机制。
+- handler 无条件按当前 Follow 边执行 `BuildHomeTimeline`/`ReplaceHomeTimeline` 并刷新
+  TimelineState；不带 idempotency key——成员变化稀少，handler 幂等收敛，而 Queue 会拒绝
+  复用已完成 task 的 key，窗口折叠反而会吞掉合法的快速连续变化。
+- 失败按定义重试（3 次、分钟级退避）；重建天然有界（TimelineMaxEntries/retention）。
 
 ## Reaper、关停与重启
 

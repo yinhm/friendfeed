@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
+	"github.com/yinhm/friendfeed/search"
 )
 
 func TestCreateGroupAtomicMembershipAndAdmin(t *testing.T) {
@@ -507,6 +508,15 @@ func TestPrivateGroupAccessControl(t *testing.T) {
 	require.NoError(t, err)
 	groupUUID, _ := uuid.FromString(groupResp.Uuid)
 
+	// Member joins while the group is still public; docs/group.md rejects
+	// joining a private Group until the approval flow exists.
+	_, err = srv.JoinGroup(context.Background(), &pb.GroupMembershipRequest{
+		ActorUuid:  member.String(),
+		GroupUuid:  groupResp.Uuid,
+		TargetUuid: member.String(),
+	})
+	require.NoError(t, err)
+
 	// Update group to make it private
 	profile, err := model.GetProfileFromUuid(srv.rdb, groupUUID)
 	require.NoError(t, err)
@@ -514,13 +524,14 @@ func TestPrivateGroupAccessControl(t *testing.T) {
 	_, err = model.Profile.Put(srv.rdb, groupUUID.Bytes(), profile)
 	require.NoError(t, err)
 
-	// Member joins the group
+	// Joining a private Group is rejected outright.
 	_, err = srv.JoinGroup(context.Background(), &pb.GroupMembershipRequest{
-		ActorUuid:  member.String(),
+		ActorUuid:  outsider.String(),
 		GroupUuid:  groupResp.Uuid,
-		TargetUuid: member.String(),
+		TargetUuid: outsider.String(),
 	})
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "private Group creation is not yet supported")
 
 	// Post an entry to the private group
 	entryUUID := uuid.Must(uuid.NewV4())
@@ -576,6 +587,29 @@ func TestPrivateGroupAccessControl(t *testing.T) {
 		require.Contains(t, err.Error(), "authentication required")
 	})
 
+	t.Run("Outsider cannot access private group feed via cursor paging", func(t *testing.T) {
+		_, err := srv.ForwardFetchFeedWithCursor(context.Background(), &pb.FeedRequest{
+			Id:           "secret-club",
+			PageSize:     30,
+			CursorPaging: true,
+			ViewerUuid:   outsider.String(),
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("Member can access private group feed via cursor paging", func(t *testing.T) {
+		feed, err := srv.ForwardFetchFeedWithCursor(context.Background(), &pb.FeedRequest{
+			Id:           "secret-club",
+			PageSize:     30,
+			CursorPaging: true,
+			ViewerUuid:   member.String(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, feed)
+		require.Len(t, feed.Entries, 1)
+	})
+
 	t.Run("Outsider cannot access private group entry", func(t *testing.T) {
 		entryUUID := entry.Id
 		_, err := srv.FetchEntry(context.Background(), &pb.EntryRequest{
@@ -596,4 +630,309 @@ func TestPrivateGroupAccessControl(t *testing.T) {
 		require.NotNil(t, feed)
 		require.Len(t, feed.Entries, 1)
 	})
+}
+
+// runHomeRebuildTasks claims and executes every pending home.rebuild task,
+// standing in for the background worker.
+func runHomeRebuildTasks(t *testing.T, srv *ApiServer) int {
+	t.Helper()
+	tasks, err := srv.tasks.Claim(context.Background(), "test-worker", []string{homeRebuildTaskType}, 10)
+	require.NoError(t, err)
+	for _, task := range tasks {
+		require.NoError(t, srv.handleHomeRebuildTask(context.Background(), task))
+	}
+	return len(tasks)
+}
+
+func fetchHomeEntryIDs(t *testing.T, srv *ApiServer, viewer uuid.UUID) []string {
+	t.Helper()
+	feed, err := srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid:  viewer.String(),
+		CursorPaging: true,
+		PageSize:     30,
+	})
+	require.NoError(t, err)
+	ids := make([]string, 0, len(feed.Entries))
+	for _, entry := range feed.Entries {
+		ids = append(ids, entry.Id)
+	}
+	return ids
+}
+
+// docs/group.md acceptance: after a membership change the Home timeline must
+// converge, not just change future fanout. Join/Leave enqueue a home.rebuild
+// task in the same batch as the membership mutation.
+func TestGroupMembershipChangeConvergesHomeTimeline(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	group := createTestGroup(t, srv, creator, "timeline-club")
+
+	entry, err := postGroupEntry(t, srv, creator, group)
+	require.NoError(t, err)
+
+	// Join enqueues exactly one home.rebuild task for the joining user.
+	_, err = srv.JoinGroup(context.Background(), &pb.GroupMembershipRequest{
+		ActorUuid: member.String(), GroupUuid: group.String(), TargetUuid: member.String(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, runHomeRebuildTasks(t, srv), "JoinGroup must enqueue a home.rebuild task")
+	require.Contains(t, fetchHomeEntryIDs(t, srv, member), entry.Id, "Group content must appear in Home after join rebuild")
+
+	// Leave enqueues another task; after it runs the Group rows are gone.
+	_, err = srv.LeaveGroup(context.Background(), &pb.GroupMembershipRequest{
+		ActorUuid: member.String(), GroupUuid: group.String(), TargetUuid: member.String(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, runHomeRebuildTasks(t, srv), "LeaveGroup must enqueue a home.rebuild task")
+	require.NotContains(t, fetchHomeEntryIDs(t, srv, member), entry.Id, "Group content must leave Home after leave rebuild")
+}
+
+func TestDeleteGroupSoftDeleteClosesGroup(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	outsider := createServiceUser(t, srv, "outsider")
+	group := createTestGroup(t, srv, creator, "doomed-club")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, member))
+
+	// A non-admin cannot delete the Group.
+	_, err := srv.DeleteGroup(context.Background(), &pb.DeleteGroupRequest{
+		ActorUuid: outsider.String(), GroupUuid: group.String(),
+	})
+	require.Error(t, err)
+
+	// The last admin may delete the whole Group.
+	_, err = srv.DeleteGroup(context.Background(), &pb.DeleteGroupRequest{
+		ActorUuid: creator.String(), GroupUuid: group.String(),
+	})
+	require.NoError(t, err)
+
+	// Join is immediately rejected.
+	_, err = srv.JoinGroup(context.Background(), &pb.GroupMembershipRequest{
+		ActorUuid: outsider.String(), GroupUuid: group.String(), TargetUuid: outsider.String(),
+	})
+	require.Error(t, err)
+
+	// Posting is immediately rejected.
+	_, err = postGroupEntry(t, srv, creator, group)
+	require.Error(t, err)
+
+	// Reads report the Group as gone.
+	_, err = srv.GetGroup(context.Background(), &pb.GetGroupRequest{GroupUuid: group.String()})
+	require.Error(t, err)
+
+	// The deleted Group leaves every member's group list.
+	resp, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{UserUuid: member.String()})
+	require.NoError(t, err)
+	require.Empty(t, resp.Groups)
+}
+
+// docs/group.md acceptance: soft-deleting the account of a sole Group admin
+// must be rejected and name the blocking Groups.
+func TestMarkDeleteRejectsSoleGroupAdmin(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	group := createTestGroup(t, srv, creator, "guarded-club")
+
+	_, err := srv.MarkDelete("creator")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "guarded-club", "the rejection must list the blocking Group")
+
+	// Hand over admin first; deletion then succeeds.
+	require.NoError(t, model.JoinGroup(srv.rdb, group, member))
+	require.NoError(t, model.AddGroupAdmin(srv.rdb, group, member))
+	_, err = srv.MarkDelete("creator")
+	require.NoError(t, err)
+	_, err = model.GetProfileFromUuid(srv.rdb, creator)
+	require.ErrorIs(t, err, model.ErrProfileDeleted)
+}
+
+func TestListGroupMembersPagesWithAdminFlags(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	memberA := createServiceUser(t, srv, "member-a")
+	memberB := createServiceUser(t, srv, "member-b")
+	group := createTestGroup(t, srv, creator, "member-club")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, memberA))
+	require.NoError(t, model.JoinGroup(srv.rdb, group, memberB))
+
+	page1, err := srv.ListGroupMembers(context.Background(), &pb.ListGroupMembersRequest{
+		GroupUuid: group.String(), Limit: 2,
+	})
+	require.NoError(t, err)
+	require.Len(t, page1.Members, 2)
+	require.NotEmpty(t, page1.NextCursor)
+
+	page2, err := srv.ListGroupMembers(context.Background(), &pb.ListGroupMembersRequest{
+		GroupUuid: group.String(), Limit: 2, Cursor: page1.NextCursor,
+	})
+	require.NoError(t, err)
+	require.Len(t, page2.Members, 1)
+	require.Empty(t, page2.NextCursor)
+
+	seen := map[string]bool{}
+	adminFlags := map[string]bool{}
+	for _, m := range append(page1.Members, page2.Members...) {
+		require.False(t, seen[m.Profile.Uuid], "pages must not repeat members")
+		seen[m.Profile.Uuid] = true
+		adminFlags[m.Profile.Uuid] = m.IsAdmin
+	}
+	require.Len(t, seen, 3, "pages must not drop members")
+	require.True(t, adminFlags[creator.String()])
+	require.False(t, adminFlags[memberA.String()])
+	require.False(t, adminFlags[memberB.String()])
+}
+
+// A cursor whose edge was deleted between pages must resume at its successor,
+// not stall or restart the iteration.
+func TestListUserGroupsCursorSurvivesDeletedEdge(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	user := createServiceUser(t, srv, "reader")
+	groups := []uuid.UUID{
+		createTestGroup(t, srv, creator, "cursor-a"),
+		createTestGroup(t, srv, creator, "cursor-b"),
+		createTestGroup(t, srv, creator, "cursor-c"),
+	}
+	for _, group := range groups {
+		require.NoError(t, model.JoinGroup(srv.rdb, group, user))
+	}
+
+	page1, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: user.String(), Limit: 2,
+	})
+	require.NoError(t, err)
+	require.Len(t, page1.Groups, 2)
+	require.NotEmpty(t, page1.NextCursor)
+
+	// Delete the cursor edge before requesting the next page.
+	cursorUUID := uuid.Must(uuid.FromString(page1.NextCursor))
+	require.NoError(t, srv.rdb.Delete(model.NewKeyFrom(model.Follow.Prefix, user.Bytes(), cursorUUID.Bytes())))
+
+	page2, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: user.String(), Limit: 2, Cursor: page1.NextCursor,
+	})
+	require.NoError(t, err)
+	require.Len(t, page2.Groups, 1, "the remaining Group must still be returned")
+	require.Empty(t, page2.NextCursor)
+	require.NotContains(t, []string{page1.Groups[0].Uuid, page1.Groups[1].Uuid}, page2.Groups[0].Uuid)
+}
+
+// Hitting the edge-scan budget must still make progress: pages keep carrying
+// an advancing next_cursor and iteration terminates without duplicates.
+func TestListUserGroupsScanCapKeepsProgress(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	user := createServiceUser(t, srv, "reader")
+	group := createTestGroup(t, srv, creator, "needle-club")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, user))
+
+	// More dangling Follow edges than one call's scan budget; their target
+	// Profiles deliberately do not exist and must be skipped.
+	for i := 0; i < maxMembershipEdgeScan+1; i++ {
+		feed := uuid.Must(uuid.NewV4())
+		require.NoError(t, srv.rdb.Set(model.NewKeyFrom(model.Follow.Prefix, user.Bytes(), feed.Bytes()), []byte("1")))
+	}
+
+	found := 0
+	cursor := ""
+	for page := 0; page < 5; page++ {
+		resp, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+			UserUuid: user.String(), Limit: 200, Cursor: cursor,
+		})
+		require.NoError(t, err)
+		for _, g := range resp.Groups {
+			require.Equal(t, group.String(), g.Uuid, "only the real Group may be returned")
+			found++
+		}
+		if resp.NextCursor == "" {
+			break
+		}
+		require.NotEqual(t, cursor, resp.NextCursor, "cursor must advance between pages")
+		cursor = resp.NextCursor
+	}
+	require.Equal(t, 1, found, "the Group must be returned exactly once across pages")
+}
+
+// docs/group.md: a stale Home row from a private Group must be revalidated
+// on read even when the Leave-triggered rebuild has not run yet.
+func TestHomeReadPathFiltersStalePrivateGroupRows(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	group := createTestGroup(t, srv, creator, "ephemeral-club")
+
+	entry, err := postGroupEntry(t, srv, creator, group)
+	require.NoError(t, err)
+
+	_, err = srv.JoinGroup(context.Background(), &pb.GroupMembershipRequest{
+		ActorUuid: member.String(), GroupUuid: group.String(), TargetUuid: member.String(),
+	})
+	require.NoError(t, err)
+	runHomeRebuildTasks(t, srv)
+	require.Contains(t, fetchHomeEntryIDs(t, srv, member), entry.Id)
+
+	// Turn the Group private; the member still sees the row.
+	profile, err := model.GetProfileFromUuid(srv.rdb, group)
+	require.NoError(t, err)
+	profile.Private = true
+	_, err = model.Profile.Put(srv.rdb, group.Bytes(), profile)
+	require.NoError(t, err)
+	require.Contains(t, fetchHomeEntryIDs(t, srv, member), entry.Id)
+
+	// Leave without running the rebuild task: the row is stale on disk, and
+	// the read path must filter it anyway.
+	_, err = srv.LeaveGroup(context.Background(), &pb.GroupMembershipRequest{
+		ActorUuid: member.String(), GroupUuid: group.String(), TargetUuid: member.String(),
+	})
+	require.NoError(t, err)
+	require.NotContains(t, fetchHomeEntryIDs(t, srv, member), entry.Id,
+		"a stale private-Group row must not be readable after losing membership")
+}
+
+// docs/group.md: private-Group content must not leak through Search results.
+func TestSearchFiltersPrivateGroupEntries(t *testing.T) {
+	srv := newServiceServer(t)
+
+	// Swap the mock index for a real bleve index; PutEntry indexes through
+	// the same global.
+	idx, err := search.OpenIndex(t.TempDir())
+	require.NoError(t, err)
+	defer idx.Close()
+	prevIndexer := search.Indexer
+	search.Indexer = idx
+	defer func() { search.Indexer = prevIndexer }()
+
+	creator := createServiceUser(t, srv, "creator")
+	member := createServiceUser(t, srv, "member")
+	outsider := createServiceUser(t, srv, "outsider")
+	group := createTestGroup(t, srv, creator, "cloak-club")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, member))
+
+	_, err = model.PutEntry(srv.rdb, &pb.Entry{
+		Id:          uuid.NewV5(uuid.NamespaceURL, "cloak-probe").String(),
+		Date:        "2026-08-16T00:00:00Z",
+		Body:        "cloakprobe secret",
+		ProfileUuid: creator.String(),
+		FeedUuid:    group.String(),
+	})
+	require.NoError(t, err)
+
+	// Turn the Group private after the entry was indexed.
+	profile, err := model.GetProfileFromUuid(srv.rdb, group)
+	require.NoError(t, err)
+	profile.Private = true
+	_, err = model.Profile.Put(srv.rdb, group.Bytes(), profile)
+	require.NoError(t, err)
+
+	searchFor := func(viewer string) *pb.Feed {
+		feed, err := srv.Search(context.Background(), &pb.SearchRequest{Query: "cloakprobe", PageSize: 10, ViewerUuid: viewer})
+		require.NoError(t, err)
+		return feed
+	}
+	require.Len(t, searchFor(member.String()).Entries, 1, "members keep search visibility")
+	require.Empty(t, searchFor(outsider.String()).Entries, "outsiders must not see private-Group hits")
+	require.Empty(t, searchFor("").Entries, "anonymous search must not see private-Group hits")
 }

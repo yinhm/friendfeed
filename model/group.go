@@ -294,16 +294,18 @@ func IsGroupMember(db *store.Store, group, user uuid.UUID) (bool, error) {
 // group. It is idempotent: joining an already-joined Group succeeds without
 // rewriting the edges. Private Groups are rejected outright until the
 // approval/invite flow exists, matching CreateGroup's private=true
-// rejection.
+// rejection (docs/group.md).
 func StageJoinGroup(db *store.Store, batch *pebble.Batch, group, user uuid.UUID) error {
 	if batch == nil || group == uuid.Nil || user == uuid.Nil {
 		return errors.New("batch, group UUID, and user UUID are required")
 	}
-	// Validate group exists
-	if _, err := getGroupProfile(db, group); err != nil {
+	groupProfile, err := getGroupProfile(db, group)
+	if err != nil {
 		return err
 	}
-	// Private group access control is now enforced at the RPC layer via viewer_uuid
+	if groupProfile.Private {
+		return ErrPrivateGroupUnsupported
+	}
 	if _, err := getGroupMemberProfile(db, user); err != nil {
 		return err
 	}
@@ -501,4 +503,108 @@ func UpdateGroup(db *store.Store, group uuid.UUID, name, description, picture st
 		return nil, err
 	}
 	return updated, nil
+}
+
+// StageSoftDeleteProfile stages marking profile Deleted. The Profile row,
+// UserMap ID mapping and every relationship edge are preserved per the
+// unified Profile delete/rename rules; standard read paths reject the
+// profile through ErrProfileDeleted.
+func StageSoftDeleteProfile(db *store.Store, batch *pebble.Batch, profile *pb.Profile) error {
+	if batch == nil || profile == nil {
+		return errors.New("batch and profile are required")
+	}
+	profileUUID, err := uuid.FromString(profile.Uuid)
+	if err != nil || profileUUID == uuid.Nil {
+		return errors.New("profile has no valid UUID")
+	}
+	profile.Deleted = true
+	return setProto(batch, Profile.PrefixAppend(profileUUID.Bytes()), profile)
+}
+
+// StageDeleteGroup stages a soft delete of group per docs/group.md: marking
+// the Profile Deleted immediately blocks Join, posting and new Service
+// delivery through the standard ErrProfileDeleted paths. Historical Entries,
+// Likes, Comments, Follow/Follower edges, timeline rows and FeedService
+// bindings are deliberately left in place; their bounded cleanup belongs to
+// background maintenance or ops commands, not the request path.
+func StageDeleteGroup(db *store.Store, batch *pebble.Batch, group uuid.UUID) error {
+	if batch == nil || group == uuid.Nil {
+		return errors.New("batch and group UUID are required")
+	}
+	profile, err := getGroupProfile(db, group)
+	if err != nil {
+		return err
+	}
+	return StageSoftDeleteProfile(db, batch, profile)
+}
+
+// DeleteGroup opens an atomic batch and applies StageDeleteGroup. Callers
+// must authorize first (docs/group.md: Group admin or super; the last admin
+// may delete the whole Group).
+func DeleteGroup(db *store.Store, group uuid.UUID) error {
+	return db.ApplyBatch(func(batch *pebble.Batch) error {
+		return StageDeleteGroup(db, batch, group)
+	})
+}
+
+// ErrSoleGroupAdmin blocks a Profile soft delete when the user is the only
+// admin of an undeleted Group; docs/group.md requires rejecting the deletion
+// and listing the blocking Groups.
+var ErrSoleGroupAdmin = errors.New("user is the sole admin of an undeleted Group")
+
+// ListGroupsAdminedBy streams the GroupAdmin table and returns every group
+// UUID where user holds the admin role, in key order. Malformed keys are
+// skipped; surfacing them is the audit tool's job.
+func ListGroupsAdminedBy(db *store.Store, user uuid.UUID) ([]uuid.UUID, error) {
+	if user == uuid.Nil {
+		return nil, errors.New("user UUID is required")
+	}
+	prefix := NewKeyFrom(GroupAdmin.Prefix)
+	groups := make([]uuid.UUID, 0)
+	_, err := db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
+		suffix := key[len(prefix):]
+		if len(suffix) != 2*uuid.Size {
+			return nil
+		}
+		admin, err := uuid.FromBytes(suffix[uuid.Size:])
+		if err != nil {
+			return nil
+		}
+		if admin != user {
+			return nil
+		}
+		group, err := uuid.FromBytes(suffix[:uuid.Size])
+		if err != nil {
+			return nil
+		}
+		groups = append(groups, group)
+		return nil
+	})
+	return groups, err
+}
+
+// SoleAdminLiveGroups returns the undeleted Groups that user admins alone,
+// i.e. the Groups docs/group.md's account-deletion constraint protects.
+// Callers must run this inside the same critical section as the soft-delete
+// mutation so a concurrent demotion cannot race past the check.
+func SoleAdminLiveGroups(db *store.Store, user uuid.UUID) ([]uuid.UUID, error) {
+	groups, err := ListGroupsAdminedBy(db, user)
+	if err != nil {
+		return nil, err
+	}
+	blocking := make([]uuid.UUID, 0, len(groups))
+	for _, group := range groups {
+		if _, err := getGroupProfile(db, group); err != nil {
+			// Deleted or otherwise unresolvable Groups impose no constraint.
+			continue
+		}
+		count, err := CountGroupAdmins(db, group)
+		if err != nil {
+			return nil, err
+		}
+		if count <= 1 {
+			blocking = append(blocking, group)
+		}
+	}
+	return blocking, nil
 }

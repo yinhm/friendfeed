@@ -131,7 +131,7 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	}
 	srv.taskCtx, srv.taskCancel = context.WithCancel(context.Background())
 	srv.serviceFetch = fetchServiceHTTP
-	taskRegistry, err := NewTaskRegistry(srv.handleServiceTask)
+	taskRegistry, err := NewTaskRegistry(srv.handleServiceTask, srv.handleHomeRebuildTask)
 	if err != nil {
 		rdb.Close()
 		return nil, fmt.Errorf("initialize task registry: %w", err)
@@ -513,18 +513,8 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	}
 
 	// Access control for private groups
-	if profile.Type == "group" && profile.Private {
-		if req.ViewerUuid == "" {
-			return nil, status.Errorf(codes.PermissionDenied, "authentication required for private group")
-		}
-		viewerUUID, err := uuid.FromString(req.ViewerUuid)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
-		}
-		groupUUID, _ := uuid.FromString(profile.Uuid)
-		if err := s.canAccessPrivateGroup(groupUUID, viewerUUID); err != nil {
-			return nil, status.Errorf(codes.PermissionDenied, "access denied to private group")
-		}
+	if err := s.enforcePrivateGroupRead(profile, req.ViewerUuid); err != nil {
+		return nil, err
 	}
 
 	slog.Info("ForwardFetchFeed", "prefix", hex.EncodeToString(prefix))
@@ -613,11 +603,20 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	if err != nil {
 		return nil, err
 	}
+	// docs/group.md: private-Group reads must be denied on the cursor path
+	// too; the legacy Start/PageSize path checks inside ForwardFetchFeed.
+	if !activityTimeline {
+		if err := s.enforcePrivateGroupRead(profile, req.ViewerUuid); err != nil {
+			return nil, err
+		}
+	}
+	homeViewer := uuid.Nil
 	if activityTimeline && !isPublicFeedRequest(req) {
 		viewer, parseErr := uuid.FromString(profile.Uuid)
 		if parseErr != nil {
 			return nil, status.Error(codes.Internal, "profile has invalid UUID")
 		}
+		homeViewer = viewer
 		initializing, err := s.prepareHomeTimeline(viewer, time.Now().UTC())
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "initialize home timeline: %v", err)
@@ -656,6 +655,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	}
 
 	resolver := newProfileResolver(s.mdb)
+	visibilityCache := make(map[uuid.UUID]bool)
 	items := make([]cursorFeedEntry, 0, req.PageSize+1)
 	for iter.Valid() && len(items) <= int(req.PageSize) {
 		indexKey := iter.Key()
@@ -700,13 +700,27 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			if err := proto.Unmarshal(rawdata, entry); err != nil {
 				return nil, err
 			}
-			if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
-				return nil, err
+			// docs/group.md: a stale Home row sourced from a private Group
+			// must be revalidated on read even before the rebuild cleans it.
+			visible := true
+			if homeViewer != uuid.Nil {
+				if target, ok := entryVisibilityTarget(entry); ok {
+					v, visErr := s.privateGroupEntryVisible(target, homeViewer, visibilityCache)
+					if visErr != nil {
+						return nil, visErr
+					}
+					visible = v
+				}
 			}
-			if err := formatFeedEntryWithResolver(resolver, req, entry); err != nil {
-				return nil, err
+			if visible {
+				if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
+					return nil, err
+				}
+				if err := formatFeedEntryWithResolver(resolver, req, entry); err != nil {
+					return nil, err
+				}
+				items = append(items, cursorFeedEntry{entry: entry, indexKey: indexKey})
 			}
-			items = append(items, cursorFeedEntry{entry: entry, indexKey: indexKey})
 		}
 
 		iter.Next()
@@ -833,34 +847,10 @@ func (s *ApiServer) maintainHomeTimeline(viewer uuid.UUID, now time.Time) error 
 		return err
 	}
 
-	feeds := []uuid.UUID{viewer}
-	seen := map[uuid.UUID]struct{}{viewer: {}}
-	followPrefix := model.NewKeyFrom(model.Follow.Prefix, viewer.Bytes())
-	if _, err := s.rdb.ForwardScan(followPrefix, func(_ int, key, _ []byte) error {
-		feed, err := uuid.FromBytes(key[len(followPrefix):])
-		if err != nil {
-			return err
-		}
-		if _, exists := seen[feed]; !exists {
-			seen[feed] = struct{}{}
-			feeds = append(feeds, feed)
-		}
-		return nil
-	}); err != nil {
+	if err := s.rebuildHomeTimelineNow(viewer, now); err != nil {
 		return err
 	}
-
-	rows, skipped, err := model.BuildHomeTimeline(s.rdb, feeds, model.TimelineMaxEntries, model.TimelineRetentionMax, now)
-	if err != nil {
-		return err
-	}
-	if err := model.ReplaceHomeTimeline(s.rdb, viewer, rows); err != nil {
-		return err
-	}
-	if err := model.TouchTimelineState(s.rdb, viewer, now); err != nil {
-		return err
-	}
-	slog.Info("initialized home timeline", "viewer", viewer, "feeds", len(feeds), "entries", len(rows), "skipped_dates", skipped)
+	slog.Info("initialized home timeline", "viewer", viewer)
 	return nil
 }
 
@@ -1343,6 +1333,14 @@ func unusableSearchDoc(err error) bool {
 // decides whether to delete them and retry.
 func (s *ApiServer) searchPage(req *pb.SearchRequest) (entries []*pb.Entry, unusable []string, err error) {
 	resolver := newProfileResolver(s.mdb)
+	searchViewer := uuid.Nil
+	if req.ViewerUuid != "" {
+		searchViewer, err = uuid.FromString(req.ViewerUuid)
+		if err != nil {
+			return nil, nil, status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
+		}
+	}
+	visibilityCache := make(map[uuid.UUID]bool)
 	from := int(req.Start)
 	for len(entries) <= int(req.PageSize) {
 		bReq := bleve.NewSearchRequest(bleve.NewQueryStringQuery(req.Query))
@@ -1377,6 +1375,18 @@ func (s *ApiServer) searchPage(req *pb.SearchRequest) (entries []*pb.Entry, unus
 				slog.Warn("search: entry can never be displayed", "id", hit.ID, "err", fmtErr)
 				unusable = append(unusable, hit.ID)
 				continue
+			}
+			// docs/group.md: private-Group content must not leak through
+			// Search. Invisible hits are skipped, never deleted from the
+			// index — they stay visible to members.
+			if target, ok := entryVisibilityTarget(entry); ok {
+				visible, visErr := s.privateGroupEntryVisible(target, searchViewer, visibilityCache)
+				if visErr != nil {
+					return nil, nil, status.Errorf(codes.Internal, "check entry visibility %s: %v", hit.ID, visErr)
+				}
+				if !visible {
+					continue
+				}
 			}
 			entries = append(entries, entry)
 		}

@@ -68,6 +68,9 @@ service Api {
   rpc RemoveGroupAdmin(GroupMembershipRequest) returns (google.protobuf.Empty) {}
   rpc RemoveGroupMember(GroupMembershipRequest) returns (google.protobuf.Empty) {}
   rpc UpdateGroup(UpdateGroupRequest) returns (Profile) {}
+  rpc DeleteGroup(DeleteGroupRequest) returns (google.protobuf.Empty) {}
+  rpc GetGroup(GetGroupRequest) returns (GroupView) {}
+  rpc ListGroupMembers(ListGroupMembersRequest) returns (ListGroupMembersResponse) {}
   rpc ListUserGroups(ListUserGroupsRequest) returns (ListUserGroupsResponse) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
@@ -382,6 +385,9 @@ message SearchRequest {
   string query = 1;
   int32 start = 2;
   int32 page_size = 3;
+  // viewer_uuid carries the session user so private-Group results can be
+  // filtered server-side per docs/group.md; empty means anonymous.
+  string viewer_uuid = 4;
 }
 
 message CreateGroupRequest {
@@ -426,5 +432,47 @@ message ListUserGroupsRequest {
 // ListUserGroupsResponse returns a page of Groups the user follows.
 message ListUserGroupsResponse {
   repeated Profile groups = 1;
+  string next_cursor = 2; // Empty when iteration is complete
+}
+
+// DeleteGroupRequest soft-deletes a Group. actor_uuid must be a Group admin
+// or super, per docs/group.md; the last admin may delete the whole Group.
+message DeleteGroupRequest {
+  string actor_uuid = 1;
+  string group_uuid = 2;
+}
+
+// GetGroupRequest reads one Group's metadata plus the viewer's relationship.
+message GetGroupRequest {
+  string group_uuid = 1;
+  string viewer_uuid = 2; // session user; empty means anonymous
+}
+
+// GroupView is Group metadata plus the viewer's member/admin status, per
+// docs/group.md's read contract. It never embeds member lists.
+message GroupView {
+  Profile group = 1;
+  bool is_member = 2;
+  bool is_admin = 3;
+}
+
+// ListGroupMembersRequest pages a Group's membership. Follower edges are the
+// sole membership source; cursor follows the same contract as
+// ListUserGroups (last scanned edge, never a business ID).
+message ListGroupMembersRequest {
+  string group_uuid = 1;
+  int32 limit = 2;   // Max members to return (default 100, cap 200)
+  string cursor = 3; // Opaque continuation token from previous response
+}
+
+// GroupMember is one member Profile with its admin-role flag.
+message GroupMember {
+  Profile profile = 1;
+  bool is_admin = 2;
+}
+
+// ListGroupMembersResponse returns a page of Group members.
+message ListGroupMembersResponse {
+  repeated GroupMember members = 1;
   string next_cursor = 2; // Empty when iteration is complete
 }
