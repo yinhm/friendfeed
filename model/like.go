@@ -2,8 +2,10 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -32,21 +34,32 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 	dataKey := LikeKey(entryUUID, actorUUID)
 	created := false
 	var activity time.Time
-	if _, err := db.Get(dataKey); errors.Is(err, store.ErrNotFound) {
-		activity = time.Now().UTC()
-		like := &pb.Like{
-			Date: activity.Format(time.RFC3339),
-			From: from,
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
+		if _, err := db.Get(dataKey); err == nil {
+			return nil
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
 		}
+		activity = time.Now().UTC()
+		like := &pb.Like{Date: activity.Format(time.RFC3339), From: from}
 		raw, err := proto.Marshal(like)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
-		if err := db.Put(dataKey, raw); err != nil {
-			return nil, nil, err
+		indexKey, err := LikeTimelineKey(actorUUID, entryUUID, activity)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(dataKey, raw, nil); err != nil {
+			return err
+		}
+		if err := batch.Set(indexKey, nil, nil); err != nil {
+			return err
 		}
 		created = true
-	} else if err != nil {
+		return nil
+	})
+	if err != nil {
 		return nil, nil, err
 	}
 	if err := LoadEntryInteractions(db, entry); err != nil {
@@ -69,7 +82,33 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 		return nil, err
 	}
 	actorUUID, _ := uuid.FromString(profile.Uuid)
-	if err := db.Delete(LikeKey(entryUUID, actorUUID)); err != nil {
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
+		dataKey := LikeKey(entryUUID, actorUUID)
+		raw, err := db.Get(dataKey)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		like := new(pb.Like)
+		if err := proto.Unmarshal(raw, like); err != nil {
+			return err
+		}
+		created, err := time.Parse(time.RFC3339, like.Date)
+		if err != nil {
+			return fmt.Errorf("parse like date: %w", err)
+		}
+		indexKey, err := LikeTimelineKey(actorUUID, entryUUID, created)
+		if err != nil {
+			return err
+		}
+		if err := batch.Delete(dataKey, nil); err != nil {
+			return err
+		}
+		return batch.Delete(indexKey, nil)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return entry, LoadEntryInteractions(db, entry)
@@ -92,37 +131,73 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 	if err != nil {
 		return nil, nil, err
 	}
+	actorUUID, _ := uuid.FromString(profile.Uuid)
 	dataKey := CommentKey(entryUUID, commentUUID)
 	created := false
 	var activity time.Time
-	storedRaw, getErr := db.Get(dataKey)
-	if getErr == nil {
-		stored := new(pb.Comment)
-		if err := proto.Unmarshal(storedRaw, stored); err != nil {
-			return nil, nil, err
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
+		storedRaw, getErr := db.Get(dataKey)
+		if getErr == nil {
+			stored := new(pb.Comment)
+			if err := proto.Unmarshal(storedRaw, stored); err != nil {
+				return err
+			}
+			if !permOwnedBy(stored.From, profile) {
+				return errCommentPerm
+			}
+			stored.Body, stored.RawBody = comment.Body, comment.RawBody
+			comment = stored
+		} else if errors.Is(getErr, store.ErrNotFound) {
+			comment.From = from
+			activity = time.Now().UTC()
+			comment.Date = activity.Format(time.RFC3339)
+			created = true
+		} else {
+			return getErr
 		}
-		// Only the comment author may edit, verified by stable UUID.
-		if !permOwnedBy(stored.From, profile) {
-			return nil, entry, errCommentPerm
+		raw, err := proto.Marshal(comment)
+		if err != nil {
+			return err
 		}
-		// Edit in place: only the body is editable; author, date, id and
-		// every other stored field are preserved from client overwrites.
-		stored.Body = comment.Body
-		stored.RawBody = comment.RawBody
-		comment = stored
-	} else if errors.Is(getErr, store.ErrNotFound) {
-		comment.From = from
-		activity = time.Now().UTC()
-		comment.Date = activity.Format(time.RFC3339)
-		created = true
-	} else {
-		return nil, nil, getErr
-	}
-	raw, err := proto.Marshal(comment)
+		if err := batch.Set(dataKey, raw, nil); err != nil {
+			return err
+		}
+		if !created {
+			return nil
+		}
+		positionKey := CommentTimelinePositionKey(actorUUID, entryUUID)
+		if oldRaw, err := db.Get(positionKey); err == nil {
+			oldTime, _, err := DecodeCommentTimelinePosition(oldRaw)
+			if err != nil {
+				return err
+			}
+			oldKey, err := CommentTimelineKey(actorUUID, entryUUID, oldTime)
+			if err != nil {
+				return err
+			}
+			if err := batch.Delete(oldKey, nil); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		indexKey, err := CommentTimelineKey(actorUUID, entryUUID, activity)
+		if err != nil {
+			return err
+		}
+		position, err := EncodeCommentTimelinePosition(activity, commentUUID)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(indexKey, commentUUID.Bytes(), nil); err != nil {
+			return err
+		}
+		return batch.Set(positionKey, position, nil)
+	})
 	if err != nil {
-		return nil, nil, err
-	}
-	if err := db.Put(dataKey, raw); err != nil {
+		if errors.Is(err, errCommentPerm) {
+			return nil, entry, err
+		}
 		return nil, nil, err
 	}
 	if err := LoadEntryInteractions(db, entry); err != nil {
@@ -149,24 +224,106 @@ func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commen
 		return nil, err
 	}
 	dataKey := CommentKey(entryUUID, commentUUID)
-	raw, err := db.Get(dataKey)
-	if errors.Is(err, store.ErrNotFound) {
-		return entry, nil // blind delete, keep current semantics
-	}
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
+		raw, err := db.Get(dataKey)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		comment := new(pb.Comment)
+		if err := proto.Unmarshal(raw, comment); err != nil {
+			return err
+		}
+		if !canModerateComment(profile, entry, comment) {
+			return errCommentPerm
+		}
+		actorUUID, err := uuid.FromString(comment.From.Uuid)
+		if err != nil || actorUUID == uuid.Nil {
+			return errors.New("comment actor UUID is invalid")
+		}
+		if err := batch.Delete(dataKey, nil); err != nil {
+			return err
+		}
+		positionKey := CommentTimelinePositionKey(actorUUID, entryUUID)
+		position, err := db.Get(positionKey)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		oldTime, latestID, err := DecodeCommentTimelinePosition(position)
+		if err != nil {
+			return err
+		}
+		if latestID != commentUUID {
+			return nil
+		}
+		oldKey, err := CommentTimelineKey(actorUUID, entryUUID, oldTime)
+		if err != nil {
+			return err
+		}
+		if err := batch.Delete(oldKey, nil); err != nil {
+			return err
+		}
+		if err := batch.Delete(positionKey, nil); err != nil {
+			return err
+		}
+		fallback, fallbackTime, fallbackID, err := latestActorComment(db, entryUUID, actorUUID, commentUUID)
+		if err != nil || fallback == nil {
+			return err
+		}
+		newKey, err := CommentTimelineKey(actorUUID, entryUUID, fallbackTime)
+		if err != nil {
+			return err
+		}
+		newPosition, err := EncodeCommentTimelinePosition(fallbackTime, fallbackID)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(newKey, fallbackID.Bytes(), nil); err != nil {
+			return err
+		}
+		return batch.Set(positionKey, newPosition, nil)
+	})
 	if err != nil {
-		return nil, err
-	}
-	comment := new(pb.Comment)
-	if err := proto.Unmarshal(raw, comment); err != nil {
-		return nil, err
-	}
-	if !canModerateComment(profile, entry, comment) {
-		return entry, errCommentPerm
-	}
-	if err := db.Delete(dataKey); err != nil {
+		if errors.Is(err, errCommentPerm) {
+			return entry, err
+		}
 		return nil, err
 	}
 	return entry, LoadEntryInteractions(db, entry)
+}
+
+func latestActorComment(db *store.Store, entry, actor, exclude uuid.UUID) (*pb.Comment, time.Time, uuid.UUID, error) {
+	var best *pb.Comment
+	var bestTime time.Time
+	var bestID uuid.UUID
+	prefix := NewKeyFrom(Comment.Prefix, entry.Bytes())
+	_, err := db.ForwardScan(prefix, func(_ int, key, raw []byte) error {
+		id, err := uuid.FromBytes(key[len(prefix):])
+		if err != nil || id == exclude {
+			return err
+		}
+		candidate := new(pb.Comment)
+		if err := proto.Unmarshal(raw, candidate); err != nil {
+			return err
+		}
+		if candidate.From == nil || candidate.From.Uuid != actor.String() {
+			return nil
+		}
+		at, err := time.Parse(time.RFC3339, candidate.Date)
+		if err != nil {
+			return err
+		}
+		if best == nil || at.After(bestTime) || (at.Equal(bestTime) && id.String() > bestID.String()) {
+			best, bestTime, bestID = candidate, at, id
+		}
+		return nil
+	})
+	return best, bestTime, bestID, err
 }
 
 // canModerateComment reports whether profile may delete cmt: the comment
