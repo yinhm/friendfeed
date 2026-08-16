@@ -1,0 +1,152 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="group-create">
+    <h2>Create a Group</h2>
+
+    <form id="createGroupForm">
+        <div class="form-group">
+            <label for="name">Group Name *</label>
+            <input type="text" id="name" name="name" required maxlength="64" />
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="4" maxlength="500"></textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" id="submitBtn">Create Group</button>
+            <a href="/" class="cancel-link">Cancel</a>
+        </div>
+
+        <div id="error" class="error-message" style="display: none;"></div>
+        <div id="success" class="success-message" style="display: none;"></div>
+    </form>
+</div>
+
+<style>
+.group-create {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.group-create h2 {
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-actions {
+    margin-top: 20px;
+}
+
+.form-actions button {
+    padding: 10px 20px;
+    background-color: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.form-actions button:hover {
+    background-color: #0052a3;
+}
+
+.form-actions button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.cancel-link {
+    margin-left: 10px;
+    color: #666;
+    text-decoration: none;
+}
+
+.cancel-link:hover {
+    text-decoration: underline;
+}
+
+.error-message {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #ffebee;
+    color: #c62828;
+    border-radius: 4px;
+}
+
+.success-message {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    border-radius: 4px;
+}
+</style>
+
+<script>
+document.getElementById('createGroupForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const submitBtn = document.getElementById('submitBtn');
+    const errorDiv = document.getElementById('error');
+    const successDiv = document.getElementById('success');
+    const formData = new FormData(this);
+
+    // Hide previous messages
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    // Disable submit button
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+
+    try {
+        const response = await fetch('/groups/create', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'ok') {
+            successDiv.textContent = 'Group created successfully! Redirecting...';
+            successDiv.style.display = 'block';
+
+            // Redirect to group page after 1 second
+            setTimeout(() => {
+                window.location.href = '/feed/' + data.group.Id;
+            }, 1000);
+        } else {
+            throw new Error(data.error || 'Failed to create group');
+        }
+    } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Group';
+    }
+});
+</script>
+{% endblock %}

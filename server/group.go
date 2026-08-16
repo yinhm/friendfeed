@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
+	"github.com/yinhm/friendfeed/store"
 	taskqueue "github.com/yinhm/friendfeed/task"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -59,6 +61,16 @@ func (s *ApiServer) JoinGroup(ctx context.Context, request *pb.GroupMembershipRe
 	if err := model.JoinGroup(s.rdb, group, target); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
+	// Trigger Home timeline rebuild asynchronously to include Group's recent
+	// content. maintainHomeTimeline will rebuild if the timeline is stale or
+	// missing; we force a rebuild by clearing TimelineState.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		if err := model.DeleteTimelineState(s.rdb, target); err != nil {
+			slog.Warn("failed to clear timeline state after JoinGroup", "user", target, "group", group, "error", err)
+		}
+	}()
 	return &emptypb.Empty{}, nil
 }
 
@@ -78,6 +90,15 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, request *pb.GroupMembershipR
 	if err := model.LeaveGroup(s.rdb, group, target); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
+	// Trigger Home timeline rebuild to remove Group's content from the user's
+	// timeline. Force rebuild by clearing TimelineState.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		if err := model.DeleteTimelineState(s.rdb, target); err != nil {
+			slog.Warn("failed to clear timeline state after LeaveGroup", "user", target, "group", group, "error", err)
+		}
+	}()
 	return &emptypb.Empty{}, nil
 }
 
@@ -136,6 +157,15 @@ func (s *ApiServer) RemoveGroupMember(ctx context.Context, request *pb.GroupMemb
 	if err := model.RemoveGroupMember(s.rdb, group, target); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
+	// Trigger Home timeline rebuild to remove Group's content from the
+	// removed member's timeline. Force rebuild by clearing TimelineState.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		if err := model.DeleteTimelineState(s.rdb, target); err != nil {
+			slog.Warn("failed to clear timeline state after RemoveGroupMember", "user", target, "group", group, "error", err)
+		}
+	}()
 	return &emptypb.Empty{}, nil
 }
 
@@ -183,4 +213,90 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, request *pb.UpdateGroupRequ
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
 	return updated, nil
+}
+
+// ListUserGroups returns Groups the user has joined, filtered from their
+// Follow edges. Streams up to 1000 edges per call, returns up to limit Groups.
+func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGroupsRequest) (*pb.ListUserGroupsResponse, error) {
+	if request == nil || request.UserUuid == "" {
+		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
+	}
+	user, err := uuid.FromString(request.UserUuid)
+	if err != nil || user == uuid.Nil {
+		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("valid user_uuid is required")))
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, taskRPCError(err)
+	}
+
+	limit := int(request.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	const maxEdgeScan = 1000
+	var cursorFeed uuid.UUID
+	if request.Cursor != "" {
+		cursorFeed, err = uuid.FromString(request.Cursor)
+		if err != nil {
+			return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("invalid cursor")))
+		}
+	}
+
+	followPrefix := model.NewKeyFrom(model.Follow.Prefix, user.Bytes())
+	var groups []*pb.Profile
+	var lastGroupFeed uuid.UUID
+	scanned := 0
+	skipUntilCursor := cursorFeed != uuid.Nil
+
+	_, err = s.rdb.ForwardScan(followPrefix, func(_ int, key, _ []byte) error {
+		if scanned >= maxEdgeScan {
+			return &store.Error{Code: store.StopIteration, Msg: "edge scan limit"}
+		}
+		scanned++
+
+		feedUUID, err := uuid.FromBytes(key[len(followPrefix):])
+		if err != nil {
+			return nil // Skip malformed edge
+		}
+
+		// Skip until we pass the cursor position
+		if skipUntilCursor {
+			if feedUUID == cursorFeed {
+				skipUntilCursor = false
+			}
+			return nil
+		}
+
+		if len(groups) >= limit {
+			return &store.Error{Code: store.StopIteration, Msg: "group limit"}
+		}
+
+		profile, err := model.GetProfileFromUuid(s.rdb, feedUUID)
+		if err != nil {
+			return nil // Skip missing/deleted Profile
+		}
+		if profile.Type == "group" {
+			groups = append(groups, profile)
+			lastGroupFeed = feedUUID
+		}
+		return nil
+	})
+
+	if err != nil {
+		var scanErr *store.Error
+		if !errors.As(err, &scanErr) || scanErr.Code != store.StopIteration {
+			return nil, taskRPCError(err)
+		}
+	}
+
+	response := &pb.ListUserGroupsResponse{Groups: groups}
+	// Return cursor if we hit scan limit or group limit
+	if scanned >= maxEdgeScan || len(groups) >= limit {
+		response.NextCursor = lastGroupFeed.String()
+	}
+	return response, nil
 }

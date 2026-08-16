@@ -403,3 +403,90 @@ func TestUpdateGroupRequiresAdmin(t *testing.T) {
 	require.Equal(t, "new description", updated.Description)
 	require.Equal(t, "https://example.com/new.png", updated.Picture)
 }
+
+func TestListUserGroupsFiltersAndPaginates(t *testing.T) {
+	srv := newServiceServer(t)
+	user := createServiceUser(t, srv, "alice")
+	otherUser := createServiceUser(t, srv, "bob")
+
+	// Create 3 groups that user joins
+	group1 := createTestGroup(t, srv, user, "group-a")
+	group2 := createTestGroup(t, srv, user, "group-b")
+	group3 := createTestGroup(t, srv, user, "group-c")
+
+	// User also follows other users (should be filtered out)
+	_, err := srv.GraphFollow(context.Background(), &pb.FollowRequest{
+		ProfileUuid: user.String(),
+		FeedUuid:    otherUser.String(),
+		Action:      "follow",
+	})
+	require.NoError(t, err)
+
+	// User joins their own groups (already member via CreateGroup)
+	// Test basic list
+	resp, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: user.String(),
+		Limit:    10,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Groups, 3)
+	require.Empty(t, resp.NextCursor)
+
+	// Check returned groups are correct type
+	groupIDs := map[uuid.UUID]bool{group1: true, group2: true, group3: true}
+	for _, g := range resp.Groups {
+		gUUID, err := uuid.FromString(g.Uuid)
+		require.NoError(t, err)
+		require.True(t, groupIDs[gUUID], "unexpected group %s", g.Uuid)
+		require.Equal(t, "group", g.Type)
+	}
+
+	// Test pagination with limit=1
+	resp, err = srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: user.String(),
+		Limit:    1,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Groups, 1)
+	require.NotEmpty(t, resp.NextCursor)
+
+	// Continue pagination
+	resp2, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: user.String(),
+		Limit:    1,
+		Cursor:   resp.NextCursor,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp2.Groups, 1)
+	require.NotEmpty(t, resp2.NextCursor)
+	require.NotEqual(t, resp.Groups[0].Uuid, resp2.Groups[0].Uuid)
+
+	// Final page
+	resp3, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: user.String(),
+		Limit:    10,
+		Cursor:   resp2.NextCursor,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp3.Groups, 1)
+	require.Empty(t, resp3.NextCursor)
+}
+
+func TestListUserGroupsSkipsDeletedProfiles(t *testing.T) {
+	srv := newServiceServer(t)
+	user := createServiceUser(t, srv, "alice")
+
+	group1 := createTestGroup(t, srv, user, "active-group")
+	group2 := createTestGroup(t, srv, user, "deleted-group")
+
+	// Simulate deleted profile by removing it from Profile table while Follow edge remains
+	profileKey := model.Profile.PrefixAppend(group2.Bytes())
+	require.NoError(t, srv.rdb.Delete(profileKey))
+
+	resp, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: user.String(),
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Groups, 1)
+	require.Equal(t, group1.String(), resp.Groups[0].Uuid)
+}

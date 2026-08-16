@@ -66,6 +66,25 @@
                     </ul>
                 </div>
 
+                {% if current_user and user_groups %}
+                <div class="section">
+                    <h3>Groups</h3>
+                    <ul>
+                        {% for group in user_groups %}
+                        <li><a href="/feed/{{ group.Id }}">{{ group.Name }}</a></li>
+                        {% endfor %}
+                        <li><a href="/groups/create">Create group</a></li>
+                    </ul>
+                </div>
+                {% elif current_user %}
+                <div class="section">
+                    <h3>Groups</h3>
+                    <ul>
+                        <li><a href="/groups/create">Create group</a></li>
+                    </ul>
+                </div>
+                {% endif %}
+
                 <div id="search">
                 </div>
             </details>

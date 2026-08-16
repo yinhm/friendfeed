@@ -132,6 +132,14 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 	}
 	if profile.Uuid != "" {
 		data["current_user"] = profile
+
+		// Load user's groups for sidebar
+		ctx, cancel := DefaultTimeoutContext()
+		defer cancel()
+		groups, err := s.UserGroups(ctx, profile.Uuid)
+		if err == nil && len(groups) > 0 {
+			data["user_groups"] = groups
+		}
 	}
 	data["dev"] = s.debug
 
@@ -219,6 +227,27 @@ func (s *Server) CurrentUser(c *gin.Context) (*pb.Profile, error) {
 		return profile, nil
 	}
 	return v.(*pb.Profile), nil
+}
+
+func (s *Server) UserGroups(ctx context.Context, userUuid string) ([]*pb.Profile, error) {
+	if userUuid == "" {
+		return nil, nil
+	}
+
+	cacheKey := "groups:" + userUuid
+	v, found := s.cache.Get(cacheKey)
+	if !found {
+		resp, err := s.client.ListUserGroups(ctx, &pb.ListUserGroupsRequest{
+			UserUuid: userUuid,
+			Limit:    100,
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.cache.Set(cacheKey, resp.Groups, cache.DefaultExpiration)
+		return resp.Groups, nil
+	}
+	return v.([]*pb.Profile), nil
 }
 
 // func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
@@ -464,7 +493,53 @@ func (s *Server) FollowHandler(c *gin.Context) {
 		return
 	}
 
+	// Invalidate groups cache if following/unfollowing a group
+	s.cache.Delete("groups:" + uuid)
+
 	c.JSON(200, entry.Followed)
+}
+
+func (s *Server) GroupCreatePageHandler(c *gin.Context) {
+	s.HTML(c, 200, "group_create.html", pongo2.Context{
+		"title": "Create Group",
+	})
+}
+
+func (s *Server) GroupCreateHandler(c *gin.Context) {
+	c.Request.ParseForm()
+	name := strings.TrimSpace(c.Request.Form.Get("name"))
+	description := strings.TrimSpace(c.Request.Form.Get("description"))
+
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Group name is required"})
+		return
+	}
+
+	uuid := CurrentUserUuid(c)
+	if uuid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not logged in"})
+		return
+	}
+
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	group, err := s.client.CreateGroup(ctx, &pb.CreateGroupRequest{
+		ActorUuid:   uuid,
+		Name:        name,
+		Description: description,
+	})
+	if RequestError(c, err) {
+		return
+	}
+
+	// Invalidate groups cache
+	s.cache.Delete("groups:" + uuid)
+
+	c.JSON(200, gin.H{
+		"status": "ok",
+		"group":  group,
+	})
 }
 
 func RequestError(c *gin.Context, err error) bool {

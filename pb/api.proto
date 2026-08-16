@@ -68,6 +68,7 @@ service Api {
   rpc RemoveGroupAdmin(GroupMembershipRequest) returns (google.protobuf.Empty) {}
   rpc RemoveGroupMember(GroupMembershipRequest) returns (google.protobuf.Empty) {}
   rpc UpdateGroup(UpdateGroupRequest) returns (Profile) {}
+  rpc ListUserGroups(ListUserGroupsRequest) returns (ListUserGroupsResponse) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
@@ -406,4 +407,18 @@ message UpdateGroupRequest {
   string name = 3;
   string description = 4;
   string picture = 5;
+}
+
+// ListUserGroupsRequest reads the Groups a user has joined. Streams through
+// the user's Follow edges, filtering for Type=="group" Profiles.
+message ListUserGroupsRequest {
+  string user_uuid = 1;
+  int32 limit = 2;   // Max Groups to return (default 100, cap 200)
+  string cursor = 3; // Opaque continuation token from previous response
+}
+
+// ListUserGroupsResponse returns a page of Groups the user follows.
+message ListUserGroupsResponse {
+  repeated Profile groups = 1;
+  string next_cursor = 2; // Empty when iteration is complete
 }

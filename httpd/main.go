@@ -206,6 +206,12 @@ func Serve(s *server.Server, config *util.Config) error {
 		action.POST("/comment/delete", s.CommentDeleteHandler)
 	}
 
+	groups := r.Group("/groups", server.LoginRequired())
+	{
+		groups.GET("/create", s.GroupCreatePageHandler)
+		groups.POST("/create", s.GroupCreateHandler)
+	}
+
 	r.GET("/public", s.PublicHandler)
 	r.GET("/search", s.SearchHandler)
 	r.GET("/tag/:name", s.TagHandler)
