@@ -174,8 +174,6 @@ func (s *Server) InteractionFeedHandler(kind pb.InteractionKind, suffix string) 
 			entry := item.Entry
 			if kind == pb.InteractionKind_INTERACTION_KIND_LIKE {
 				entry.Likes = []*pb.Like{item.Like}
-			} else {
-				entry.Comments = []*pb.Comment{item.LatestComment}
 			}
 			entry.RebuildCommand(profile, graph)
 			entry.RebuildCommentsCommand(profile, graph)

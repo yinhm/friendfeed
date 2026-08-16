@@ -32,10 +32,10 @@ GET /feed/:name/comments
 - **LikeTimeline**：按 Like 创建时间倒序，每个 Like 一项。Like 被取消后该项消失；重新 Like
   产生新的时间位置。
 - **CommentTimeline**：按用户在每个 Entry 下最后一条 Comment 的创建时间倒序，每个 Entry
-  最多一项。多条 Comment 按 Entry 去重，页面只突出最后一条；完整历史仍保存在 Comment 表。
-- 每项携带目标 Entry 作为上下文；Comment 项额外指出该用户在此 Entry 下最后一条 Comment，
-  Like 项额外指出本条 Like。标准 Entry 卡片可复用，但目标互动必须明确，不能依赖 Entry 当前
-  hydrated 列表猜测。
+  最多一项。多条 Comment 只用于折叠和确定 Entry 的排序位置；页面中的 Entry 卡片与其他
+  timeline 一致，展示该 Entry 当前全部现存 Comment，不把列表裁成用户的最后一条。
+- 每项携带目标 Entry 作为上下文；Comment 项额外返回该用户在此 Entry 下最后一条 Comment，
+  供排序位置校验而不限制渲染内容；Like 项额外指出本条 Like。
 - 页面只展示既有数据，不产生 timeline bump，也不提供批量删除等新 mutation。
 
 只在本人 Home/Profile 导航中提供 “Likes” 与 “Comments” 链接。第一版不提供其他用户入口、
@@ -211,7 +211,7 @@ position；多条 Comment 不会线性放大派生表。不做每 viewer fanout�
    上线，不能先开放读取半构建索引。
 
 最低回归测试包括：rename 后按 UUID 仍可查询；Unlike 删除索引；Comment 编辑不移动；同一
-Entry 多 Comment 只显示最新一条；删除最新 Comment 后正确回退到次新，删除最后一条后移除
+Entry 多 Comment 只产生一个 timeline 项但卡片展示全部评论；删除最新 Comment 后正确回退到次新，删除最后一条后移除
 索引；非本人请求稳定返回 403 且不泄露互动；删除 Entry 的孤儿不
 返回；cursor 遇删除锚点和大量过滤项可继续；legacy 缺 UUID/Date 的 rebuild 安全跳过；全量
 迁移内存有界。

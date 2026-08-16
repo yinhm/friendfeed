@@ -86,4 +86,5 @@ func TestFetchCommentInteractionFeedReturnsLatestCommentOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, response.Items, 1)
 	require.Equal(t, latest.String(), response.Items[0].LatestComment.Id)
+	require.Len(t, response.Items[0].Entry.Comments, 2)
 }
