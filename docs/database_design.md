@@ -74,7 +74,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 111 | Service | `T + service UUID` | `pb.Service` | 全局规范化外部来源，不含凭据 |
 | 112 | ServiceState | `T + service UUID` | `pb.ServiceState` | 条件 GET 与调度状态 |
 | 113 | ServiceFeedIndex | `T + service UUID + target Feed UUID + service ID` | 空 | Service→FeedService 派生索引 |
-| 114 | GroupAdmin | 由 `group.md` 预留 | — | Group 管理员派生关系 |
+| 114 | GroupAdmin | `T + group UUID + admin user UUID` | 空 | Group admin 角色权威来源 |
 | 115 | LikeTimeline | `T + actor UUID + reverse Unix ms + entry UUID` | 空 | 用户 Like 排序派生索引 |
 | 116 | CommentTimeline | `T + actor UUID + reverse Unix ms + entry UUID` | 16 B latest comment UUID | 用户 Comment 折叠排序索引 |
 | 117 | CommentTimelinePosition | `T + actor UUID + entry UUID` | reverse ms + latest comment UUID | Comment 排序位置索引 |

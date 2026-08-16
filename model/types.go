@@ -45,7 +45,9 @@ const (
 	TableService          store.KeyPrefix = 111
 	TableServiceState     store.KeyPrefix = 112
 	TableServiceFeedIndex store.KeyPrefix = 113
-	// 114 is reserved for TableGroupAdmin by docs/group.md.
+	// TableGroupAdmin holds the authoritative admin role for a Group:
+	// key = group UUID + admin user UUID, value = nil.
+	TableGroupAdmin store.KeyPrefix = 114
 	TableLikeTimeline            store.KeyPrefix = 115
 	TableCommentTimeline         store.KeyPrefix = 116
 	TableCommentTimelinePosition store.KeyPrefix = 117
@@ -98,6 +100,7 @@ var (
 	Service          = NewTable(KeyPrefixToBytes(TableService))
 	ServiceState     = NewTable(KeyPrefixToBytes(TableServiceState))
 	ServiceFeedIndex = NewTable(KeyPrefixToBytes(TableServiceFeedIndex))
+	GroupAdmin       = NewTable(KeyPrefixToBytes(TableGroupAdmin))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))
