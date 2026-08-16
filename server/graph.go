@@ -39,6 +39,14 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			if err := model.JoinGroup(s.rdb, feedUUID, profileUUID); err != nil {
 				return nil, err
 			}
+			// Trigger Home timeline rebuild asynchronously
+			s.wg.Add(1)
+			go func() {
+				defer s.wg.Done()
+				if err := model.DeleteTimelineState(s.rdb, profileUUID); err != nil {
+					slog.Warn("failed to clear timeline state after GraphFollow join", "user", profileUUID, "group", feedUUID, "error", err)
+				}
+			}()
 			followed = true
 			break
 		}
@@ -61,6 +69,14 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			if err := model.LeaveGroup(s.rdb, feedUUID, profileUUID); err != nil {
 				return nil, err
 			}
+			// Trigger Home timeline rebuild asynchronously
+			s.wg.Add(1)
+			go func() {
+				defer s.wg.Done()
+				if err := model.DeleteTimelineState(s.rdb, profileUUID); err != nil {
+					slog.Warn("failed to clear timeline state after GraphFollow leave", "user", profileUUID, "group", feedUUID, "error", err)
+				}
+			}()
 			followed = false
 			break
 		}
