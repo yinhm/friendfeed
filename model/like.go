@@ -40,7 +40,9 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 		} else if !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
-		activity = time.Now().UTC()
+		// The authoritative protobuf stores RFC3339 seconds. Use the same
+		// precision in the derived key so delete/rebuild can reproduce it.
+		activity = time.Now().UTC().Truncate(time.Second)
 		like := &pb.Like{Date: activity.Format(time.RFC3339), From: from}
 		raw, err := proto.Marshal(like)
 		if err != nil {
@@ -149,7 +151,9 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 			comment = stored
 		} else if errors.Is(getErr, store.ErrNotFound) {
 			comment.From = from
-			activity = time.Now().UTC()
+			// The authoritative protobuf stores RFC3339 seconds. Use the same
+			// precision in the derived key so delete/rebuild can reproduce it.
+			activity = time.Now().UTC().Truncate(time.Second)
 			comment.Date = activity.Format(time.RFC3339)
 			created = true
 		} else {

@@ -1258,6 +1258,7 @@ func main() {
 		(command == "migrate_interactions" && dryRun) ||
 		(command == "rebuild_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun) ||
+		(command == "rebuild_interaction_timelines" && dryRun) ||
 		(command == "purge_public_cache" && dryRun)
 	if command == "compact_timelines" && dryRun {
 		readOnly = true
@@ -1302,6 +1303,13 @@ func main() {
 		runDBCommand(db, ndb)
 	case "rebuild_timeline":
 		runRebuildTimelineCommand(ndb)
+	case "rebuild_interaction_timelines":
+		stats, err := rebuildInteractionTimelines(ndb, timelineUser, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("interaction timeline rebuild: likes=%d comments=%d indexed_likes=%d indexed_comments=%d unresolved_actor=%d missing_date=%d dry-run=%t",
+			stats.likes, stats.comments, stats.indexedLikes, stats.indexedComments, stats.unresolvedActor, stats.missingDate, dryRun)
 	case "compact_timelines":
 		stats, err := compactTimelines(ndb, timelineCompactOptions{
 			user: timelineUser, dryRun: dryRun,

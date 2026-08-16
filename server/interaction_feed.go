@@ -121,10 +121,13 @@ func (s *ApiServer) FetchInteractionFeed(ctx context.Context, req *pb.Interactio
 		item := &pb.InteractionItem{Entry: entry}
 		if req.Kind == pb.InteractionKind_INTERACTION_KIND_LIKE {
 			raw, err := s.rdb.Get(model.LikeKey(entryID, profileID))
-			if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
 				_ = s.rdb.Delete(key)
 				iter.Next()
 				continue
+			}
+			if err != nil {
+				return nil, err
 			}
 			item.Like = new(pb.Like)
 			if err := proto.Unmarshal(raw, item.Like); err != nil {
@@ -140,10 +143,13 @@ func (s *ApiServer) FetchInteractionFeed(ctx context.Context, req *pb.Interactio
 				return nil, err
 			}
 			raw, err := s.rdb.Get(model.CommentKey(entryID, commentID))
-			if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
 				_ = s.deleteInteractionOrphan(req.Kind, profileID, entryID, key)
 				iter.Next()
 				continue
+			}
+			if err != nil {
+				return nil, err
 			}
 			item.LatestComment = new(pb.Comment)
 			if err := proto.Unmarshal(raw, item.LatestComment); err != nil {

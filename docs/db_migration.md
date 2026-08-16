@@ -290,6 +290,30 @@ UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，
 8. 用新二进制冷启动，验证 feed 与互动后正常停止并再次启动。若验收失败，应在没有
    新写入的前提下整体恢复步骤 2 的目录并中止升级；不要让旧程序打开已升级目录。
 
+## Like/Comment timeline 重建
+
+表 115-117 是可重建的用户互动派生索引。首次上线或 `audit_store` 报告
+`interaction_orphans` / `interaction_mismatches` 时，在停止所有打开该 Pebble 目录的
+进程后执行。先对单个用户 dry-run，再对全库 dry-run；确认统计后去掉 `-dry-run`：
+
+```bash
+./tools -to <db-dir> -c rebuild_interaction_timelines -user yinhm -dry-run
+./tools -to <db-dir> -c rebuild_interaction_timelines -user yinhm
+./tools -to <db-dir> -c rebuild_interaction_timelines -dry-run
+./tools -to <db-dir> -c rebuild_interaction_timelines
+./tools -to <db-dir> -c audit_store
+```
+
+命令只从权威 Like/Comment 表重建派生索引；Comment 按 `(actor, entry)` 只保留最新一条，
+同秒以 comment UUID 决胜。扫描使用固定 500 条工作集，不随全库记录数增长。缺失或非法
+actor UUID、缺失日期的 archive 互动只计入 `unresolved_actor` / `missing_date`，保留权威
+数据但不生成可授权的 timeline 行。apply 会先按目标用户范围清空三张派生表，因此执行
+期间不得启动 ffdb 写入互动。
+
+验收时 `audit_store` 的 `interaction_orphans=0`、`interaction_mismatches=0`；并抽查
+`/feed/:name/likes`、`/feed/:name/comments` 的顺序、next cursor、Comment 折叠及本人访问
+限制。当前页面仅允许本人查看，不能用迁移工具扩大可见性。
+
 ## rebuild_search_index
 
 把所有带有 OAuth 登录信息的用户（含按登录名绑定的旧 OAuth 行）的历史 entry 收录进 bleve 搜索索引；`-user` 可指定单个登录名并绕过 OAuth 检查。扫描 author 索引（`EntryIndex | profile UUID`），每条 entry 只收录一次；entry 记录缺失或 `Body` 为空的行只计数（对齐 `PutEntry` 只索引非空 Body 的行为）。索引路径默认 `<to>/index`，与服务端布局一致，可用 `-index-path` 覆盖。本命令以只读方式打开 DB、不写 DB，只写搜索索引；可重复执行（bleve 按 entry ID upsert）。

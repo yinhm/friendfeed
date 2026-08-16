@@ -17,41 +17,46 @@ import (
 )
 
 type storeAuditStats struct {
-	entries              int
-	noncanonicalEntries  int
-	entryKeyIDMismatches int
-	entryIndexes         int
-	noncanonicalIndexes  int
-	missingDirectIndexes int
-	orphanIndexes        int
-	timelineIndexes      int
-	timelinePositions    int
-	timelineMissingEntry int
-	timelineMissingPos   int
-	timelineMissingIndex int
-	timelineDuplicates   int
-	timelineTimeMismatch int
-	timelineViewers      int
-	timelineInactiveRows int
-	timelineOverLimit    int
-	sameSecondGroups     int
-	sameSecondEntries    int
-	followEdges          int
-	followerEdges        int
-	missingFollowerEdges int
-	missingFollowEdges   int
-	maxFollowers         int
-	services             int
-	serviceStates        int
-	feedServices         int
-	serviceFeedIndexes   int
-	dormantServices      int
-	stateMissingService  int
-	bindingMissingSource int
-	bindingMissingIndex  int
-	disabledWithIndex    int
-	orphanServiceIndexes int
-	tasks                taskqueue.AuditStats
+	entries               int
+	noncanonicalEntries   int
+	entryKeyIDMismatches  int
+	entryIndexes          int
+	noncanonicalIndexes   int
+	missingDirectIndexes  int
+	orphanIndexes         int
+	timelineIndexes       int
+	timelinePositions     int
+	timelineMissingEntry  int
+	timelineMissingPos    int
+	timelineMissingIndex  int
+	timelineDuplicates    int
+	timelineTimeMismatch  int
+	timelineViewers       int
+	timelineInactiveRows  int
+	timelineOverLimit     int
+	sameSecondGroups      int
+	sameSecondEntries     int
+	followEdges           int
+	followerEdges         int
+	missingFollowerEdges  int
+	missingFollowEdges    int
+	maxFollowers          int
+	services              int
+	serviceStates         int
+	feedServices          int
+	serviceFeedIndexes    int
+	dormantServices       int
+	stateMissingService   int
+	bindingMissingSource  int
+	bindingMissingIndex   int
+	disabledWithIndex     int
+	orphanServiceIndexes  int
+	likeTimelineRows      int
+	commentTimelineRows   int
+	commentPositionRows   int
+	interactionOrphans    int
+	interactionMismatches int
+	tasks                 taskqueue.AuditStats
 }
 
 func auditStore(db *store.Store) (storeAuditStats, error) {
@@ -416,8 +421,174 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		return stats, errors.New("timeline position accounting is inconsistent")
 	}
 	taskStats, err := taskqueue.Audit(db)
+	if err == nil {
+		err = auditInteractionTimelines(db, &stats)
+	}
 	stats.tasks = taskStats
 	return stats, err
+}
+
+func auditInteractionTimelines(db *store.Store, stats *storeAuditStats) error {
+	if err := model.Like.Iter(db, func(key, raw []byte) error {
+		if len(key) != 4+2*uuid.Size {
+			return fmt.Errorf("invalid Like key length %d", len(key))
+		}
+		like := new(pb.Like)
+		if err := proto.Unmarshal(raw, like); err != nil {
+			return err
+		}
+		if like.From == nil {
+			return nil
+		}
+		actor, err := uuid.FromString(like.From.Uuid)
+		if err != nil || actor == uuid.Nil {
+			return nil
+		}
+		entry, _ := uuid.FromBytes(key[4:20])
+		if _, err := db.Get(model.Entry.PrefixAppend(entry.Bytes())); errors.Is(err, store.ErrNotFound) {
+			stats.interactionOrphans++
+		} else if err != nil {
+			return err
+		}
+		at, err := time.Parse(time.RFC3339, like.Date)
+		if err != nil {
+			return nil
+		}
+		index, err := model.LikeTimelineKey(actor, entry, at)
+		if err != nil {
+			return err
+		}
+		if _, err := db.Get(index); errors.Is(err, store.ErrNotFound) {
+			stats.interactionMismatches++
+		} else if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := model.Comment.Iter(db, func(key, raw []byte) error {
+		if len(key) != 4+2*uuid.Size {
+			return fmt.Errorf("invalid Comment key length %d", len(key))
+		}
+		comment := new(pb.Comment)
+		if err := proto.Unmarshal(raw, comment); err != nil {
+			return err
+		}
+		if comment.From == nil {
+			return nil
+		}
+		actor, err := uuid.FromString(comment.From.Uuid)
+		if err != nil || actor == uuid.Nil {
+			return nil
+		}
+		entry, _ := uuid.FromBytes(key[4:20])
+		commentID, _ := uuid.FromBytes(key[20:36])
+		if _, err := db.Get(model.Entry.PrefixAppend(entry.Bytes())); errors.Is(err, store.ErrNotFound) {
+			stats.interactionOrphans++
+		} else if err != nil {
+			return err
+		}
+		at, err := time.Parse(time.RFC3339, comment.Date)
+		if err != nil {
+			return nil
+		}
+		position, err := db.Get(model.CommentTimelinePositionKey(actor, entry))
+		if errors.Is(err, store.ErrNotFound) {
+			stats.interactionMismatches++
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		posAt, posComment, err := model.DecodeCommentTimelinePosition(position)
+		if err != nil {
+			return err
+		}
+		if at.After(posAt) || (at.Equal(posAt) && commentID.String() > posComment.String()) {
+			stats.interactionMismatches++
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := model.LikeTimeline.Iter(db, func(key, _ []byte) error {
+		stats.likeTimelineRows++
+		actor, entry, _, err := model.ParseInteractionTimelineKey(key, model.TableLikeTimeline)
+		if err != nil {
+			return err
+		}
+		if _, err := db.Get(model.LikeKey(entry, actor)); errors.Is(err, store.ErrNotFound) {
+			stats.interactionOrphans++
+		} else if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := model.CommentTimeline.Iter(db, func(key, value []byte) error {
+		stats.commentTimelineRows++
+		actor, entry, at, err := model.ParseInteractionTimelineKey(key, model.TableCommentTimeline)
+		if err != nil {
+			return err
+		}
+		if len(value) != uuid.Size {
+			return fmt.Errorf("invalid CommentTimeline value length %d", len(value))
+		}
+		comment, _ := uuid.FromBytes(value)
+		if _, err := db.Get(model.CommentKey(entry, comment)); errors.Is(err, store.ErrNotFound) {
+			stats.interactionOrphans++
+		} else if err != nil {
+			return err
+		}
+		position, err := db.Get(model.CommentTimelinePositionKey(actor, entry))
+		if errors.Is(err, store.ErrNotFound) {
+			stats.interactionMismatches++
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		posAt, posComment, err := model.DecodeCommentTimelinePosition(position)
+		if err != nil {
+			return err
+		}
+		if !posAt.Equal(at) || posComment != comment {
+			stats.interactionMismatches++
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return model.CommentTimelinePosition.Iter(db, func(key, value []byte) error {
+		stats.commentPositionRows++
+		if len(key) != 4+2*uuid.Size {
+			return fmt.Errorf("invalid CommentTimelinePosition key length %d", len(key))
+		}
+		actor, _ := uuid.FromBytes(key[4:20])
+		entry, _ := uuid.FromBytes(key[20:36])
+		at, comment, err := model.DecodeCommentTimelinePosition(value)
+		if err != nil {
+			return err
+		}
+		index, err := model.CommentTimelineKey(actor, entry, at)
+		if err != nil {
+			return err
+		}
+		raw, err := db.Get(index)
+		if errors.Is(err, store.ErrNotFound) {
+			stats.interactionMismatches++
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(raw, comment.Bytes()) {
+			stats.interactionMismatches++
+		}
+		return nil
+	})
 }
 
 func writeStoreAudit(out io.Writer, stats storeAuditStats) {
@@ -436,6 +607,9 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 		stats.services, stats.serviceStates, stats.feedServices, stats.serviceFeedIndexes, stats.dormantServices,
 		stats.stateMissingService, stats.bindingMissingSource, stats.bindingMissingIndex,
 		stats.disabledWithIndex, stats.orphanServiceIndexes)
+	fmt.Fprintf(out, "like_timeline=%d comment_timeline=%d comment_positions=%d interaction_orphans=%d interaction_mismatches=%d\n",
+		stats.likeTimelineRows, stats.commentTimelineRows, stats.commentPositionRows,
+		stats.interactionOrphans, stats.interactionMismatches)
 	fmt.Fprintf(out, "tasks=%d ready=%d leases=%d idem=%d done=%d missing_ready=%d missing_lease=%d missing_idem=%d orphan_ready=%d orphan_lease=%d orphan_idem=%d mismatched_ready=%d mismatched_lease=%d mismatched_idem=%d invalid_done=%d\n",
 		stats.tasks.Tasks, stats.tasks.Ready, stats.tasks.Leases, stats.tasks.Idempotency, stats.tasks.Done,
 		stats.tasks.MissingReady, stats.tasks.MissingLease, stats.tasks.MissingIdem,

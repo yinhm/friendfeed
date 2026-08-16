@@ -44,3 +44,15 @@ func TestRenamedFeedLocation(t *testing.T) {
 		})
 	}
 }
+
+func TestRenamedInteractionFeedLocationPreservesSuffixAndQuery(t *testing.T) {
+	got, redirect := renamedFeedLocationWithSuffix(
+		"old-name",
+		&pb.Feed{Id: "new-name"},
+		"comments",
+		"cursor=abc",
+	)
+	if !redirect || got != "/feed/new-name/comments?cursor=abc" {
+		t.Fatalf("renamedFeedLocationWithSuffix() = %q, %t", got, redirect)
+	}
+}
