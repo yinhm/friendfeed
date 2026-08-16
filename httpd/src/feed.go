@@ -53,21 +53,27 @@ func (s *Server) FetchFeed(c *gin.Context, req proto.Message) (profile *pb.Profi
 	if err != nil {
 		return
 	}
-	var basetime time.Time
 	for _, e := range feed.Entries {
-		e.RebuildCommand(profile, graph)
-		basetime, _ = time.Parse(time.RFC3339, e.Date)
-		e.Date = util.FormatTime(basetime)
-
-		if format {
-			e.FormatComments(int32(0))
-			e.FormatLikes(int32(0))
-			ellipsis := fmt.Sprintf("<a href=\"/e/%s\" style=\"padding-left: 30px;\">Read more...</a>", e.Id)
-			e.Body = util.Truncate(e.Body, 300, ellipsis)
-		}
-		e.RebuildCommentsCommand(profile, graph)
+		prepareFeedEntry(e, profile, graph, format)
 	}
 	return
+}
+
+// prepareFeedEntry is the shared httpd presentation boundary for every feed
+// page. RPCs choose which entries belong to a feed; collapsing interactions,
+// formatting time/body and rebuilding commands must not vary by feed kind.
+func prepareFeedEntry(entry *pb.Entry, profile *pb.Profile, graph *pb.Graph, format bool) {
+	entry.RebuildCommand(profile, graph)
+	if basetime, err := time.Parse(time.RFC3339, entry.Date); err == nil {
+		entry.Date = util.FormatTime(basetime)
+	}
+	if format {
+		entry.FormatComments(0)
+		entry.FormatLikes(0)
+		ellipsis := fmt.Sprintf("<a href=\"/e/%s\" style=\"padding-left: 30px;\">Read more...</a>", entry.Id)
+		entry.Body = util.Truncate(entry.Body, 300, ellipsis)
+	}
+	entry.RebuildCommentsCommand(profile, graph)
 }
 
 func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {
@@ -161,7 +167,6 @@ func (s *Server) InteractionFeedHandler(kind pb.InteractionKind, suffix string) 
 		if RequestError(c, err) {
 			return
 		}
-		feed := &pb.Feed{Uuid: response.Profile.Uuid, Id: response.Profile.Id, Name: response.Profile.Name, Picture: response.Profile.Picture, Description: response.Profile.Description, Type: response.Profile.Type, Private: response.Profile.Private, NextCursor: response.NextCursor}
 		profile, err := s.CurrentUser(c)
 		if RequestError(c, err) {
 			return
@@ -170,23 +175,31 @@ func (s *Server) InteractionFeedHandler(kind pb.InteractionKind, suffix string) 
 		if RequestError(c, err) {
 			return
 		}
-		for _, item := range response.Items {
-			entry := item.Entry
-			if kind == pb.InteractionKind_INTERACTION_KIND_LIKE {
-				entry.Likes = []*pb.Like{item.Like}
-			}
-			entry.RebuildCommand(profile, graph)
-			entry.RebuildCommentsCommand(profile, graph)
-			if parsed, parseErr := time.Parse(time.RFC3339, entry.Date); parseErr == nil {
-				entry.Date = util.FormatTime(parsed)
-			}
-			feed.Entries = append(feed.Entries, entry)
-		}
+		feed := interactionFeedForDisplay(response, profile, graph)
 		data := cursorFeedContext(feed)
 		data["show_header"] = true
 		data["title"] = feed.Id + " " + suffix
 		s.renderFeed(c, data)
 	}
+}
+
+func interactionFeedForDisplay(response *pb.InteractionFeedResponse, profile *pb.Profile, graph *pb.Graph) *pb.Feed {
+	feed := &pb.Feed{
+		Uuid: response.Profile.Uuid, Id: response.Profile.Id, Name: response.Profile.Name,
+		Picture: response.Profile.Picture, Description: response.Profile.Description,
+		Type: response.Profile.Type, Private: response.Profile.Private, NextCursor: response.NextCursor,
+	}
+	for _, item := range response.Items {
+		if item == nil || item.Entry == nil {
+			continue
+		}
+		// Keep the complete hydrated interaction lists on the Entry. The
+		// item-level Like/latest Comment identifies why the Entry is indexed;
+		// it is not a display filter.
+		prepareFeedEntry(item.Entry, profile, graph, true)
+		feed.Entries = append(feed.Entries, item.Entry)
+	}
+	return feed
 }
 
 func (s *Server) HomeHandler(c *gin.Context) {
