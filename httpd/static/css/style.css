@@ -189,7 +189,7 @@ div.content img,
     width: 70%;
     border: 1px solid silver;
     background: #eee;
-    padding: 8px;
+    padding: 10px 14px;
 }
 
 @media (min-width: 601px) {
@@ -530,12 +530,22 @@ th {
     margin-top: 2px;
 }
 
-.menu .section {
-    margin-bottom: 15px;
+/* Sections separate with margin-top on the follower only, so the first and
+   last section keep the box's own padding as the visual edge: no extra
+   margin at the bottom. */
+.menu .section + .section {
+    margin-top: 15px;
+}
+
+/* The React search box mounts into #search only when JS is on; keep its
+   separation without leaving dead space when it never mounts. */
+.menu #search:not(:empty) {
+    margin-top: 15px;
 }
 
 .menu .section input[type="search"] {
-    width: 80%;
+    box-sizing: border-box;
+    width: 100%;
     padding: 2px;
 }
 
@@ -631,4 +641,146 @@ div.content ul,
 div.content pre {
     margin-block-start: 0.5em;
     margin-block-end: 0.3em;
+}
+
+/* Shared SSR form (group create/settings): vertical label-above-field forms
+   mirroring the React profile editor's structure. One ruleset for all form
+   pages; templates carry no styles of their own. */
+.ff-form {
+    max-width: 36em;
+}
+
+.ff-form .field {
+    margin-bottom: 1em;
+}
+
+.ff-form label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.ff-form input[type="text"],
+.ff-form input[type="url"],
+.ff-form textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--ff-border);
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.ff-form .hint,
+.danger-zone .hint {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--ff-muted);
+}
+
+.ff-form .avatar-preview {
+    margin-bottom: 6px;
+    line-height: 0;
+}
+
+.ff-form .avatar-preview img {
+    width: 64px;
+    height: 64px;
+    border: 1px solid var(--ff-border);
+}
+
+.ff-form .actions {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 1em;
+}
+
+/* Error banner, usable on any SSR page. */
+.error-banner {
+    max-width: 36em;
+    margin-bottom: 1em;
+    padding: 8px 10px;
+    border: 1px solid var(--ff-danger-border);
+    border-radius: 4px;
+    color: var(--ff-danger);
+    font-size: 14px;
+}
+
+/* Danger variant of the shared button. */
+.legacy-button.danger {
+    border-color: var(--ff-danger-border);
+    background: var(--ff-danger);
+    color: var(--ff-danger-fg);
+}
+
+.danger-zone {
+    max-width: 36em;
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid var(--ff-hairline);
+}
+
+/* Muted helper text outside forms. */
+.muted {
+    color: var(--ff-muted);
+}
+
+/* Group members page. */
+.member-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 36em;
+}
+
+.member-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--ff-hairline);
+}
+
+.member-list .avatar {
+    width: 24px;
+    height: 24px;
+}
+
+.member-list .admin-badge {
+    font-size: 12px;
+    color: var(--ff-muted);
+    border: 1px solid var(--ff-border);
+    border-radius: 3px;
+    padding: 0 4px;
+}
+
+.member-list form {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+}
+
+/* Sidebar Groups block: a second .menu box below the navigation box. The
+   heading and the create affordance share one row. */
+.groups-menu {
+    margin-top: 24px;
+}
+
+.menu .groups-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+/* The + create affordance stays muted until hovered. */
+.menu .groups-heading a {
+    color: var(--ff-muted);
+    line-height: 1;
+}
+
+.menu .groups-heading a:hover {
+    color: var(--ff-link);
 }

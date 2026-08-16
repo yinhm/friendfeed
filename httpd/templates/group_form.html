@@ -1,0 +1,47 @@
+{# Shared Group metadata form (docs/group_navigation.md). #}
+{# Required context: form_action, submit_label, cancel_url, group, error. #}
+{# Optional flags: show_id and show_private (create page only). #}
+<form method="post" action="{{ form_action }}" class="ff-form">
+    {% if error %}
+    <div class="error-banner" role="alert">{{ error|escape }}</div>
+    {% endif %}
+
+    {% if show_id %}
+    <div class="field">
+        <label for="group-id">Group ID *</label>
+        <input type="text" id="group-id" name="id" required maxlength="64" pattern="[a-z0-9_-]{4,}" value="{{ group.Id|escape }}" aria-describedby="group-id-hint" />
+        <div class="hint" id="group-id-hint">Lowercase letters, digits, "_" and "-", at least 4 characters. This is the group's URL: /feed/&lt;id&gt;. Conflicts and reserved names are reported by the server above.</div>
+    </div>
+    {% endif %}
+
+    <div class="field">
+        <label for="group-name">Group Name *</label>
+        <input type="text" id="group-name" name="name" required maxlength="64" value="{{ group.Name|escape }}" />
+    </div>
+
+    <div class="field">
+        <label for="group-description">Description</label>
+        <textarea id="group-description" name="description" rows="4" maxlength="500">{{ group.Description|escape }}</textarea>
+    </div>
+
+    <div class="field">
+        <label for="group-picture">Picture URL</label>
+        {% if group.Picture %}
+        <div class="avatar-preview"><img src="{{ group.Picture|escape }}" alt="" /></div>
+        {% endif %}
+        <input type="url" id="group-picture" name="picture" maxlength="2048" value="{{ group.Picture|escape }}" />
+        <div class="hint">Full URL to the group picture (leave empty for the default).</div>
+    </div>
+
+    {% if show_private %}
+    <div class="field">
+        <label><input type="checkbox" name="private" disabled /> Private group</label>
+        <div class="hint">Private groups are not available yet: the membership approval flow is still pending and the server rejects private creation.</div>
+    </div>
+    {% endif %}
+
+    <div class="actions">
+        <button type="submit" class="legacy-button">{{ submit_label }}</button>
+        <a href="{{ cancel_url }}">Cancel</a>
+    </div>
+</form>

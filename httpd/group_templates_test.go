@@ -43,19 +43,25 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 		"title":        "Group settings",
 		"group":        group,
 		"error":        "boom",
+		"form_action":  "/groups/book-club/settings",
+		"submit_label": "Save",
+		"cancel_url":   "/feed/book-club",
 		"current_user": currentUser,
 	})
 	for _, want := range []string{
 		`action="/groups/book-club/settings"`,
 		`action="/groups/book-club/delete"`,
 		`href="/groups/book-club/members"`,
-		"return confirm(",
 		`value="Book Club"`,
-		"boom",
+		`class="error-banner" role="alert">boom`,
+		`class="legacy-button danger"`,
 	} {
 		if !strings.Contains(settings, want) {
 			t.Fatalf("group_settings.html missing %q", want)
 		}
+	}
+	if strings.Contains(settings, "return confirm(") || strings.Contains(settings, "<style>") {
+		t.Fatal("group_settings.html must not carry inline scripts or styles")
 	}
 
 	members := renderEmbeddedTemplate(t, "group_members.html", pongo2.Context{
@@ -96,18 +102,29 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 
 func TestLayoutSidebarGroupsSection(t *testing.T) {
 	// group_create.html extends layout.html, which exercises the sidebar.
-	body := renderEmbeddedTemplate(t, "group_create.html", pongo2.Context{
-		"title":        "Create Group",
-		"current_user": &pb.Profile{Uuid: "u", Id: "me"},
-		"user_groups": []*pb.Profile{
-			{Id: "alpha", Name: "Alpha"},
-			{Id: "secret-club", Name: "Secret Club", Private: true},
-		},
-	})
+	createCtx := func() pongo2.Context {
+		return pongo2.Context{
+			"title":        "Create Group",
+			"form_action":  "/groups/create",
+			"submit_label": "Create Group",
+			"cancel_url":   "/",
+			"show_id":      true,
+			"show_private": true,
+			"group":        &pb.Profile{},
+			"current_user": &pb.Profile{Uuid: "u", Id: "me"},
+			"user_groups": []*pb.Profile{
+				{Id: "alpha", Name: "Alpha"},
+				{Id: "secret-club", Name: "Secret Club", Private: true},
+			},
+		}
+	}
+	body := renderEmbeddedTemplate(t, "group_create.html", createCtx())
 	for _, want := range []string{
 		`<a href="/feed/alpha" title="alpha">Alpha</a>`,
 		`Secret Club (private)`,
-		`/groups/create">Create a group`,
+		// The create affordance is the "+" sharing the Groups heading row,
+		// in its own block below the navigation menu.
+		`<h3 class="groups-heading">Groups <a href="/groups/create" title="Create a group">+</a></h3>`,
 		`name="id"`,
 		`name="picture"`,
 		`name="private" disabled`,
@@ -116,20 +133,28 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 			t.Fatalf("sidebar/create page missing %q", want)
 		}
 	}
-
-	// Logged in with no Groups: the section still renders the create link.
-	empty := renderEmbeddedTemplate(t, "group_create.html", pongo2.Context{
-		"title":        "Create Group",
-		"current_user": &pb.Profile{Uuid: "u", Id: "me"},
-		"user_groups":  []*pb.Profile{},
-	})
-	if !strings.Contains(empty, `/groups/create">Create a group`) {
-		t.Fatal("empty Groups section must still offer the create link")
+	if strings.Contains(body, "<style>") || strings.Contains(body, "<script>") {
+		t.Fatal("group_create.html must not carry inline styles or scripts")
+	}
+	// The Groups block lives outside (below) the navigation <details>.
+	if strings.Index(body, "</details>") > strings.Index(body, "groups-menu") {
+		t.Fatal("Groups block must render below the navigation menu, not inside it")
 	}
 
-	// Anonymous visitors get no Groups section at all.
-	anon := renderEmbeddedTemplate(t, "group_create.html", pongo2.Context{"title": "Create Group"})
-	if strings.Contains(anon, "Create a group") || strings.Contains(anon, "<h3>Groups</h3>") {
-		t.Fatal("anonymous render must not contain the Groups section")
+	// Logged in with no Groups: the block still renders the create affordance.
+	empty := createCtx()
+	empty["user_groups"] = []*pb.Profile{}
+	emptyBody := renderEmbeddedTemplate(t, "group_create.html", empty)
+	if !strings.Contains(emptyBody, `groups-menu`) || !strings.Contains(emptyBody, `title="Create a group">+</a>`) {
+		t.Fatal("empty Groups block must still offer the create affordance")
+	}
+
+	// Anonymous visitors get no Groups block at all.
+	anon := createCtx()
+	delete(anon, "current_user")
+	delete(anon, "user_groups")
+	anonBody := renderEmbeddedTemplate(t, "group_create.html", anon)
+	if strings.Contains(anonBody, "groups-menu") || strings.Contains(anonBody, "Create a group") {
+		t.Fatal("anonymous render must not contain the Groups block")
 	}
 }

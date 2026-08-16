@@ -68,9 +68,12 @@ func (s *Server) requireGroupManage(c *gin.Context, name string) *pb.GroupView {
 
 func (s *Server) renderGroupSettings(c *gin.Context, view *pb.GroupView, errMsg string) {
 	s.HTML(c, 200, "group_settings.html", pongo2.Context{
-		"title": "Group settings",
-		"group": view.Group,
-		"error": errMsg,
+		"title":        "Group settings",
+		"group":        view.Group,
+		"error":        errMsg,
+		"form_action":  "/groups/" + url.PathEscape(view.Group.Id) + "/settings",
+		"submit_label": "Save",
+		"cancel_url":   "/feed/" + url.PathEscape(view.Group.Id),
 	})
 }
 
@@ -222,8 +225,8 @@ func (s *Server) GroupDeleteHandler(c *gin.Context) {
 	defer cancel()
 
 	_, err := s.client.DeleteGroup(ctx, &pb.DeleteGroupRequest{
-		ActorUuid:  CurrentUserUuid(c),
-		GroupUuid:  view.Group.Uuid,
+		ActorUuid: CurrentUserUuid(c),
+		GroupUuid: view.Group.Uuid,
 	})
 	if err != nil {
 		s.renderGroupSettings(c, view, status.Convert(err).Message())

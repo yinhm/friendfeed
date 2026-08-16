@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -517,70 +518,72 @@ func (s *Server) FollowHandler(c *gin.Context) {
 }
 
 func (s *Server) GroupCreatePageHandler(c *gin.Context) {
-	s.HTML(c, 200, "group_create.html", pongo2.Context{
-		"title": "Create Group",
+	s.renderGroupCreate(c, http.StatusOK, &pb.Profile{}, "")
+}
+
+// renderGroupCreate renders the SSR create form, redisplaying the submitted
+// values alongside an error message when creation failed.
+func (s *Server) renderGroupCreate(c *gin.Context, code int, group *pb.Profile, errMsg string) {
+	s.HTML(c, code, "group_create.html", pongo2.Context{
+		"title":        "Create Group",
+		"form_action":  "/groups/create",
+		"submit_label": "Create Group",
+		"cancel_url":   "/",
+		"show_id":      true,
+		"show_private": true,
+		"group":        group,
+		"error":        errMsg,
 	})
 }
 
+// GroupCreateHandler processes the plain SSR form post: invalid input and
+// server-side rejections (ID conflict, reserved name) redisplay the form
+// with the server's message; success redirects to the new Group's feed.
 func (s *Server) GroupCreateHandler(c *gin.Context) {
 	c.Request.ParseForm()
-	id := strings.TrimSpace(c.Request.Form.Get("id"))
-	name := strings.TrimSpace(c.Request.Form.Get("name"))
-	description := strings.TrimSpace(c.Request.Form.Get("description"))
-	picture := strings.TrimSpace(c.Request.Form.Get("picture"))
+	group := &pb.Profile{
+		Id:          strings.TrimSpace(c.Request.Form.Get("id")),
+		Name:        strings.TrimSpace(c.Request.Form.Get("name")),
+		Description: strings.TrimSpace(c.Request.Form.Get("description")),
+		Picture:     strings.TrimSpace(c.Request.Form.Get("picture")),
+	}
 
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Group ID is required"})
+	if group.Id == "" {
+		s.renderGroupCreate(c, http.StatusBadRequest, group, "Group ID is required")
 		return
 	}
-	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Group name is required"})
+	if group.Name == "" {
+		s.renderGroupCreate(c, http.StatusBadRequest, group, "Group name is required")
 		return
 	}
 
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not logged in"})
+		s.renderGroupCreate(c, http.StatusUnauthorized, group, "Not logged in")
 		return
 	}
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	group, err := s.client.CreateGroup(ctx, &pb.CreateGroupRequest{
+	created, err := s.client.CreateGroup(ctx, &pb.CreateGroupRequest{
 		ActorUuid:   uuid,
-		Id:          id,
-		Name:        name,
-		Description: description,
-		Picture:     picture,
+		Id:          group.Id,
+		Name:        group.Name,
+		Description: group.Description,
+		Picture:     group.Picture,
 	})
 	if err != nil {
 		// Surface the RPC message (e.g. "Group ID is already taken",
-		// reserved-name rejections) for the Ajax form to display.
-		rpcErrorJSON(c, err)
+		// reserved-name rejections) on the redisplayed form.
+		s.renderGroupCreate(c, http.StatusBadRequest, group, status.Convert(err).Message())
 		return
 	}
 
 	// Invalidate groups cache
 	s.cache.Delete("groups:" + uuid)
 
-	c.JSON(200, gin.H{
-		"status": "ok",
-		"group":  group,
-	})
-}
-
-// rpcErrorJSON answers an Ajax form submission with the server's own error
-// message. Transport-level failures keep the existing RequestError handling
-// (503 with Retry-After etc.); everything else becomes a 400 whose JSON body
-// carries status.Convert's message verbatim.
-func rpcErrorJSON(c *gin.Context, err error) {
-	code := status.Code(err)
-	if code == codes.Unavailable || code == codes.DeadlineExceeded {
-		RequestError(c, err)
-		return
-	}
-	c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
+	c.Redirect(http.StatusSeeOther, "/feed/"+url.PathEscape(created.Id))
 }
 
 func RequestError(c *gin.Context, err error) bool {
