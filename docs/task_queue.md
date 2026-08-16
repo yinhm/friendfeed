@@ -301,11 +301,13 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
   也禁止把正常来源生命周期复制成持续增长的 TaskDone(DEAD)。只有失败状态无法持久化等未处理
   故障才让 Task 进入 DEAD。
   临时远程故障持续探测；确定性 4xx/解析失败连续至少六次且持续至少七天后才把来源置为 dead，调度器停止
-  自动入队，手动 seed 成功可复活。binding 投递错误不增加来源失败计数；目标已删除的 binding
+  自动入队，手动 seed 探测（无论成败）使其重新进入调度评估，成功即复活。binding 投递错误不增加来源失败计数；目标已删除的 binding
   自动 disable。ETag、HTTP 状态、来源生命周期和长期退避始终只属于 ServiceState，不能产生
   两套真相。若更新 State 后崩溃，重派 handler 由已推进的 `next_fetch` 幂等 Complete。
 - 非 seed 的 handler 读到 dead 状态必须直接 Complete；状态转换前遗留的 `service.fetch` 无权
-  重新激活来源。只有用户显式触发的 `feed_service.seed` 成功后可以复活。
+  重新激活来源。用户显式触发的 `feed_service.seed` 是对 dead 来源的无条件探测：成功后复活
+  为 active；探测失败同样按来源生命周期落地（临时错误置 degraded 并退避），即用户发起的
+  seed 探测无论成败都使来源重新进入调度评估。
 - 首版 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
   多进程 RSS worker 前必须增加跨 worker 的 host 并发方案；进程内 mutex 不能冒充
   分布式互斥。
