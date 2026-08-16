@@ -47,9 +47,11 @@ key   = table prefix | group UUID(16) | admin user UUID(16)
 value = nil
 ```
 
+建议使用 100 段下一个空闲表号 `TableGroupAdmin = 114`（111-113 已被 Service 占用）；
 表号必须在实施变更时统一登记到 `model/types.go`、`docs/database_design.md` 和
-`AGENTS.md`。旧 `Feedinfo.Admins []*Profile` 仅作为迁移输入，在 GroupAdmin 上线后不再是
-运行时权限来源。不得按可回收的 Profile ID 授权。
+`AGENTS.md`，以实际登记为准。旧 `Feedinfo.Admins []*Profile` 及 `Graph.admins` 快照仅
+作为迁移输入，在 GroupAdmin 上线后不再是运行时权限来源。不得按可回收的 Profile ID
+授权。
 
 ## 创建 Group
 
@@ -91,6 +93,12 @@ Unfollow Group = Leave Group
 - admin 可以移除普通成员；要移除另一 admin，必须先完成合法降级；
 - Follow 和 Follower 必须原子维护，失败时不得留下单边关系；
 - Join/Leave 成功后必须使该用户的 Home timeline 异步重建或失效，不能只改变未来 fanout。
+
+用户账号注销（Profile soft delete）视同退出其所有 Group，因此受同一约束：当用户
+仍是任一未删除 Group 的唯一 admin 时，注销必须被拒绝，并列出这些 Group；用户须
+先移交 admin，或行使最后 admin 的权利删除该 Group。该检查必须与账号 soft delete
+处于同一临界区，防止与并发的 admin 降级/移交竞争后留下「未删除但无有效 admin」
+的 Group——这正是 audit 要抓的状态，不能靠 audit 兜底制造。
 
 私有 Group 的 Join 必须经过邀请或 join request/批准。批准后仍以 Follow/Follower 表示最终
 成员关系，不额外建立另一套 Member 表。申请状态是工作流数据，不能冒充已生效的 membership。
@@ -147,7 +155,9 @@ FeedService 导入的 Entry 是明确例外：它属于目标 Group，可以使�
 Group 使用普通 direct EntryIndex。新 Group Entry 只向当时的成员 fanout，并沿用现有有效
 TimelineState、有界 Home 和失败返回规则。
 
-成员关系变化还必须处理存量缓存：
+成员关系变化还必须处理存量缓存。异步重建复用现有 task queue（表 203-207）：Join/Leave
+成功后入队幂等的 home rebuild task，由 `model.BuildHomeTimeline`/`ReplaceHomeTimeline`
+完成有界重建，不新建第二套后台机制。
 
 - Join 后异步重建该用户的 bounded Home，使 Group 的近期内容可见；
 - Leave 或被移除后异步重建，移除该 Group 的 Home 行；
@@ -191,7 +201,10 @@ DeleteGroup
 ```
 
 读取至少应能返回 Group metadata、当前用户的 member/admin 状态，以及分页的成员/admin
-列表。不要把完整成员列表塞进每次 Feed 响应。
+列表。不要把完整成员列表塞进每次 Feed 响应。另需有界分页的
+`ListUserGroups(user_uuid, limit, cursor)` 返回用户已加入的 Group 列表，服务 sidebar
+导航与 Group 列表页；契约见 `docs/group_navigation.md`。现有 `FetchGraph` 刻意不返回
+following，不得为此把全量订阅塞回 Graph 响应。
 
 当前 gRPC 只监听 loopback，可暂时在请求中携带 actor UUID；所有 mutation 仍必须在 ffdb
 重新验证 actor。若将来对外开放 gRPC，必须由认证 principal 注入 actor，不能信任客户端自报。
@@ -200,12 +213,17 @@ DeleteGroup
 
 当前代码不能视为已经满足本规范：
 
-- 没有用户可调用的原子 CreateGroup API；
-- admin 权威仍来自 legacy Feedinfo Profile 快照；
+- 没有用户可调用的原子 CreateGroup API；`PostFeedinfo` 仍可隐式创建任意 Type 的
+  Profile，且不写 Follow/GroupAdmin；
+- admin 权威仍来自 legacy Feedinfo Profile 快照。FeedService 的 group 管理授权已在
+  ffdb 检查（`server/feed_service.go` 按 UUID 比对 `Feedinfo.Admins`），但数据来源
+  必须在 GroupAdmin 表上线后切换；
 - GraphFollow 会无条件修改边，admin 可以退出，目标也未按 Group 规则校验；
-- Group 投稿权限主要由 httpd 的 Follow 查询决定，ffdb mutation 边界尚未完整验证；
+- Group 投稿权限主要由 httpd 的 `feedWritable` Follow 查询决定，ffdb `PostEntry`
+  尚未在 mutation 边界验证 Group 成员资格；
 - private Group 的成员读取没有闭环；
 - Join/Leave 不会主动刷新现有 Home timeline；
+- 没有「用户已加入的 Group」读取 API（FetchGraph 不返回 following）；
 - Group admin 的 Entry/Comment moderation 尚未落地。
 
 ## 实施顺序与验收
@@ -216,9 +234,10 @@ DeleteGroup
 4. 将投稿、metadata、FeedService 和审核授权统一下沉到 ffdb；
 5. 修复 private visibility，或在审批流程完成前拒绝创建 private Group；
 6. 接入 Join/Leave 后的异步 Home rebuild；
-7. 最后实现 Group 创建、成员、admin 和 Service 管理 UI；
+7. 最后实现 Group 创建、成员、admin 和 Service 管理 UI（sidebar 导航与创建页规范
+   见 `docs/group_navigation.md`，主题体系见 `docs/theme.md`）；
 8. 增加 audit，检查 admin 非成员、无 admin Group、单边 membership 和 deleted Group 残留。
 
 验收测试至少覆盖：创建者原子成为成员/admin、普通用户加入/退出、admin 退出被拒、最后 admin
-降级被拒、非成员投稿被拒、admin 只能删除不能编辑他人内容、private 数据不可旁路读取、关系
+降级被拒、唯一 admin 注销账号被拒、非成员投稿被拒、admin 只能删除不能编辑他人内容、private 数据不可旁路读取、关系
 变化后 timeline 收敛，以及所有失败路径不产生单边或半状态。
