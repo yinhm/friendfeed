@@ -23,6 +23,7 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	server "github.com/yinhm/friendfeed/httpd/src"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -187,6 +188,8 @@ func Serve(s *server.Server, config *util.Config) error {
 	// TODO: httproute not support "/:name" to catch all
 	// see: gin #205
 	r.GET("/feed/:name", s.FeedHandler)
+	r.GET("/feed/:name/likes", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_LIKE, "likes"))
+	r.GET("/feed/:name/comments", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_COMMENT, "comments"))
 	r.GET("/e/:uuid", s.EntryHandler)
 
 	r.GET("/a/entry/:uuid", s.ExpandCommentHandler)

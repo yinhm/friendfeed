@@ -44,6 +44,8 @@
                         <li><a href="/">Home</a></li>
                         {% if current_user %}
                         <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
+                        <li><a href="/feed/{{ current_user.Id }}/likes">Likes</a></li>
+                        <li><a href="/feed/{{ current_user.Id }}/comments">Comments</a></li>
                         <li><a href="/public">Public</a></li>
                         {% endif %}
                         <!-- <li><a href="/summary/1">Best of day</a></li> -->

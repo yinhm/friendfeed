@@ -123,14 +123,72 @@ func configureFeedPagination(r *http.Request, req *pb.FeedRequest) bool {
 }
 
 func renamedFeedLocation(requestedID string, feed *pb.Feed, rawQuery string) (string, bool) {
+	return renamedFeedLocationWithSuffix(requestedID, feed, "", rawQuery)
+}
+
+func renamedFeedLocationWithSuffix(requestedID string, feed *pb.Feed, suffix, rawQuery string) (string, bool) {
 	if feed == nil || feed.Id == "" || feed.Id == requestedID {
 		return "", false
 	}
 	location := "/feed/" + url.PathEscape(feed.Id)
+	if suffix == "likes" || suffix == "comments" {
+		location += "/" + suffix
+	}
 	if rawQuery != "" {
 		location += "?" + rawQuery
 	}
 	return location, true
+}
+
+func (s *Server) InteractionFeedHandler(kind pb.InteractionKind, suffix string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		name := c.Param("name")
+		baseReq := &pb.FeedRequest{Id: name, PageSize: 1, CursorPaging: true}
+		_, base, err := s.FetchFeed(c, baseReq)
+		if RequestError(c, err) {
+			return
+		}
+		if location, renamed := renamedFeedLocationWithSuffix(name, base, suffix, c.Request.URL.RawQuery); renamed {
+			c.Redirect(http.StatusFound, location)
+			return
+		}
+		ctx, cancel := DefaultTimeoutContext()
+		defer cancel()
+		response, err := s.client.FetchInteractionFeed(ctx, &pb.InteractionFeedRequest{
+			ProfileUuid: base.Uuid, ViewerUuid: CurrentUserUuid(c), Kind: kind,
+			Cursor: c.Query("cursor"), PageSize: 30,
+		})
+		if RequestError(c, err) {
+			return
+		}
+		feed := &pb.Feed{Uuid: response.Profile.Uuid, Id: response.Profile.Id, Name: response.Profile.Name, Picture: response.Profile.Picture, Description: response.Profile.Description, Type: response.Profile.Type, Private: response.Profile.Private, NextCursor: response.NextCursor}
+		profile, err := s.CurrentUser(c)
+		if RequestError(c, err) {
+			return
+		}
+		graph, err := s.CurrentGraph(c)
+		if RequestError(c, err) {
+			return
+		}
+		for _, item := range response.Items {
+			entry := item.Entry
+			if kind == pb.InteractionKind_INTERACTION_KIND_LIKE {
+				entry.Likes = []*pb.Like{item.Like}
+			} else {
+				entry.Comments = []*pb.Comment{item.LatestComment}
+			}
+			entry.RebuildCommand(profile, graph)
+			entry.RebuildCommentsCommand(profile, graph)
+			if parsed, parseErr := time.Parse(time.RFC3339, entry.Date); parseErr == nil {
+				entry.Date = util.FormatTime(parsed)
+			}
+			feed.Entries = append(feed.Entries, entry)
+		}
+		data := cursorFeedContext(feed)
+		data["show_header"] = true
+		data["title"] = feed.Id + " " + suffix
+		s.renderFeed(c, data)
+	}
 }
 
 func (s *Server) HomeHandler(c *gin.Context) {
