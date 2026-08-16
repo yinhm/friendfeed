@@ -210,6 +210,11 @@ func Serve(s *server.Server, config *util.Config) error {
 	{
 		groups.GET("/create", s.GroupCreatePageHandler)
 		groups.POST("/create", s.GroupCreateHandler)
+		groups.GET("/:name/settings", s.GroupSettingsPageHandler)
+		groups.POST("/:name/settings", s.GroupSettingsHandler)
+		groups.GET("/:name/members", s.GroupMembersPageHandler)
+		groups.POST("/:name/members/action", s.GroupMemberActionHandler)
+		groups.POST("/:name/delete", s.GroupDeleteHandler)
 	}
 
 	r.GET("/public", s.PublicHandler)

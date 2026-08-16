@@ -1,0 +1,127 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="group-settings">
+    <h2>Group settings: {{ group.Name|escape }}</h2>
+
+    {% if error %}
+    <div class="error-message">{{ error|escape }}</div>
+    {% endif %}
+
+    <form method="post" action="/groups/{{ group.Id }}/settings">
+        <div class="form-group">
+            <label for="name">Group Name *</label>
+            <input type="text" id="name" name="name" required maxlength="64" value="{{ group.Name|escape }}" />
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="4" maxlength="500">{{ group.Description|escape }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="picture">Picture URL</label>
+            <input type="text" id="picture" name="picture" maxlength="2048" value="{{ group.Picture|escape }}" />
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Save</button>
+            <a href="/feed/{{ group.Id }}" class="cancel-link">Cancel</a>
+        </div>
+    </form>
+
+    <p><a href="/groups/{{ group.Id }}/members">Manage members</a></p>
+
+    <div class="danger-zone">
+        <h3>Delete this group</h3>
+        <p class="field-hint">The group is soft-deleted: it immediately blocks joins, posting and new deliveries. Historical content is cleaned up in the background.</p>
+        <form method="post" action="/groups/{{ group.Id }}/delete" onsubmit="return confirm('Delete this group? This cannot be undone from the web UI.');">
+            <button type="submit" class="danger-button">Delete group</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.group-settings {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.group-settings h2 {
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--ff-border);
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-actions {
+    margin-top: 20px;
+}
+
+.form-actions button {
+    border: 1px solid var(--ff-border);
+    background: var(--ff-button-bg);
+    color: var(--ff-button-fg);
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.cancel-link {
+    margin-left: 10px;
+    color: var(--ff-muted);
+    text-decoration: none;
+}
+
+.cancel-link:hover {
+    text-decoration: underline;
+}
+
+.error-message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid var(--ff-danger-border);
+    color: var(--ff-danger);
+    border-radius: 4px;
+}
+
+.field-hint {
+    font-size: 12px;
+    color: var(--ff-muted);
+    margin-top: 4px;
+}
+
+.danger-zone {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid var(--ff-hairline);
+}
+
+.danger-button {
+    border: 1px solid var(--ff-danger-border);
+    background: var(--ff-danger);
+    color: var(--ff-danger-fg);
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 14px;
+}
+</style>
+{% endblock %}

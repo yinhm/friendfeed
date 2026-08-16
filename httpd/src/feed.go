@@ -255,6 +255,23 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		if manageErr == nil {
 			data["manage_services_url"] = "/account/feed/" + url.PathEscape(feed.Uuid) + "/import"
 		}
+
+		// Group feeds offer admin/super viewers entry points to the
+		// settings and members pages (docs/group.md manage_group rule).
+		if feed.Type == "group" {
+			ctx, cancel := DefaultTimeoutContext()
+			view, viewErr := s.client.GetGroup(ctx, &pb.GetGroupRequest{
+				GroupUuid: feed.Uuid, ViewerUuid: actor,
+			})
+			cancel()
+			if viewErr == nil {
+				profile, _ := s.CurrentUser(c)
+				if canManageGroup(view, profile) {
+					data["group_settings_url"] = "/groups/" + url.PathEscape(feed.Id) + "/settings"
+					data["group_members_url"] = "/groups/" + url.PathEscape(feed.Id) + "/members"
+				}
+			}
+		}
 	}
 	s.renderFeed(c, data)
 }
@@ -287,9 +304,10 @@ func (s *Server) SearchHandler(c *gin.Context) {
 	query := reqQuery.Get("q")
 	start := ParseStart(c.Request)
 	req := &pb.SearchRequest{
-		Query:    query,
-		Start:    int32(start),
-		PageSize: 30,
+		Query:      query,
+		Start:      int32(start),
+		PageSize:   30,
+		ViewerUuid: CurrentUserUuid(c),
 	}
 
 	_, feed, err := s.FetchFeed(c, req)
@@ -306,9 +324,10 @@ func (s *Server) TagHandler(c *gin.Context) {
 	name := c.Params.ByName("name")
 	start := ParseStart(c.Request)
 	req := &pb.SearchRequest{
-		Query:    "#" + name,
-		Start:    int32(start),
-		PageSize: 30,
+		Query:      "#" + name,
+		Start:      int32(start),
+		PageSize:   30,
+		ViewerUuid: CurrentUserUuid(c),
 	}
 
 	_, feed, err := s.FetchFeed(c, req)

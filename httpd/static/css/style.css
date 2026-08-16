@@ -1,3 +1,43 @@
+/* Theme tokens (docs/theme.md): site-layer --ff-* variables hold final color
+   values and serve the SSR pages; the React bundle's component-layer hsl
+   triplets stay separate. */
+:root {
+    /* 基础 */
+    --ff-bg: #fff;
+    --ff-fg: #000;
+    --ff-font: Arial, sans-serif;
+
+    /* 链接 */
+    --ff-link: #00c;          /* 正文与导航链接 */
+    --ff-link-light: #77c;    /* likes/comments 区内链接、action-link */
+
+    /* 辅助文本与边线 */
+    --ff-muted: #666;         /* info/likes/comment 弱化文本 */
+    --ff-border: #bdbdbb;     /* 输入框、头像、按钮边框 */
+    --ff-hairline: #eee;      /* entry/header 分隔线 */
+
+    /* 控件 */
+    --ff-button-bg: #eee;
+    --ff-button-fg: #333;
+    --ff-danger: #b03030;
+    --ff-danger-border: #8f2727;
+    --ff-danger-fg: #fff;
+
+    /* FriendFeed 标志性侧栏蓝盒 */
+    --ff-box-bg: #ebf3f8;
+    --ff-box-border: #c7dbec;
+
+    /* 引用块 */
+    --ff-quote-border: #d1d5db;
+    --ff-quote-fg: #4b5563;
+
+    /* 代码块 */
+    --ff-code-bg: #eeffcc;
+    --ff-code-border: #ac9;
+    --ff-code-fg: #333;
+    --ff-code-inline-bg: #e9ecef;
+}
+
 body {
     background: hsl(var(--background, 0 0% 100%));
     color: hsl(var(--foreground, 0 0% 0%));

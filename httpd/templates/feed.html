@@ -14,6 +14,9 @@
         {% if manage_services_url %}
           <div><a href="{{ manage_services_url|escape }}">Manage import services</a></div>
         {% endif %}
+        {% if group_settings_url %}
+          <div><a href="{{ group_settings_url|escape }}">Group settings</a> &middot; <a href="{{ group_members_url|escape }}">Members</a></div>
+        {% endif %}
       </div>
       <div class="clear"></div>
     </div>

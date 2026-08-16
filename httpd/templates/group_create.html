@@ -6,6 +6,12 @@
 
     <form id="createGroupForm">
         <div class="form-group">
+            <label for="id">Group ID *</label>
+            <input type="text" id="id" name="id" required maxlength="64" pattern="[a-z0-9_-]{4,}" aria-describedby="idHint" />
+            <div id="idHint" class="field-hint">Lowercase letters, digits, "_" and "-", at least 4 characters. This is the group's URL: /feed/&lt;id&gt;. Conflicts and reserved names are reported by the server below.</div>
+        </div>
+
+        <div class="form-group">
             <label for="name">Group Name *</label>
             <input type="text" id="name" name="name" required maxlength="64" />
         </div>
@@ -13,6 +19,19 @@
         <div class="form-group">
             <label for="description">Description</label>
             <textarea id="description" name="description" rows="4" maxlength="500"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="picture">Picture URL</label>
+            <input type="text" id="picture" name="picture" maxlength="2048" />
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="private" name="private" disabled />
+                Private group
+            </label>
+            <div class="field-hint">Private groups are not available yet: the membership approval flow is still pending and the server rejects private creation.</div>
         </div>
 
         <div class="form-actions">
@@ -96,6 +115,12 @@
     border-radius: 4px;
 }
 
+.field-hint {
+    font-size: 12px;
+    color: var(--ff-muted);
+    margin-top: 4px;
+}
+
 .success-message {
     margin-top: 15px;
     padding: 10px;
@@ -128,9 +153,9 @@ document.getElementById('createGroupForm').addEventListener('submit', async func
             body: formData
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
 
-        if (response.ok && data.status === 'ok') {
+        if (response.ok && data && data.status === 'ok') {
             successDiv.textContent = 'Group created successfully! Redirecting...';
             successDiv.style.display = 'block';
 
@@ -139,7 +164,7 @@ document.getElementById('createGroupForm').addEventListener('submit', async func
                 window.location.href = '/feed/' + data.group.Id;
             }, 1000);
         } else {
-            throw new Error(data.error || 'Failed to create group');
+            throw new Error((data && data.error) || 'Failed to create group');
         }
     } catch (error) {
         errorDiv.textContent = error.message;

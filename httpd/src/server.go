@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -133,11 +134,18 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 	if profile.Uuid != "" {
 		data["current_user"] = profile
 
-		// Load user's groups for sidebar
+		// Load user's groups for sidebar. Always inject the key for a
+		// logged-in user (possibly empty) so templates can tell "logged in
+		// with no Groups" apart from "anonymous"; anonymous renders get no
+		// key and no RPC. Sidebar shows at most 20 Groups
+		// (docs/group_navigation.md).
 		ctx, cancel := DefaultTimeoutContext()
 		defer cancel()
 		groups, err := s.UserGroups(ctx, profile.Uuid)
-		if err == nil && len(groups) > 0 {
+		if err == nil {
+			if len(groups) > 20 {
+				groups = groups[:20]
+			}
 			data["user_groups"] = groups
 		}
 	}
@@ -244,8 +252,14 @@ func (s *Server) UserGroups(ctx context.Context, userUuid string) ([]*pb.Profile
 		if err != nil {
 			return nil, err
 		}
-		s.cache.Set(cacheKey, resp.Groups, cache.DefaultExpiration)
-		return resp.Groups, nil
+		// docs/group_navigation.md: the server returns Groups in Follow key
+		// order; display sorting (by name, case-insensitive) is httpd's job.
+		groups := resp.Groups
+		sort.Slice(groups, func(i, j int) bool {
+			return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
+		})
+		s.cache.Set(cacheKey, groups, cache.DefaultExpiration)
+		return groups, nil
 	}
 	return v.([]*pb.Profile), nil
 }
@@ -510,9 +524,15 @@ func (s *Server) GroupCreatePageHandler(c *gin.Context) {
 
 func (s *Server) GroupCreateHandler(c *gin.Context) {
 	c.Request.ParseForm()
+	id := strings.TrimSpace(c.Request.Form.Get("id"))
 	name := strings.TrimSpace(c.Request.Form.Get("name"))
 	description := strings.TrimSpace(c.Request.Form.Get("description"))
+	picture := strings.TrimSpace(c.Request.Form.Get("picture"))
 
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Group ID is required"})
+		return
+	}
 	if name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Group name is required"})
 		return
@@ -529,10 +549,15 @@ func (s *Server) GroupCreateHandler(c *gin.Context) {
 
 	group, err := s.client.CreateGroup(ctx, &pb.CreateGroupRequest{
 		ActorUuid:   uuid,
+		Id:          id,
 		Name:        name,
 		Description: description,
+		Picture:     picture,
 	})
-	if RequestError(c, err) {
+	if err != nil {
+		// Surface the RPC message (e.g. "Group ID is already taken",
+		// reserved-name rejections) for the Ajax form to display.
+		rpcErrorJSON(c, err)
 		return
 	}
 
@@ -543,6 +568,19 @@ func (s *Server) GroupCreateHandler(c *gin.Context) {
 		"status": "ok",
 		"group":  group,
 	})
+}
+
+// rpcErrorJSON answers an Ajax form submission with the server's own error
+// message. Transport-level failures keep the existing RequestError handling
+// (503 with Retry-After etc.); everything else becomes a 400 whose JSON body
+// carries status.Convert's message verbatim.
+func rpcErrorJSON(c *gin.Context, err error) {
+	code := status.Code(err)
+	if code == codes.Unavailable || code == codes.DeadlineExceeded {
+		RequestError(c, err)
+		return
+	}
+	c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
 }
 
 func RequestError(c *gin.Context, err error) bool {

@@ -52,6 +52,18 @@
                     </ul>
                 </div>
 
+                {% if current_user %}
+                <div class="section">
+                    <h3>Groups</h3>
+                    <ul>
+                        {% for g in user_groups %}
+                        <li><a href="/feed/{{ g.Id }}" title="{{ g.Id }}">{{ g.Name }}{% if g.Private %} (private){% endif %}</a></li>
+                        {% endfor %}
+                        <li><a href="/groups/create">Create a group</a></li>
+                    </ul>
+                </div>
+                {% endif %}
+
                 <div class="section">
                     <h3>Account</h3>
                     <ul>
@@ -65,25 +77,6 @@
                         {% endif %}
                     </ul>
                 </div>
-
-                {% if current_user and user_groups %}
-                <div class="section">
-                    <h3>Groups</h3>
-                    <ul>
-                        {% for group in user_groups %}
-                        <li><a href="/feed/{{ group.Id }}">{{ group.Name }}</a></li>
-                        {% endfor %}
-                        <li><a href="/groups/create">Create group</a></li>
-                    </ul>
-                </div>
-                {% elif current_user %}
-                <div class="section">
-                    <h3>Groups</h3>
-                    <ul>
-                        <li><a href="/groups/create">Create group</a></li>
-                    </ul>
-                </div>
-                {% endif %}
 
                 <div id="search">
                 </div>
