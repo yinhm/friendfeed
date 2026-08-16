@@ -199,3 +199,164 @@ func TestCreateGroupAtomicWrites(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, adminCount)
 }
+
+func setupGroupWithCreator(t *testing.T, db *store.Store) (group uuid.UUID, creator uuid.UUID) {
+	t.Helper()
+	creator = uuid.Must(uuid.NewV4())
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: creator.String(), Id: "creator", Type: "user"}))
+	profile, err := CreateGroup(db, creator, "club", "Club", "", "", false, time.Now())
+	require.NoError(t, err)
+	group, err = uuid.FromString(profile.Uuid)
+	require.NoError(t, err)
+	return group, creator
+}
+
+func newGroupUser(t *testing.T, db *store.Store, id string) uuid.UUID {
+	t.Helper()
+	user := uuid.Must(uuid.NewV4())
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: user.String(), Id: id, Type: "user"}))
+	return user
+}
+
+func TestJoinGroupIsIdempotent(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, _ := setupGroupWithCreator(t, db)
+	member := newGroupUser(t, db, "member1")
+
+	require.NoError(t, JoinGroup(db, group, member))
+	isMember, err := IsGroupMember(db, group, member)
+	require.NoError(t, err)
+	require.True(t, isMember)
+
+	// Idempotent: joining again succeeds without error.
+	require.NoError(t, JoinGroup(db, group, member))
+}
+
+func TestJoinGroupRejectsPrivate(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, _ := setupGroupWithCreator(t, db)
+	groupProfile, err := GetProfileFromUuid(db, group)
+	require.NoError(t, err)
+	groupProfile.Private = true
+	require.NoError(t, UpdateProfile(db, groupProfile))
+
+	member := newGroupUser(t, db, "member1")
+	err = JoinGroup(db, group, member)
+	require.ErrorIs(t, err, ErrPrivateGroupUnsupported)
+}
+
+func TestLeaveGroupOrdinaryMember(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, _ := setupGroupWithCreator(t, db)
+	member := newGroupUser(t, db, "member1")
+	require.NoError(t, JoinGroup(db, group, member))
+
+	require.NoError(t, LeaveGroup(db, group, member))
+	isMember, err := IsGroupMember(db, group, member)
+	require.NoError(t, err)
+	require.False(t, isMember)
+
+	// Idempotent: leaving again succeeds without error.
+	require.NoError(t, LeaveGroup(db, group, member))
+}
+
+func TestLeaveGroupRejectsAdminWithoutDemotion(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, creator := setupGroupWithCreator(t, db)
+	err = LeaveGroup(db, group, creator)
+	require.ErrorIs(t, err, ErrGroupAdminMustBeDemotedFirst)
+
+	isMember, err := IsGroupMember(db, group, creator)
+	require.NoError(t, err)
+	require.True(t, isMember)
+}
+
+func TestAddGroupAdminRequiresPriorMembership(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, _ := setupGroupWithCreator(t, db)
+	nonMember := newGroupUser(t, db, "nonmember")
+
+	err = AddGroupAdmin(db, group, nonMember)
+	require.Error(t, err)
+
+	require.NoError(t, JoinGroup(db, group, nonMember))
+	require.NoError(t, AddGroupAdmin(db, group, nonMember))
+
+	isAdmin, err := IsGroupAdmin(db, group, nonMember)
+	require.NoError(t, err)
+	require.True(t, isAdmin)
+}
+
+func TestRemoveGroupAdminRejectsLastAdmin(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, creator := setupGroupWithCreator(t, db)
+	err = RemoveGroupAdmin(db, group, creator)
+	require.ErrorIs(t, err, ErrLastGroupAdmin)
+
+	isAdmin, err := IsGroupAdmin(db, group, creator)
+	require.NoError(t, err)
+	require.True(t, isAdmin)
+}
+
+func TestRemoveGroupAdminSucceedsWithAnotherAdmin(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, creator := setupGroupWithCreator(t, db)
+	other := newGroupUser(t, db, "other")
+	require.NoError(t, JoinGroup(db, group, other))
+	require.NoError(t, AddGroupAdmin(db, group, other))
+
+	require.NoError(t, RemoveGroupAdmin(db, group, creator))
+
+	isAdmin, err := IsGroupAdmin(db, group, creator)
+	require.NoError(t, err)
+	require.False(t, isAdmin)
+
+	// creator is still a plain member and can now leave.
+	require.NoError(t, LeaveGroup(db, group, creator))
+}
+
+func TestRemoveGroupMemberRejectsCurrentAdmin(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, creator := setupGroupWithCreator(t, db)
+	err = RemoveGroupMember(db, group, creator)
+	require.ErrorIs(t, err, ErrGroupAdminMustBeDemotedFirst)
+}
+
+func TestRemoveGroupMemberOrdinaryMember(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	group, _ := setupGroupWithCreator(t, db)
+	member := newGroupUser(t, db, "member1")
+	require.NoError(t, JoinGroup(db, group, member))
+
+	require.NoError(t, RemoveGroupMember(db, group, member))
+	isMember, err := IsGroupMember(db, group, member)
+	require.NoError(t, err)
+	require.False(t, isMember)
+}

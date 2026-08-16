@@ -11,6 +11,11 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 )
 
+// GraphFollow is a compatible entry point for the generic Follow/Unfollow
+// mutation. When feed_uuid names a Group, it routes into the Group
+// Join/Leave domain layer instead of unconditionally writing/deleting the
+// two edges, so admin-leave protection and last-admin protection apply
+// uniformly regardless of entry point.
 func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb.FollowResponse, error) {
 	slog.Debug("GraphFollow", "profile_uuid", req.ProfileUuid, "feed_uuid", req.FeedUuid)
 
@@ -23,11 +28,21 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		return nil, err
 	}
 
+	target, err := model.GetProfileFromUuid(s.rdb, feedUUID)
+	isGroup := err == nil && target.Type == "group"
+
 	followed := false
 	followkey := model.NewKeyFrom(model.Follow.Prefix, profileUUID.Bytes(), feedUUID.Bytes())
-	followerkey := model.NewKeyFrom(model.Follower.Prefix, feedUUID.Bytes(), profileUUID.Bytes())
 	switch req.Action {
 	case "follow":
+		if isGroup {
+			if err := model.JoinGroup(s.rdb, feedUUID, profileUUID); err != nil {
+				return nil, err
+			}
+			followed = true
+			break
+		}
+		followerkey := model.NewKeyFrom(model.Follower.Prefix, feedUUID.Bytes(), profileUUID.Bytes())
 		err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 			if err := batch.Set(followkey, []byte("1"), nil); err != nil {
 				return fmt.Errorf("write follow edge: %w", err)
@@ -40,9 +55,16 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		if err != nil {
 			return nil, err
 		}
-
 		followed = true
 	case "unfollow":
+		if isGroup {
+			if err := model.LeaveGroup(s.rdb, feedUUID, profileUUID); err != nil {
+				return nil, err
+			}
+			followed = false
+			break
+		}
+		followerkey := model.NewKeyFrom(model.Follower.Prefix, feedUUID.Bytes(), profileUUID.Bytes())
 		err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 			if err := batch.Delete(followkey, nil); err != nil {
 				return fmt.Errorf("delete follow edge: %w", err)

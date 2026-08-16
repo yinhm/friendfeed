@@ -62,6 +62,11 @@ service Api {
 
   // group
   rpc CreateGroup(CreateGroupRequest) returns (Profile) {}
+  rpc JoinGroup(GroupMembershipRequest) returns (google.protobuf.Empty) {}
+  rpc LeaveGroup(GroupMembershipRequest) returns (google.protobuf.Empty) {}
+  rpc AddGroupAdmin(GroupMembershipRequest) returns (google.protobuf.Empty) {}
+  rpc RemoveGroupAdmin(GroupMembershipRequest) returns (google.protobuf.Empty) {}
+  rpc RemoveGroupMember(GroupMembershipRequest) returns (google.protobuf.Empty) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
@@ -378,4 +383,15 @@ message CreateGroupRequest {
   string description = 4;
   string picture = 5;
   bool private = 6;
+}
+
+// GroupMembershipRequest covers Join/Leave/AddGroupAdmin/RemoveGroupAdmin/
+// RemoveGroupMember. actor_uuid is the caller whose authorization is
+// checked server-side; target_uuid is the member being acted on. For
+// JoinGroup/LeaveGroup, actor_uuid and target_uuid are the same user acting
+// on their own membership.
+message GroupMembershipRequest {
+  string actor_uuid = 1;
+  string group_uuid = 2;
+  string target_uuid = 3;
 }
