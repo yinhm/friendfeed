@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -903,6 +904,22 @@ func TestListUserGroupsOrdersSidebarByMaterializedActivity(t *testing.T) {
 	require.Len(t, response.Groups, 2)
 	require.Equal(t, high.String(), response.Groups[0].Uuid)
 	require.Equal(t, low.String(), response.Groups[1].Uuid)
+}
+
+// An oversized activity-mode limit caps at 200 like the ordinary listing,
+// not back at the sidebar default of 10.
+func TestListUserGroupsActivityModeCapsOversizedLimit(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "cap-creator")
+	for i := 0; i < 12; i++ {
+		createTestGroup(t, srv, creator, fmt.Sprintf("cap-group-%02d", i))
+	}
+
+	response, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: creator.String(), Limit: 500, OrderByActivity: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, response.Groups, 12)
 }
 
 // A cursor whose edge was deleted between pages must resume at its successor,

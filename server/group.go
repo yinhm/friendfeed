@@ -433,8 +433,11 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGrou
 		rows, activityErr := model.GetGroupActivity(s.rdb, user)
 		if activityErr == nil {
 			limit := int(request.Limit)
-			if limit <= 0 || limit > 200 {
+			if limit <= 0 {
 				limit = 10
+			}
+			if limit > 200 {
+				limit = 200
 			}
 			groups := make([]*pb.Profile, 0, min(limit, len(rows)))
 			for _, row := range rows {
