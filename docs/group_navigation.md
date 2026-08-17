@@ -62,7 +62,8 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
 权威 mutation 同一 batch。JSON 损坏必须报错，不得静默猜测。
 
 `rebuild_group_activity` 按用户的 Follow、EntryIndex、LikeTimeline、CommentTimeline
-流式重建；支持 `-user <id>` 与 `-dry-run`。部署先对单用户 dry-run，再全量 apply。
+流式重建；默认只处理持有 OAuth 登录身份的活跃用户，无 Group 成员关系的用户跳过；
+支持 `-user <id>` 与 `-dry-run`。部署先对单用户 dry-run，再全量 apply。
 
 ## httpd 数据流
 

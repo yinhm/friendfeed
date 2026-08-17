@@ -21,7 +21,8 @@
     ./tools -to /srv/ffdb/db -c rebuild_group_activity
 
 该命令只依赖当前库的 membership、Entry 与独立 Like/Comment 索引，不需要 old DB。
-全量模式逐 Profile 重建，每次只保留一个用户的 Group score，内存有界。
+默认模式只重建持有 OAuth 登录身份的活跃用户（去重后逐个 Profile 处理，每次只保留
+一个用户的 Group score，内存有界）；无 Group 成员关系的用户直接跳过，不写空排行。
 
 把 Profile 上残留的 FriendFeed 旧默认头像（`friendfeed.com/static/images/group-large.png`，
 任意 scheme 与 `?v=` 变体）改写为本地默认图 `/static/images/ff-default.jpg`（先

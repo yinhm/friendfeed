@@ -224,6 +224,12 @@ func RebuildGroupActivityForUser(db *store.Store, user uuid.UUID) ([]GroupActivi
 	}); err != nil {
 		return nil, err
 	}
+	if len(groups) == 0 {
+		// No Group membership: the ranking is empty by definition. Skip the
+		// EntryIndex/LikeTimeline/CommentTimeline scans, which otherwise walk
+		// the user's entire history for nothing.
+		return nil, nil
+	}
 	for group := range groups {
 		owner, err := db.Get(groupOwnerMetaKey(group))
 		if err == nil {

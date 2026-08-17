@@ -91,3 +91,20 @@ func TestJoinGroupMaterializesExistingActivity(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []GroupActivity{{GroupUUID: group.Uuid, Score: 7}}, rows)
 }
+
+// A user whose Follow edges point only at non-Group feeds has no ranking by
+// definition; the rebuild must return nil without touching the heavy scans.
+func TestRebuildGroupActivitySkipsUsersWithoutGroupMembership(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	user := uuid.Must(uuid.NewV4())
+	other := uuid.Must(uuid.NewV4())
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: user.String(), Id: "memberless", Type: "user"}))
+	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: other.String(), Id: "plain-feed", Type: "user"}))
+	require.NoError(t, db.Set(NewKeyFrom(Follow.Prefix, user.Bytes(), other.Bytes()), []byte("1")))
+
+	rows, err := RebuildGroupActivityForUser(db, user)
+	require.NoError(t, err)
+	require.Nil(t, rows)
+}

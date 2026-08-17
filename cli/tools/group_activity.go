@@ -36,6 +36,11 @@ func rebuildGroupActivity(db *store.Store, userID string, dryRun bool) (groupAct
 		} else if err != nil {
 			return err
 		}
+		if len(rows) == 0 && len(current) == 0 {
+			// Not a member of any Group and no stale ranking to clear;
+			// skip rather than materialize an empty key.
+			return nil
+		}
 		stats.users++
 		stats.groups += len(rows)
 		if reflect.DeepEqual(current, rows) {
@@ -55,12 +60,48 @@ func rebuildGroupActivity(db *store.Store, userID string, dryRun bool) (groupAct
 		}
 		return stats, rebuild(profile)
 	}
-	err := model.Profile.Iter(db, func(_ []byte, raw []byte) error {
-		profile := new(pb.Profile)
-		if err := proto.Unmarshal(raw, profile); err != nil {
+
+	// Default scope: only users with an OAuth login identity. The
+	// materialized ranking only serves logged-in sidebars, so imported
+	// ghost profiles are never worth rebuilding.
+	logins, err := oauthProfileUUIDs(db)
+	if err != nil {
+		return stats, err
+	}
+	for _, user := range logins {
+		profile, err := model.GetProfileFromUuid(db, user)
+		if errors.Is(err, model.ErrProfileDeleted) || errors.Is(err, model.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return stats, err
+		}
+		if err := rebuild(profile); err != nil {
+			return stats, err
+		}
+	}
+	return stats, nil
+}
+
+// oauthProfileUUIDs returns the distinct Profile UUIDs behind all OAuth
+// identities; one user may hold several identities (e.g. Twitter + Google).
+func oauthProfileUUIDs(db *store.Store) ([]uuid.UUID, error) {
+	seen := make(map[uuid.UUID]struct{})
+	var users []uuid.UUID
+	err := model.OAuth.Iter(db, func(_, raw []byte) error {
+		oauth := new(pb.OAuthUser)
+		if err := proto.Unmarshal(raw, oauth); err != nil {
 			return err
 		}
-		return rebuild(profile)
+		user, err := uuid.FromString(oauth.Uuid)
+		if err != nil || user == uuid.Nil {
+			return nil
+		}
+		if _, ok := seen[user]; !ok {
+			seen[user] = struct{}{}
+			users = append(users, user)
+		}
+		return nil
 	})
-	return stats, err
+	return users, err
 }
