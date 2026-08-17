@@ -69,37 +69,38 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
 - helper `UserGroups(c)` 每次调用 `ListUserGroups(order_by_activity=true, limit=10)`；
   该 RPC 只读取一个已排序 JSON key 和至多十个 Profile，不再使用会掩盖实时行为更新
   的 5 分钟 httpd cache。
-- 缓存失效：`FollowHandler` 成功、未来的 CreateGroup/JoinGroup/LeaveGroup
-  handler 成功后，删除该用户的 `groups:` 缓存键。注意这是**新增行为**：现有
-  `FollowHandler` 不做任何缓存失效（连 `graph:` 键也不删，只靠 5 分钟过期
-  兜底），实施时必须补上，不能假设已有。5 分钟兜底过期意味着通过其他路径
-  发生的成员变化最迟 5 分钟收敛，可接受。
+- 成员与活跃度变化经上述写路径同批进入物化排名，sidebar 每次渲染实时读取，
+  无需缓存失效机制。
 - `Server.HTML` 在渲染带 sidebar 的页面（现状即 `!onpage`）且已登录时注入
   `user_groups`；未登录不注入、不请求。
 
 ## Sidebar UI
 
-在 `layout.html` 的 sidebar 中新增独立 section，位于主导航（Home/My feed/
-Public）与 Account 之间：
+在 `layout.html` 的 sidebar 中，主 `.menu` 之后另有独立的 `.groups-menu` 块：
 
 ```html
-<div class="section">
-    <h3>Groups</h3>
-    <ul>
-        {% for g in user_groups %}
-        <li><a href="/feed/{{ g.Id }}" title="{{ g.Id }}">{{ g.Name }}</a></li>
-        {% endfor %}
-        <li><a href="/groups/create">Create a group</a></li>
-    </ul>
+{% if current_user %}
+<div class="menu groups-menu">
+    <div class="section">
+        <h3 class="groups-heading">Groups <a href="/groups/create" title="Create a group">+</a></h3>
+        {% if user_groups %}
+        <ul>
+            {% for g in user_groups %}
+            <li><a href="/feed/{{ g.Id }}" title="{{ g.Id }}">{{ g.Name }}{% if g.Private %} (private){% endif %}</a></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        <div><a href="/groups">All groups&hellip;</a></div>
+    </div>
 </div>
+{% endif %}
 ```
 
 规则：
 
 - 仅登录用户可见该 section；未登录完全不渲染。
-- 空状态：没有任何 Group 时 section 仍渲染，仅含 "Create a group" 链接，作为
-  功能引导；不额外显示占位文案。在 create 链接尚未上线的阶段（见实施顺序
-  第 2 步），列表为空则整个 section 不渲染，不留下只有标题的空框。
+- 空状态：没有任何 Group 时 section 仍渲染，仅含标题行的 "+" 创建入口与
+  "All groups…" 链接，作为功能引导；不额外显示占位文案。
 - sidebar 最多显示 10 个 Group，并始终显示 "All groups…" 指向 `/groups`。
   主导航在 "My feed" 下也提供 `/groups` 入口。完整列表页逐页消费
   `ListUserGroups.next_cursor` 直到结束，不受 sidebar 单页退化边界影响。
@@ -124,8 +125,8 @@ Public）与 Account 之间：
   - `private`：复选框。在 private 审批流程落地前禁用并附说明（服务端本就拒绝
     `private=true`，见 `docs/group.md`），不允许出现「前端能勾、后端必拒」的
     半可用状态。
-- 提交成功后重定向到 `/feed/{id}`，并使当前用户的 `groups:` 缓存失效；创建者
-  此时已因 `CreateGroup` 的原子写入出现在自己的 Group 列表中。
+- 提交成功后重定向到 `/feed/{id}`；创建者此时已因 `CreateGroup` 的原子写入
+  出现在自己的 Group 列表中，sidebar 实时读取，下次渲染即见。
 - 模板为新的 SSR 页面（如 `groups_create.html`），复用 layout 与现有表单样式，
   不引入 React 依赖。
 
@@ -139,8 +140,8 @@ Public）与 Account 之间：
    `/groups/create` 页面并在 sidebar 显示 create 链接。
 4. `/groups` 完整列表页逐页读取并展示当前用户加入的全部 Group。
 
-验收至少覆盖：未登录不渲染 section 也不发起 RPC；加入/退出后 sidebar 在缓存
-失效路径上立即收敛、其余路径 5 分钟内收敛；超过 10 个 Group 时截断并链接完整列表；
+验收至少覆盖：未登录不渲染 section 也不发起 RPC；加入/退出与互动计分在下次渲染
+立即反映（无缓存）；超过 10 个 Group 时截断并链接完整列表；
 private Group 仅出现在成员自己的 sidebar；创建成功后新 Group 立即出现在列表；
 `ListUserGroups` 对大量订阅保持流式有界、跳过已删除 Profile 不报错，且触发扫描
 上限时正确返回不满页/空页 + `next_cursor`，续页不重复、不遗漏。

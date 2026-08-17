@@ -169,7 +169,6 @@ func (s *Server) GroupSettingsHandler(c *gin.Context) {
 	}
 
 	actor := CurrentUserUuid(c)
-	s.cache.Delete("groups:" + actor)
 	s.cache.Delete("graph:" + actor)
 	s.cache.Delete("profile:" + view.Group.Uuid)
 
@@ -254,11 +253,6 @@ func (s *Server) GroupMemberActionHandler(c *gin.Context) {
 		return
 	}
 
-	if action == "remove" {
-		// The removed member's sidebar Group list changes immediately.
-		s.cache.Delete("groups:" + target)
-	}
-
 	c.Redirect(http.StatusFound, "/groups/"+url.PathEscape(view.Group.Id)+"/members")
 }
 
@@ -279,8 +273,6 @@ func (s *Server) GroupDeleteHandler(c *gin.Context) {
 		s.renderGroupSettings(c, view, status.Convert(err).Message())
 		return
 	}
-
-	s.cache.Delete("groups:" + CurrentUserUuid(c))
 
 	c.Redirect(http.StatusFound, "/")
 }

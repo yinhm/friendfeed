@@ -226,10 +226,9 @@ func TestGroupCreateHandlerRequiresIDAndName(t *testing.T) {
 	}
 }
 
-func TestGroupCreateHandlerPassesIDAndInvalidatesCache(t *testing.T) {
+func TestGroupCreateHandlerPassesID(t *testing.T) {
 	client := &fakeGroupClient{createResp: &pb.Profile{Uuid: testGroupUUID, Id: "book-club"}}
 	s := newGroupTestServer(client)
-	s.cache.Set("groups:"+testGroupUserUUID, []*pb.Profile{}, cache.DefaultExpiration)
 
 	router := groupTestRouter(s)
 	router.POST("/groups/create", s.GroupCreateHandler)
@@ -256,9 +255,6 @@ func TestGroupCreateHandlerPassesIDAndInvalidatesCache(t *testing.T) {
 		req.Name != "Book Club" || req.Description != "reading" ||
 		req.Picture != "https://example.com/p.png" {
 		t.Fatalf("CreateGroup request = %+v", req)
-	}
-	if _, found := s.cache.Get("groups:" + testGroupUserUUID); found {
-		t.Fatal("groups cache was not invalidated after creation")
 	}
 }
 
@@ -342,7 +338,6 @@ func TestGroupMemberActionRemove(t *testing.T) {
 	}
 	s := newGroupTestServer(client)
 	target := "33333333-3333-3333-3333-333333333333"
-	s.cache.Set("groups:"+target, []*pb.Profile{}, cache.DefaultExpiration)
 
 	router := groupTestRouter(s)
 	router.POST("/groups/:name/members/action", s.GroupMemberActionHandler)
@@ -364,9 +359,6 @@ func TestGroupMemberActionRemove(t *testing.T) {
 	req := client.membershipReq
 	if req.ActorUuid != testGroupUserUUID || req.GroupUuid != testGroupUUID || req.TargetUuid != target {
 		t.Fatalf("membership request = %+v", req)
-	}
-	if _, found := s.cache.Get("groups:" + target); found {
-		t.Fatal("removed member's groups cache was not invalidated")
 	}
 }
 
@@ -475,7 +467,6 @@ func TestGroupDeleteHandler(t *testing.T) {
 		profile:   &pb.Profile{Uuid: testGroupUserUUID},
 	}
 	s := newGroupTestServer(client)
-	s.cache.Set("groups:"+testGroupUserUUID, []*pb.Profile{}, cache.DefaultExpiration)
 
 	router := groupTestRouter(s)
 	router.POST("/groups/:name/delete", s.GroupDeleteHandler)
@@ -491,8 +482,5 @@ func TestGroupDeleteHandler(t *testing.T) {
 	}
 	if client.deleteCalls != 1 {
 		t.Fatalf("DeleteGroup called %d times; want 1", client.deleteCalls)
-	}
-	if _, found := s.cache.Get("groups:" + testGroupUserUUID); found {
-		t.Fatal("groups cache was not invalidated after deletion")
 	}
 }

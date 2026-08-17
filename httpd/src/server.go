@@ -496,9 +496,6 @@ func (s *Server) FollowHandler(c *gin.Context) {
 		return
 	}
 
-	// Invalidate groups cache if following/unfollowing a group
-	s.cache.Delete("groups:" + uuid)
-
 	c.JSON(200, entry.Followed)
 }
 
@@ -564,9 +561,6 @@ func (s *Server) GroupCreateHandler(c *gin.Context) {
 		s.renderGroupCreate(c, http.StatusBadRequest, group, status.Convert(err).Message())
 		return
 	}
-
-	// Invalidate groups cache
-	s.cache.Delete("groups:" + uuid)
 
 	c.Redirect(http.StatusSeeOther, "/feed/"+url.PathEscape(created.Id))
 }
