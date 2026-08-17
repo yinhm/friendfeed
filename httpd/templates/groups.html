@@ -9,7 +9,7 @@
 <ul class="member-list">
     {% for group in groups %}
     <li>
-        {% if group.Picture %}<img class="avatar" src="{{ group.Picture|escape }}" alt="" />{% endif %}
+        <img class="avatar" src="{{ group.Picture|escape }}" alt="" />
         <a href="/feed/{{ group.Id }}" title="{{ group.Id }}">{{ group.Name|escape }}</a>
         {% if group.Private %}<span class="admin-badge">private</span>{% endif %}
         {% if group.Description %}<span class="muted">{{ group.Description|escape }}</span>{% endif %}

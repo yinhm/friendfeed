@@ -15,7 +15,7 @@
 <ul class="member-list">
     {% for m in members %}
     <li>
-        {% if m.Profile.Picture %}<img src="{{ m.Profile.Picture|escape }}" class="avatar" alt="" />{% endif %}
+        <img src="{{ m.Profile.Picture|escape }}" class="avatar" alt="" />
         <a href="/feed/{{ m.Profile.Id }}">{{ m.Profile.Name|escape }}</a>
         {% if m.IsAdmin %}<span class="admin-badge">admin</span>{% endif %}
         {% if can_manage %}

@@ -13,6 +13,27 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func TestDefaultFeedPictures(t *testing.T) {
+	feed := &pb.Feed{Entries: []*pb.Entry{
+		{From: &pb.Feed{}},
+		{From: &pb.Feed{Picture: "  "}},
+		{From: &pb.Feed{Picture: "https://example.com/a.png"}},
+		{}, // nil From must not panic
+		nil,
+	}}
+
+	defaultFeedPictures(feed)
+
+	if feed.Picture != DefaultPictureURL {
+		t.Fatalf("feed picture = %q; want %q", feed.Picture, DefaultPictureURL)
+	}
+	for i, want := range []string{DefaultPictureURL, DefaultPictureURL, "https://example.com/a.png"} {
+		if got := feed.Entries[i].From.Picture; got != want {
+			t.Fatalf("entry %d From.Picture = %q; want %q", i, got, want)
+		}
+	}
+}
+
 func TestSanitizeFeedEntries(t *testing.T) {
 	feed := &pb.Feed{Entries: []*pb.Entry{{
 		Body: `<p>safe<script>alert(1)</script>` +

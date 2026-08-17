@@ -187,7 +187,9 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 	requestedShare, _ := data["show_share"].(bool)
 	data["show_share"] = showShareForUser(CurrentUserUuid(c), requestedShare)
-	sanitizeFeedEntries(data["feed"].(*pb.Feed))
+	feed := data["feed"].(*pb.Feed)
+	sanitizeFeedEntries(feed)
+	defaultFeedPictures(feed)
 
 	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
 		c.Request.Header.Get("Content-Type") == "application/json" {
@@ -197,6 +199,35 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 		encoded, _ := json.Marshal(data)
 		data["appData"] = string(encoded)
 		s.HTML(c, 200, "feed.html", data)
+	}
+}
+
+// DefaultPictureURL is the fixed fallback avatar rendered for profiles and
+// feeds whose stored picture is empty.
+const DefaultPictureURL = "/static/images/ff-default.jpg"
+
+// PictureOrDefault returns the fixed fallback avatar when the stored picture
+// is empty; a custom picture passes through untouched.
+func PictureOrDefault(picture string) string {
+	if strings.TrimSpace(picture) == "" {
+		return DefaultPictureURL
+	}
+	return picture
+}
+
+// defaultFeedPictures applies the fixed fallback avatar to the feed and its
+// entry authors, so SSR templates and the React appData payload never emit
+// an empty image.
+func defaultFeedPictures(feed *pb.Feed) {
+	if feed == nil {
+		return
+	}
+	feed.Picture = PictureOrDefault(feed.Picture)
+	for _, entry := range feed.Entries {
+		if entry == nil || entry.From == nil {
+			continue
+		}
+		entry.From.Picture = PictureOrDefault(entry.From.Picture)
 	}
 }
 

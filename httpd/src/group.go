@@ -51,6 +51,11 @@ func (s *Server) GroupsPageHandler(c *gin.Context) {
 	if RequestError(c, err) {
 		return
 	}
+	for _, group := range groups {
+		if group != nil {
+			group.Picture = PictureOrDefault(group.Picture)
+		}
+	}
 	s.HTML(c, http.StatusOK, "groups.html", pongo2.Context{
 		"title":  "My groups",
 		"groups": groups,
@@ -190,6 +195,11 @@ func (s *Server) renderGroupMembers(c *gin.Context, view *pb.GroupView, errMsg s
 	currentUser, err := s.CurrentUser(c)
 	if RequestError(c, err) {
 		return
+	}
+	for _, member := range resp.Members {
+		if member != nil && member.Profile != nil {
+			member.Profile.Picture = PictureOrDefault(member.Profile.Picture)
+		}
 	}
 	s.HTML(c, 200, "group_members.html", pongo2.Context{
 		"title":      "Group members",

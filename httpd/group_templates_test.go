@@ -165,8 +165,10 @@ func TestGroupsPageRendersCompleteList(t *testing.T) {
 		"title":        "My groups",
 		"current_user": &pb.Profile{Uuid: "u", Id: "me"},
 		"groups": []*pb.Profile{
-			{Id: "alpha", Name: "Alpha", Description: "First"},
-			{Id: "secret", Name: "Secret", Private: true},
+			{Id: "alpha", Name: "Alpha", Description: "First", Picture: "https://example.com/a.png"},
+			// Handlers substitute the fixed fallback avatar for empty
+			// pictures before rendering; the template always renders one.
+			{Id: "secret", Name: "Secret", Private: true, Picture: "/static/images/ff-default.jpg"},
 		},
 	})
 	for _, want := range []string{
@@ -175,6 +177,8 @@ func TestGroupsPageRendersCompleteList(t *testing.T) {
 		`href="/feed/secret"`,
 		`class="admin-badge">private</span>`,
 		`href="/groups/create"`,
+		`<img class="avatar" src="https://example.com/a.png"`,
+		`<img class="avatar" src="/static/images/ff-default.jpg"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("groups.html missing %q", want)
