@@ -50,7 +50,17 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 	// Timeline fanout remains outside this batch because follower count is
 	// unbounded and must not inflate one synchronous Pebble commit.
 	key := Entry.PrefixAppend(entryUuid.Bytes())
+	groupUUID, groupEntry, err := entryGroupUUID(db, entry)
+	if err != nil {
+		return nil, err
+	}
+	created := false
 	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
+		if _, err := db.Get(key); errors.Is(err, store.ErrNotFound) {
+			created = true
+		} else if err != nil {
+			return err
+		}
 		if err := batch.Set(key, encodedEntry, nil); err != nil {
 			return fmt.Errorf("write entry: %w", err)
 		}
@@ -64,6 +74,11 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 		}
 		if err := writeEntryInteractionsBatch(batch, entryUuid, entry.Comments, entry.Likes); err != nil {
 			return fmt.Errorf("write entry interactions: %w", err)
+		}
+		if created && groupEntry {
+			if err := stageAdjustGroupActivityIfMember(db, batch, userUuid, groupUUID, GroupActivityPostScore); err != nil {
+				return fmt.Errorf("update Group activity: %w", err)
+			}
 		}
 		return nil
 	}); err != nil {
@@ -157,6 +172,10 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		}
 	}
 	entryKey := Entry.PrefixAppend(entryUUID.Bytes())
+	groupUUID, groupEntry, err := entryGroupUUID(db, entry)
+	if err != nil {
+		return err
+	}
 	// Activity timeline rows are derived, unbounded fanout state. Readers
 	// remove stale rows lazily; audit/rebuild handles rows never read again.
 	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
@@ -173,6 +192,24 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		}
 		if err := deleteEntryInteractionsBatch(db, batch, entryUUID); err != nil {
 			return fmt.Errorf("delete entry interactions: %w", err)
+		}
+		if groupEntry {
+			deltas := map[uuid.UUID]int64{profileUuid: -GroupActivityPostScore}
+			for _, like := range entry.Likes {
+				if actor, parseErr := uuid.FromString(like.GetFrom().GetUuid()); parseErr == nil && actor != uuid.Nil {
+					deltas[actor] -= GroupActivityLikeScore
+				}
+			}
+			for _, comment := range entry.Comments {
+				if actor, parseErr := uuid.FromString(comment.GetFrom().GetUuid()); parseErr == nil && actor != uuid.Nil {
+					deltas[actor] -= GroupActivityCommentScore
+				}
+			}
+			for actor, delta := range deltas {
+				if err := stageAdjustGroupActivityIfMember(db, batch, actor, groupUUID, delta); err != nil {
+					return fmt.Errorf("update Group activity for %s: %w", actor, err)
+				}
+			}
 		}
 		return nil
 	}); err != nil {

@@ -125,6 +125,7 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 		// The create affordance is the "+" sharing the Groups heading row,
 		// in its own block below the navigation menu.
 		`<h3 class="groups-heading">Groups <a href="/groups/create" title="Create a group">+</a></h3>`,
+		`<li><a href="/groups">Groups</a></li>`,
 		`name="id"`,
 		`name="picture"`,
 		`name="private" disabled`,
@@ -156,5 +157,27 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	anonBody := renderEmbeddedTemplate(t, "group_create.html", anon)
 	if strings.Contains(anonBody, "groups-menu") || strings.Contains(anonBody, "Create a group") {
 		t.Fatal("anonymous render must not contain the Groups block")
+	}
+}
+
+func TestGroupsPageRendersCompleteList(t *testing.T) {
+	body := renderEmbeddedTemplate(t, "groups.html", pongo2.Context{
+		"title":        "My groups",
+		"current_user": &pb.Profile{Uuid: "u", Id: "me"},
+		"groups": []*pb.Profile{
+			{Id: "alpha", Name: "Alpha", Description: "First"},
+			{Id: "secret", Name: "Secret", Private: true},
+		},
+	})
+	for _, want := range []string{
+		`<h2>My groups</h2>`,
+		`href="/feed/alpha"`,
+		`href="/feed/secret"`,
+		`class="admin-badge">private</span>`,
+		`href="/groups/create"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("groups.html missing %q", want)
+		}
 	}
 }

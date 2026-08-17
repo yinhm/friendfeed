@@ -35,8 +35,10 @@ type fakeGroupClient struct {
 	createCalls int
 
 	groupsResp  *pb.ListUserGroupsResponse
+	groupPages  []*pb.ListUserGroupsResponse
 	groupsErr   error
 	groupsCalls int
+	groupsReq   *pb.ListUserGroupsRequest
 
 	feedResp *pb.Feed
 	feedErr  error
@@ -70,10 +72,32 @@ func (f *fakeGroupClient) CreateGroup(ctx context.Context, req *pb.CreateGroupRe
 
 func (f *fakeGroupClient) ListUserGroups(ctx context.Context, req *pb.ListUserGroupsRequest, opts ...grpc.CallOption) (*pb.ListUserGroupsResponse, error) {
 	f.groupsCalls++
+	f.groupsReq = req
+	if len(f.groupPages) >= f.groupsCalls {
+		return f.groupPages[f.groupsCalls-1], f.groupsErr
+	}
 	if f.groupsResp == nil {
 		return &pb.ListUserGroupsResponse{}, f.groupsErr
 	}
 	return f.groupsResp, f.groupsErr
+}
+
+func TestAllUserGroupsConsumesEveryCursorPageAndSorts(t *testing.T) {
+	client := &fakeGroupClient{groupPages: []*pb.ListUserGroupsResponse{
+		{Groups: []*pb.Profile{{Name: "Zulu"}}, NextCursor: "next"},
+		{Groups: []*pb.Profile{{Name: "alpha"}}},
+	}}
+	s := newGroupTestServer(client)
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+
+	groups, err := s.allUserGroups(ctx, testGroupUserUUID)
+	if err != nil {
+		t.Fatalf("allUserGroups: %v", err)
+	}
+	if client.groupsCalls != 2 || len(groups) != 2 || groups[0].Name != "alpha" || groups[1].Name != "Zulu" {
+		t.Fatalf("groups=%v calls=%d", groups, client.groupsCalls)
+	}
 }
 
 func (f *fakeGroupClient) FetchFeed(ctx context.Context, req *pb.FeedRequest, opts ...grpc.CallOption) (*pb.Feed, error) {
@@ -258,7 +282,7 @@ func TestGroupCreateHandlerEchoesServerError(t *testing.T) {
 	}
 }
 
-func TestUserGroupsSortedAndCached(t *testing.T) {
+func TestUserGroupsPreservesActivityOrderWithoutStaleCache(t *testing.T) {
 	client := &fakeGroupClient{groupsResp: &pb.ListUserGroupsResponse{Groups: []*pb.Profile{
 		{Name: "beta"}, {Name: "Alpha"}, {Name: "Gamma"},
 	}}}
@@ -272,18 +296,21 @@ func TestUserGroupsSortedAndCached(t *testing.T) {
 		t.Fatalf("UserGroups: %v", err)
 	}
 	got := []string{groups[0].Name, groups[1].Name, groups[2].Name}
-	want := []string{"Alpha", "beta", "Gamma"}
+	want := []string{"beta", "Alpha", "Gamma"}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("sorted order = %v; want %v", got, want)
+			t.Fatalf("activity order = %v; want %v", got, want)
 		}
 	}
 
 	if _, err := s.UserGroups(ctx, testGroupUserUUID); err != nil {
-		t.Fatalf("cached UserGroups: %v", err)
+		t.Fatalf("second UserGroups: %v", err)
 	}
-	if client.groupsCalls != 1 {
-		t.Fatalf("ListUserGroups called %d times; want 1 (cache hit)", client.groupsCalls)
+	if client.groupsCalls != 2 {
+		t.Fatalf("ListUserGroups called %d times; want 2 (live materialized view)", client.groupsCalls)
+	}
+	if client.groupsReq == nil || !client.groupsReq.OrderByActivity || client.groupsReq.Limit != 10 {
+		t.Fatalf("sidebar request = %+v; want activity order with limit 10", client.groupsReq)
 	}
 }
 

@@ -1259,6 +1259,7 @@ func main() {
 		(command == "rebuild_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun) ||
 		(command == "rebuild_interaction_timelines" && dryRun) ||
+		(command == "rebuild_group_activity" && dryRun) ||
 		(command == "purge_public_cache" && dryRun)
 	if command == "compact_timelines" && dryRun {
 		readOnly = true
@@ -1310,6 +1311,13 @@ func main() {
 		}
 		log.Printf("interaction timeline rebuild: likes=%d comments=%d indexed_likes=%d indexed_comments=%d unresolved_actor=%d missing_date=%d dry-run=%t",
 			stats.likes, stats.comments, stats.indexedLikes, stats.indexedComments, stats.unresolvedActor, stats.missingDate, dryRun)
+	case "rebuild_group_activity":
+		stats, err := rebuildGroupActivity(ndb, timelineUser, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Group activity rebuild: users=%d groups=%d changed=%d dry-run=%t",
+			stats.users, stats.groups, stats.changed, dryRun)
 	case "compact_timelines":
 		stats, err := compactTimelines(ndb, timelineCompactOptions{
 			user: timelineUser, dryRun: dryRun,

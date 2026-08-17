@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h2>My groups</h2>
+
+<p><a href="/groups/create">Create a group</a></p>
+
+{% if groups %}
+<ul class="member-list">
+    {% for group in groups %}
+    <li>
+        {% if group.Picture %}<img class="avatar" src="{{ group.Picture|escape }}" alt="" />{% endif %}
+        <a href="/feed/{{ group.Id }}" title="{{ group.Id }}">{{ group.Name|escape }}</a>
+        {% if group.Private %}<span class="admin-badge">private</span>{% endif %}
+        {% if group.Description %}<span class="muted">{{ group.Description|escape }}</span>{% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="muted">You have not joined any groups yet.</p>
+{% endif %}
+{% endblock %}

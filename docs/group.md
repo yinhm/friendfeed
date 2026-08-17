@@ -2,6 +2,8 @@
 
 Group 是一种可由多个用户共同订阅和投稿的特殊 Feed。它复用 Profile、Follow/Follower、
 Entry、timeline 和 FeedService，不是能够登录的用户，也不建立第二套社交图。
+sidebar 的 Group 活跃度是 TableMeta 中的可重建派生视图，不参与 membership 或权限；
+评分、编码与重建契约见 `docs/group_navigation.md`。
 
 本文定义目标契约；当前实现与目标的差距列在文末。在相应服务端权限落地前，前端按钮不能
 被视为授权边界。

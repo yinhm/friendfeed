@@ -1,8 +1,11 @@
 package server
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/flosch/pongo2"
@@ -10,6 +13,49 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"google.golang.org/grpc/status"
 )
+
+// allUserGroups follows the bounded ListUserGroups cursor until exhaustion.
+// Unlike the sidebar helper, this is the explicit full-list page, so it must
+// not silently stop at the first RPC page or scan budget boundary.
+func (s *Server) allUserGroups(ctx context.Context, userUUID string) ([]*pb.Profile, error) {
+	groups := make([]*pb.Profile, 0)
+	cursor := ""
+	for {
+		response, err := s.client.ListUserGroups(ctx, &pb.ListUserGroupsRequest{
+			UserUuid: userUUID,
+			Limit:    200,
+			Cursor:   cursor,
+		})
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, response.Groups...)
+		if response.NextCursor == "" {
+			break
+		}
+		if response.NextCursor == cursor {
+			return nil, fmt.Errorf("ListUserGroups returned a non-advancing cursor")
+		}
+		cursor = response.NextCursor
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
+	})
+	return groups, nil
+}
+
+func (s *Server) GroupsPageHandler(c *gin.Context) {
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+	groups, err := s.allUserGroups(ctx, CurrentUserUuid(c))
+	if RequestError(c, err) {
+		return
+	}
+	s.HTML(c, http.StatusOK, "groups.html", pongo2.Context{
+		"title":  "My groups",
+		"groups": groups,
+	})
+}
 
 // resolveGroupView maps a feed URL slug (profile ID) to its GroupView. Name
 // resolution reuses FetchFeed's ID lookup (including the rename-map

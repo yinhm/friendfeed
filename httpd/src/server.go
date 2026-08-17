@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -138,15 +137,12 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		// Load user's groups for sidebar. Always inject the key for a
 		// logged-in user (possibly empty) so templates can tell "logged in
 		// with no Groups" apart from "anonymous"; anonymous renders get no
-		// key and no RPC. Sidebar shows at most 20 Groups
+		// key and no RPC. Sidebar shows at most 10 Groups
 		// (docs/group_navigation.md).
 		ctx, cancel := DefaultTimeoutContext()
 		defer cancel()
 		groups, err := s.UserGroups(ctx, profile.Uuid)
 		if err == nil {
-			if len(groups) > 20 {
-				groups = groups[:20]
-			}
 			data["user_groups"] = groups
 		}
 	}
@@ -243,26 +239,15 @@ func (s *Server) UserGroups(ctx context.Context, userUuid string) ([]*pb.Profile
 		return nil, nil
 	}
 
-	cacheKey := "groups:" + userUuid
-	v, found := s.cache.Get(cacheKey)
-	if !found {
-		resp, err := s.client.ListUserGroups(ctx, &pb.ListUserGroupsRequest{
-			UserUuid: userUuid,
-			Limit:    100,
-		})
-		if err != nil {
-			return nil, err
-		}
-		// docs/group_navigation.md: the server returns Groups in Follow key
-		// order; display sorting (by name, case-insensitive) is httpd's job.
-		groups := resp.Groups
-		sort.Slice(groups, func(i, j int) bool {
-			return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
-		})
-		s.cache.Set(cacheKey, groups, cache.DefaultExpiration)
-		return groups, nil
+	resp, err := s.client.ListUserGroups(ctx, &pb.ListUserGroupsRequest{
+		UserUuid:        userUuid,
+		Limit:           10,
+		OrderByActivity: true,
+	})
+	if err != nil {
+		return nil, err
 	}
-	return v.([]*pb.Profile), nil
+	return resp.Groups, nil
 }
 
 // func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {

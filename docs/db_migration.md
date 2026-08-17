@@ -13,6 +13,16 @@
 
     ./tools -to new_db -c rebuild_social_graph
 
+首次部署 Group 活跃度排序后，先验证一个用户，再全量重建：
+
+    ./tools -to /srv/ffdb/db -c rebuild_group_activity -user yinhm -dry-run
+    ./tools -to /srv/ffdb/db -c rebuild_group_activity -user yinhm
+    ./tools -to /srv/ffdb/db -c rebuild_group_activity -dry-run
+    ./tools -to /srv/ffdb/db -c rebuild_group_activity
+
+该命令只依赖当前库的 membership、Entry 与独立 Like/Comment 索引，不需要 old DB。
+全量模式逐 Profile 重建，每次只保留一个用户的 Group score，内存有界。
+
 社交图完成后重建用户 timeline。
 
 单个用户：

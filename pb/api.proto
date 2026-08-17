@@ -427,6 +427,8 @@ message ListUserGroupsRequest {
   string user_uuid = 1;
   int32 limit = 2;   // Max Groups to return (default 100, cap 200)
   string cursor = 3; // Opaque continuation token from previous response
+  // Sidebar-only materialized activity order; cursor is not used in this mode.
+  bool order_by_activity = 4;
 }
 
 // ListUserGroupsResponse returns a page of Groups the user follows.

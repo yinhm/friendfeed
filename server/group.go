@@ -10,6 +10,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
+	"github.com/yinhm/friendfeed/store"
 	taskqueue "github.com/yinhm/friendfeed/task"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -427,6 +428,42 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGrou
 	}
 	if userProfile.Type != "user" {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("profile is not a user")))
+	}
+	if request.OrderByActivity {
+		rows, activityErr := model.GetGroupActivity(s.rdb, user)
+		if activityErr == nil {
+			limit := int(request.Limit)
+			if limit <= 0 || limit > 200 {
+				limit = 10
+			}
+			groups := make([]*pb.Profile, 0, min(limit, len(rows)))
+			for _, row := range rows {
+				if len(groups) >= limit {
+					break
+				}
+				group, parseErr := uuid.FromString(row.GroupUUID)
+				if parseErr != nil || group == uuid.Nil {
+					continue
+				}
+				member, memberErr := model.IsGroupMember(s.rdb, group, user)
+				if memberErr != nil {
+					return nil, taskRPCError(memberErr)
+				}
+				if !member {
+					continue
+				}
+				profile, profileErr := model.GetProfileFromUuid(s.rdb, group)
+				if profileErr == nil && profile.Type == "group" {
+					groups = append(groups, profile)
+				}
+			}
+			return &pb.ListUserGroupsResponse{Groups: groups}, nil
+		}
+		if !errors.Is(activityErr, store.ErrNotFound) {
+			return nil, taskRPCError(activityErr)
+		}
+		// Pre-migration fallback: retain the ordinary membership listing until
+		// rebuild_group_activity creates the materialized ranking.
 	}
 
 	limit := int(request.Limit)

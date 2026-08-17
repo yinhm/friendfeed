@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/model"
@@ -881,6 +882,27 @@ func TestListGroupMembersRejectsNonGroupProfile(t *testing.T) {
 	user := createServiceUser(t, srv, "plain-user")
 	_, err := srv.ListGroupMembers(context.Background(), &pb.ListGroupMembersRequest{GroupUuid: user.String()})
 	require.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestListUserGroupsOrdersSidebarByMaterializedActivity(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "ranked-creator")
+	low := createTestGroup(t, srv, creator, "ranked-low")
+	high := createTestGroup(t, srv, creator, "ranked-high")
+	require.NoError(t, srv.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		return model.StageAdjustGroupActivity(srv.rdb, batch, creator, low, 1)
+	}))
+	require.NoError(t, srv.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		return model.StageAdjustGroupActivity(srv.rdb, batch, creator, high, 20)
+	}))
+
+	response, err := srv.ListUserGroups(context.Background(), &pb.ListUserGroupsRequest{
+		UserUuid: creator.String(), Limit: 10, OrderByActivity: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, response.Groups, 2)
+	require.Equal(t, high.String(), response.Groups[0].Uuid)
+	require.Equal(t, low.String(), response.Groups[1].Uuid)
 }
 
 // A cursor whose edge was deleted between pages must resume at its successor,

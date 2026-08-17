@@ -38,13 +38,37 @@ ListUserGroupsResponse { groups: repeated Profile, next_cursor }
   不携带成员、admin 或 entries。
 - 这是纯读取，任何登录用户都只能列出自己的订阅；在 gRPC 仍限 loopback 的现状
   下由 httpd 保证 `user_uuid` 来自会话，与 `docs/group.md` 的 actor 约定一致。
+- `order_by_activity=true` 是 sidebar 专用模式：忽略 cursor，读取该用户固定的
+  Group activity Meta key，按已物化顺序返回前 `limit` 个仍有效且仍为成员的 Group。
+  Meta key 尚未迁移时退回普通 membership 顺序，不能让升级窗口出现空导航。
+
+## Group activity 排名
+
+sidebar 排名是可重建派生数据，不是权限或 membership 来源。每个用户只有一个 key：
+
+```text
+TableMeta | "group-activity/v1/" | user UUID
+  -> JSON [{"group_uuid":"...","score":123}, ...]
+```
+
+JSON 始终按 `score DESC, group_uuid ASC` 排好；同分使用稳定 UUID 排序，读路径不再
+扫描或临时排序全部 Follow。创建者身份不能从可转让的 GroupAdmin 推断，因此另有
+稳定 metadata：`TableMeta | "group-owner/v1/" | group UUID -> creator UUID`。
+
+评分仅统计当前仍存在的事实，并且只排名用户当前加入的 Group：创建该 Group +100，
+向 Group 新发一条 Entry +10，保留一个 Like +3，保留一条 Comment +4；编辑不重复
+计分，Unlike、删除 Comment、删除 Entry 会扣除对应分值且最低为 0。点击不记录。
+Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 score 更新与
+权威 mutation 同一 batch。JSON 损坏必须报错，不得静默猜测。
+
+`rebuild_group_activity` 按用户的 Follow、EntryIndex、LikeTimeline、CommentTimeline
+流式重建；支持 `-user <id>` 与 `-dry-run`。部署先对单用户 dry-run，再全量 apply。
 
 ## httpd 数据流
 
-- 新增 helper `UserGroups(c)`：调用 `ListUserGroups`（单页，limit 取 sidebar
-  上限），结果按 name 不区分大小写排序后缓存，键 `groups:<uuid>`，沿用
-  profile/graph 的 5 分钟缓存。sidebar 只发一次调用：极端订阅结构下（前 1000
-  条边中 group 不足）显示不全属可接受退化，由 `/groups` 完整列表页兜底。
+- helper `UserGroups(c)` 每次调用 `ListUserGroups(order_by_activity=true, limit=10)`；
+  该 RPC 只读取一个已排序 JSON key 和至多十个 Profile，不再使用会掩盖实时行为更新
+  的 5 分钟 httpd cache。
 - 缓存失效：`FollowHandler` 成功、未来的 CreateGroup/JoinGroup/LeaveGroup
   handler 成功后，删除该用户的 `groups:` 缓存键。注意这是**新增行为**：现有
   `FollowHandler` 不做任何缓存失效（连 `graph:` 键也不删，只靠 5 分钟过期
@@ -76,9 +100,9 @@ Public）与 Account 之间：
 - 空状态：没有任何 Group 时 section 仍渲染，仅含 "Create a group" 链接，作为
   功能引导；不额外显示占位文案。在 create 链接尚未上线的阶段（见实施顺序
   第 2 步），列表为空则整个 section 不渲染，不留下只有标题的空框。
-- sidebar 最多显示 20 个 Group；超过时末尾（create 链接之前）显示 "More…"
-  指向完整列表页 `/groups`。`/groups` 列表页可后置，在其落地前若用户超过 20
-  个 Group 则只截断展示，不出死链。
+- sidebar 最多显示 10 个 Group，并始终显示 "All groups…" 指向 `/groups`。
+  主导航在 "My feed" 下也提供 `/groups` 入口。完整列表页逐页消费
+  `ListUserGroups.next_cursor` 直到结束，不受 sidebar 单页退化边界影响。
 - private Group 对成员正常显示（列表来自用户自己的 Follow 边，天然只含自己
   可见的内容），名称后加锁形标记（文本 `(private)` 即可，不引入图标资源）。
 - 展示用 `Name`，`title` 属性带 `Id`；链接沿用既有 `/feed/:name` 路由。
@@ -113,10 +137,10 @@ Public）与 Account 之间：
    （此阶段 create 链接尚未渲染）。
 3. `CreateGroup` RPC 落地后（`docs/group.md` 实施顺序第 2 步），新增
    `/groups/create` 页面并在 sidebar 显示 create 链接。
-4. 后置：`/groups` 完整列表页。
+4. `/groups` 完整列表页逐页读取并展示当前用户加入的全部 Group。
 
 验收至少覆盖：未登录不渲染 section 也不发起 RPC；加入/退出后 sidebar 在缓存
-失效路径上立即收敛、其余路径 5 分钟内收敛；超过 20 个 Group 时截断且不出死链；
+失效路径上立即收敛、其余路径 5 分钟内收敛；超过 10 个 Group 时截断并链接完整列表；
 private Group 仅出现在成员自己的 sidebar；创建成功后新 Group 立即出现在列表；
 `ListUserGroups` 对大量订阅保持流式有界、跳过已删除 Profile 不报错，且触发扫描
 上限时正确返回不满页/空页 + `next_cursor`，续页不重复、不遗漏。

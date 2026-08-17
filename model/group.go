@@ -224,6 +224,12 @@ func StageCreateGroup(db *store.Store, batch *pebble.Batch, actor uuid.UUID, id,
 	if err := batch.Set(adminKey, nil, nil); err != nil {
 		return nil, fmt.Errorf("stage GroupAdmin: %w", err)
 	}
+	if err := batch.Set(groupOwnerMetaKey(groupUUID), actor.Bytes(), nil); err != nil {
+		return nil, fmt.Errorf("stage Group owner metadata: %w", err)
+	}
+	if err := StageAdjustGroupActivity(db, batch, actor, groupUUID, GroupActivityCreateScore); err != nil {
+		return nil, fmt.Errorf("stage creator Group activity: %w", err)
+	}
 
 	return group, nil
 }
@@ -316,6 +322,10 @@ func StageJoinGroup(db *store.Store, batch *pebble.Batch, group, user uuid.UUID)
 	if alreadyMember {
 		return nil
 	}
+	activityScore, err := groupActivityScoreForUserGroup(db, user, group)
+	if err != nil {
+		return fmt.Errorf("calculate existing Group activity: %w", err)
+	}
 	followKey := NewKeyFrom(Follow.Prefix, user.Bytes(), group.Bytes())
 	if err := batch.Set(followKey, []byte("1"), nil); err != nil {
 		return fmt.Errorf("stage Follow: %w", err)
@@ -324,7 +334,7 @@ func StageJoinGroup(db *store.Store, batch *pebble.Batch, group, user uuid.UUID)
 	if err := batch.Set(followerKey, []byte("1"), nil); err != nil {
 		return fmt.Errorf("stage Follower: %w", err)
 	}
-	return nil
+	return StageAdjustGroupActivity(db, batch, user, group, activityScore)
 }
 
 // JoinGroup opens an atomic batch and applies StageJoinGroup.
@@ -370,7 +380,7 @@ func stageRemoveGroupMembership(db *store.Store, batch *pebble.Batch, group, use
 	if err := batch.Delete(followerKey, nil); err != nil {
 		return fmt.Errorf("stage Follower removal: %w", err)
 	}
-	return nil
+	return StageRemoveGroupActivity(db, batch, user, group)
 }
 
 // StageLeaveGroup stages user voluntarily leaving group. Idempotent if the
@@ -546,6 +556,9 @@ func StageSoftDeleteProfile(db *store.Store, batch *pebble.Batch, profile *pb.Pr
 func StageExitAllGroups(db *store.Store, batch *pebble.Batch, user uuid.UUID) error {
 	if batch == nil || user == uuid.Nil {
 		return errors.New("batch and user UUID are required")
+	}
+	if err := batch.Delete(GroupActivityMetaKey(user), nil); err != nil {
+		return err
 	}
 
 	// Admin rows are group-first, so stream the small metadata table to also

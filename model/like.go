@@ -57,6 +57,13 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 		if err := batch.Set(indexKey, nil, nil); err != nil {
 			return err
 		}
+		if group, ok, err := entryGroupUUID(db, entry); err != nil {
+			return err
+		} else if ok {
+			if err := stageAdjustGroupActivityIfMember(db, batch, actorUUID, group, GroupActivityLikeScore); err != nil {
+				return err
+			}
+		}
 		created = true
 		return nil
 	})
@@ -98,6 +105,13 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 		}
 		if err := batch.Delete(dataKey, nil); err != nil {
 			return err
+		}
+		if group, ok, err := entryGroupUUID(db, entry); err != nil {
+			return err
+		} else if ok {
+			if err := stageAdjustGroupActivityIfMember(db, batch, actorUUID, group, -GroupActivityLikeScore); err != nil {
+				return err
+			}
 		}
 		created, err := time.Parse(time.RFC3339, like.Date)
 		if err != nil {
@@ -170,6 +184,13 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 		if !created {
 			return nil
 		}
+		if group, ok, err := entryGroupUUID(db, entry); err != nil {
+			return err
+		} else if ok {
+			if err := stageAdjustGroupActivityIfMember(db, batch, actorUUID, group, GroupActivityCommentScore); err != nil {
+				return err
+			}
+		}
 		positionKey := CommentTimelinePositionKey(actorUUID, entryUUID)
 		if oldRaw, err := db.Get(positionKey); err == nil {
 			oldTime, oldComment, err := DecodeCommentTimelinePosition(oldRaw)
@@ -201,7 +222,10 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 		if err := batch.Set(indexKey, commentUUID.Bytes(), nil); err != nil {
 			return err
 		}
-		return batch.Set(positionKey, position, nil)
+		if err := batch.Set(positionKey, position, nil); err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		if errors.Is(err, errCommentPerm) {
@@ -254,6 +278,13 @@ func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commen
 		}
 		if err := batch.Delete(dataKey, nil); err != nil {
 			return err
+		}
+		if group, ok, err := entryGroupUUID(db, entry); err != nil {
+			return err
+		} else if ok {
+			if err := stageAdjustGroupActivityIfMember(db, batch, actorUUID, group, -GroupActivityCommentScore); err != nil {
+				return err
+			}
 		}
 		positionKey := CommentTimelinePositionKey(actorUUID, entryUUID)
 		position, err := db.Get(positionKey)

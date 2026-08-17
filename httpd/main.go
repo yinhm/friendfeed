@@ -208,6 +208,7 @@ func Serve(s *server.Server, config *util.Config) error {
 
 	groups := r.Group("/groups", server.LoginRequired())
 	{
+		groups.GET("", s.GroupsPageHandler)
 		groups.GET("/create", s.GroupCreatePageHandler)
 		groups.POST("/create", s.GroupCreateHandler)
 		groups.GET("/:name/settings", s.GroupSettingsPageHandler)
