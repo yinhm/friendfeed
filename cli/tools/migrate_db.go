@@ -1260,6 +1260,7 @@ func main() {
 		(command == "backfill_actor_uuids" && dryRun) ||
 		(command == "rebuild_interaction_timelines" && dryRun) ||
 		(command == "rebuild_group_activity" && dryRun) ||
+		(command == "fix_default_picture" && dryRun) ||
 		(command == "purge_public_cache" && dryRun)
 	if command == "compact_timelines" && dryRun {
 		readOnly = true
@@ -1318,6 +1319,13 @@ func main() {
 		}
 		log.Printf("Group activity rebuild: users=%d groups=%d changed=%d dry-run=%t",
 			stats.users, stats.groups, stats.changed, dryRun)
+	case "fix_default_picture":
+		stats, err := fixDefaultPictures(ndb, timelineUser, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("default picture fix: profiles=%d fixed=%d dry-run=%t",
+			stats.profiles, stats.fixed, dryRun)
 	case "compact_timelines":
 		stats, err := compactTimelines(ndb, timelineCompactOptions{
 			user: timelineUser, dryRun: dryRun,

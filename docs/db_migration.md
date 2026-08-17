@@ -23,6 +23,13 @@
 该命令只依赖当前库的 membership、Entry 与独立 Like/Comment 索引，不需要 old DB。
 全量模式逐 Profile 重建，每次只保留一个用户的 Group score，内存有界。
 
+把 Profile 上残留的 FriendFeed 旧默认头像（`friendfeed.com/static/images/group-large.png`，
+任意 scheme 与 `?v=` 变体）改写为本地默认图 `/static/images/ff-default.jpg`（先
+-dry-run 看计数再实跑，可重复执行，`-user` 可限定单个 profile ID 或 UUID）：
+
+    ./tools -to /srv/ffdb/db -c fix_default_picture -dry-run
+    ./tools -to /srv/ffdb/db -c fix_default_picture
+
 社交图完成后重建用户 timeline。
 
 单个用户：
