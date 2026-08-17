@@ -769,6 +769,13 @@ div.content pre {
     margin-top: 24px;
 }
 
+@media (max-width: 600px) {
+    /* Desktop-only: mobile navigation reaches groups via the collapsed menu. */
+    .groups-menu {
+        display: none;
+    }
+}
+
 .menu .groups-heading {
     display: flex;
     justify-content: space-between;
