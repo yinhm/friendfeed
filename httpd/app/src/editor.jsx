@@ -16,8 +16,6 @@ import { ELEMENT_PARAGRAPH } from 'components/plate-plugin-keys';
 import { plugins } from 'components/plate-plugins';
 import { serializeEditorHtml } from 'components/plate-serialization';
 import { Editor } from 'components/plate-ui/editor';
-// import { FixedToolbar } from '@/components/plate-ui/fixed-toolbar';
-// import { FixedToolbarButtons } from '@/components/plate-ui/fixed-toolbar-buttons';
 import { FloatingToolbar } from 'components/plate-ui/floating-toolbar';
 import { FloatingToolbarButtons } from 'components/plate-ui/floating-toolbar-buttons';
 
@@ -32,24 +30,8 @@ import { FloatingToolbarButtons } from 'components/plate-ui/floating-toolbar-but
  * @property {(formData: FormData) => Promise<unknown>} postEntry
  */
 
-
-// const editableProps = {
-//     placeholder: '开始记录...',
-//     style: {
-//         padding: '15px',
-//         boxSizing: "border-box",
-//         border: "1px solid #ddd",
-//         cursor: "text",
-//         borderRadius: "2px",
-//         marginBottom: "1em",
-//         minHeight: "60px",
-//     },
-// };
-
 /** @param {Value} nodes */
-const serializePlainText = nodes => {
-    return nodes.map(n => Node.string(n)).join('\n')
-}
+const serializePlainText = nodes => nodes.map(n => Node.string(n)).join('\n')
 
 /** @type {Value} */
 const initialValueEmpty = [
@@ -84,28 +66,14 @@ const toEditorValue = (value) => {
 /** @param {OnPageEditorProps} params */
 const OnPageEditor = (params) => {
     const editorRef = useRef(/** @type {PlateEditor | null} */ (null));
-
     const eid = params.id + "editor";
-    // const editorRef = useEditorRef(eid);
     const [, setEditorValue] = useState(/** @type {Value | null} */ (null));
-    // const { setValue, resetEditor } = usePlateActions(eid);
-    // const [value, setValue] = usePlateStates('myeditor').value();
-    // const [setValue, resetEditor] = usePlateStates(eid).value();
 
-    // const plugins = useMemo(() => {
-    //     const p = [...defaultPlugins];
-    //     // p.push(createDeserializeHTMLPlugin({ plugins: p }));
-    //     return p;
-    // }, []);
-
-    // https://github.com/udecode/plate/blob/main/apps/www/content/docs/accessing-editor.mdx#temporary-editor-instance
     const initialValue = useMemo(() => {
-        // console.log("init value...")
         if (params.content) {
             try {
                 return toEditorValue(JSON.parse(params.content));
             } catch (_error) {
-                // fail safe to html parse
                 const tmpEditor = createPlateEditor({ plugins });
                 return toEditorValue(deserializeHtml(tmpEditor, {
                     element: params.content,
@@ -129,28 +97,23 @@ const OnPageEditor = (params) => {
 
     /** @param {Value} slateValue */
     const onChange = (slateValue) => {
-        // console.log(JSON.stringify(slateValue));
         setEditorValue(slateValue);
     };
 
     const onPostEntry = useCallback(async () => {
-        if (!editorRef || !editorRef.current) {
-            console.log("no editor or content found");
-            return
+        if (!editorRef.current) {
+            return;
         }
 
         const editor = editorRef.current;
-        var plainText = serializePlainText(editor.children);
+        const plainText = serializePlainText(editor.children);
         if (plainText.length < 8) {
-            console.log("no valid content!");
             return;
         }
         const rawBody = JSON.stringify(editor.children)
-
-        // see @udecode/plate/issues/2804
         const htmlBody = await serializeEditorHtml(editor);
 
-        var formData = new FormData();
+        const formData = new FormData();
         if (params.id) {
             formData.set("id", params.id);
         }
@@ -158,13 +121,9 @@ const OnPageEditor = (params) => {
         formData.set("body", htmlBody);
         formData.set("rawBody", rawBody);
         params.postEntry(formData)
-            .then(() => {
-                editor.tf.reset();
-                // setValue(initialValueEmpty);
-            }).catch((/** @type {unknown} */ error) => {
-                console.error(error)
-            });
-    }, [editorRef, params])
+            .then(() => editor.tf.reset())
+            .catch((/** @type {unknown} */ error) => console.error(error));
+    }, [params])
 
     return (
         <TooltipProvider
@@ -174,28 +133,15 @@ const OnPageEditor = (params) => {
         >
             <Plate
                 editor={editor}
-                onChange={({ value }) => {
-                    onChange(value);
-                }}
+                onChange={({ value }) => onChange(value)}
             >
                 <div className="sharebox">
-
                     <Editor
-                        className="px-[96px] py-16"
+                        className="mb-4 min-h-[60px] cursor-text rounded-sm p-[15px]"
                         autoFocus={Boolean(params.id)}
                         focusRing={false}
-                        variant="ghost"
+                        variant="outline"
                         size="md"
-                        // placeholder='开始记录...'
-                        style={{
-                            padding: '15px',
-                            boxSizing: "border-box",
-                            border: "1px solid #ddd",
-                            cursor: "text",
-                            borderRadius: "2px",
-                            marginBottom: "1em",
-                            minHeight: "60px",
-                        }}
                     />
 
                     <FloatingToolbar>
@@ -203,7 +149,6 @@ const OnPageEditor = (params) => {
                     </FloatingToolbar>
 
                     <div className="post">
-                        <span className="max_info"></span>
                         <button className="submit" type="button" onClick={onPostEntry}>发布</button>
                     </div>
                 </div>

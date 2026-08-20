@@ -15,7 +15,7 @@ const requiredSelectors = [
   'text-foreground',
   'border-border',
   'bg-popover',
-  'px-\\[96px\\]',
+  'min-h-\\[60px\\]',
   'max-lg\\:hidden',
   'data-\\[state\\=open\\]\\:animate-in',
   'data-\\[state\\=checked\\]\\:bg-primary',
@@ -34,13 +34,22 @@ if (css.includes('@tailwind')) {
   throw new Error('Tailwind directives were not compiled');
 }
 
+// Site CSS must remain in its named cascade layer. This is the contract that
+// lets semantic FriendFeed rules restore Preflight without unexpectedly
+// defeating explicit component utilities.
+if (!/^@layer site\s*\{/m.test(pageCss)) {
+  throw new Error('Page CSS must be wrapped in @layer site');
+}
+
 const unsafeLegacySelectors = [
   /^button\s*,/m,
   /^input\s*,/m,
   /^textarea\s*,/m,
   /^select\s*\{/m,
   /^a\s*\{/m,
+  /^img\s*\{/m,
+  /^table\s*\{/m,
 ];
 if (unsafeLegacySelectors.some((selector) => selector.test(pageCss))) {
-  throw new Error('Page CSS contains a global selector that overrides component utilities');
+  throw new Error('Page CSS contains an unscoped global selector that can override components');
 }

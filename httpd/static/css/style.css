@@ -1,37 +1,38 @@
-/* Theme tokens (docs/theme.md): site-layer --ff-* variables hold final color
-   values and serve the SSR pages; the React bundle's component-layer hsl
-   triplets stay separate. */
+/*
+ * FriendFeed site styles.
+ *
+ * Tailwind defines the global layer order in app/src/styles/globals.css:
+ *   theme -> base (Preflight) -> site -> components -> utilities
+ *
+ * Keeping this hand-written stylesheet inside `site` means legacy/semantic
+ * page styles beat the reset, while an explicit Tailwind utility on a React
+ * component can still override the site surface predictably.
+ */
+@layer site {
 :root {
-    /* 基础 */
     --ff-bg: #fff;
     --ff-fg: #000;
     --ff-font: Arial, sans-serif;
 
-    /* 链接 */
-    --ff-link: #00c;          /* 正文与导航链接 */
-    --ff-link-light: #77c;    /* likes/comments 区内链接、action-link */
+    --ff-link: #00c;
+    --ff-link-light: #77c;
 
-    /* 辅助文本与边线 */
-    --ff-muted: #666;         /* info/likes/comment 弱化文本 */
-    --ff-border: #bdbdbb;     /* 输入框、头像、按钮边框 */
-    --ff-hairline: #eee;      /* entry/header 分隔线 */
+    --ff-muted: #666;
+    --ff-border: #bdbdbb;
+    --ff-hairline: #eee;
 
-    /* 控件 */
     --ff-button-bg: #eee;
     --ff-button-fg: #333;
     --ff-danger: #b03030;
     --ff-danger-border: #8f2727;
     --ff-danger-fg: #fff;
 
-    /* FriendFeed 标志性侧栏蓝盒 */
     --ff-box-bg: #ebf3f8;
     --ff-box-border: #c7dbec;
 
-    /* 引用块 */
     --ff-quote-border: #d1d5db;
     --ff-quote-fg: #4b5563;
 
-    /* 代码块 */
     --ff-code-bg: #eeffcc;
     --ff-code-border: #ac9;
     --ff-code-fg: #333;
@@ -39,26 +40,24 @@
 }
 
 body {
-    background: hsl(var(--background, 0 0% 100%));
-    color: hsl(var(--foreground, 0 0% 0%));
     margin: 0;
-    font-family: Arial, sans-serif;
+    background: var(--ff-bg);
+    color: var(--ff-fg);
+    font-family: var(--ff-font);
     font-size: 16px;
 }
 
-/* Base: restore the browser defaults Tailwind preflight resets,
-   limited to what the server-rendered pages actually use. */
-
+/* Site controls restore the intentionally plain FriendFeed appearance after
+   Tailwind Preflight. Keep selectors scoped so Plate/Radix controls can opt
+   into their own utilities. */
 .menu input[type="search"],
 .sharebox form textarea,
 .entry .comment.form textarea {
-    border: 1px solid #bdbdbb;
-    background: #fff;
+    border: 1px solid var(--ff-border);
+    background: var(--ff-bg);
     padding: 2px;
 }
 
-/* Keep the plain gray border in every state instead of the browser's
-   black focus outline. */
 .entry .comment.form textarea:focus {
     outline: none;
 }
@@ -67,14 +66,13 @@ body {
 .sharebox input[type="submit"],
 .sharebox button.submit,
 .entry .comment.form input[type="submit"] {
-    border: 1px solid #bdbdbb;
-    background: #eee;
+    border: 1px solid var(--ff-border);
+    background: var(--ff-button-bg);
+    color: var(--ff-button-fg);
     padding: 2px 8px;
     cursor: pointer;
 }
 
-/* Clickable text must remain keyboard-focusable without changing the
-   established link-like appearance. */
 button.inline-action {
     display: inline;
     border: 0;
@@ -86,17 +84,19 @@ button.inline-action {
 }
 
 button.action-link {
-    color: #77c;
+    color: var(--ff-link-light);
 }
 
 button.header-action {
-    color: #00c;
+    color: var(--ff-link);
 }
 
 button.header-action:hover {
     text-decoration: underline;
 }
 
+/* Stored entry content is semantic HTML. Preflight deliberately removes
+   browser typography/list defaults, so the site layer owns those defaults. */
 div.content ul {
     list-style: disc;
     padding-left: 2em;
@@ -109,7 +109,10 @@ div.content ol {
 
 div.content h1,
 div.content h2,
-div.content h3 {
+div.content h3,
+div.content h4,
+div.content h5,
+div.content h6 {
     font-weight: bold;
     margin: 0.5em 0 0.3em;
 }
@@ -117,28 +120,28 @@ div.content h3 {
 div.content h1 { font-size: 1.4em; }
 div.content h2 { font-size: 1.25em; }
 div.content h3 { font-size: 1.1em; }
+div.content h4,
+div.content h5,
+div.content h6 { font-size: 1em; }
 
-/* Quoted blocks: left rule + indent + muted italic, matching the
-   editor's blockquote affordance. */
 div.content blockquote {
     margin: 0.5em 0;
     padding-left: 1em;
-    border-left: 2px solid #d1d5db;
-    color: #4b5563;
+    border-left: 2px solid var(--ff-quote-border);
+    color: var(--ff-quote-fg);
     font-style: italic;
 }
 
-div.content img,
-.entry img {
+div.content img {
     display: inline;
+    max-width: 100%;
+    height: auto;
 }
-
-/* Layout (replaces pure.css grid + menu) */
 
 .page {
     display: flex;
     max-width: 1200px;
-    padding: 30px 25px 25px 25px;
+    padding: 30px 25px 25px;
     margin: auto;
 }
 
@@ -151,24 +154,11 @@ div.content img,
     flex: 0 0 20%;
 }
 
-@media (max-width: 600px) {
-    /* Stack vertically, sidebar (search + menu) above the feed */
-    .page {
-        flex-direction: column;
-        padding: 15px 12px;
-    }
-
-    .sidebar {
-        order: -1;
-        margin-bottom: 15px;
-    }
-}
-
 .topmenu {
     display: flex;
     align-items: baseline;
     max-width: 1200px;
-    padding: 15px 0px 0px 0px;
+    padding: 15px 0 0;
     margin: auto;
 }
 
@@ -187,20 +177,28 @@ div.content img,
 
 .menu {
     width: 70%;
-    border: 1px solid silver;
-    background: #eee;
+    border: 1px solid var(--ff-box-border);
+    background: var(--ff-box-bg);
     padding: 10px 14px;
 }
 
 @media (min-width: 601px) {
-    /* Navigation is always open on desktop; hide the disclosure toggle */
     .menu > summary {
         display: none;
     }
 }
 
 @media (max-width: 600px) {
-    /* Navigation collapses into a <details> bar */
+    .page {
+        flex-direction: column;
+        padding: 15px 12px;
+    }
+
+    .sidebar {
+        order: -1;
+        margin-bottom: 15px;
+    }
+
     .menu {
         width: 100%;
         box-sizing: border-box;
@@ -214,12 +212,8 @@ div.content img,
     }
 }
 
-img {
-    border: 0;
-}
-
 a:not([class]) {
-    color: #00c;
+    color: var(--ff-link);
     text-decoration: none;
 }
 
@@ -227,51 +221,18 @@ a:not([class]):hover {
     text-decoration: underline;
 }
 
-table {
-    --bs-table-bg: transparent;
-    --bs-table-accent-bg: transparent;
-    --bs-table-striped-color: #212529;
-    --bs-table-striped-bg: rgba(0, 0, 0, 0.05);
-    --bs-table-active-color: #212529;
-    --bs-table-active-bg: rgba(0, 0, 0, 0.1);
-    --bs-table-hover-color: #212529;
-    --bs-table-hover-bg: rgba(0, 0, 0, 0.075);
-    width: 100%;
-    margin-bottom: 1rem;
-    color: #212529;
-    vertical-align: top;
-    border-color: #dee2e6;
-}
-table>:not(:last-child)>:last-child>* {
-    border-bottom-color: currentColor;
-}
-table>:not(caption)>*>* {
-    padding: .5rem .5rem;
-    background-color: var(--bs-table-bg);
-    border-bottom-width: 1px;
-    box-shadow: inset 0 0 0 9999px var(--bs-table-accent-bg);
-}
-tbody, td, tfoot, th, thead, tr {
-    border-color: inherit;
-    border-style: solid;
-    border-width: 0;
-}
-th {
-    color: #000;
-}
-
-
 .header h1 {
     margin-bottom: 0.5em;
     font-size: 25px;
 }
 
 .header h1 a {
-    color: black;
+    color: var(--ff-fg);
     text-decoration: none;
 }
 
-.header .picture {
+.header .picture,
+.entry .picture {
     float: left;
     line-height: 0;
 }
@@ -293,7 +254,7 @@ th {
 
 .header {
     padding-bottom: 35px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--ff-hairline);
     margin-bottom: 12px;
 }
 
@@ -301,24 +262,19 @@ th {
 .entry,
 .share {
     padding-bottom: 12px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--ff-hairline);
     margin-bottom: 12px;
 }
 
-.entry:after {
+.entry::after {
     content: "";
     display: table;
     clear: left;
 }
 
-.entry .picture {
-    float: left;
-    line-height: 0;
-}
-
 .header .picture img,
 .entry .picture img {
-    border: 1px solid silver;
+    border: 1px solid var(--ff-border);
 }
 
 .entry .picture img {
@@ -326,26 +282,8 @@ th {
     height: 50px;
 }
 
-@media (max-width: 600px) {
-    .entry .picture {
-        float: none;
-        display: none;
-    }
-    .entry .picture img {
-        display: none;
-        width: 0px;
-        height: 0px;
-    }
-}
-
 .entry .body {
     margin-left: 69px;
-}
-
-@media (max-width: 600px) {
-    .entry .body {
-        margin-left: 0px;
-    }
 }
 
 .entry .media {
@@ -355,7 +293,9 @@ th {
 }
 
 .entry .media img {
-    border: 1px solid silver;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--ff-border);
     padding: 2px;
     margin-right: 8px;
 }
@@ -367,33 +307,29 @@ th {
 .entry .content,
 .entry .info {
     margin-top: 2px;
-    /* line-height: 135%; */
     line-height: 1.7;
-}
-.entry img {
-    max-width: 800px;
 }
 
 .entry .info,
 .entry .likes {
-    color: #666;
+    color: var(--ff-muted);
     font-size: 13px;
 }
 
 .entry .comment {
-    color: #666;
+    color: var(--ff-muted);
     font-size: 14px;
 }
 
 .entry .info a,
 .entry .likes a,
 .entry .comment a {
-    color: #77c;
+    color: var(--ff-link-light);
 }
 
 .entry .info a.permalink,
 .entry .info a.via {
-    color: #666;
+    color: var(--ff-muted);
 }
 
 .entry .likes,
@@ -416,8 +352,6 @@ th {
     background: none;
 }
 
-/* Two-step delete confirmation: a compact widget with real buttons,
-   not loose links. */
 .confirm-delete {
     display: inline-flex;
     align-items: baseline;
@@ -433,18 +367,17 @@ th {
 }
 
 .confirm-delete .yes {
-    border: 1px solid #8f2727;
-    background: #b03030;
-    color: #fff;
+    border: 1px solid var(--ff-danger-border);
+    background: var(--ff-danger);
+    color: var(--ff-danger-fg);
 }
 
 .confirm-delete .cancel {
-    border: 1px solid #bdbdbb;
-    background: #eee;
-    color: #333;
+    border: 1px solid var(--ff-border);
+    background: var(--ff-button-bg);
+    color: var(--ff-button-fg);
 }
 
-/* own-comment Edit/Delete: hidden until hover, space reserved to avoid reflow */
 .entry .comment .commands {
     visibility: hidden;
     display: inline-flex;
@@ -459,7 +392,6 @@ th {
     visibility: visible;
 }
 
-/* touch devices have no hover: keep the commands always visible */
 @media (hover: none) {
     .entry .comment .commands {
         visibility: visible;
@@ -470,9 +402,8 @@ th {
     font-style: italic;
 }
 
-/* comment edit form: a plain input area, not a speech bubble */
 .entry .comment.form {
-    color: black;
+    color: var(--ff-fg);
     background: none;
     padding-left: 0;
 }
@@ -505,13 +436,28 @@ th {
 }
 
 @media (max-width: 600px) {
+    .entry .picture {
+        float: none;
+        display: none;
+    }
+
+    .entry .picture img {
+        display: none;
+        width: 0;
+        height: 0;
+    }
+
+    .entry .body {
+        margin-left: 0;
+    }
+
     .header,
     .sharebox,
     .share,
     .feed,
     #account-root {
         width: 100%;
-        margin-right: 0px;
+        margin-right: 0;
     }
 }
 
@@ -530,15 +476,10 @@ th {
     margin-top: 2px;
 }
 
-/* Sections separate with margin-top on the follower only, so the first and
-   last section keep the box's own padding as the visual edge: no extra
-   margin at the bottom. */
 .menu .section + .section {
     margin-top: 15px;
 }
 
-/* The React search box mounts into #search only when JS is on; keep its
-   separation without leaving dead space when it never mounts. */
 .menu #search:not(:empty) {
     margin-top: 15px;
 }
@@ -549,47 +490,26 @@ th {
     padding: 2px;
 }
 
-
-/* sharebox */
-
 .sharebox {
     display: flow-root;
 }
 
-.sharebox form lable.title {
+.sharebox form label.title {
     display: block;
     float: left;
     width: 40px;
 }
 
 .sharebox form textarea {
-    border: 1px solid #BDBDBB;
-    width: 715px;
+    width: min(715px, 100%);
     height: 60px;
-    padding: 2px;
     overflow: auto;
     margin-bottom: 4px;
+    box-sizing: border-box;
 }
 
-@media (max-width: 600px) {
-    .sharebox form textarea {
-        width: 100%;
-        max-width: 100%;
-    }
-    .sharebox form {
-        width: 100%;
-        max-width: 100%;
-    }
-    .sharebox form textarea {
-        border: 1px solid #BDBDBB;
-        width: 100%;
-        max-width: 100%;
-    }
-}
-
-.sharebox .max_chars {
-    font-size: 16px;
-    font-weight: bold;
+.sharebox form {
+    max-width: 100%;
 }
 
 .sharebox .insert,
@@ -612,23 +532,22 @@ th {
     margin-left: 15px;
 }
 
-div.content p>code {
+div.content p > code {
     font-family: monospace, sans-serif;
-    background-color: #e9ecef;
+    background-color: var(--ff-code-inline-bg);
     margin: 0 0.2em;
-    padding: .2em .4em;
+    padding: 0.2em 0.4em;
 }
 
 div.content pre {
     font-family: monospace, sans-serif;
-    /* font-size: 14px; */
-    line-height: 135%;
+    line-height: 1.35;
     padding: 5px;
-    background-color: #eeffcc;
-    color: #333333;
+    background-color: var(--ff-code-bg);
+    color: var(--ff-code-fg);
     margin: 0;
     border-radius: 5px;
-    border: 1px solid #ac9;
+    border: 1px solid var(--ff-code-border);
     overflow: auto;
     overflow-y: hidden;
     display: block;
@@ -643,9 +562,6 @@ div.content pre {
     margin-block-end: 0.3em;
 }
 
-/* Shared SSR form (group create/settings): vertical label-above-field forms
-   mirroring the React profile editor's structure. One ruleset for all form
-   pages; templates carry no styles of their own. */
 .ff-form {
     max-width: 36em;
 }
@@ -671,6 +587,8 @@ div.content pre {
     border-radius: 4px;
     font-size: 14px;
     font-family: inherit;
+    background: var(--ff-bg);
+    color: var(--ff-fg);
 }
 
 .ff-form .hint,
@@ -698,7 +616,6 @@ div.content pre {
     margin-top: 1em;
 }
 
-/* Error banner, usable on any SSR page. */
 .error-banner {
     max-width: 36em;
     margin-bottom: 1em;
@@ -709,7 +626,6 @@ div.content pre {
     font-size: 14px;
 }
 
-/* Danger variant of the shared button. */
 .legacy-button.danger {
     border-color: var(--ff-danger-border);
     background: var(--ff-danger);
@@ -723,12 +639,10 @@ div.content pre {
     border-top: 1px solid var(--ff-hairline);
 }
 
-/* Muted helper text outside forms. */
 .muted {
     color: var(--ff-muted);
 }
 
-/* Group members page. */
 .member-list {
     list-style: none;
     margin: 0;
@@ -763,14 +677,11 @@ div.content pre {
     gap: 6px;
 }
 
-/* Sidebar Groups block: a second .menu box below the navigation box. The
-   heading and the create affordance share one row. */
 .groups-menu {
     margin-top: 24px;
 }
 
 @media (max-width: 600px) {
-    /* Desktop-only: mobile navigation reaches groups via the collapsed menu. */
     .groups-menu {
         display: none;
     }
@@ -782,7 +693,6 @@ div.content pre {
     align-items: baseline;
 }
 
-/* The + create affordance stays muted until hovered. */
 .menu .groups-heading a {
     color: var(--ff-muted);
     line-height: 1;
@@ -790,4 +700,5 @@ div.content pre {
 
 .menu .groups-heading a:hover {
     color: var(--ff-link);
+}
 }
