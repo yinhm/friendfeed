@@ -16,31 +16,20 @@ import {postJSON} from './utils';
 
 const ID_PATTERN = /^[a-z0-9_-]{4,}$/;
 
-/**
- * Validates a profile ID. Returns an error message, or null when valid.
- * Mirrors model.ValidateProfileId on the server.
- * @param {string} id
- * @returns {string | null}
- */
+/** @param {string} id @returns {string | null} */
 export function validateProfileId(id) {
-  if (id.length < 4) {
-    return 'At least 4 characters';
-  }
-  if (!ID_PATTERN.test(id)) {
-    return 'Lowercase letters, numbers, hyphens and underscores only';
-  }
+  if (id.length < 4) return 'At least 4 characters';
+  if (!ID_PATTERN.test(id)) return 'Lowercase letters, numbers, hyphens and underscores only';
   return null;
 }
 
 const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm ' +
-  'focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
-const hintClass = 'mt-1 text-xs text-gray-500';
-const errorClass = 'mt-1 text-xs text-red-600';
+  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ' +
+  'placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring';
+const hintClass = 'mt-1 text-xs text-muted-foreground';
+const errorClass = 'mt-1 text-xs text-destructive';
 
-/**
- * @param {{profile: ProfileData, onSaved?: (profile: ProfileData) => void}} props
- */
+/** @param {{profile: ProfileData, onSaved?: (profile: ProfileData) => void}} props */
 export function ProfileForm(props) {
   const initial = props.profile;
   const [id, setId] = useState(initial.id);
@@ -81,10 +70,6 @@ export function ProfileForm(props) {
           setError(data.error);
           return;
         }
-        // Sync every editable field from the server response: the server
-        // may normalize the id or generate a default picture, and the
-        // parent (AccountApp) needs the authoritative copy so remounts
-        // after a tab switch don't resurrect stale values.
         setSaved(true);
         setId(data.id);
         setSavedId(data.id);
@@ -104,20 +89,20 @@ export function ProfileForm(props) {
       <h3 className="mb-4 text-lg font-semibold">Edit Profile</h3>
 
       {error &&
-        <div role="alert" className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </div>}
       {saved &&
-        <div role="status" className="mb-4 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <div role="status" className="mb-4 rounded-md border border-border bg-accent px-3 py-2 text-sm text-accent-foreground">
           Saved. Your feed is at <a className="underline" href={'/feed/' + savedId}>/feed/{savedId}</a>
         </div>}
 
       <div className="mb-4 flex items-start gap-4">
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-100">
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
           {picture && !avatarBroken
             ? <img src={picture} alt="avatar preview" className="h-full w-full object-cover"
                    onError={() => setAvatarBroken(true)} />
-            : <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">no image</div>}
+            : <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">no image</div>}
         </div>
         <div className="flex-1">
           <label htmlFor="picture" className="mb-1 block text-sm font-medium">Picture URL</label>
@@ -129,7 +114,7 @@ export function ProfileForm(props) {
 
       <div className="mb-4">
         <label htmlFor="id" className="mb-1 block text-sm font-medium">
-          Profile ID <span className="text-red-600">*</span>
+          Profile ID <span className="text-destructive">*</span>
         </label>
         <input id="id" type="text" value={id} required className={inputClass}
                aria-invalid={idError ? true : undefined}
@@ -141,14 +126,14 @@ export function ProfileForm(props) {
               {id !== normalizedId && <span> — uppercase will be converted to lowercase</span>}
             </div>}
         {renaming &&
-          <div className="mt-1 text-xs text-amber-600">
+          <div className="mt-1 text-xs text-warning">
             Renaming from <code>{savedId}</code>: old links such as /feed/{savedId} will stop working.
           </div>}
       </div>
 
       <div className="mb-4">
         <label htmlFor="name" className="mb-1 block text-sm font-medium">
-          Display Name <span className="text-red-600">*</span>
+          Display Name <span className="text-destructive">*</span>
         </label>
         <input id="name" type="text" value={name} required className={inputClass}
                onChange={(e) => setName(e.target.value)} />
@@ -172,17 +157,17 @@ export function ProfileForm(props) {
         </label>
       </div>
 
-      <div className="mb-4 border-t border-gray-200 pt-3 text-xs text-gray-500">
+      <div className="mb-4 border-t border-border pt-3 text-xs text-muted-foreground">
         <div><strong>Type:</strong> {initial.type} (system field, cannot be changed)</div>
         <div><strong>UUID:</strong> <code>{initial.uuid}</code> (immutable)</div>
       </div>
 
       <div className="flex items-center gap-3">
         <button type="submit" disabled={saving}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
-        <a href={'/feed/' + savedId} className="text-sm text-gray-600 underline">Cancel</a>
+        <a href={'/feed/' + savedId} className="text-sm text-muted-foreground underline hover:text-foreground">Cancel</a>
       </div>
     </form>
   );

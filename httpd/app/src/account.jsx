@@ -37,10 +37,6 @@ export function tabFromPath(pathname) {
  * single app. Tab switches are client-side and keep the URL in sync so a
  * refresh or direct link lands on the same tab.
  *
- * The latest profile/services live here: panels remount on tab switches,
- * so children report mutations (save, removal) back via callbacks instead
- * of letting a remount resurrect the server-injected snapshot.
- *
  * @param {{initialTab: AccountTab, profile: ProfileData,
  * services: Record<string, ServiceData>, states?: AccountData['states'], target?: string}} props
  */
@@ -51,8 +47,6 @@ export function AccountApp(props) {
   const [services, setServices] = useState(props.services);
 
   useEffect(() => {
-    // Stamp the initial history entry so Back from a pushed tab lands on
-    // a stateful entry; fall back to the URL for entries without state.
     window.history.replaceState({tab: initialTab}, '');
     /** @param {PopStateEvent} event */
     const onPopState = (event) => {
@@ -63,10 +57,7 @@ export function AccountApp(props) {
     return () => window.removeEventListener('popstate', onPopState);
   }, [initialTab]);
 
-  /**
-   * @param {AccountTab} next
-   * @param {React.MouseEvent<HTMLAnchorElement>} event
-   */
+  /** @param {AccountTab} next @param {React.MouseEvent<HTMLAnchorElement>} event */
   const switchTab = (next, event) => {
     event.preventDefault();
     setTab(next);
@@ -81,8 +72,8 @@ export function AccountApp(props) {
          aria-current={active ? 'page' : undefined}
          onClick={(e) => switchTab(name, e)}
          className={active
-           ? 'border-b-2 border-blue-600 px-3 py-2 text-sm font-medium text-blue-600'
-           : 'border-b-2 border-transparent px-3 py-2 text-sm text-gray-600 hover:text-gray-900'}>
+           ? 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary'
+           : 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'}>
         {label}
       </a>
     );
@@ -90,7 +81,7 @@ export function AccountApp(props) {
 
   return (
     <div>
-      <nav className="mb-6 flex gap-1 border-b border-gray-200">
+      <nav className="mb-6 flex gap-1 border-b border-border">
         {tabLink('profile', 'Edit Profile')}
         {tabLink('import', 'Import Services')}
       </nav>
