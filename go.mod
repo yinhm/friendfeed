@@ -8,7 +8,6 @@ require (
 	github.com/dghubble/go-twitter v0.0.0-20221104224141-912508c3888b // direct
 	github.com/dghubble/oauth1 v0.7.3 // direct
 	github.com/disintegration/imaging v1.6.2
-	github.com/eapache/queue v1.1.0
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-ego/gse v1.0.2
@@ -25,7 +24,7 @@ require (
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sys v0.47.0 // direct
 	google.golang.org/grpc v1.83.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
