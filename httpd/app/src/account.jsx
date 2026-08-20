@@ -37,6 +37,10 @@ export function tabFromPath(pathname) {
  * single app. Tab switches are client-side and keep the URL in sync so a
  * refresh or direct link lands on the same tab.
  *
+ * The latest profile/services live here: panels remount on tab switches,
+ * so children report mutations (save, removal) back via callbacks instead
+ * of letting a remount resurrect the server-injected snapshot.
+ *
  * @param {{initialTab: AccountTab, profile: ProfileData,
  * services: Record<string, ServiceData>, states?: AccountData['states'], target?: string}} props
  */
@@ -47,6 +51,8 @@ export function AccountApp(props) {
   const [services, setServices] = useState(props.services);
 
   useEffect(() => {
+    // Stamp the initial history entry so Back from a pushed tab lands on
+    // a stateful entry; fall back to the URL for entries without state.
     window.history.replaceState({tab: initialTab}, '');
     /** @param {PopStateEvent} event */
     const onPopState = (event) => {

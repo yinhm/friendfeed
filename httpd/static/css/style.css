@@ -51,7 +51,6 @@ body {
    Tailwind Preflight. Keep selectors scoped so Plate/Radix controls can opt
    into their own utilities. */
 .menu input[type="search"],
-.sharebox form textarea,
 .entry .comment.form textarea {
     border: 1px solid var(--ff-border);
     background: var(--ff-bg);
@@ -63,7 +62,6 @@ body {
 }
 
 .legacy-button,
-.sharebox input[type="submit"],
 .sharebox button.submit,
 .entry .comment.form input[type="submit"] {
     border: 1px solid var(--ff-border);
@@ -494,35 +492,12 @@ a:not([class]):hover {
     display: flow-root;
 }
 
-.sharebox form label.title {
-    display: block;
-    float: left;
-    width: 40px;
-}
-
-.sharebox form textarea {
-    width: min(715px, 100%);
-    height: 60px;
-    overflow: auto;
-    margin-bottom: 4px;
-    box-sizing: border-box;
-}
-
-.sharebox form {
-    max-width: 100%;
-}
-
-.sharebox .insert,
-.sharebox .post {
-    float: left;
-    margin-bottom: 0;
-    margin-top: 4px;
-}
-
 .sharebox .post {
     float: right;
     overflow: hidden;
     position: relative;
+    margin-bottom: 0;
+    margin-top: 4px;
 }
 
 .sharebox .submit {

@@ -30,6 +30,12 @@ const smallButtonClass =
   'rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-sm hover:bg-accent disabled:opacity-50';
 
 /**
+ * Connected import services with removal, plus entry points for adding
+ * new imports (e.g. the Twitter OAuth flow).
+ *
+ * The services map is owned by the parent (AccountApp) so deletions
+ * survive tab switches; this panel only renders and reports changes.
+ *
  * @param {{services: Record<string, ServiceData>, states?: Record<string, ServiceState>, target?: string,
  * onServicesChange?: (services: Record<string, ServiceData>) => void}} props
  */

@@ -41,15 +41,12 @@ if (!/^@layer site\s*\{/m.test(pageCss)) {
   throw new Error('Page CSS must be wrapped in @layer site');
 }
 
-const unsafeLegacySelectors = [
-  /^button\s*,/m,
-  /^input\s*,/m,
-  /^textarea\s*,/m,
-  /^select\s*\{/m,
-  /^a\s*\{/m,
-  /^img\s*\{/m,
-  /^table\s*\{/m,
-];
-if (unsafeLegacySelectors.some((selector) => selector.test(pageCss))) {
+// Bare element selectors in the site layer can affect any React component.
+// Catch both a standalone selector (`button {`) and the first selector in a
+// comma-separated group (`button,`) while still allowing scoped selectors
+// such as `button.inline-action` or `.entry img`.
+const unsafeLegacySelector =
+  /^\s*(?:button|input|textarea|select|a|img|table)\s*(?:,|\{)/m;
+if (unsafeLegacySelector.test(pageCss)) {
   throw new Error('Page CSS contains an unscoped global selector that can override components');
 }
