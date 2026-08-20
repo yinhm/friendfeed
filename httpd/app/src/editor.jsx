@@ -137,7 +137,7 @@ const OnPageEditor = (params) => {
             >
                 <div className="sharebox">
                     <Editor
-                        className="mb-4 min-h-[60px] cursor-text rounded-sm p-[15px]"
+                        className="mb-4 min-h-[60px] cursor-text rounded-[2px] border-[#ddd] p-[15px]"
                         autoFocus={Boolean(params.id)}
                         focusRing={false}
                         variant="outline"

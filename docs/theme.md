@@ -12,6 +12,8 @@ FriendFeed 站点样式与 React/Plate 组件样式拥有清晰、可预测的�
 4. 样式边界按 **UI surface** 划分，而不是按 SSR/React 划分：Feed/Search 即使被
    React hydrate，仍使用 FriendFeed semantic class；Account/Plate 使用 Tailwind。
 5. 颜色使用语义 token；新增站点规则不得散落裸颜色值。
+6. 样式架构重构默认必须保持现有视觉。token 化、cascade layer、utility 化和 CSS
+   cleanup 应尽量保持 computed style 等价；任何有意的视觉变化必须单独列出并独立评审。
 
 ## Cascade layer
 
@@ -55,8 +57,8 @@ explicit Tailwind utilities
 --ff-code-*
 ```
 
-它们服务 FriendFeed surface（SSR templates、hydrated Feed、Search、Groups）。默认值
-接近原 FriendFeed：白底、Arial、经典蓝链接、浅蓝 sidebar box。
+它们服务 FriendFeed surface（SSR templates、hydrated Feed、Search、Groups）。默认 theme
+首先保持重构前 ffdb 的现有视觉：白底、Arial、经典蓝链接、灰色 sidebar box。
 
 ### 组件 token
 
