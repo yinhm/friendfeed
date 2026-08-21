@@ -57,7 +57,9 @@ func parseFollowRequestActionIDs(actorRaw, feedRaw, targetRaw string) (actor, fe
 }
 
 // RequestFollow files a pending follow request against a private feed (user
-// feed or Group) on actor's own behalf. Requesting is always self-service.
+// feed or Group) on actor's own behalf. A newly-created user-feed request and
+// its owner notification commit together. Group requests atomically enqueue a
+// bounded admin fanout task instead of enumerating admins in this request.
 func (s *ApiServer) RequestFollow(ctx context.Context, request *pb.RequestFollowRequest) (*pb.RequestFollowResponse, error) {
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -79,15 +81,62 @@ func (s *ApiServer) RequestFollow(ctx context.Context, request *pb.RequestFollow
 	if following {
 		return &pb.RequestFollowResponse{Requested: false}, nil
 	}
+	pending, err := model.IsFollowRequestPending(s.rdb, feed, actor)
+	if err != nil {
+		return nil, taskRPCError(err)
+	}
+	if pending {
+		return &pb.RequestFollowResponse{Requested: true}, nil
+	}
+	targetProfile, err := model.GetProfileFromUuid(s.rdb, feed)
+	if err != nil {
+		return nil, taskRPCError(followRequestModelError(err))
+	}
+	now := time.Now().UTC()
+	requestedAt := now.Format(time.RFC3339Nano)
+
+	if targetProfile.Type == "group" {
+		spec, err := groupFollowRequestNotificationSpec(feed, actor, requestedAt, now, "")
+		if err != nil {
+			return nil, taskRPCError(err)
+		}
+		if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
+			return model.StageRequestFollow(s.rdb, batch, feed, actor, now)
+		}); err != nil {
+			return nil, taskRPCError(followRequestModelError(err))
+		}
+		return &pb.RequestFollowResponse{Requested: true}, nil
+	}
+
+	var notification notificationStageResult
 	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
-		return model.StageRequestFollow(s.rdb, batch, feed, actor, time.Now())
+		if err := model.StageRequestFollow(s.rdb, batch, feed, actor, now); err != nil {
+			return err
+		}
+		var stageErr error
+		notification, stageErr = s.stageNotification(
+			batch,
+			model.NotificationFollowRequestReceived,
+			followRequestOccurrence(feed, actor, requestedAt),
+			feed,
+			actor,
+			feed,
+			uuid.Nil,
+			uuid.Nil,
+			requestedAt,
+			now,
+			now,
+		)
+		return stageErr
 	}); err != nil {
 		return nil, taskRPCError(followRequestModelError(err))
 	}
+	s.finishNotificationStage(notification)
 	return &pb.RequestFollowResponse{Requested: true}, nil
 }
 
-// CancelFollowRequest withdraws actor's own pending request. Idempotent.
+// CancelFollowRequest withdraws actor's own pending request. Idempotent. A
+// cancel is the requester's own action and deliberately emits no notification.
 func (s *ApiServer) CancelFollowRequest(ctx context.Context, request *pb.RequestFollowRequest) (*emptypb.Empty, error) {
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -112,8 +161,9 @@ func (s *ApiServer) CancelFollowRequest(ctx context.Context, request *pb.Request
 
 // ApproveFollowRequest converts target's pending request into the actual
 // Follow edges. actor must be the feed owner (user feed) or a Group
-// admin/super. The edges and the requester's Home rebuild task commit in one
-// Pebble batch, matching the JoinGroup timeline rule.
+// admin/super. The edges, Home rebuild task and approval notification commit
+// in the same Pebble batch. An already-following idempotent approve with no
+// pending occurrence does not fabricate a notification.
 func (s *ApiServer) ApproveFollowRequest(ctx context.Context, action *pb.FollowRequestAction) (*emptypb.Empty, error) {
 	if action == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -133,20 +183,48 @@ func (s *ApiServer) ApproveFollowRequest(ctx context.Context, action *pb.FollowR
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
+	now := time.Now().UTC()
+	var notification notificationStageResult
 	if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
 		if err := s.authorizeFollowRequestManage(actor, feed); err != nil {
 			return err
 		}
-		return model.StageApproveFollowRequest(s.rdb, batch, feed, target)
+		requestedAt, requestErr := model.FollowRequestRequestedAt(s.rdb, feed, target)
+		hasRequest := requestErr == nil
+		if requestErr != nil && !errors.Is(requestErr, model.ErrFollowRequestNotFound) {
+			return requestErr
+		}
+		if err := model.StageApproveFollowRequest(s.rdb, batch, feed, target); err != nil {
+			return err
+		}
+		if !hasRequest {
+			return nil
+		}
+		var stageErr error
+		notification, stageErr = s.stageNotification(
+			batch,
+			model.NotificationFollowRequestApproved,
+			followRequestOccurrence(feed, target, requestedAt),
+			target,
+			actor,
+			feed,
+			uuid.Nil,
+			uuid.Nil,
+			requestedAt,
+			now,
+			now,
+		)
+		return stageErr
 	}); err != nil {
 		return nil, taskRPCError(followRequestModelError(err))
 	}
+	s.finishNotificationStage(notification)
 	return &emptypb.Empty{}, nil
 }
 
 // RejectFollowRequest deletes target's pending request. actor must be the
-// feed owner (user feed) or a Group admin/super. Idempotent; the requester
-// may file a new request afterwards.
+// feed owner (user feed) or a Group admin/super. It is idempotent: only a
+// real pending occurrence produces a rejection notification.
 func (s *ApiServer) RejectFollowRequest(ctx context.Context, action *pb.FollowRequestAction) (*emptypb.Empty, error) {
 	if action == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -161,14 +239,42 @@ func (s *ApiServer) RejectFollowRequest(ctx context.Context, action *pb.FollowRe
 	s.profileUpdateMu.Lock()
 	defer s.profileUpdateMu.Unlock()
 
+	now := time.Now().UTC()
+	var notification notificationStageResult
 	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := s.authorizeFollowRequestManage(actor, feed); err != nil {
 			return err
 		}
-		return model.StageDeleteFollowRequest(s.rdb, batch, feed, target)
+		requestedAt, requestErr := model.FollowRequestRequestedAt(s.rdb, feed, target)
+		hasRequest := requestErr == nil
+		if requestErr != nil && !errors.Is(requestErr, model.ErrFollowRequestNotFound) {
+			return requestErr
+		}
+		if err := model.StageDeleteFollowRequest(s.rdb, batch, feed, target); err != nil {
+			return err
+		}
+		if !hasRequest {
+			return nil
+		}
+		var stageErr error
+		notification, stageErr = s.stageNotification(
+			batch,
+			model.NotificationFollowRequestRejected,
+			followRequestOccurrence(feed, target, requestedAt),
+			target,
+			actor,
+			feed,
+			uuid.Nil,
+			uuid.Nil,
+			requestedAt,
+			now,
+			now,
+		)
+		return stageErr
 	}); err != nil {
 		return nil, taskRPCError(followRequestModelError(err))
 	}
+	s.finishNotificationStage(notification)
 	return &emptypb.Empty{}, nil
 }
 
