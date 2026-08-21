@@ -209,3 +209,24 @@ func followRequestModelError(err error) error {
 		return errors.Join(taskqueue.ErrFailedPrecondition, err)
 	}
 }
+
+// withPendingFollowRequest marks the feed when the viewer has a pending
+// follow request against it. Best-effort: unparseable IDs and read failures
+// leave the flag false.
+func (s *ApiServer) withPendingFollowRequest(feed *pb.Feed, viewerRaw string) {
+	if viewerRaw == "" {
+		return
+	}
+	viewer, err := uuid.FromString(viewerRaw)
+	if err != nil || viewer == uuid.Nil {
+		return
+	}
+	target, err := uuid.FromString(feed.Uuid)
+	if err != nil || target == uuid.Nil {
+		return
+	}
+	pending, err := model.IsFollowRequestPending(s.rdb, target, viewer)
+	if err == nil {
+		feed.HasPendingFollowRequest = pending
+	}
+}

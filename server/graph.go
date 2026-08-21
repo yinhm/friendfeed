@@ -120,6 +120,13 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		if err != nil {
 			return nil, err
 		}
+		if !followed && target != nil && target.Private {
+			requested, err := model.IsFollowRequestPending(s.rdb, feedUUID, profileUUID)
+			if err != nil {
+				return nil, err
+			}
+			return &pb.FollowResponse{Followed: false, Requested: requested}, nil
+		}
 	}
 	return &pb.FollowResponse{Followed: followed}, nil
 }

@@ -582,6 +582,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		Description: profile.Description,
 		Entries:     entries,
 	}
+	s.withPendingFollowRequest(feed, req.ViewerUuid)
 	return feed, nil
 }
 
@@ -751,6 +752,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			feed.NextCursor = encodeFeedCursor(items[len(items)-1].indexKey, prefix)
 		}
 	}
+	s.withPendingFollowRequest(feed, req.ViewerUuid)
 	return feed, nil
 }
 
