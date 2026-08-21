@@ -34,6 +34,12 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		return nil, err
 	}
 
+	// Reuse the profile-update lock as the coarse relationship/privacy
+	// mutation boundary. A target cannot flip public/private between this
+	// visibility decision and the corresponding Follow/FollowRequest write.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	target, err := model.GetProfileFromUuid(s.rdb, feedUUID)
 	if err != nil && !errors.Is(err, model.ErrNotFound) {
 		// In particular, never fall back to generic edge writes for a
