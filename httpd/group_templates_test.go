@@ -128,11 +128,14 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 		`<li><a href="/groups">Groups</a></li>`,
 		`name="id"`,
 		`name="picture"`,
-		`name="private" disabled`,
+		`name="private"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("sidebar/create page missing %q", want)
 		}
+	}
+	if strings.Contains(body, `name="private" disabled`) {
+		t.Fatal("private checkbox must be enabled: the approval flow exists now")
 	}
 	if strings.Contains(body, "<style>") || strings.Contains(body, "<script>") {
 		t.Fatal("group_create.html must not carry inline styles or scripts")

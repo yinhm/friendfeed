@@ -527,7 +527,7 @@ func (s *Server) FollowHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, entry.Followed)
+	c.JSON(200, entry)
 }
 
 func (s *Server) GroupCreatePageHandler(c *gin.Context) {
@@ -585,6 +585,7 @@ func (s *Server) GroupCreateHandler(c *gin.Context) {
 		Name:        group.Name,
 		Description: group.Description,
 		Picture:     group.Picture,
+		Private:     c.Request.Form.Get("private") == "on",
 	})
 	if err != nil {
 		// Surface the RPC message (e.g. "Group ID is already taken",

@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h2>Follow requests</h2>
+
+{% if error %}
+<div class="error-banner" role="alert">{{ error|escape }}</div>
+{% endif %}
+
+{% if not private %}
+<p class="muted">Your feed is public — anyone can follow it without approval. Requests only apply while your feed is private.</p>
+{% endif %}
+
+<ul class="member-list">
+    {% for r in requests %}
+    <li>
+        <img src="{{ r.Requester.Picture|escape }}" class="avatar" alt="" />
+        <a href="/feed/{{ r.Requester.Id }}">{{ r.Requester.Name|escape }}</a>
+        <span class="muted">{{ r.RequestedAt|escape }}</span>
+        <form method="post" action="/account/requests/action">
+            <input type="hidden" name="target_uuid" value="{{ r.Requester.Uuid }}" />
+            <button type="submit" name="action" value="approve" class="legacy-button">Approve</button>
+            <button type="submit" name="action" value="reject" class="legacy-button danger">Reject</button>
+        </form>
+    </li>
+    {% empty %}
+    <li class="muted">No pending requests.</li>
+    {% endfor %}
+</ul>
+{% endblock %}

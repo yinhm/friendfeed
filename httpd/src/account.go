@@ -285,6 +285,8 @@ func (s *Server) BuildFollow(profile *pb.Profile, feed *pb.Feed) {
 		if feed.Type == "group" {
 			feed.Commands = append(feed.Commands, "post")
 		}
+	} else if fResp.Requested {
+		feed.Commands = []string{"requested"}
 	} else {
 		feed.Commands = []string{"follow"}
 	}

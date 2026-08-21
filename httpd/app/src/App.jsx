@@ -96,8 +96,9 @@ function FeedHeader(props) {
       action: "follow"
     }
     postJSON("/a/follow", data)
-      .then(() => { // arrow function
-        setCommands(["unfollow"]);
+      .then((resp) => {
+        // A private target turns the follow into a pending request.
+        setCommands([resp && resp.requested ? "requested" : "unfollow"]);
       }).catch(error => console.error(error));
   };
 
@@ -127,6 +128,13 @@ function FeedHeader(props) {
       followBtn = (
         <button type="button" className="inline-action header-action" onClick={handleUnfollow}>
           Unfollow
+        </button>
+      )
+    }
+    if (command === "requested") {
+      followBtn = (
+        <button type="button" className="inline-action header-action" disabled>
+          Requested
         </button>
       )
     }

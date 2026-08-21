@@ -201,12 +201,31 @@ func (s *Server) renderGroupMembers(c *gin.Context, view *pb.GroupView, errMsg s
 			member.Profile.Picture = PictureOrDefault(member.Profile.Picture)
 		}
 	}
+	manage := canManageGroup(view, currentUser)
+	var requests []*pb.FollowRequestItem
+	if manage {
+		reqResp, err := s.client.ListFollowRequests(ctx, &pb.ListFollowRequestsRequest{
+			ActorUuid: CurrentUserUuid(c),
+			FeedUuid:  view.Group.Uuid,
+			Limit:     200,
+		})
+		if RequestError(c, err) {
+			return
+		}
+		for _, r := range reqResp.Requests {
+			if r != nil && r.Requester != nil {
+				r.Requester.Picture = PictureOrDefault(r.Requester.Picture)
+			}
+		}
+		requests = reqResp.Requests
+	}
 	s.HTML(c, 200, "group_members.html", pongo2.Context{
 		"title":      "Group members",
 		"group":      view.Group,
 		"members":    resp.Members,
+		"requests":   requests,
 		"has_more":   resp.NextCursor != "",
-		"can_manage": canManageGroup(view, currentUser),
+		"can_manage": manage,
 		"error":      errMsg,
 	})
 }
@@ -254,6 +273,18 @@ func (s *Server) GroupMemberActionHandler(c *gin.Context) {
 		_, err = s.client.RemoveGroupAdmin(ctx, req)
 	case "remove":
 		_, err = s.client.RemoveGroupMember(ctx, req)
+	case "approve":
+		_, err = s.client.ApproveFollowRequest(ctx, &pb.FollowRequestAction{
+			ActorUuid:  req.ActorUuid,
+			FeedUuid:   req.GroupUuid,
+			TargetUuid: req.TargetUuid,
+		})
+	case "reject":
+		_, err = s.client.RejectFollowRequest(ctx, &pb.FollowRequestAction{
+			ActorUuid:  req.ActorUuid,
+			FeedUuid:   req.GroupUuid,
+			TargetUuid: req.TargetUuid,
+		})
 	default:
 		c.String(http.StatusBadRequest, "unknown action")
 		return

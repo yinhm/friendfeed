@@ -35,8 +35,8 @@
 
     {% if show_private %}
     <div class="field">
-        <label><input type="checkbox" name="private" disabled /> Private group</label>
-        <div class="hint">Private groups are not available yet: the membership approval flow is still pending and the server rejects private creation.</div>
+        <label><input type="checkbox" name="private" {% if group.Private %}checked{% endif %} /> Private group</label>
+        <div class="hint">Only approved members can read a private group. Joining requires a follow request approved by an admin.</div>
     </div>
     {% endif %}
 

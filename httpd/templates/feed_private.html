@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="header">
+  <div class="picture"><img src="{{ profile.Picture }}" alt="" /></div>
+  <div class="body">
+    <h1>{{ profile.Name|escape }}</h1>
+    {% if profile.Description %}
+      <div class="description">{{ profile.Description|escape }}</div>
+    {% endif %}
+  </div>
+  <div class="clear"></div>
+</div>
+
+{% if error %}
+  <div class="error-banner" role="alert">{{ error|escape }}</div>
+{% endif %}
+
+<div class="ff-form">
+  {% if state == "anonymous" %}
+    <p class="muted">This feed is private. Log in to request access.</p>
+  {% elif state == "pending" %}
+    <p>This feed is private. Your follow request is pending approval.</p>
+    <form method="post" action="/a/feed-request/cancel">
+      <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
+      <input type="hidden" name="feed_id" value="{{ profile.Id|escape }}" />
+      <button type="submit" class="legacy-button">Cancel request</button>
+    </form>
+  {% else %}
+    <p>This feed is private. Only approved followers can read it.</p>
+    <form method="post" action="/a/feed-request">
+      <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
+      <input type="hidden" name="feed_id" value="{{ profile.Id|escape }}" />
+      <button type="submit" class="legacy-button">Request to follow</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

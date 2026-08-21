@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -240,6 +242,12 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
 	_, feed, err := s.FetchFeed(c, req)
+	if err != nil && status.Code(err) == codes.PermissionDenied {
+		// Private feed the viewer may not read: offer the follow-request
+		// entry point instead of a bare 403.
+		s.renderPrivateFeedRequest(c, feedname, "")
+		return
+	}
 	if RequestError(c, err) {
 		return
 	}
