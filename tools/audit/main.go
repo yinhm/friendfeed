@@ -33,6 +33,7 @@ func main() {
 	issues += len(auditOrphanedMemberships(context.Background(), db))
 	issues += len(auditUnpairedMemberships(context.Background(), db))
 	issues += len(auditDeletedGroupResiduals(context.Background(), db))
+	issues += len(auditOrphanedFollowRequests(context.Background(), db))
 
 	if issues == 0 {
 		log.Println("✓ All audit checks passed")
@@ -366,5 +367,62 @@ func auditDeletedGroupResiduals(ctx context.Context, db *store.Store) []string {
 		log.Println("  ✓ No deleted group residuals found")
 	}
 
+	return issues
+}
+
+// auditOrphanedFollowRequests checks for pending follow requests whose
+// target feed or requester profile is missing or soft-deleted. Request keys
+// are target UUID + requester UUID.
+func auditOrphanedFollowRequests(ctx context.Context, db *store.Store) []string {
+	log.Println("Checking for orphaned follow requests...")
+	var issues []string
+
+	prefix := model.NewKeyFrom(model.FollowRequest.Prefix)
+	report := func(format string, args ...interface{}) {
+		issues = append(issues, fmt.Sprintf(format, args...))
+		log.Printf("  ✗ %s", issues[len(issues)-1])
+	}
+	_, err := db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
+		if len(key) != len(prefix)+32 {
+			report("malformed FollowRequest key: length %d", len(key)-len(prefix))
+			return nil
+		}
+		target, err := uuid.FromBytes(key[len(prefix) : len(prefix)+16])
+		if err != nil {
+			report("malformed FollowRequest target UUID: %v", err)
+			return nil
+		}
+		requester, err := uuid.FromBytes(key[len(prefix)+16:])
+		if err != nil {
+			report("malformed FollowRequest requester UUID: %v", err)
+			return nil
+		}
+
+		targetProfile, err := getRawProfile(db, target)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				report("follow request against non-existent feed %s", target)
+			}
+		} else if targetProfile.Deleted {
+			report("follow request against deleted feed %s (%s)", targetProfile.Uuid, targetProfile.Name)
+		}
+
+		requesterProfile, err := getRawProfile(db, requester)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				report("follow request from non-existent user %s", requester)
+			}
+		} else if requesterProfile.Deleted {
+			report("follow request from deleted user %s (%s)", requesterProfile.Uuid, requesterProfile.Name)
+		}
+		return nil
+	})
+	if err != nil {
+		report("error scanning FollowRequest: %v", err)
+	}
+
+	if len(issues) == 0 {
+		log.Println("  ✓ No orphaned follow requests found")
+	}
 	return issues
 }
