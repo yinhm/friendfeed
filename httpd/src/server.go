@@ -122,7 +122,7 @@ func fingerprint(data []byte) string {
 }
 
 func DefaultTimeoutContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	return context.WithTimeout(context.Background(), 3*time.Second)
 }
 
 func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context) {
