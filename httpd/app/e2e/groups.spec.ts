@@ -77,12 +77,7 @@ test('group create, sidebar navigation, duplicate rejection and delete', async (
   } finally {
     if (created) {
       try {
-        const response = await deleteGroup(page.request, groupId);
-        if (!response.ok()) {
-          throw new Error(
-            `delete group: status ${response.status()}: ${await response.text()}`
-          );
-        }
+        await deleteGroup(page.request, groupId);
       } catch (e) {
         cleanupError = e;
       }
@@ -104,5 +99,10 @@ test('group create, sidebar navigation, duplicate rejection and delete', async (
 });
 
 async function deleteGroup(request: APIRequestContext, groupId: string) {
-  return request.post(`/groups/${groupId}/delete`);
+  const response = await request.post(`/groups/${groupId}/delete`);
+  if (!response.ok()) {
+    throw new Error(
+      `delete group: status ${response.status()}: ${await response.text()}`
+    );
+  }
 }
