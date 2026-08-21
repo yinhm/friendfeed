@@ -78,6 +78,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 115 | LikeTimeline | `T + actor UUID + reverse Unix ms + entry UUID` | 空 | 用户 Like 排序派生索引 |
 | 116 | CommentTimeline | `T + actor UUID + reverse Unix ms + entry UUID` | 16 B latest comment UUID | 用户 Comment 折叠排序索引 |
 | 117 | CommentTimelinePosition | `T + actor UUID + entry UUID` | reverse ms + latest comment UUID | Comment 排序位置索引 |
+| 118 | FollowRequest | `T + target feed UUID + requester user UUID` | RFC3339 申请时间 | private feed/Group 关注申请（工作流数据，非关系事实） |
 | 200 | JobFeed | `T + Flake ID` | job protobuf | queued job |
 | 201 | JobRunning | `T + Flake ID` | job protobuf | claimed job |
 | 202 | JobHistory | `T + target id` | `pb.FeedJob` | 历史记录 |

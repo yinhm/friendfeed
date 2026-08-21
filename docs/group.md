@@ -228,9 +228,13 @@ following，不得为此把全量订阅塞回 Graph 响应。
 - ✅ PostEntry 已在 mutation 边界验证 Group 成员资格，并用服务端读取的 Profile
   重建 `Entry.From`。公开 RPC 不允许 Group 充当用户 principal；FeedService、stock 等
   可信进程内 producer 只能通过不导出的内部入口创建 Group/system-authored Entry；
-- ✅ private Group 读取已闭环：legacy 与 cursor 两条 Feed 路径、FetchEntry、Home stale
-  行重校验、Search 结果过滤均执行成员/super 可见性检查；private Group 的 Join 在审批
-  流程落地前一律拒绝（`StageJoinGroup` 与 CreateGroup 一致）。
+- ✅ private 读取已闭环：legacy 与 cursor 两条 Feed 路径、FetchEntry、Home stale
+  行重校验、Search 结果过滤均执行可见性检查。该检查是 feed 级而非 Group 级：private
+  user feed 同样仅 owner/follower/super 可读（user feed 的 owner 即 feed 本人）。
+- ✅ private 审批流已落地（user feed 与 Group 统一为 Follow Request）：`TableFollowRequest`
+  只存 pending 工作流数据；GraphFollow 对 private target 自动转为申请；批准后同一 batch
+  写入 Follow/Follower 边并入队 home.rebuild。批准人规则唯一：user feed → owner 本人，
+  Group → 任一 admin。直接 Join private Group 仍被拒绝（`StageJoinGroup`）。
 - ✅ Join/Leave/RemoveMember 在同一 batch 入队幂等 `home.rebuild` task，按当前 Follow
   边有界重建 Home（docs/task_queue.md）。
 - ✅ `ListUserGroups`（docs/group_navigation.md 契约）与 `GetGroup`/`ListGroupMembers`
@@ -246,7 +250,8 @@ following，不得为此把全量订阅塞回 Graph 响应。
 
 有意暂缓（规范允许的缺口）：
 
-- private Group 的邀请/join request 审批流程（在此之前 private 创建与加入均拒绝）；
+- owner/admin 主动邀请（邀请制）；目前只实现 join request/批准方向；
+- 申请的通知机制（申请人/批准人均通过页面状态感知，无主动通知）；
 - 删除 Group 后 Follow/Follower、timeline、FeedService 的无上限清理（由 audit 报告，
   后台/运维命令有界清理）；
 - `/groups` 完整列表页（sidebar 超过 20 个时只截断，不出死链）。
