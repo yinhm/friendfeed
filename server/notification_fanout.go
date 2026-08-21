@@ -20,12 +20,12 @@ const (
 )
 
 type groupFollowRequestNotificationPayload struct {
-	Version      uint32 `json:"version"`
-	FeedUUID     string `json:"feed_uuid"`
+	Version       uint32 `json:"version"`
+	FeedUUID      string `json:"feed_uuid"`
 	RequesterUUID string `json:"requester_uuid"`
-	RequestedAt  string `json:"requested_at"`
-	ActivityAtMS int64  `json:"activity_at_ms"`
-	Cursor       string `json:"cursor,omitempty"`
+	RequestedAt   string `json:"requested_at"`
+	ActivityAtMS  int64  `json:"activity_at_ms"`
+	Cursor        string `json:"cursor,omitempty"`
 }
 
 func followRequestOccurrence(feed, requester uuid.UUID, requestedAt string) string {
@@ -65,6 +65,20 @@ func notificationFanoutTaskDefinition(handler taskqueue.Handler) taskqueue.Defin
 		BackoffCap:    30 * time.Minute,
 		Handler:       handler,
 	}
+}
+
+// ensureNotificationTaskDefinition is safe to call repeatedly. RequestFollow
+// calls it before enqueue so tests/embedded callers that do not start the
+// background worker pool can still stage a durable fanout task; worker startup
+// calls it before snapshotting handled task types.
+func (s *ApiServer) ensureNotificationTaskDefinition() error {
+	if s.tasks == nil {
+		return taskqueue.ErrClosed
+	}
+	return s.tasks.RegisterDefinition(
+		notificationGroupFollowRequestTaskType,
+		notificationFanoutTaskDefinition(s.handleGroupFollowRequestNotificationTask),
+	)
 }
 
 func groupFollowRequestNotificationSpec(feed, requester uuid.UUID, requestedAt string, activity time.Time, cursor string) (taskqueue.Spec, error) {
