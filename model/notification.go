@@ -167,6 +167,9 @@ func GetNotification(db *store.Store, recipient, notificationID uuid.UUID) (Noti
 // StageNotification adds one recipient-owned notification to the caller's
 // atomic batch. Deterministic IDs make it idempotent: an already-existing
 // canonical row is a no-op and does not increment State counters again.
+// Missing/deleted/non-user recipients are also a no-op: notification delivery
+// must never make an otherwise-valid domain mutation fail just because its
+// recipient disappeared concurrently.
 func StageNotification(db *store.Store, batch *pebble.Batch, record NotificationRecord) (created, needsTrim bool, err error) {
 	if batch == nil {
 		return false, false, errors.New("notification batch is required")
@@ -180,10 +183,13 @@ func StageNotification(db *store.Store, batch *pebble.Batch, record Notification
 		return false, false, errors.New("valid notification id is required")
 	}
 	profile, err := GetProfileFromUuid(db, recipient)
+	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrProfileDeleted) {
+		return false, false, nil
+	}
 	if err != nil {
 		return false, false, err
 	}
-	if profile.Deleted || profile.Type != "user" {
+	if profile.Type != "user" {
 		return false, false, nil
 	}
 	if record.ActorUUID != "" && record.ActorUUID == record.RecipientUUID {
@@ -311,9 +317,10 @@ func MarkNotificationsRead(db *store.Store, recipient uuid.UUID, at time.Time) e
 		if err != nil {
 			return err
 		}
-		if atNS > state.LastReadAtNS {
-			state.LastReadAtNS = atNS
+		if atNS <= state.LastReadAtNS {
+			return nil
 		}
+		state.LastReadAtNS = atNS
 		state.UnreadCount = 0
 		encoded, err := encodeNotificationState(state)
 		if err != nil {
