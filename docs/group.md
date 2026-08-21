@@ -123,7 +123,8 @@ Unfollow Group = Leave Group
 
 私有 Group 仅成员、admin 和 super 可读取；非成员不能靠知道 Group ID、Entry UUID、Search
 结果或旧 timeline 行绕过。private Group 内容不得进入 Public timeline，Search 返回前也必须
-执行可见性检查。
+执行可见性检查。metadata（名称、头像、description）不属于内容：对包括匿名在内的任何人
+可见，作为 follow request 流程的入口；private user feed 的 metadata 同样公开。
 
 投稿权限必须在 ffdb mutation 边界验证。httpd 可以隐藏输入框，但不能成为唯一权限检查。
 Group Entry 的 canonical identity 为：

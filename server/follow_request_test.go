@@ -303,3 +303,25 @@ func TestFollowAndUnfollowClearStaleRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, pending, "unfollow must clear the stale request")
 }
+
+func TestGetGroupAllowsAnonymousMetadata(t *testing.T) {
+	srv := newServiceServer(t)
+	admin := createServiceUser(t, srv, "admin")
+
+	groupResp, err := srv.CreateGroup(context.Background(), &pb.CreateGroupRequest{
+		ActorUuid: admin.String(),
+		Id:        "anon-meta-club",
+		Name:      "Anon Meta Club",
+		Private:   true,
+	})
+	require.NoError(t, err)
+
+	// Metadata is visible without a viewer; content reads stay closed.
+	view, err := srv.GetGroup(context.Background(), &pb.GetGroupRequest{GroupUuid: groupResp.Uuid})
+	require.NoError(t, err)
+	require.Equal(t, "Anon Meta Club", view.Group.Name)
+	require.False(t, view.IsMember)
+
+	_, err = srv.FetchFeed(context.Background(), &pb.FeedRequest{Id: "anon-meta-club"})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}
