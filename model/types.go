@@ -57,6 +57,14 @@ const (
 	// relationship is always the Follow/Follower edge pair.
 	TableFollowRequest store.KeyPrefix = 118
 
+	// 119 is intentionally left unused. Notification storage begins at 120.
+	// Notification is recipient-owned canonical data; NotificationInbox is a
+	// reverse-millisecond sort index; NotificationState carries bounded
+	// unread/retention metadata for that recipient.
+	TableNotification      store.KeyPrefix = 120
+	TableNotificationInbox store.KeyPrefix = 121
+	TableNotificationState store.KeyPrefix = 122
+
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
 	TableJobHistory store.KeyPrefix = 202
@@ -107,6 +115,9 @@ var (
 	ServiceFeedIndex = NewTable(KeyPrefixToBytes(TableServiceFeedIndex))
 	GroupAdmin       = NewTable(KeyPrefixToBytes(TableGroupAdmin))
 	FollowRequest    = NewTable(KeyPrefixToBytes(TableFollowRequest))
+	Notification      = NewTable(KeyPrefixToBytes(TableNotification))
+	NotificationInbox = NewTable(KeyPrefixToBytes(TableNotificationInbox))
+	NotificationState = NewTable(KeyPrefixToBytes(TableNotificationState))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))
