@@ -41,6 +41,15 @@ test('private user feed: request, approve, read', async ({ browser }) => {
     await outsider.page.getByRole('button', { name: 'Request to follow' }).click();
     await expect(outsider.page.getByText(/pending approval/)).toBeVisible();
 
+    // Reject first: the outsider stays locked out but may re-request.
+    await owner.page.goto('/account/requests');
+    await owner.page.getByRole('button', { name: 'Reject' }).click();
+    await expect(owner.page.getByText('No pending requests.')).toBeVisible();
+    await outsider.page.goto('/feed/e2e-user');
+    await expect(outsider.page.getByText(/This feed is private/)).toBeVisible();
+    await outsider.page.getByRole('button', { name: 'Request to follow' }).click();
+    await expect(outsider.page.getByText(/pending approval/)).toBeVisible();
+
     await owner.page.goto('/account/requests');
     await expect(owner.page.getByText('E2E Rename User')).toBeVisible();
     await owner.page.getByRole('button', { name: 'Approve' }).click();
