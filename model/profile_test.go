@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -50,6 +51,40 @@ func (s *TableTestSuite) TestUpdateProfileRejectsTakenId() {
 	// Rewriting the same profile under its own ID stays legal.
 	first.Name = "First Renamed"
 	assert.Nil(s.T(), UpdateProfile(s.db, first))
+}
+
+func (s *TableTestSuite) TestUpdateProfileConcurrentSameId() {
+	// Concurrent creates of the same ID must serialize: exactly one wins and
+	// UserMap stays consistent with the Profile table (no orphan mapping).
+	const racers = 8
+	errs := make(chan error, racers)
+	for i := 0; i < racers; i++ {
+		go func(i int) {
+			errs <- UpdateProfile(s.db, &pb.Profile{
+				Uuid: uuid.Must(uuid.NewV4()).String(),
+				Id:   "raced-id",
+				Name: fmt.Sprintf("Racer %d", i),
+				Type: "user",
+			})
+		}(i)
+	}
+	successes, taken := 0, 0
+	for i := 0; i < racers; i++ {
+		err := <-errs
+		if err == nil {
+			successes++
+		} else {
+			assert.ErrorIs(s.T(), err, ErrProfileIdTaken)
+			taken++
+		}
+	}
+	assert.Equal(s.T(), 1, successes)
+	assert.Equal(s.T(), racers-1, taken)
+
+	// The winning mapping must resolve to an existing profile.
+	winner, err := GetProfileFromUserId(s.db, "raced-id")
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "raced-id", winner.Id)
 }
 
 func (s *TableTestSuite) TestGenerateProfileId() {

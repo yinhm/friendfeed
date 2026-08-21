@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
@@ -76,32 +77,37 @@ func UpdateProfile(db *store.Store, profile *pb.Profile) error {
 	if err != nil {
 		return err
 	}
-	if reservedBy, err := FindProfileRenameByOldId(db, profile.Id); err == nil {
-		return fmt.Errorf("profile ID %q is reserved by a previous rename of profile %s", profile.Id, reservedBy)
-	} else if !errors.Is(err, ErrNotFound) {
-		return fmt.Errorf("check profile ID %q against UserRenameMap: %w", profile.Id, err)
-	}
 
-	// user id(login) to uuid map. An ID already mapped to a different profile
-	// must never be silently hijacked: renames clear the old mapping through
-	// RenameProfileId before UpdateProfile runs, so a conflicting mapping here
-	// is always an error.
+	// All checks and both writes commit as one atomic batch, serialized with
+	// other ApplyBatch callers on this Store: concurrent creates of the same
+	// ID cannot both pass the collision check, and a failed commit leaves no
+	// orphan UserMap mapping pointing at a missing Profile.
 	k := NewKeyFrom(TableUserMap.Bytes(), []byte(profile.Id))
-	if existing, err := db.Get(k); err == nil && len(existing) > 0 {
-		if mapped, err := uuid.FromBytes(existing); err != nil || mapped != profileUUID {
-			return fmt.Errorf("%w: %q", ErrProfileIdTaken, profile.Id)
+	return db.ApplyBatch(func(batch *pebble.Batch) error {
+		if reservedBy, err := FindProfileRenameByOldId(db, profile.Id); err == nil {
+			return fmt.Errorf("profile ID %q is reserved by a previous rename of profile %s", profile.Id, reservedBy)
+		} else if !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("check profile ID %q against UserRenameMap: %w", profile.Id, err)
 		}
-	} else if err != nil && !errors.Is(err, store.ErrNotFound) {
-		return fmt.Errorf("read UserMap[%s]: %w", profile.Id, err)
-	}
-	if err := db.Put(k, profileUUID.Bytes()); err != nil {
-		return err
-	}
-	// log.Println("id->uuid map updated", profile.Id, "->", profile.Uuid)
 
-	// uuid map to user basic profile info
-	_, err = Profile.Put(db, profileUUID.Bytes(), profile)
-	return err
+		// user id(login) to uuid map. An ID already mapped to a different
+		// profile must never be silently hijacked: renames clear the old
+		// mapping through RenameProfileId before UpdateProfile runs, so a
+		// conflicting mapping here is always an error.
+		if existing, err := db.Get(k); err == nil && len(existing) > 0 {
+			if mapped, err := uuid.FromBytes(existing); err != nil || mapped != profileUUID {
+				return fmt.Errorf("%w: %q", ErrProfileIdTaken, profile.Id)
+			}
+		} else if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return fmt.Errorf("read UserMap[%s]: %w", profile.Id, err)
+		}
+		if err := batch.Set(k, profileUUID.Bytes(), nil); err != nil {
+			return err
+		}
+
+		// uuid map to user basic profile info
+		return setProto(batch, Profile.PrefixAppend(profileUUID.Bytes()), profile)
+	})
 }
 
 func GetProfileFromUserId(db *store.Store, id string) (*pb.Profile, error) {
