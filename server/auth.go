@@ -38,29 +38,14 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	}
 	slog.Debug("PutOAuth", "uuid", authinfo.Uuid, "provider", authinfo.Provider, "user_id", authinfo.UserId)
 
-	// exists profile
 	profileUUID, _ := uuid.FromString(authinfo.Uuid)
-	profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			profile, err = model.NewProfileFromOAuthUser(s.mdb, authinfo)
-			if err != nil {
-				return nil, err
-			}
-			// Signal first-time login via response header metadata, not a
-			// Profile field: Profile is a persisted type and must not carry
-			// transient RPC state. Outside a gRPC server context (direct
-			// calls in tests) there is no transport, so ignore the error.
-			if err := grpc.SetHeader(ctx, metadata.Pairs(pb.ProfileNewlyCreatedHeader, "true")); err != nil {
-				slog.Debug("SetHeader newly-created", "err", err)
-			}
-			slog.Debug("New profile", "uuid", profile.Uuid)
-		} else {
-			return nil, err
-		}
-	}
 
-	// (re)build services if profile present
+	// (re)build services BEFORE the profile exists. A service-write failure
+	// must not strand a half-created account: when this fails no profile has
+	// been written yet, so the next login still counts as first-time and
+	// keeps onboarding. The service key is the deterministic profile UUID,
+	// so a row written here is adopted by the profile the next login creates
+	// instead of being orphaned.
 	if strings.ToLower(authinfo.Provider) == "twitter" {
 		// WARN: goth user.NickName == screen_name which is twitter id
 		service := &pb.FeedService{
@@ -74,12 +59,29 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			Updated:  time.Now().Unix(),
 		}
 
-		err = model.PutFeedService(s.rdb, profileUUID, service)
-		if err != nil {
+		if err := model.PutFeedService(s.rdb, profileUUID, service); err != nil {
 			return nil, err
 		}
-		slog.Debug("PutFeedService", "uuid", profile.Uuid, "username", service.Username)
+		slog.Debug("PutFeedService", "uuid", authinfo.Uuid, "username", service.Username)
 	}
+
+	// The get-or-create commits atomically: concurrent first logins of the
+	// same account cannot mint two profiles or two ID aliases for one UUID.
+	profile, created, err := model.GetOrCreateProfileFromOAuthUser(s.mdb, authinfo)
+	if err != nil {
+		return nil, err
+	}
+	if created {
+		// Signal first-time login via response header metadata, not a
+		// Profile field: Profile is a persisted type and must not carry
+		// transient RPC state. Outside a gRPC server context (direct
+		// calls in tests) there is no transport, so ignore the error.
+		if err := grpc.SetHeader(ctx, metadata.Pairs(pb.ProfileNewlyCreatedHeader, "true")); err != nil {
+			slog.Debug("SetHeader newly-created", "err", err)
+		}
+		slog.Debug("New profile", "uuid", profile.Uuid)
+	}
+
 	// Login must not wait for a potentially expensive Home rebuild. Prewarm in
 	// the same bounded, per-viewer background path used by FetchFeed.
 	s.scheduleHomeTimelineMaintenance(profileUUID, time.Now().UTC())

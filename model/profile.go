@@ -19,6 +19,11 @@ var ErrProfileDeleted = errors.New("profile deleted")
 // different profile than the one already holding it in UserMap.
 var ErrProfileIdTaken = errors.New("profile ID is already taken")
 
+// ErrProfileIdReserved is returned when a write targets an ID held by a
+// previous rename (UserRenameMap). Like ErrProfileIdTaken it marks the ID as
+// unavailable, so generated-ID allocation retries on either one.
+var ErrProfileIdReserved = errors.New("profile ID is reserved by a previous rename")
+
 // profileIdAlphabet is the character set for generated profile IDs. Together
 // with the literal "ff-" prefix it keeps generated IDs inside the
 // ValidateProfileId charset.
@@ -26,7 +31,7 @@ const profileIdAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 // generatedProfileIdLength is the number of random characters after the
 // "ff-" prefix. 36^8 combinations make collisions vanishingly rare;
-// NewProfileFromOAuthUser still verifies availability before writing.
+// GetOrCreateProfileFromOAuthUser still verifies availability before writing.
 const generatedProfileIdLength = 8
 
 // generateProfileId returns a random profile ID of the form "ff-xxxxxxxx"
@@ -42,17 +47,21 @@ func generateProfileId() (string, error) {
 	return "ff-" + string(buf), nil
 }
 
-func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	// New profiles get a system-generated ID ("ff-" + random). The provider
-	// display name is kept in Name only: it is not unique and often not a
-	// valid feed slug. Users pick a meaningful ID later through the profile
-	// page rename flow.
+// GetOrCreateProfileFromOAuthUser returns the profile for authinfo.Uuid,
+// creating it with a system-generated ID when it does not exist yet.
+// created reports whether this call created the profile.
+//
+// New profiles get a system-generated ID ("ff-" + random). The provider
+// display name is kept in Name only: it is not unique and often not a
+// valid feed slug. Users pick a meaningful ID later through the profile
+// page rename flow.
+func GetOrCreateProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (profile *pb.Profile, created bool, err error) {
 	for attempt := 0; attempt < 10; attempt++ {
 		id, err := generateProfileId()
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		profile := &pb.Profile{
+		candidate := &pb.Profile{
 			Uuid:        authinfo.Uuid,
 			Id:          id,
 			Name:        authinfo.NickName,
@@ -61,15 +70,54 @@ func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profi
 			Picture:     authinfo.AvatarUrl,
 			Description: authinfo.Description,
 		}
-		if err := UpdateProfile(db, profile); err != nil {
-			if errors.Is(err, ErrProfileIdTaken) {
+		profile, created, err := createProfileIfAbsent(db, candidate)
+		if err != nil {
+			if errors.Is(err, ErrProfileIdTaken) || errors.Is(err, ErrProfileIdReserved) {
 				continue
 			}
-			return nil, err
+			return nil, false, err
 		}
-		return profile, nil
+		return profile, created, nil
 	}
-	return nil, errors.New("could not allocate a unique profile ID")
+	return nil, false, errors.New("could not allocate a unique profile ID")
+}
+
+// createProfileIfAbsent stages candidate only when no Profile row exists for
+// its UUID. The existence check and the create commit in one ApplyBatch, so
+// concurrent first logins of the same account cannot both succeed: the loser
+// receives the winner's stored profile instead of minting a second,
+// unmanaged ID alias for the same UUID.
+func createProfileIfAbsent(db *store.Store, candidate *pb.Profile) (profile *pb.Profile, created bool, err error) {
+	profileUUID, err := uuid.FromString(candidate.Uuid)
+	if err != nil {
+		return nil, false, err
+	}
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
+		existing := new(pb.Profile)
+		getErr := Profile.Get(db, profileUUID.Bytes(), existing)
+		if getErr == nil {
+			profile = existing
+			return nil
+		}
+		if !errors.Is(getErr, ErrNotFound) {
+			return getErr
+		}
+		if err := stageProfile(db, batch, profileUUID, candidate); err != nil {
+			return err
+		}
+		profile = candidate
+		created = true
+		return nil
+	})
+	return profile, created, err
+}
+
+// NewProfileFromOAuthUser creates the OAuth user's profile with a
+// system-generated ID. Deprecated wrapper for
+// GetOrCreateProfileFromOAuthUser that discards the created flag.
+func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profile, error) {
+	profile, _, err := GetOrCreateProfileFromOAuthUser(db, authinfo)
+	return profile, err
 }
 
 func UpdateProfile(db *store.Store, profile *pb.Profile) error {
@@ -82,32 +130,39 @@ func UpdateProfile(db *store.Store, profile *pb.Profile) error {
 	// other ApplyBatch callers on this Store: concurrent creates of the same
 	// ID cannot both pass the collision check, and a failed commit leaves no
 	// orphan UserMap mapping pointing at a missing Profile.
-	k := NewKeyFrom(TableUserMap.Bytes(), []byte(profile.Id))
 	return db.ApplyBatch(func(batch *pebble.Batch) error {
-		if reservedBy, err := FindProfileRenameByOldId(db, profile.Id); err == nil {
-			return fmt.Errorf("profile ID %q is reserved by a previous rename of profile %s", profile.Id, reservedBy)
-		} else if !errors.Is(err, ErrNotFound) {
-			return fmt.Errorf("check profile ID %q against UserRenameMap: %w", profile.Id, err)
-		}
-
-		// user id(login) to uuid map. An ID already mapped to a different
-		// profile must never be silently hijacked: renames clear the old
-		// mapping through RenameProfileId before UpdateProfile runs, so a
-		// conflicting mapping here is always an error.
-		if existing, err := db.Get(k); err == nil && len(existing) > 0 {
-			if mapped, err := uuid.FromBytes(existing); err != nil || mapped != profileUUID {
-				return fmt.Errorf("%w: %q", ErrProfileIdTaken, profile.Id)
-			}
-		} else if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return fmt.Errorf("read UserMap[%s]: %w", profile.Id, err)
-		}
-		if err := batch.Set(k, profileUUID.Bytes(), nil); err != nil {
-			return err
-		}
-
-		// uuid map to user basic profile info
-		return setProto(batch, Profile.PrefixAppend(profileUUID.Bytes()), profile)
+		return stageProfile(db, batch, profileUUID, profile)
 	})
+}
+
+// stageProfile validates profile's ID against the rename reservation and the
+// UserMap collision rules, then stages UserMap[id] -> uuid and the Profile
+// row into batch. Callers must hold the Store's ApplyBatch critical section.
+func stageProfile(db *store.Store, batch *pebble.Batch, profileUUID uuid.UUID, profile *pb.Profile) error {
+	if reservedBy, err := FindProfileRenameByOldId(db, profile.Id); err == nil {
+		return fmt.Errorf("%w: %q held by profile %s", ErrProfileIdReserved, profile.Id, reservedBy)
+	} else if !errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("check profile ID %q against UserRenameMap: %w", profile.Id, err)
+	}
+
+	// user id(login) to uuid map. An ID already mapped to a different
+	// profile must never be silently hijacked: renames clear the old
+	// mapping through RenameProfileId before UpdateProfile runs, so a
+	// conflicting mapping here is always an error.
+	k := NewKeyFrom(TableUserMap.Bytes(), []byte(profile.Id))
+	if existing, err := db.Get(k); err == nil && len(existing) > 0 {
+		if mapped, err := uuid.FromBytes(existing); err != nil || mapped != profileUUID {
+			return fmt.Errorf("%w: %q", ErrProfileIdTaken, profile.Id)
+		}
+	} else if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("read UserMap[%s]: %w", profile.Id, err)
+	}
+	if err := batch.Set(k, profileUUID.Bytes(), nil); err != nil {
+		return err
+	}
+
+	// uuid map to user basic profile info
+	return setProto(batch, Profile.PrefixAppend(profileUUID.Bytes()), profile)
 }
 
 func GetProfileFromUserId(db *store.Store, id string) (*pb.Profile, error) {

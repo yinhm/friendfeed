@@ -118,3 +118,83 @@ func (s *TableTestSuite) TestNewProfileFromOAuthUserGeneratesId() {
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, byId.Uuid)
 }
+
+func (s *TableTestSuite) TestGetOrCreateProfileIsIdempotent() {
+	authinfo := &pb.OAuthUser{
+		Uuid:     uuid.Must(uuid.NewV4()).String(),
+		UserId:   "idem-user",
+		NickName: "Idem User",
+		Provider: "google",
+	}
+	first, created, err := GetOrCreateProfileFromOAuthUser(s.db, authinfo)
+	assert.Nil(s.T(), err)
+	assert.True(s.T(), created)
+
+	second, created, err := GetOrCreateProfileFromOAuthUser(s.db, authinfo)
+	assert.Nil(s.T(), err)
+	assert.False(s.T(), created)
+	assert.Equal(s.T(), first.Id, second.Id)
+}
+
+func (s *TableTestSuite) TestGetOrCreateProfileConcurrentSameUuid() {
+	// Concurrent first logins of the same account must not mint two ID
+	// aliases for one UUID: exactly one call creates, every call returns the
+	// same profile ID.
+	authinfo := &pb.OAuthUser{
+		Uuid:     uuid.Must(uuid.NewV4()).String(),
+		UserId:   "race-user",
+		NickName: "Race User",
+		Provider: "google",
+	}
+	const racers = 8
+	type result struct {
+		id      string
+		created bool
+		err     error
+	}
+	results := make(chan result, racers)
+	for i := 0; i < racers; i++ {
+		go func() {
+			profile, created, err := GetOrCreateProfileFromOAuthUser(s.db, authinfo)
+			r := result{created: created, err: err}
+			if profile != nil {
+				r.id = profile.Id
+			}
+			results <- r
+		}()
+	}
+	createdCount := 0
+	ids := map[string]int{}
+	for i := 0; i < racers; i++ {
+		r := <-results
+		assert.Nil(s.T(), r.err)
+		if r.created {
+			createdCount++
+		}
+		ids[r.id]++
+	}
+	assert.Equal(s.T(), 1, createdCount)
+	assert.Equal(s.T(), 1, len(ids), "all racers must observe the same profile ID")
+}
+
+func (s *TableTestSuite) TestUpdateProfileRejectsReservedId() {
+	profile := &pb.Profile{
+		Uuid: uuid.Must(uuid.NewV4()).String(),
+		Id:   "rename-me",
+		Name: "Rename Me",
+		Type: "user",
+	}
+	assert.Nil(s.T(), UpdateProfile(s.db, profile))
+	profileUUID := uuid.Must(uuid.FromString(profile.Uuid))
+	assert.Nil(s.T(), RenameProfileId(s.db, profileUUID, "renamed-away"))
+
+	// The old ID is reserved by the rename; a different profile cannot take
+	// it, and the error must classify as retryable ID-unavailable.
+	other := &pb.Profile{
+		Uuid: uuid.Must(uuid.NewV4()).String(),
+		Id:   "rename-me",
+		Name: "Other",
+		Type: "user",
+	}
+	assert.ErrorIs(s.T(), UpdateProfile(s.db, other), ErrProfileIdReserved)
+}
