@@ -19,8 +19,10 @@ async function authenticate(context: BrowserContext) {
   ]);
 }
 
-// Plate mark hotkey: Ctrl+B on a selection must produce a <strong> in the
-// published entry, proving the mark survives serialization.
+// Plate mark hotkey: toggling Ctrl+B at the collapsed cursor turns on the
+// pending bold mark, so everything typed after it must publish as <strong>.
+// (Selecting existing text first is unreliable in headless Chromium: neither
+// Control+A nor selectText() reaches the Slate selection there.)
 test('editor publishes bold text via keyboard shortcut', async ({
   context,
   page,
@@ -33,9 +35,8 @@ test('editor publishes bold text via keyboard shortcut', async ({
 
   const text = `E2E bold post ${Date.now()}`;
   await editor.click();
-  await editor.pressSequentially(text);
-  await editor.press('Control+A');
   await editor.press('Control+B');
+  await editor.pressSequentially(text);
   // The mark must exist in the editor before it can survive serialization.
   await expect(editor.locator('strong')).toHaveText(text);
   await page.locator('.sharebox button.submit').click();
