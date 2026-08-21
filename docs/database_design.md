@@ -78,7 +78,10 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 115 | LikeTimeline | `T + actor UUID + reverse Unix ms + entry UUID` | 空 | 用户 Like 排序派生索引 |
 | 116 | CommentTimeline | `T + actor UUID + reverse Unix ms + entry UUID` | 16 B latest comment UUID | 用户 Comment 折叠排序索引 |
 | 117 | CommentTimelinePosition | `T + actor UUID + entry UUID` | reverse ms + latest comment UUID | Comment 排序位置索引 |
-| 118 | FollowRequest | `T + target feed UUID + requester user UUID` | RFC3339 申请时间 | private feed/Group 关注申请（工作流数据，非关系事实） |
+| 118 | FollowRequest | `T + target feed UUID + requester user UUID` | RFC3339 时间字符串；新写为 RFC3339Nano | private feed/Group 关注申请（工作流数据，非关系事实） |
+| 120 | Notification | `T + recipient UUID + notification UUID` | versioned JSON NotificationRecord | recipient-owned canonical 通知 |
+| 121 | NotificationInbox | `T + recipient UUID + ^UnixMillis(activity_at) + notification UUID` | 空 | newest-first 通知排序索引 |
+| 122 | NotificationState | `T + recipient UUID` | versioned JSON：read watermark + counters | O(1) unread/total 状态 |
 | 200 | JobFeed | `T + Flake ID` | job protobuf | queued job |
 | 201 | JobRunning | `T + Flake ID` | job protobuf | claimed job |
 | 202 | JobHistory | `T + target id` | `pb.FeedJob` | 历史记录 |
@@ -101,6 +104,12 @@ follow(A, B)
 Like 使用 `(entry UUID, actor UUID)` 作为 key，因此同一用户重复点赞覆盖同一行；Comment
 使用稳定 comment UUID。读取 Entry 时分别前缀扫描两张表完成 hydration，不逐 actor
 查询 Profile。
+
+Notification 的完整领域契约见 [notifications.md](notifications.md)。Inbox 的 reverse
+Unix ms 与 TimelineIndex/EntryIndex 采用同一排序约定，并以 notification UUID 作为同毫秒
+tiebreak；未读判断使用 canonical record 的 `created_at_ns` 与 State 的
+`last_read_at_ns`，不能把 activity timestamp 当作 read watermark。每个 recipient 正常
+保留 500 条，超过 550 时按最多 100 条的有界后台 trim 收敛。
 
 ## Entry 身份与时间排序
 
