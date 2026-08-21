@@ -166,6 +166,26 @@ func (s *ApiServer) finishNotificationStage(result notificationStageResult) {
 	}()
 }
 
+// scheduleNotificationTrimIfNeeded is used by interaction writes whose
+// notification is staged inside model.PutLike/PutComment. It runs only after
+// those batches have committed and converts State's threshold into the same
+// lifecycle-tracked, singleflight trim used by server-owned notification
+// stages.
+func (s *ApiServer) scheduleNotificationTrimIfNeeded(recipient uuid.UUID) {
+	if recipient == uuid.Nil {
+		return
+	}
+	state, err := model.GetNotificationState(s.rdb, recipient)
+	if err != nil || state.TotalCount <= model.NotificationTrimTrigger {
+		return
+	}
+	s.finishNotificationStage(notificationStageResult{
+		Recipient: recipient,
+		Created:   true,
+		NeedsTrim: true,
+	})
+}
+
 // RecoverNotificationRetention streams NotificationState on startup and
 // schedules bounded trims for recipients left over the cap by a crash between
 // notification commit and background maintenance. It intentionally does not
