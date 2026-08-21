@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
@@ -25,6 +27,12 @@ type notificationSummaryDTO struct {
 	TotalCount  uint32 `json:"total_count"`
 }
 
+type notificationStageResult struct {
+	Recipient uuid.UUID
+	Created   bool
+	NeedsTrim bool
+}
+
 func parseNotificationRecipient(raw string) (uuid.UUID, error) {
 	recipient, err := uuid.FromString(raw)
 	if err != nil || recipient == uuid.Nil {
@@ -38,10 +46,119 @@ func (s *ApiServer) validateNotificationRecipient(recipient uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	if profile.Deleted || profile.Type != "user" {
+	if profile.Type != "user" {
 		return errors.New("notification recipient is not an active user")
 	}
 	return nil
+}
+
+func (s *ApiServer) notificationProfileName(profileID uuid.UUID) string {
+	if profileID == uuid.Nil {
+		return ""
+	}
+	profile, err := model.GetProfileFromUuid(s.rdb, profileID)
+	if err != nil {
+		return ""
+	}
+	return profile.Name
+}
+
+// stageNotification writes one direct recipient notification into the
+// caller's existing domain batch. It never enumerates recipients. The caller
+// invokes finishNotificationStage only after the domain batch successfully
+// commits so retention maintenance cannot race an uncommitted row.
+func (s *ApiServer) stageNotification(batch *pebble.Batch, kind model.NotificationKind, occurrence string,
+	recipient, actor, target, entry, comment uuid.UUID, requestedAt string, activity, createdAt time.Time) (notificationStageResult, error) {
+	result := notificationStageResult{Recipient: recipient}
+	if recipient == uuid.Nil {
+		return result, nil
+	}
+	id, err := model.NotificationID(kind, occurrence, recipient)
+	if err != nil {
+		return result, err
+	}
+	record := model.NotificationRecord{
+		ID:                 id.String(),
+		Kind:               kind,
+		RecipientUUID:      recipient.String(),
+		RequestedAt:        requestedAt,
+		ActivityAtMS:       activity.UTC().UnixMilli(),
+		CreatedAtNS:        createdAt.UTC().UnixNano(),
+		ActorNameSnapshot:  s.notificationProfileName(actor),
+		TargetNameSnapshot: s.notificationProfileName(target),
+	}
+	if actor != uuid.Nil {
+		record.ActorUUID = actor.String()
+	}
+	if target != uuid.Nil {
+		record.TargetUUID = target.String()
+	}
+	if entry != uuid.Nil {
+		record.EntryUUID = entry.String()
+	}
+	if comment != uuid.Nil {
+		record.CommentUUID = comment.String()
+	}
+	created, needsTrim, err := model.StageNotification(s.rdb, batch, record)
+	if err != nil {
+		return result, err
+	}
+	result.Created = created
+	result.NeedsTrim = needsTrim
+	return result, nil
+}
+
+func (s *ApiServer) finishNotificationStage(result notificationStageResult) {
+	if !result.Created || !result.NeedsTrim || result.Recipient == uuid.Nil {
+		return
+	}
+	recipient := result.Recipient
+	go func() {
+		if !s.beginBackgroundJob() {
+			return
+		}
+		defer s.wg.Done()
+		key := "notification-trim:" + recipient.String()
+		_, err, _ := s.timelineMaintenance.Do(key, func() (any, error) {
+			for {
+				_, remaining, err := model.TrimNotifications(s.rdb, recipient, model.NotificationTrimBatch)
+				if err != nil {
+					return nil, err
+				}
+				if !remaining {
+					return nil, nil
+				}
+			}
+		})
+		if err != nil {
+			slog.Error("notification trim failed", "recipient", recipient, "error", err)
+		}
+	}()
+}
+
+// RecoverNotificationRetention streams NotificationState on startup and
+// schedules bounded trims for recipients left over the cap by a crash between
+// notification commit and background maintenance. It intentionally does not
+// collect recipients in memory.
+func (s *ApiServer) RecoverNotificationRetention() error {
+	return model.NotificationState.Iter(s.rdb, func(key, _ []byte) error {
+		suffix := key[len(model.NotificationState.Prefix):]
+		if len(suffix) != uuid.Size {
+			return nil
+		}
+		recipient, err := uuid.FromBytes(suffix)
+		if err != nil {
+			return nil
+		}
+		state, err := model.GetNotificationState(s.rdb, recipient)
+		if err != nil {
+			return err
+		}
+		if state.TotalCount > model.NotificationMaxEntries {
+			s.finishNotificationStage(notificationStageResult{Recipient: recipient, Created: true, NeedsTrim: true})
+		}
+		return nil
+	})
 }
 
 // notificationCommand is the narrow loopback adapter described in
