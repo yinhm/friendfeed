@@ -76,7 +76,7 @@ func TestRequestFollowLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	value, err := db.Get(key)
 	require.NoError(t, err)
-	require.Equal(t, now.UTC().Format(time.RFC3339), string(value))
+	require.Equal(t, now.UTC().Format(time.RFC3339Nano), string(value))
 
 	// Cancel is idempotent too.
 	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
@@ -88,6 +88,35 @@ func TestRequestFollowLifecycle(t *testing.T) {
 	pending, err = IsFollowRequestPending(db, feed, requester)
 	require.NoError(t, err)
 	require.False(t, pending)
+}
+
+func TestRequestFollowReRequestWithinSameSecondGetsNewOccurrence(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	feed := newPrivateUserFeed(t, db, "private-feed")
+	requester := newGroupUser(t, db, "requester")
+	first := time.Date(2026, 8, 21, 10, 0, 0, 100, time.UTC)
+	second := first.Add(200 * time.Nanosecond)
+
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		return StageRequestFollow(db, batch, feed, requester, first)
+	}))
+	firstValue, err := FollowRequestRequestedAt(db, feed, requester)
+	require.NoError(t, err)
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		return StageDeleteFollowRequest(db, batch, feed, requester)
+	}))
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		return StageRequestFollow(db, batch, feed, requester, second)
+	}))
+	secondValue, err := FollowRequestRequestedAt(db, feed, requester)
+	require.NoError(t, err)
+
+	require.NotEqual(t, firstValue, secondValue)
+	require.Equal(t, first.UTC().Format(time.RFC3339Nano), firstValue)
+	require.Equal(t, second.UTC().Format(time.RFC3339Nano), secondValue)
 }
 
 func TestApproveFollowRequestUserFeed(t *testing.T) {
