@@ -93,7 +93,8 @@ func StageRequestFollow(db *store.Store, batch *pebble.Batch, target, requester 
 // private-Group rejection StageJoinGroup enforces on direct joins. It is
 // idempotent for an already-following requester (any stale request is
 // cleaned up); approving with neither a request nor an existing edge fails
-// with ErrFollowRequestNotFound.
+// with ErrFollowRequestNotFound. A public target is never approvable: stale
+// requests against one may be cleaned up, but must not mint a relationship.
 //
 // Callers must also enqueue the requester's home rebuild in the same batch,
 // per docs/group.md's timeline rule.
@@ -104,6 +105,9 @@ func StageApproveFollowRequest(db *store.Store, batch *pebble.Batch, target, req
 	targetProfile, err := GetProfileFromUuid(db, target)
 	if err != nil {
 		return err
+	}
+	if !targetProfile.Private {
+		return ErrFollowTargetNotPrivate
 	}
 	if _, err := getGroupMemberProfile(db, requester); err != nil {
 		return err
