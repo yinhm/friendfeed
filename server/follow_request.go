@@ -96,6 +96,12 @@ func (s *ApiServer) RequestFollow(ctx context.Context, request *pb.RequestFollow
 	requestedAt := now.Format(time.RFC3339Nano)
 
 	if targetProfile.Type == "group" {
+		// EnqueueWith validates the task type immediately. Register the optional
+		// fanout definition here as well as at worker startup so tests, embedded
+		// callers and the startup window never depend on worker ordering.
+		if err := s.ensureNotificationTaskDefinition(); err != nil {
+			return nil, taskRPCError(err)
+		}
 		spec, err := groupFollowRequestNotificationSpec(feed, actor, requestedAt, now, "")
 		if err != nil {
 			return nil, taskRPCError(err)
