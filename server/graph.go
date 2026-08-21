@@ -48,8 +48,16 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 	case "follow":
 		// A private target (user feed or Group) never gets a direct edge:
 		// following it requires approval, so the follow becomes a pending
-		// follow request instead.
+		// follow request instead. An already-approved follower is reported
+		// truthfully rather than as freshly requested.
 		if target != nil && target.Private {
+			following, err := model.IsFollower(s.rdb, feedUUID, profileUUID)
+			if err != nil {
+				return nil, err
+			}
+			if following {
+				return &pb.FollowResponse{Followed: true}, nil
+			}
 			if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 				return model.StageRequestFollow(s.rdb, batch, feedUUID, profileUUID, time.Now())
 			}); err != nil {

@@ -225,3 +225,24 @@ func TestGroupFollowRequestApproval(t *testing.T) {
 	require.True(t, view.HasPendingRequest)
 	require.False(t, view.IsMember)
 }
+
+func TestGraphFollowPrivateApprovedFollowerStaysFollowed(t *testing.T) {
+	srv := newServiceServer(t)
+	owner := createServiceUser(t, srv, "owner")
+	requester := createServiceUser(t, srv, "requester")
+	makeProfilePrivate(t, srv, owner)
+
+	requestFollow(t, srv, requester, owner)
+	require.NoError(t, approveFollow(t, srv, owner, owner, requester))
+
+	// Re-following after approval is idempotent and truthful: Followed, not
+	// a fresh Requested.
+	resp, err := srv.GraphFollow(context.Background(), &pb.FollowRequest{
+		ProfileUuid: requester.String(),
+		FeedUuid:    owner.String(),
+		Action:      "follow",
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Followed)
+	require.False(t, resp.Requested)
+}
