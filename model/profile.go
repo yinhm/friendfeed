@@ -1,6 +1,7 @@
 package model
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 
@@ -13,21 +14,61 @@ import (
 // exists but is marked deleted. Callers should treat it like not-found.
 var ErrProfileDeleted = errors.New("profile deleted")
 
+// ErrProfileIdTaken is returned when a write would map a profile ID to a
+// different profile than the one already holding it in UserMap.
+var ErrProfileIdTaken = errors.New("profile ID is already taken")
+
+// profileIdAlphabet is the character set for generated profile IDs. Together
+// with the literal "ff-" prefix it keeps generated IDs inside the
+// ValidateProfileId charset.
+const profileIdAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+// generatedProfileIdLength is the number of random characters after the
+// "ff-" prefix. 36^8 combinations make collisions vanishingly rare;
+// NewProfileFromOAuthUser still verifies availability before writing.
+const generatedProfileIdLength = 8
+
+// generateProfileId returns a random profile ID of the form "ff-xxxxxxxx"
+// that satisfies ValidateProfileId.
+func generateProfileId() (string, error) {
+	buf := make([]byte, generatedProfileIdLength)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate profile ID: %w", err)
+	}
+	for i, b := range buf {
+		buf[i] = profileIdAlphabet[int(b)%len(profileIdAlphabet)]
+	}
+	return "ff-" + string(buf), nil
+}
+
 func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	// create new profile on oauth
-	profile := &pb.Profile{
-		Uuid:        authinfo.Uuid,
-		Id:          authinfo.Name, // userid may better, but use name anyway
-		Name:        authinfo.NickName,
-		Type:        "user",
-		Private:     false,
-		Picture:     authinfo.AvatarUrl,
-		Description: authinfo.Description,
+	// New profiles get a system-generated ID ("ff-" + random). The provider
+	// display name is kept in Name only: it is not unique and often not a
+	// valid feed slug. Users pick a meaningful ID later through the profile
+	// page rename flow.
+	for attempt := 0; attempt < 10; attempt++ {
+		id, err := generateProfileId()
+		if err != nil {
+			return nil, err
+		}
+		profile := &pb.Profile{
+			Uuid:        authinfo.Uuid,
+			Id:          id,
+			Name:        authinfo.NickName,
+			Type:        "user",
+			Private:     false,
+			Picture:     authinfo.AvatarUrl,
+			Description: authinfo.Description,
+		}
+		if err := UpdateProfile(db, profile); err != nil {
+			if errors.Is(err, ErrProfileIdTaken) {
+				continue
+			}
+			return nil, err
+		}
+		return profile, nil
 	}
-	if err := UpdateProfile(db, profile); err != nil {
-		return nil, err
-	}
-	return profile, nil
+	return nil, errors.New("could not allocate a unique profile ID")
 }
 
 func UpdateProfile(db *store.Store, profile *pb.Profile) error {
@@ -41,8 +82,18 @@ func UpdateProfile(db *store.Store, profile *pb.Profile) error {
 		return fmt.Errorf("check profile ID %q against UserRenameMap: %w", profile.Id, err)
 	}
 
-	// user id(login) to uuid map
+	// user id(login) to uuid map. An ID already mapped to a different profile
+	// must never be silently hijacked: renames clear the old mapping through
+	// RenameProfileId before UpdateProfile runs, so a conflicting mapping here
+	// is always an error.
 	k := NewKeyFrom(TableUserMap.Bytes(), []byte(profile.Id))
+	if existing, err := db.Get(k); err == nil && len(existing) > 0 {
+		if mapped, err := uuid.FromBytes(existing); err != nil || mapped != profileUUID {
+			return fmt.Errorf("%w: %q", ErrProfileIdTaken, profile.Id)
+		}
+	} else if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("read UserMap[%s]: %w", profile.Id, err)
+	}
 	if err := db.Put(k, profileUUID.Bytes()); err != nil {
 		return err
 	}

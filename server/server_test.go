@@ -1648,7 +1648,9 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 	profile, err := s.srv.PutOAuth(ctx, first)
 	assert.Nil(s.T(), err)
 	assert.NotEmpty(s.T(), profile.Uuid)
-	assert.Equal(s.T(), "screenname", profile.Id)
+	// 新 profile 的 ID 一律为系统生成的 "ff-" 随机 slug，provider 用户名
+	// 不再充数（screen_name 仍保留在 service.Username 中）。
+	assert.True(s.T(), strings.HasPrefix(profile.Id, "ff-"), profile.Id)
 	assert.Equal(s.T(), "Screen Name", profile.Name)
 
 	// twitter provider 必须创建 service

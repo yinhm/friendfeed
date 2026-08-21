@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -185,8 +186,8 @@ func TestListFollowRequestsPagination(t *testing.T) {
 
 	feed := newPrivateUserFeed(t, db, "private-feed")
 	requesters := make([]uuid.UUID, 0, 5)
-	for range 5 {
-		requester := newGroupUser(t, db, "requester")
+	for i := range 5 {
+		requester := newGroupUser(t, db, fmt.Sprintf("requester-%d", i))
 		requesters = append(requesters, requester)
 		require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
 			return StageRequestFollow(db, batch, feed, requester, time.Now())
