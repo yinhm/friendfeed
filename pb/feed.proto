@@ -63,10 +63,13 @@ message FeedServiceSeedPayload {
   string service_id = 3;
 }
 
-// HomeRebuildPayload triggers one bounded Home timeline rebuild for viewer,
-// enqueued after Group membership changes per docs/group.md.
+// HomeRebuildPayload maintains one viewer's Home cache after a Follow edge
+// changes. Legacy payloads with only viewer_uuid request a full rebuild.
 message HomeRebuildPayload {
   string viewer_uuid = 1;
+  string feed_uuid = 2;
+  string action = 3; // add or remove
+  uint32 limit = 4;  // add only; currently 100
 }
 
 enum FeedType {

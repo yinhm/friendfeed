@@ -114,3 +114,47 @@ func TestReplaceHomeTimelineClearsStaleAndWritesRows(t *testing.T) {
 	_, err = TimelinePositionTime(db, viewer, stale)
 	require.ErrorIs(t, err, store.ErrNotFound)
 }
+
+func TestMergeAndRemoveHomeFeedAreRelationshipScoped(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	viewer := uuid.Must(uuid.NewV4())
+	feed := uuid.Must(uuid.NewV4())
+	otherFeed := uuid.Must(uuid.NewV4())
+	now := time.Now().UTC().Truncate(time.Second)
+	for i := 0; i < 105; i++ {
+		entry := uuid.Must(uuid.NewV4())
+		_, err := PutEntry(db, &pb.Entry{
+			Id: entry.String(), ProfileUuid: feed.String(), FeedUuid: feed.String(),
+			Date: now.Add(-time.Duration(i) * time.Second).Format(time.RFC3339),
+		})
+		require.NoError(t, err)
+	}
+	unrelated := uuid.Must(uuid.NewV4())
+	_, err = Entry.Put(db, unrelated.Bytes(), &pb.Entry{
+		Id: unrelated.String(), ProfileUuid: otherFeed.String(), FeedUuid: otherFeed.String(),
+		Date: now.Format(time.RFC3339),
+	})
+	require.NoError(t, err)
+	_, err = MoveTimelineEntry(db, viewer, unrelated, now, nil)
+	require.NoError(t, err)
+
+	added, skipped, err := MergeHomeFeed(db, viewer, feed, 100, TimelineRetentionMax, now)
+	require.NoError(t, err)
+	require.Equal(t, 100, added)
+	require.Zero(t, skipped)
+	rows, err := db.ForwardScan(TimelineIndexPrefix(viewer), func(int, []byte, []byte) error { return nil })
+	require.NoError(t, err)
+	require.Equal(t, 101, rows)
+
+	removed, err := RemoveHomeFeed(db, viewer, feed)
+	require.NoError(t, err)
+	require.Equal(t, 100, removed)
+	rows, err = db.ForwardScan(TimelineIndexPrefix(viewer), func(int, []byte, []byte) error { return nil })
+	require.NoError(t, err)
+	require.Equal(t, 1, rows, "unrelated Home rows must be preserved")
+	_, err = TimelinePositionTime(db, viewer, unrelated)
+	require.NoError(t, err)
+}

@@ -121,6 +121,99 @@ func BuildHomeTimeline(db *store.Store, feeds []uuid.UUID, maxRows int, retentio
 	return rows, skipped, err
 }
 
+// MergeHomeFeed adds at most maxRows recent entries from one newly-followed
+// feed to viewer's existing Home cache. It never rebuilds unrelated feeds.
+func MergeHomeFeed(db *store.Store, viewer, feed uuid.UUID, maxRows int, retention time.Duration, now time.Time) (added, skipped int, err error) {
+	if viewer == uuid.Nil || feed == uuid.Nil {
+		return 0, 0, errors.New("timeline viewer and feed UUID are required")
+	}
+	rows, skipped, err := BuildHomeTimeline(db, []uuid.UUID{feed}, maxRows, retention, now)
+	if err != nil {
+		return 0, skipped, err
+	}
+	for entry, activity := range rows {
+		moved, err := MoveTimelineEntry(db, viewer, entry, activity, nil)
+		if err != nil {
+			return added, skipped, err
+		}
+		if moved {
+			added++
+		}
+	}
+	if _, err := TrimHomeTimeline(db, viewer, TimelineMaxEntries, retention, now); err != nil {
+		return added, skipped, err
+	}
+	return added, skipped, nil
+}
+
+// RemoveHomeFeed deletes only rows in viewer's bounded Home cache whose
+// canonical Entry belongs to feed. Missing Entries are stale cache rows and
+// are removed at the same time. Memory stays bounded by timelineWriteBatchSize.
+func RemoveHomeFeed(db *store.Store, viewer, feed uuid.UUID) (int, error) {
+	if viewer == uuid.Nil || feed == uuid.Nil {
+		return 0, errors.New("timeline viewer and feed UUID are required")
+	}
+	type row struct {
+		entry    uuid.UUID
+		activity time.Time
+	}
+	deletes := make([]row, 0, timelineWriteBatchSize)
+	removed := 0
+	flush := func() error {
+		if len(deletes) == 0 {
+			return nil
+		}
+		if err := db.ApplyBatch(func(batch *pebble.Batch) error {
+			for _, item := range deletes {
+				if err := DeleteTimelinePositionBatch(batch, viewer, item.entry, item.activity); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		deletes = deletes[:0]
+		return nil
+	}
+	_, err := db.ForwardScan(TimelineIndexPrefix(viewer), func(_ int, key, _ []byte) error {
+		_, entryID, activity, err := ParseTimelineIndexKey(key)
+		if err != nil {
+			return err
+		}
+		entry := new(pb.Entry)
+		err = Entry.Get(db, entryID.Bytes(), entry)
+		remove := errors.Is(err, ErrNotFound)
+		if err != nil && !remove {
+			return err
+		}
+		if !remove {
+			entryFeed := entry.FeedUuid
+			if entryFeed == "" {
+				entryFeed = entry.ProfileUuid
+			}
+			entryFeedUUID, parseErr := uuid.FromString(entryFeed)
+			if parseErr != nil {
+				return fmt.Errorf("entry %s feed UUID: %w", entry.Id, parseErr)
+			}
+			remove = entryFeedUUID == feed
+		}
+		if !remove {
+			return nil
+		}
+		deletes = append(deletes, row{entry: entryID, activity: activity})
+		removed++
+		if len(deletes) == timelineWriteBatchSize {
+			return flush()
+		}
+		return nil
+	})
+	if err != nil {
+		return removed, err
+	}
+	return removed, flush()
+}
+
 func loadHomeTimelineActivities(db *store.Store, rows map[uuid.UUID]time.Time, now time.Time) (int, error) {
 	ids := make([]uuid.UUID, 0, len(rows))
 	for id := range rows {

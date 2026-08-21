@@ -90,6 +90,12 @@ atomic bump(viewer, entry, newActivity)
 该 Entry，则直接插入。源 Entry/Like/Comment 先提交；无上限 follower fanout 位于源 mutation
 batch 外，失败必须返回，并由 audit/rebuild 修复派生状态。
 
+Follow 关系变化不触发全量 Home rebuild。公开 user Follow 和 Group Join 只从新增 Feed 的 direct
+EntryIndex 选取最新至多 100 条，恢复其当前 activity 后增量写入，再 trim 到 Home 全局上限；
+Unfollow/Leave/RemoveMember 只删除现有 bounded Home 中属于该 Feed 的行。关系写入与维护 task
+同批提交，task 执行时必须重新核对当前 Follow 边，避免快速反向操作被旧 task 覆盖。完整
+`rebuild_timeline` 只用于迁移、显式修复和冷缓存重建，不进入普通 Follow 请求路径。
+
 ## Bump 规则
 
 ```text

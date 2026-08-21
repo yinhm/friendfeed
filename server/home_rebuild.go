@@ -14,10 +14,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// homeRebuildTaskType rebuilds one viewer's bounded Home timeline from the
-// current Follow edges. docs/group.md requires Join/Leave/RemoveMember to
-// enqueue this idempotent task instead of only changing future fanout.
+// homeRebuildTaskType is retained for persisted task compatibility. New
+// payloads incrementally add/remove one Follow feed; viewer-only legacy
+// payloads rebuild the bounded Home from all current edges.
 const homeRebuildTaskType = "home.rebuild"
+
+const (
+	homeFeedActionAdd    = "add"
+	homeFeedActionRemove = "remove"
+	homeFeedAddLimit     = 100
+)
 
 func homeRebuildTaskDefinition(handler taskqueue.Handler) taskqueue.Definition {
 	return taskqueue.Definition{
@@ -33,6 +39,27 @@ func homeRebuildTaskDefinition(handler taskqueue.Handler) taskqueue.Definition {
 			if err != nil || viewer == uuid.Nil {
 				return errors.New("valid viewer_uuid is required")
 			}
+			// viewer-only payloads were emitted before relationship maintenance
+			// became incremental; keep consuming them as one full rebuild.
+			if message.FeedUuid == "" && message.Action == "" && message.Limit == 0 {
+				return nil
+			}
+			feed, err := uuid.FromString(message.FeedUuid)
+			if err != nil || feed == uuid.Nil {
+				return errors.New("valid feed_uuid is required")
+			}
+			switch message.Action {
+			case homeFeedActionAdd:
+				if message.Limit == 0 || message.Limit > homeFeedAddLimit {
+					return fmt.Errorf("add limit must be between 1 and %d", homeFeedAddLimit)
+				}
+			case homeFeedActionRemove:
+				if message.Limit != 0 {
+					return errors.New("remove limit must be zero")
+				}
+			default:
+				return errors.New("action must be add or remove")
+			}
 			return nil
 		},
 		MaxAttempts: 3, LeaseDuration: 2 * time.Minute, MaxLease: 30 * time.Minute,
@@ -40,12 +67,19 @@ func homeRebuildTaskDefinition(handler taskqueue.Handler) taskqueue.Definition {
 	}
 }
 
-// homeRebuildSpec builds the enqueue spec for viewer. No idempotency key:
-// membership changes are rare, the handler converges from current Follow
-// edges regardless, and the queue rejects reusing a completed task's key, so
-// collapsing rapid changes would risk rejecting a legitimate rebuild.
-func homeRebuildSpec(viewer uuid.UUID) (taskqueue.Spec, error) {
-	payload, err := proto.Marshal(&pb.HomeRebuildPayload{ViewerUuid: viewer.String()})
+// newHomeFeedTask builds one relationship-maintenance task. No idempotency
+// key: each task rechecks the current edge, so rapid opposite changes converge
+// without collapsing a legitimate transition.
+func newHomeFeedTask(viewer, feed uuid.UUID, action string) (taskqueue.Spec, error) {
+	message := &pb.HomeRebuildPayload{
+		ViewerUuid: viewer.String(),
+		FeedUuid:   feed.String(),
+		Action:     action,
+	}
+	if action == homeFeedActionAdd {
+		message.Limit = homeFeedAddLimit
+	}
+	payload, err := proto.Marshal(message)
 	if err != nil {
 		return taskqueue.Spec{}, err
 	}
@@ -54,9 +88,8 @@ func homeRebuildSpec(viewer uuid.UUID) (taskqueue.Spec, error) {
 	}, nil
 }
 
-// handleHomeRebuildTask rebuilds the viewer's Home unconditionally. The task
-// is idempotent: rebuilds derive solely from the current Follow edges and
-// bounded Home rules, so retries and collapsed duplicates converge.
+// handleHomeRebuildTask incrementally maintains one relationship. Legacy
+// viewer-only payloads still perform a full rebuild once.
 func (s *ApiServer) handleHomeRebuildTask(ctx context.Context, task *pb.Task) error {
 	payload := new(pb.HomeRebuildPayload)
 	if err := proto.Unmarshal(task.Payload, payload); err != nil {
@@ -69,7 +102,43 @@ func (s *ApiServer) handleHomeRebuildTask(ctx context.Context, task *pb.Task) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.rebuildHomeTimelineNow(viewer, s.rssNow().UTC())
+	if payload.FeedUuid == "" {
+		return s.rebuildHomeTimelineNow(viewer, s.rssNow().UTC())
+	}
+	feed, err := uuid.FromString(payload.FeedUuid)
+	if err != nil || feed == uuid.Nil {
+		return errors.New("valid feed_uuid is required")
+	}
+	following, err := model.IsFollower(s.rdb, feed, viewer)
+	if err != nil {
+		return err
+	}
+	switch payload.Action {
+	case homeFeedActionAdd:
+		if !following {
+			return nil
+		}
+		now := s.rssNow().UTC()
+		added, skipped, err := model.MergeHomeFeed(s.rdb, viewer, feed, int(payload.Limit), model.TimelineRetentionMax, now)
+		if err == nil {
+			err = model.TouchTimelineState(s.rdb, viewer, now)
+		}
+		if err == nil {
+			slog.Info("merged followed feed into home timeline", "viewer", viewer, "feed", feed, "entries", added, "skipped_dates", skipped)
+		}
+		return err
+	case homeFeedActionRemove:
+		if following {
+			return nil
+		}
+		removed, err := model.RemoveHomeFeed(s.rdb, viewer, feed)
+		if err == nil {
+			slog.Info("removed unfollowed feed from home timeline", "viewer", viewer, "feed", feed, "entries", removed)
+		}
+		return err
+	default:
+		return errors.New("action must be add or remove")
+	}
 }
 
 // rebuildHomeTimelineNow rebuilds viewer's bounded Home from the current

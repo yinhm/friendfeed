@@ -17,7 +17,8 @@ Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。Serv
   不能反向取代主记录。
 - 旧 `EnqueJob`、`GetFeedJob`、`FinishJob` 和表 200-202 按兼容契约保留并标记
   deprecated；新系统统一使用 Task 命名，不复用 FeedJob 符号。
-- timeline rebuild 已有 singleflight、并发上限和派生缓存收敛，不接 Task 队列。
+- Home 的访问时 stale/cold maintenance 继续使用进程内 singleflight 与并发上限；只有需要与
+  Follow 边原子提交的单 Feed add/remove 关系维护进入 Task 队列。
 - `mirrorMedia` 仍是 `ArchiveFeed` 的同步契约；本设计不顺带异步化。
 
 通用队列的成立前提是 RSS 之后确有外部 worker（例如 Python crawler）。若最终只有
@@ -315,15 +316,21 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
   host 锁粒度或开放第二个 worker 进程前，必须先引入按 Service UUID 的持久化 lease/CAS，
   不能把内存 mutex 当作数据层并发契约。
 
-## Home rebuild task
+## Home 关系增量任务
 
-- `home.rebuild` 由 Group 成员变化触发（docs/group.md Timeline）：JoinGroup、LeaveGroup、
-  RemoveGroupMember 及 GraphFollow 的 group 分支把成员边写入与 task 入队放在同一 Pebble
-  batch（EnqueueWith），成功即必有重建任务，不再需要第二套后台失效机制。
-- handler 无条件按当前 Follow 边执行 `BuildHomeTimeline`/`ReplaceHomeTimeline` 并刷新
-  TimelineState；不带 idempotency key——成员变化稀少，handler 幂等收敛，而 Queue 会拒绝
-  复用已完成 task 的 key，窗口折叠反而会吞掉合法的快速连续变化。
-- 失败按定义重试（3 次、分钟级退避）；重建天然有界（TimelineMaxEntries/retention）。
+- `home.rebuild` 保留既有 task type 名称与 legacy payload 兼容，但新关系变化一律携带
+  `viewer_uuid + feed_uuid + action(add/remove) + limit`，不再重建整个 10,000 条 Home。
+- 公开 user Follow/Unfollow，以及 Group Join/Leave/RemoveMember，都用 `EnqueueWith` 将
+  Follow/Follower 边变化和 task 入队放进同一个 Pebble batch；成功即必有对应维护任务。
+- `add` 只从目标 Feed 的 direct EntryIndex 读取最新至多 100 条，重放这些候选的现存
+  Like/Comment activity 后 merge 进 Home，再按全局 10,000 条上限 trim。历史数据再多也不能扩大
+  单次补入规模。
+- `remove` 只从该 viewer 已有的 bounded Home 中删除属于目标 Feed 的行，不读取或重建其他
+  Follow Feed。读取 Entry 判断归属，扫描上限由 Home 10,000 条硬上限保证。
+- handler 每次执行前重新读取当前 Follow 边：`add` 发现关系已经删除、`remove` 发现关系已经恢复时
+  直接 no-op。这样快速 Follow→Unfollow 或任务重试不会用旧 task 覆盖新关系。
+- 不带 idempotency key；handler 幂等收敛。失败按定义重试（3 次、分钟级退避）。仅升级前已经入队、
+  只有 `viewer_uuid` 的 legacy payload 执行一次原有 full rebuild。
 
 ## Reaper、关停与重启
 

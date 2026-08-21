@@ -94,7 +94,8 @@ Unfollow Group = Leave Group
 - 不允许撤销或删除最后一个 admin；
 - admin 可以移除普通成员；要移除另一 admin，必须先完成合法降级；
 - Follow 和 Follower 必须原子维护，失败时不得留下单边关系；
-- Join/Leave 成功后必须使该用户的 Home timeline 异步重建或失效，不能只改变未来 fanout。
+- Join/Leave 成功后必须异步增量维护该用户的 Home，不能只改变未来 fanout，也不能为单个
+  Group 关系变化重建全部 Home。
 
 用户账号注销（Profile soft delete）视同退出其所有 Group，因此受同一约束：当用户
 仍是任一未删除 Group 的唯一 admin 时，注销必须被拒绝，并列出这些 Group；用户须
@@ -158,12 +159,13 @@ FeedService 导入的 Entry 是明确例外：它属于目标 Group，可以使�
 Group 使用普通 direct EntryIndex。新 Group Entry 只向当时的成员 fanout，并沿用现有有效
 TimelineState、有界 Home 和失败返回规则。
 
-成员关系变化还必须处理存量缓存。异步重建复用现有 task queue（表 203-207）：Join/Leave
-成功后入队幂等的 home rebuild task，由 `model.BuildHomeTimeline`/`ReplaceHomeTimeline`
-完成有界重建，不新建第二套后台机制。
+成员关系变化还必须处理存量缓存。异步增量维护复用现有 task queue（表 203-207），不新建第二套
+后台机制，也不为一次成员变化重建整个 10,000 条 Home。
 
-- Join 后异步重建该用户的 bounded Home，使 Group 的近期内容可见；
-- Leave 或被移除后异步重建，移除该 Group 的 Home 行；
+- Join 后只合并该 Group 最新至多 100 条 Entry，并按现有 activity 规则恢复排序；
+- Leave 或被移除后只扫描该用户的 bounded Home，移除属于该 Group 的行；
+- membership 边变化和增量 task 必须由 `EnqueueWith` 同批提交；task 执行时重新核对当前关系，
+  快速 Join/Leave 不得被过期 task 反向覆盖；
 - private Group 的 stale timeline 行即使暂未清理，读路径也必须重新校验可见性；
 - 所有成员和 timeline 扫描必须流式、有界，不得把大型 Group 的成员或历史 Entry 全量装入
   内存。
@@ -234,10 +236,10 @@ following，不得为此把全量订阅塞回 Graph 响应。
   user feed 同样仅 owner/follower/super 可读（user feed 的 owner 即 feed 本人）。
 - ✅ private 审批流已落地（user feed 与 Group 统一为 Follow Request）：`TableFollowRequest`
   只存 pending 工作流数据；GraphFollow 对 private target 自动转为申请；批准后同一 batch
-  写入 Follow/Follower 边并入队 home.rebuild。批准人规则唯一：user feed → owner 本人，
+  写入 Follow/Follower 边并入队单 Feed Home add task。批准人规则唯一：user feed → owner 本人，
   Group → 任一 admin。直接 Join private Group 仍被拒绝（`StageJoinGroup`）。
-- ✅ Join/Leave/RemoveMember 在同一 batch 入队幂等 `home.rebuild` task，按当前 Follow
-  边有界重建 Home（docs/task_queue.md）。
+- ✅ Join/Leave/RemoveMember 在同一 batch 入队 `home.rebuild` 兼容 task type 的单 Feed
+  add/remove payload，按当前 Follow 边增量收敛（docs/task_queue.md）。
 - ✅ `ListUserGroups`（docs/group_navigation.md 契约）与 `GetGroup`/`ListGroupMembers`
   读取 API 已落地。
 - ✅ Group admin 的 Entry/Comment moderation 已落地（delete-only，admin 不可编辑
@@ -264,7 +266,7 @@ following，不得为此把全量订阅塞回 Graph 响应。
 3. 将 Group Join/Leave、admin 升降级和成员移除收口到同一领域层；
 4. 将投稿、metadata、FeedService 和审核授权统一下沉到 ffdb；
 5. 修复 private visibility，或在审批流程完成前拒绝创建 private Group；
-6. 接入 Join/Leave 后的异步 Home rebuild；
+6. 接入 Join/Leave 后的异步单 Feed Home add/remove；
 7. 最后实现 Group 创建、成员、admin 和 Service 管理 UI（sidebar 导航与创建页规范
    见 `docs/group_navigation.md`，主题体系见 `docs/theme.md`）；
 8. 增加 audit，检查 admin 非成员、无 admin Group、单边 membership 和 deleted Group 残留。

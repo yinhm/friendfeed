@@ -59,8 +59,7 @@ func parseGroupMembershipRequestIDs(actorRaw, groupRaw, targetRaw string) (actor
 
 // JoinGroup lets actor join group on their own behalf. actor_uuid and
 // target_uuid must match: joining is always self-service. The membership
-// edges and the Home rebuild task commit in one Pebble batch, so a
-// successful join always triggers the docs/group.md timeline rebuild.
+// edges and the single-Feed Home add task commit in one Pebble batch.
 func (s *ApiServer) JoinGroup(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -72,7 +71,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, request *pb.GroupMembershipRe
 	if actor != target {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("JoinGroup is self-service; actor_uuid must equal target_uuid")))
 	}
-	spec, err := homeRebuildSpec(target)
+	spec, err := newHomeFeedTask(target, group, homeFeedActionAdd)
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
@@ -86,7 +85,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, request *pb.GroupMembershipRe
 
 // LeaveGroup lets actor leave group on their own behalf. Rejected if actor
 // currently holds the admin role; they must be demoted first. The membership
-// removal and the Home rebuild task commit in one Pebble batch.
+// removal and the single-Feed Home remove task commit in one Pebble batch.
 func (s *ApiServer) LeaveGroup(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -98,7 +97,7 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, request *pb.GroupMembershipR
 	if actor != target {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("LeaveGroup is self-service; actor_uuid must equal target_uuid")))
 	}
-	spec, err := homeRebuildSpec(target)
+	spec, err := newHomeFeedTask(target, group, homeFeedActionRemove)
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
@@ -186,7 +185,7 @@ func (s *ApiServer) RemoveGroupAdmin(ctx context.Context, request *pb.GroupMembe
 
 // RemoveGroupMember removes target's membership in group. actor must already
 // be an admin or super. Rejected if target currently holds the admin role;
-// they must be demoted first. The removal, removed member's Home rebuild task,
+// they must be demoted first. The removal, removed member's Home remove task,
 // and GROUP_MEMBER_REMOVED notification commit in one Pebble batch, but only
 // when the target was actually a member.
 func (s *ApiServer) RemoveGroupMember(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
@@ -197,7 +196,7 @@ func (s *ApiServer) RemoveGroupMember(ctx context.Context, request *pb.GroupMemb
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
-	spec, err := homeRebuildSpec(target)
+	spec, err := newHomeFeedTask(target, group, homeFeedActionRemove)
 	if err != nil {
 		return nil, taskRPCError(err)
 	}

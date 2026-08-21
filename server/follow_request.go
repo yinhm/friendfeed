@@ -167,7 +167,7 @@ func (s *ApiServer) CancelFollowRequest(ctx context.Context, request *pb.Request
 
 // ApproveFollowRequest converts target's pending request into the actual
 // Follow edges. actor must be the feed owner (user feed) or a Group
-// admin/super. The edges, Home rebuild task and approval notification commit
+// admin/super. The edges, single-Feed Home add task and approval notification commit
 // in the same Pebble batch. An already-following idempotent approve with no
 // pending occurrence does not fabricate a notification.
 func (s *ApiServer) ApproveFollowRequest(ctx context.Context, action *pb.FollowRequestAction) (*emptypb.Empty, error) {
@@ -185,7 +185,7 @@ func (s *ApiServer) ApproveFollowRequest(ctx context.Context, action *pb.FollowR
 	s.profileUpdateMu.Lock()
 	defer s.profileUpdateMu.Unlock()
 
-	spec, err := homeRebuildSpec(target)
+	spec, err := newHomeFeedTask(target, feed, homeFeedActionAdd)
 	if err != nil {
 		return nil, taskRPCError(err)
 	}

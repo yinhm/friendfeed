@@ -74,9 +74,9 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			return &pb.FollowResponse{Followed: false, Requested: true}, nil
 		}
 		if isGroup {
-			// Group membership and the Home rebuild task commit in one
+			// Group membership and the single-Feed Home add task commit in one
 			// batch, per docs/group.md's timeline rule.
-			spec, err := homeRebuildSpec(profileUUID)
+			spec, err := newHomeFeedTask(profileUUID, feedUUID, homeFeedActionAdd)
 			if err != nil {
 				return nil, err
 			}
@@ -89,7 +89,11 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			break
 		}
 		followerkey := model.NewKeyFrom(model.Follower.Prefix, feedUUID.Bytes(), profileUUID.Bytes())
-		err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		spec, err := newHomeFeedTask(profileUUID, feedUUID, homeFeedActionAdd)
+		if err != nil {
+			return nil, err
+		}
+		_, err = s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
 			if err := batch.Set(followkey, []byte("1"), nil); err != nil {
 				return fmt.Errorf("write follow edge: %w", err)
 			}
@@ -106,7 +110,7 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		followed = true
 	case "unfollow":
 		if isGroup {
-			spec, err := homeRebuildSpec(profileUUID)
+			spec, err := newHomeFeedTask(profileUUID, feedUUID, homeFeedActionRemove)
 			if err != nil {
 				return nil, err
 			}
@@ -119,7 +123,11 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			break
 		}
 		followerkey := model.NewKeyFrom(model.Follower.Prefix, feedUUID.Bytes(), profileUUID.Bytes())
-		err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		spec, err := newHomeFeedTask(profileUUID, feedUUID, homeFeedActionRemove)
+		if err != nil {
+			return nil, err
+		}
+		_, err = s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
 			if err := batch.Delete(followkey, nil); err != nil {
 				return fmt.Errorf("delete follow edge: %w", err)
 			}
