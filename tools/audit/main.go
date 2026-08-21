@@ -405,6 +405,11 @@ func auditOrphanedFollowRequests(ctx context.Context, db *store.Store) []string 
 			}
 		} else if targetProfile.Deleted {
 			report("follow request against deleted feed %s (%s)", targetProfile.Uuid, targetProfile.Name)
+		} else if !targetProfile.Private {
+			// Requests only apply while the target is private; a public
+			// target with a pending request missed the cancel-on-flip and
+			// the follow/unfollow self-healing.
+			report("follow request against public feed %s (%s)", targetProfile.Uuid, targetProfile.Name)
 		}
 
 		requesterProfile, err := getRawProfile(db, requester)
@@ -414,6 +419,8 @@ func auditOrphanedFollowRequests(ctx context.Context, db *store.Store) []string 
 			}
 		} else if requesterProfile.Deleted {
 			report("follow request from deleted user %s (%s)", requesterProfile.Uuid, requesterProfile.Name)
+		} else if following, ferr := model.IsFollower(db, target, requester); ferr == nil && following {
+			report("follow request from existing follower %s on feed %s", requester, target)
 		}
 		return nil
 	})

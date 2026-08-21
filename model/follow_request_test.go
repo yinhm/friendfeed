@@ -167,7 +167,7 @@ func TestRequestFollowSkippedForExistingFollower(t *testing.T) {
 	feed := newPrivateUserFeed(t, db, "private-feed")
 	requester := newGroupUser(t, db, "requester")
 	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
-		return stageFollowEdges(batch, feed, requester)
+		return stageFollowEdges(db, batch, feed, requester)
 	}))
 
 	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {

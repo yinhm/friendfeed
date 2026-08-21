@@ -128,7 +128,7 @@ func StageApproveFollowRequest(db *store.Store, batch *pebble.Batch, target, req
 	if targetProfile.Type == "group" {
 		return stageGroupJoinEdges(db, batch, target, requester)
 	}
-	return stageFollowEdges(batch, target, requester)
+	return stageFollowEdges(db, batch, target, requester)
 }
 
 // StageDeleteFollowRequest removes a pending request. It backs both the
@@ -146,15 +146,17 @@ func StageDeleteFollowRequest(db *store.Store, batch *pebble.Batch, target, requ
 
 // stageFollowEdges writes the plain Follow/Follower pair of a user-feed
 // subscription. Group targets need stageGroupJoinEdges instead, which also
-// maintains the activity index.
-func stageFollowEdges(batch *pebble.Batch, feed, user uuid.UUID) error {
+// maintains the activity index. Any stale follow request for the pair is
+// cleared in the same batch: an established or explicitly removed
+// relationship must never let an old request resurface later.
+func stageFollowEdges(db *store.Store, batch *pebble.Batch, feed, user uuid.UUID) error {
 	if err := batch.Set(NewKeyFrom(Follow.Prefix, user.Bytes(), feed.Bytes()), []byte("1"), nil); err != nil {
 		return fmt.Errorf("stage Follow: %w", err)
 	}
 	if err := batch.Set(NewKeyFrom(Follower.Prefix, feed.Bytes(), user.Bytes()), []byte("1"), nil); err != nil {
 		return fmt.Errorf("stage Follower: %w", err)
 	}
-	return nil
+	return StageDeleteFollowRequest(db, batch, feed, user)
 }
 
 // FollowRequestEntry is one pending request returned by ListFollowRequests.

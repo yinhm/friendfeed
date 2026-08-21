@@ -88,7 +88,9 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			if err := batch.Set(followerkey, []byte("1"), nil); err != nil {
 				return fmt.Errorf("write follower edge: %w", err)
 			}
-			return nil
+			// Self-healing: a direct follow retires any stale request for
+			// the pair, so it cannot resurface on a later privacy flip.
+			return model.StageDeleteFollowRequest(s.rdb, batch, feedUUID, profileUUID)
 		})
 		if err != nil {
 			return nil, err
@@ -116,7 +118,9 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			if err := batch.Delete(followerkey, nil); err != nil {
 				return fmt.Errorf("delete follower edge: %w", err)
 			}
-			return nil
+			// An explicit unfollow retires any stale request too: the user
+			// has made their intent clear.
+			return model.StageDeleteFollowRequest(s.rdb, batch, feedUUID, profileUUID)
 		})
 		if err != nil {
 			return nil, err

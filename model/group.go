@@ -340,7 +340,12 @@ func stageGroupJoinEdges(db *store.Store, batch *pebble.Batch, group, user uuid.
 	if err := batch.Set(followerKey, []byte("1"), nil); err != nil {
 		return fmt.Errorf("stage Follower: %w", err)
 	}
-	return StageAdjustGroupActivity(db, batch, user, group, activityScore)
+	if err := StageAdjustGroupActivity(db, batch, user, group, activityScore); err != nil {
+		return err
+	}
+	// Same self-healing rule as stageFollowEdges: membership must not let a
+	// stale follow request resurface later.
+	return StageDeleteFollowRequest(db, batch, group, user)
 }
 
 // JoinGroup opens an atomic batch and applies StageJoinGroup.

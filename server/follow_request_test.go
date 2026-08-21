@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
@@ -245,4 +246,60 @@ func TestGraphFollowPrivateApprovedFollowerStaysFollowed(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, resp.Followed)
 	require.False(t, resp.Requested)
+}
+
+func TestPrivateToPublicCancelsPendingRequests(t *testing.T) {
+	srv := newServiceServer(t)
+	owner := createServiceUser(t, srv, "owner")
+	requester := createServiceUser(t, srv, "requester")
+	makeProfilePrivate(t, srv, owner)
+	requestFollow(t, srv, requester, owner)
+
+	// The owner flips the feed back to public through the profile update path.
+	_, err := srv.PostFeedinfo(context.Background(), &pb.Feedinfo{
+		Uuid: owner.String(), Id: "owner", Name: "owner", Type: "user", Private: false,
+	})
+	require.NoError(t, err)
+
+	pending, err := model.IsFollowRequestPending(srv.rdb, owner, requester)
+	require.NoError(t, err)
+	require.False(t, pending, "going public must cancel pending requests")
+}
+
+func TestFollowAndUnfollowClearStaleRequest(t *testing.T) {
+	srv := newServiceServer(t)
+	owner := createServiceUser(t, srv, "owner")
+	requester := createServiceUser(t, srv, "requester")
+	makeProfilePrivate(t, srv, owner)
+	requestFollow(t, srv, requester, owner)
+
+	// Flip to public directly in the model, bypassing the PostFeedinfo
+	// cleanup, so a stale request survives — the resurrection scenario.
+	profile, err := model.GetProfileFromUuid(srv.rdb, owner)
+	require.NoError(t, err)
+	profile.Private = false
+	_, err = model.Profile.Put(srv.rdb, owner.Bytes(), profile)
+	require.NoError(t, err)
+
+	// A direct public follow retires the stale request.
+	_, err = srv.GraphFollow(context.Background(), &pb.FollowRequest{
+		ProfileUuid: requester.String(), FeedUuid: owner.String(), Action: "follow",
+	})
+	require.NoError(t, err)
+	pending, err := model.IsFollowRequestPending(srv.rdb, owner, requester)
+	require.NoError(t, err)
+	require.False(t, pending, "direct follow must clear the stale request")
+
+	// Recreate a stale request row directly (the stage function would
+	// rightfully refuse it now) and verify unfollow clears it too.
+	staleKey, err := model.FollowRequestKey(owner, requester)
+	require.NoError(t, err)
+	require.NoError(t, srv.rdb.Put(staleKey, []byte(time.Now().UTC().Format(time.RFC3339))))
+	_, err = srv.GraphFollow(context.Background(), &pb.FollowRequest{
+		ProfileUuid: requester.String(), FeedUuid: owner.String(), Action: "unfollow",
+	})
+	require.NoError(t, err)
+	pending, err = model.IsFollowRequestPending(srv.rdb, owner, requester)
+	require.NoError(t, err)
+	require.False(t, pending, "unfollow must clear the stale request")
 }

@@ -260,11 +260,23 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		}
 		currentProfile.Name = profile.Name
 		currentProfile.Type = profile.Type
+		wasPrivate := currentProfile.Private
 		currentProfile.Private = profile.Private
 		currentProfile.Picture = profile.Picture
 		currentProfile.Description = profile.Description
 		if err := model.UpdateProfile(s.mdb, currentProfile); err != nil {
 			return nil, err
+		}
+		if wasPrivate && !currentProfile.Private {
+			// Requests only apply while the feed is private: going public
+			// cancels every pending request rather than letting it resurface
+			// on a later flip. Not atomic with the profile write; the
+			// follow/unfollow self-healing and the audit are the backstop.
+			if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+				return model.StageDeleteFollowRequestsByTarget(s.rdb, batch, profileUUID)
+			}); err != nil {
+				return nil, err
+			}
 		}
 		profile = currentProfile
 	} else {
