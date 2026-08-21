@@ -30,6 +30,17 @@ describe('validateProfileId', () => {
 });
 
 describe('ProfileForm', () => {
+  it('shows the onboarding banner only when welcome is set', () => {
+    const generated = { ...profile, id: 'ff-x7k2p9qm' };
+    const { unmount } = render(<ProfileForm profile={generated} welcome={true} />);
+    expect(screen.getByRole('note')).toHaveTextContent('ff-x7k2p9qm');
+    expect(screen.getByRole('note')).toHaveTextContent('Pick your own Profile ID');
+    unmount();
+
+    render(<ProfileForm profile={generated} />);
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
   it('renders the current profile values', () => {
     render(<ProfileForm profile={profile} />);
     expect(screen.getByLabelText(/Profile ID/)).toHaveValue('oldname');

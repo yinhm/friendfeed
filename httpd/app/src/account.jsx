@@ -42,7 +42,8 @@ export function tabFromPath(pathname) {
  * of letting a remount resurrect the server-injected snapshot.
  *
  * @param {{initialTab: AccountTab, profile: ProfileData,
- * services: Record<string, ServiceData>, states?: AccountData['states'], target?: string}} props
+ * services: Record<string, ServiceData>, states?: AccountData['states'], target?: string,
+ * welcome?: boolean}} props
  */
 export function AccountApp(props) {
   const {initialTab} = props;
@@ -92,7 +93,7 @@ export function AccountApp(props) {
         {tabLink('import', 'Import Services')}
       </nav>
       {tab === 'profile'
-        ? <ProfileForm profile={profile} onSaved={setProfile} />
+        ? <ProfileForm profile={profile} welcome={props.welcome} onSaved={setProfile} />
         : <ImportPanel services={services} states={props.states} target={props.target}
             onServicesChange={setServices} />}
     </div>
@@ -103,6 +104,8 @@ export function AccountPage() {
   const data = /** @type {Window & {accountData: AccountData}} */ (
     /** @type {unknown} */ (window)
   ).accountData;
+  // First-time logins land here via AuthCallback's ?welcome=1 redirect.
+  const welcome = new URLSearchParams(window.location.search).get('welcome') === '1';
   return <AccountApp initialTab={data.tab} profile={data.profile} services={data.services}
-    states={data.states ?? {}} target={data.target ?? data.profile.uuid} />;
+    states={data.states ?? {}} target={data.target ?? data.profile.uuid} welcome={welcome} />;
 }

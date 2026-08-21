@@ -29,7 +29,7 @@ const inputClass =
 const hintClass = 'mt-1 text-xs text-muted-foreground';
 const errorClass = 'mt-1 text-xs text-destructive';
 
-/** @param {{profile: ProfileData, onSaved?: (profile: ProfileData) => void}} props */
+/** @param {{profile: ProfileData, welcome?: boolean, onSaved?: (profile: ProfileData) => void}} props */
 export function ProfileForm(props) {
   const initial = props.profile;
   const [id, setId] = useState(initial.id);
@@ -87,6 +87,12 @@ export function ProfileForm(props) {
   return (
     <form onSubmit={handleSubmit} className="max-w-xl">
       <h3 className="mb-4 text-lg font-semibold">Edit Profile</h3>
+
+      {props.welcome &&
+        <div role="note" className="mb-4 rounded-md border border-primary/30 bg-accent px-3 py-2 text-sm text-accent-foreground">
+          Welcome! Your feed ID <code>{savedId}</code> was generated automatically.
+          Pick your own Profile ID below — it becomes your feed URL.
+        </div>}
 
       {error &&
         <div role="alert" className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
