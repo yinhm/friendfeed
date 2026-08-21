@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -86,6 +87,13 @@ func TestRequestFollowRequiresPrivateTarget(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+// Unknown failures (database errors, ...) must stay Internal: only known
+// domain rejections carry a user-safe message into a 4xx response.
+func TestFollowRequestModelErrorKeepsUnknownFailuresInternal(t *testing.T) {
+	err := taskRPCError(followRequestModelError(errors.New("pebble: checksum mismatch")))
+	require.Equal(t, codes.Internal, status.Code(err))
 }
 
 func TestApproveFollowRequestAuthorization(t *testing.T) {

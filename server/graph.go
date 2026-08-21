@@ -29,11 +29,11 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 
 	profileUUID, err := uuid.FromString(req.ProfileUuid)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.InvalidArgument, "invalid id")
 	}
 	feedUUID, err := uuid.FromString(req.FeedUuid)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.InvalidArgument, "invalid id")
 	}
 
 	// Reuse the profile-update lock as the coarse relationship/privacy

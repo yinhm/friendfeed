@@ -351,9 +351,10 @@ func (f *fakeFollowHandlerClient) GraphFollow(ctx context.Context, req *pb.Follo
 }
 
 // A domain rejection (e.g. a Group admin leaving before demotion) must reach
-// the browser as a JSON body with the server's reason, not a bare 500 that
-// response.json() cannot parse.
-func TestFollowHandlerReturnsJSONErrorForDomainRejection(t *testing.T) {
+// the browser as a controlled web-facing message with a matching status, not
+// a bare 500 — and the RPC's own message text is for API consumers only, so
+// it must not be forwarded into the JSON body.
+func TestFollowHandlerReturnsControlledErrorForDomainRejection(t *testing.T) {
 	client := &fakeFollowHandlerClient{
 		followErr: status.Error(codes.FailedPrecondition, "Group admin must be demoted before membership can be removed"),
 	}
@@ -373,7 +374,54 @@ func TestFollowHandlerReturnsJSONErrorForDomainRejection(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("response is not JSON: %v: %q", err, recorder.Body.String())
 	}
-	if body["error"] != "Group admin must be demoted before membership can be removed" {
+	if body["error"] != "This action cannot be completed." {
 		t.Fatalf("error message = %q", body["error"])
+	}
+	if strings.Contains(recorder.Body.String(), "demoted") {
+		t.Fatalf("RPC message leaked into web response: %q", recorder.Body.String())
+	}
+}
+
+// An internal failure must keep the generic 500: the underlying message is
+// not user-safe and must not leak into the response body.
+func TestFollowHandlerHidesInternalErrorDetails(t *testing.T) {
+	client := &fakeFollowHandlerClient{
+		followErr: status.Error(codes.Internal, "pebble: checksum mismatch"),
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.POST("/a/follow", s.FollowHandler)
+	login := groupLoginCookie(t, router)
+
+	recorder := postForm(t, router, "/a/follow", url.Values{
+		"feed_uuid": {"feed-uuid"}, "action": {"unfollow"},
+	}, login)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d; want %d", recorder.Code, http.StatusInternalServerError)
+	}
+	if body := recorder.Body.String(); strings.Contains(body, "checksum") {
+		t.Fatalf("internal error message leaked into response: %q", body)
+	}
+}
+
+// The handler's own validation uses the same {"error": ...} schema
+// postJSON understands.
+func TestFollowHandlerBadRequestUsesErrorSchema(t *testing.T) {
+	s := newGroupTestServer(&fakeFollowHandlerClient{})
+	router := groupTestRouter(s)
+	router.POST("/a/follow", s.FollowHandler)
+
+	recorder := postForm(t, router, "/a/follow", url.Values{"action": {"follow"}})
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; want %d", recorder.Code, http.StatusBadRequest)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response is not JSON: %v: %q", err, recorder.Body.String())
+	}
+	if body["error"] == "" {
+		t.Fatalf("missing error message in %q", recorder.Body.String())
 	}
 }

@@ -223,7 +223,11 @@ func (s *ApiServer) ListFollowRequests(ctx context.Context, request *pb.ListFoll
 }
 
 // followRequestModelError maps the model layer's follow-request errors onto
-// the taskqueue error vocabulary taskRPCError understands.
+// the taskqueue error vocabulary taskRPCError understands. Only known domain
+// rejections become FailedPrecondition: their messages are user-meaningful
+// and safe to surface. Anything unknown stays untouched so taskRPCError maps
+// it to Internal and the HTTP layer keeps it behind the generic 500 instead
+// of leaking the underlying message into a 4xx body.
 func followRequestModelError(err error) error {
 	switch {
 	case errors.Is(err, model.ErrNotFound), errors.Is(err, model.ErrFollowRequestNotFound):
@@ -231,7 +235,7 @@ func followRequestModelError(err error) error {
 	case errors.Is(err, model.ErrFollowTargetNotPrivate), errors.Is(err, model.ErrPrivateGroupUnsupported):
 		return errors.Join(taskqueue.ErrFailedPrecondition, err)
 	default:
-		return errors.Join(taskqueue.ErrFailedPrecondition, err)
+		return err
 	}
 }
 

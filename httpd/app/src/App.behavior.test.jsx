@@ -124,9 +124,9 @@ test('Feed header follows and unfollows with semantic actions', async () => {
   expect(screen.getByRole('button', {name: 'Follow'})).toBeInTheDocument();
 });
 
-test('Feed header shows the server reason when unfollow is rejected', async () => {
+test('Feed header shows the error when unfollow is rejected', async () => {
   postJSONMock.mockRejectedValue(
-    new Error('Group admin must be demoted before membership can be removed'));
+    new Error('This action cannot be completed.'));
   const feed = {
     id: 'group-feed',
     uuid: 'group-uuid',
@@ -140,8 +140,7 @@ test('Feed header shows the server reason when unfollow is rejected', async () =
   fireEvent.click(screen.getByRole('button', {name: 'Unfollow'}));
 
   const alert = await screen.findByRole('alert');
-  expect(alert).toHaveTextContent(
-    'Group admin must be demoted before membership can be removed');
+  expect(alert).toHaveTextContent('This action cannot be completed.');
   // The relationship did not change, so the button must not flip to Follow.
   expect(screen.getByRole('button', {name: 'Unfollow'})).toBeInTheDocument();
 });

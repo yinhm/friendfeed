@@ -488,7 +488,7 @@ func (s *Server) FollowHandler(c *gin.Context) {
 	feedUuid := c.Request.Form.Get("feed_uuid")
 	action := c.Request.Form.Get("action")
 	if feedUuid == "" || action == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "bad request"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request."})
 		return
 	}
 
@@ -504,19 +504,19 @@ func (s *Server) FollowHandler(c *gin.Context) {
 
 	entry, err := s.client.GraphFollow(ctx, req)
 	if err != nil {
-		// Domain rejections (e.g. a Group admin leaving before demotion)
-		// carry a user-meaningful RPC message: return it as JSON so the
-		// caller can show the reason instead of a bare 500.
+		// The RPC message is for API consumers; the web layer answers with
+		// its own controlled wording and never forwards server error text
+		// to the browser.
 		errStatus, _ := status.FromError(err)
 		switch errStatus.Code() {
 		case codes.FailedPrecondition:
-			c.JSON(http.StatusConflict, gin.H{"error": errStatus.Message()})
+			c.JSON(http.StatusConflict, gin.H{"error": "This action cannot be completed."})
 		case codes.InvalidArgument:
-			c.JSON(http.StatusBadRequest, gin.H{"error": errStatus.Message()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request."})
 		case codes.PermissionDenied:
-			c.JSON(http.StatusForbidden, gin.H{"error": errStatus.Message()})
+			c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied."})
 		case codes.NotFound:
-			c.JSON(http.StatusNotFound, gin.H{"error": errStatus.Message()})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not found."})
 		default:
 			RequestError(c, err)
 		}

@@ -9,6 +9,8 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestGraphFollowMaintainsBothEdges(t *testing.T) {
@@ -45,4 +47,22 @@ func TestGraphFollowMaintainsBothEdges(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, exists)
 	}
+}
+
+func TestGraphFollowRejectsMalformedUUID(t *testing.T) {
+	srv := &ApiServer{}
+
+	_, err := srv.GraphFollow(context.Background(), &pb.FollowRequest{
+		ProfileUuid: "not-a-uuid",
+		FeedUuid:    uuid.Must(uuid.NewV4()).String(),
+		Action:      "follow",
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	_, err = srv.GraphFollow(context.Background(), &pb.FollowRequest{
+		ProfileUuid: uuid.Must(uuid.NewV4()).String(),
+		FeedUuid:    "not-a-uuid",
+		Action:      "follow",
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
 }
