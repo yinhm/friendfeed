@@ -1652,6 +1652,8 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 	// 不再充数（screen_name 仍保留在 service.Username 中）。
 	assert.True(s.T(), strings.HasPrefix(profile.Id, "ff-"), profile.Id)
 	assert.Equal(s.T(), "Screen Name", profile.Name)
+	// 首次登录标记为新建，供 web 层 redirect 到 profile 页
+	assert.True(s.T(), profile.NewlyCreated)
 
 	// twitter provider 必须创建 service
 	profileUUID, err := uuid.FromString(profile.Uuid)
@@ -1683,6 +1685,8 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 	profile2, err := s.srv.PutOAuth(ctx, relogin)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, profile2.Uuid)
+	// 重复登录不是新建
+	assert.False(s.T(), profile2.NewlyCreated)
 
 	// token 已刷新，uuid 未变
 	_, oauthUser, err := model.GetOAuthUser(s.srv.mdb, "twitter", "tw-lifecycle")
@@ -1709,6 +1713,7 @@ func (s *RpcTestSuite) TestPutOAuthGoogleLoginCreatesNoService() {
 	profile, err := s.srv.PutOAuth(ctx, req)
 	assert.Nil(s.T(), err)
 	assert.NotEmpty(s.T(), profile.Uuid)
+	assert.True(s.T(), profile.NewlyCreated)
 
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	assert.Nil(s.T(), err)
@@ -1725,6 +1730,7 @@ func (s *RpcTestSuite) TestPutOAuthGoogleLoginCreatesNoService() {
 	})
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, profile2.Uuid)
+	assert.False(s.T(), profile2.NewlyCreated)
 }
 
 // fakeMirrorStorage simulates media mirroring without network or disk IO:

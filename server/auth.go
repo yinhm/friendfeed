@@ -45,6 +45,10 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			if err != nil {
 				return nil, err
 			}
+			// Transient response flag, set after the profile write so it is
+			// never persisted: lets the web layer redirect first-time users
+			// to the profile page to pick their own ID.
+			profile.NewlyCreated = true
 			slog.Debug("New profile", "uuid", profile.Uuid)
 		} else {
 			return nil, err
