@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
@@ -110,7 +111,8 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, request *pb.GroupMembershipR
 }
 
 // AddGroupAdmin promotes target to admin of group. actor must already be an
-// admin or super. target must already be a member.
+// admin or super. target must already be a member. Only the real non-admin ->
+// admin transition emits GROUP_ADMIN_ADDED, atomically with GroupAdmin.
 func (s *ApiServer) AddGroupAdmin(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -119,19 +121,35 @@ func (s *ApiServer) AddGroupAdmin(ctx context.Context, request *pb.GroupMembersh
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
+	activity := time.Now().UTC()
+	var notification notificationStageResult
 	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := s.authorizeGroupManage(actor, group); err != nil {
 			return err
 		}
-		return model.StageAddGroupAdmin(s.rdb, batch, group, target)
+		wasAdmin, err := model.IsGroupAdmin(s.rdb, group, target)
+		if err != nil {
+			return err
+		}
+		if err := model.StageAddGroupAdmin(s.rdb, batch, group, target); err != nil {
+			return err
+		}
+		if wasAdmin {
+			return nil
+		}
+		var stageErr error
+		notification, stageErr = s.stageGroupTransitionNotification(batch, model.NotificationGroupAdminAdded, actor, group, target, activity)
+		return stageErr
 	}); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
+	s.finishNotificationStage(notification)
 	return &emptypb.Empty{}, nil
 }
 
 // RemoveGroupAdmin demotes target from admin of group. actor must already be
-// an admin or super. Rejected if target is the Group's only admin.
+// an admin or super. Rejected if target is the Group's only admin. Only a
+// real admin -> member transition emits GROUP_ADMIN_REMOVED.
 func (s *ApiServer) RemoveGroupAdmin(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -140,21 +158,37 @@ func (s *ApiServer) RemoveGroupAdmin(ctx context.Context, request *pb.GroupMembe
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
+	activity := time.Now().UTC()
+	var notification notificationStageResult
 	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := s.authorizeGroupManage(actor, group); err != nil {
 			return err
 		}
-		return model.StageRemoveGroupAdmin(s.rdb, batch, group, target)
+		wasAdmin, err := model.IsGroupAdmin(s.rdb, group, target)
+		if err != nil {
+			return err
+		}
+		if err := model.StageRemoveGroupAdmin(s.rdb, batch, group, target); err != nil {
+			return err
+		}
+		if !wasAdmin {
+			return nil
+		}
+		var stageErr error
+		notification, stageErr = s.stageGroupTransitionNotification(batch, model.NotificationGroupAdminRemoved, actor, group, target, activity)
+		return stageErr
 	}); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
+	s.finishNotificationStage(notification)
 	return &emptypb.Empty{}, nil
 }
 
 // RemoveGroupMember removes target's membership in group. actor must already
 // be an admin or super. Rejected if target currently holds the admin role;
-// they must be demoted first. The removal and the removed member's Home
-// rebuild task commit in one Pebble batch.
+// they must be demoted first. The removal, removed member's Home rebuild task,
+// and GROUP_MEMBER_REMOVED notification commit in one Pebble batch, but only
+// when the target was actually a member.
 func (s *ApiServer) RemoveGroupMember(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -167,14 +201,29 @@ func (s *ApiServer) RemoveGroupMember(ctx context.Context, request *pb.GroupMemb
 	if err != nil {
 		return nil, taskRPCError(err)
 	}
+	activity := time.Now().UTC()
+	var notification notificationStageResult
 	if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
 		if err := s.authorizeGroupManage(actor, group); err != nil {
 			return err
 		}
-		return model.StageRemoveGroupMember(s.rdb, batch, group, target)
+		wasMember, err := model.IsGroupMember(s.rdb, group, target)
+		if err != nil {
+			return err
+		}
+		if err := model.StageRemoveGroupMember(s.rdb, batch, group, target); err != nil {
+			return err
+		}
+		if !wasMember {
+			return nil
+		}
+		var stageErr error
+		notification, stageErr = s.stageGroupTransitionNotification(batch, model.NotificationGroupMemberRemoved, actor, group, target, activity)
+		return stageErr
 	}); err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
+	s.finishNotificationStage(notification)
 	return &emptypb.Empty{}, nil
 }
 
