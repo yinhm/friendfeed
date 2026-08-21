@@ -117,9 +117,6 @@ message Profile {
   bool deleted = 10;
   // super admin
   bool is_super = 11;
-  // transient: set only on the PutOAuth response when the profile was
-  // created by this call; never persisted
-  bool newly_created = 12;
 }
 
 // social graph

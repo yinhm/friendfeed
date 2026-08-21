@@ -6,6 +6,12 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+// ProfileNewlyCreatedHeader is the gRPC response header key PutOAuth uses to
+// signal that the login created the profile on this call. It travels in
+// header metadata instead of the Profile message because Profile is a
+// persisted type and must not carry transient RPC state.
+const ProfileNewlyCreatedHeader = "x-profile-newly-created"
+
 // validUUID and sameUUID mirror model.permOwnedBy's identity rules for UI
 // command hints. Keep both packages aligned: malformed, missing, and zero
 // UUIDs must fail closed, without falling back to a recyclable profile ID.

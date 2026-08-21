@@ -15,6 +15,8 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 func LoginRequired() gin.HandlerFunc {
@@ -134,7 +136,8 @@ func (s *Server) AuthCallback(c *gin.Context) {
 		return
 	}
 	authinfo.Uuid = profile.Uuid
-	profile, err = s.client.PutOAuth(ctx, authinfo)
+	var headerMD metadata.MD
+	profile, err = s.client.PutOAuth(ctx, authinfo, grpc.Header(&headerMD))
 	if RequestError(c, err) {
 		return
 	}
@@ -151,7 +154,7 @@ func (s *Server) AuthCallback(c *gin.Context) {
 		return
 	}
 	next = extractNextPath(next)
-	if profile.NewlyCreated {
+	if newlyCreated := headerMD.Get(pb.ProfileNewlyCreatedHeader); len(newlyCreated) > 0 && newlyCreated[0] == "true" {
 		// First login: the profile has a system-generated ID, so onboarding
 		// takes precedence over the original destination and sends the user
 		// to pick their own ID.

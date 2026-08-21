@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
@@ -1652,8 +1653,6 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 	// 不再充数（screen_name 仍保留在 service.Username 中）。
 	assert.True(s.T(), strings.HasPrefix(profile.Id, "ff-"), profile.Id)
 	assert.Equal(s.T(), "Screen Name", profile.Name)
-	// 首次登录标记为新建，供 web 层 redirect 到 profile 页
-	assert.True(s.T(), profile.NewlyCreated)
 
 	// twitter provider 必须创建 service
 	profileUUID, err := uuid.FromString(profile.Uuid)
@@ -1685,8 +1684,6 @@ func (s *RpcTestSuite) TestPutOAuthTwitterLoginLifecycle() {
 	profile2, err := s.srv.PutOAuth(ctx, relogin)
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, profile2.Uuid)
-	// 重复登录不是新建
-	assert.False(s.T(), profile2.NewlyCreated)
 
 	// token 已刷新，uuid 未变
 	_, oauthUser, err := model.GetOAuthUser(s.srv.mdb, "twitter", "tw-lifecycle")
@@ -1713,7 +1710,6 @@ func (s *RpcTestSuite) TestPutOAuthGoogleLoginCreatesNoService() {
 	profile, err := s.srv.PutOAuth(ctx, req)
 	assert.Nil(s.T(), err)
 	assert.NotEmpty(s.T(), profile.Uuid)
-	assert.True(s.T(), profile.NewlyCreated)
 
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	assert.Nil(s.T(), err)
@@ -1730,7 +1726,32 @@ func (s *RpcTestSuite) TestPutOAuthGoogleLoginCreatesNoService() {
 	})
 	assert.Nil(s.T(), err)
 	assert.Equal(s.T(), profile.Uuid, profile2.Uuid)
-	assert.False(s.T(), profile2.NewlyCreated)
+}
+
+// 首次登录通过 gRPC response header 标记 profile 为本次新建；重复登录不带
+// 该 header。直接调用（无 gRPC transport）时 header 被安全忽略。
+func (s *RpcTestSuite) TestPutOAuthNewlyCreatedHeader() {
+	conn, err := grpc.Dial(s.rpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	assert.Nil(s.T(), err)
+	defer conn.Close()
+	api := pb.NewApiClient(conn)
+	ctx := context.Background()
+
+	req := &pb.OAuthUser{
+		Name:     "newuser",
+		NickName: "New User",
+		UserId:   "header-check",
+		Provider: "google",
+	}
+	var header metadata.MD
+	_, err = api.PutOAuth(ctx, req, grpc.Header(&header))
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), []string{"true"}, header.Get(pb.ProfileNewlyCreatedHeader))
+
+	var reloginHeader metadata.MD
+	_, err = api.PutOAuth(ctx, req, grpc.Header(&reloginHeader))
+	assert.Nil(s.T(), err)
+	assert.Empty(s.T(), reloginHeader.Get(pb.ProfileNewlyCreatedHeader))
 }
 
 // fakeMirrorStorage simulates media mirroring without network or disk IO:

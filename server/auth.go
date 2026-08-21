@@ -10,6 +10,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
@@ -45,10 +47,13 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 			if err != nil {
 				return nil, err
 			}
-			// Transient response flag, set after the profile write so it is
-			// never persisted: lets the web layer redirect first-time users
-			// to the profile page to pick their own ID.
-			profile.NewlyCreated = true
+			// Signal first-time login via response header metadata, not a
+			// Profile field: Profile is a persisted type and must not carry
+			// transient RPC state. Outside a gRPC server context (direct
+			// calls in tests) there is no transport, so ignore the error.
+			if err := grpc.SetHeader(ctx, metadata.Pairs(pb.ProfileNewlyCreatedHeader, "true")); err != nil {
+				slog.Debug("SetHeader newly-created", "err", err)
+			}
 			slog.Debug("New profile", "uuid", profile.Uuid)
 		} else {
 			return nil, err

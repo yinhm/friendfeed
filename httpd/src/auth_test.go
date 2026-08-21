@@ -17,6 +17,7 @@ import (
 	gsessions "github.com/gorilla/sessions"
 	"github.com/yinhm/friendfeed/pb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 func TestExtractNextPath(t *testing.T) {
@@ -372,11 +373,18 @@ func TestAuthCallbackSuccess(t *testing.T) {
 	}
 }
 
-// 首次登录（PutOAuth 返回 newly_created）跳 profile 引导页而不是 next。
+// 首次登录（PutOAuth 在 response header 标记 newly-created）跳 profile
+// 引导页而不是 next。
 func TestAuthCallbackNewUserRedirect(t *testing.T) {
 	client := &fakeApiClient{
 		putOAuth: func(ctx context.Context, in *pb.OAuthUser, opts ...grpc.CallOption) (*pb.Profile, error) {
-			return &pb.Profile{Uuid: "uuid-new", NewlyCreated: true}, nil
+			// 模拟 gRPC server 通过 header metadata 标记本次新建
+			for _, opt := range opts {
+				if h, ok := opt.(grpc.HeaderCallOption); ok && h.HeaderAddr != nil {
+					*h.HeaderAddr = metadata.Pairs(pb.ProfileNewlyCreatedHeader, "true")
+				}
+			}
+			return &pb.Profile{Uuid: "uuid-new"}, nil
 		},
 	}
 	router := newFauxAuthRouter(t, client)
