@@ -1224,6 +1224,8 @@ func runDebugCommand(db, ndb *store.Store) {
 // ./tools -to backup_db -c mirror_twimg -config config.json -out twimg_sync.jsonl -dry-run
 // backfill stable actor UUIDs
 // ./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20 -dry-run
+// backfill TableGroupAdmin from legacy Feedinfo.Admins snapshots
+// ./tools -to new_db -c backfill_group_admins -dry-run
 // dump decoded table records
 // ./tools -to new_db -c debug -table oauth -max-limit 10
 //
@@ -1258,6 +1260,7 @@ func main() {
 		(command == "migrate_interactions" && dryRun) ||
 		(command == "rebuild_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun) ||
+		(command == "backfill_group_admins" && dryRun) ||
 		(command == "rebuild_interaction_timelines" && dryRun) ||
 		(command == "rebuild_group_activity" && dryRun) ||
 		(command == "fix_default_picture" && dryRun) ||
@@ -1338,6 +1341,8 @@ func main() {
 			stats.deletedIndexes, stats.deletedPositions, dryRun)
 	case "rebuild_social_graph":
 		runRebuildSocialGraphCommand(ndb)
+	case "backfill_group_admins":
+		runBackfillGroupAdminsCommand(ndb)
 	case "migrate_media_urls":
 		runMigrateMediaURLsCommand(ndb)
 	case "mirror_twimg":
