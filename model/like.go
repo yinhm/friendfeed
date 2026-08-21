@@ -79,6 +79,9 @@ func PutLikeWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.Entr
 				return err
 			}
 		}
+		if err := stageLikeNotification(db, batch, profile, entry, activity); err != nil {
+			return err
+		}
 		if hook != nil {
 			if err := hook(batch, activity); err != nil {
 				return err
@@ -228,6 +231,9 @@ func PutCommentWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.E
 			}
 			if activity.Before(oldTime) ||
 				(activity.Equal(oldTime) && commentUUID.String() <= oldComment.String()) {
+				if err := stageCommentNotification(db, batch, profile, entry, commentUUID, activity); err != nil {
+					return err
+				}
 				if hook != nil {
 					return hook(batch, activity)
 				}
@@ -255,6 +261,9 @@ func PutCommentWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.E
 			return err
 		}
 		if err := batch.Set(positionKey, position, nil); err != nil {
+			return err
+		}
+		if err := stageCommentNotification(db, batch, profile, entry, commentUUID, activity); err != nil {
 			return err
 		}
 		if hook != nil {
