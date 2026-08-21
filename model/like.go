@@ -15,19 +15,34 @@ import (
 // ownership and moderation rules.
 var errCommentPerm = errors.New("403: perm error")
 
+// InteractionCreatedHook lets a caller stage recipient-owned side effects in
+// the same Pebble batch as a newly-created Like or Comment. It is invoked only
+// for the authoritative missing->present transition; retries/edits do not run
+// it. The hook must only stage bounded writes and must not commit the batch.
+type InteractionCreatedHook func(batch *pebble.Batch, activity time.Time) error
+
 // returns a full key and entry if succedd
 func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
+	key, updated, _, err := PutLikeWithCreatedHook(db, profile, entry, nil)
+	return key, updated, err
+}
+
+// PutLikeWithCreatedHook is PutLike plus a caller-supplied hook that runs in
+// the same atomic batch only when the Like is first created. The bool reports
+// that real transition, allowing callers to drive non-atomic derived fanout
+// from the committed result instead of a racy preflight read.
+func PutLikeWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.Entry, hook InteractionCreatedHook) (store.Key, *pb.Entry, bool, error) {
 	// Validate the caller's identity before anything else: the canonical
 	// mint must not be bypassed by a dedupe hit, and a nil profile must
 	// not panic the dedupe scan.
 	from, err := feedFromProfile(profile)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	entryUUID, err := uuid.FromString(entry.Id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	actorUUID, _ := uuid.FromString(profile.Uuid)
 	dataKey := LikeKey(entryUUID, actorUUID)
@@ -64,21 +79,26 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 				return err
 			}
 		}
+		if hook != nil {
+			if err := hook(batch, activity); err != nil {
+				return err
+			}
+		}
 		created = true
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	if err := LoadEntryInteractions(db, entry); err != nil {
-		return nil, nil, err
+		return nil, nil, created, err
 	}
 	if created {
 		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityLike); err != nil {
-			return nil, nil, err
+			return nil, nil, true, err
 		}
 	}
-	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
+	return Entry.PrefixAppend(entryUUID.Bytes()), entry, created, nil
 }
 
 func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entry, error) {
@@ -132,21 +152,30 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 }
 
 func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
+	key, updated, _, err := PutCommentWithCreatedHook(db, profile, entry, comment, nil)
+	return key, updated, err
+}
+
+// PutCommentWithCreatedHook is PutComment plus a bounded hook invoked only for
+// a new comment UUID. Edits preserve the existing comment and never run the
+// hook, so notification emission follows the state transition rather than RPC
+// call count.
+func PutCommentWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment, hook InteractionCreatedHook) (store.Key, *pb.Entry, bool, error) {
 	// Validate the caller's identity before scanning existing comments;
 	// the author reference always comes from the canonical profile
 	// resolved server-side, any From the caller sent is display data.
 	from, err := feedFromProfile(profile)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	entryUUID, err := uuid.FromString(entry.Id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	commentUUID, err := uuid.FromString(comment.Id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	actorUUID, _ := uuid.FromString(profile.Uuid)
 	dataKey := CommentKey(entryUUID, commentUUID)
@@ -199,6 +228,9 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 			}
 			if activity.Before(oldTime) ||
 				(activity.Equal(oldTime) && commentUUID.String() <= oldComment.String()) {
+				if hook != nil {
+					return hook(batch, activity)
+				}
 				return nil
 			}
 			oldKey, err := CommentTimelineKey(actorUUID, entryUUID, oldTime)
@@ -225,23 +257,28 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 		if err := batch.Set(positionKey, position, nil); err != nil {
 			return err
 		}
+		if hook != nil {
+			if err := hook(batch, activity); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		if errors.Is(err, errCommentPerm) {
-			return nil, entry, err
+			return nil, entry, false, err
 		}
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	if err := LoadEntryInteractions(db, entry); err != nil {
-		return nil, nil, err
+		return nil, nil, created, err
 	}
 	if created {
 		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityComment); err != nil {
-			return nil, nil, err
+			return nil, nil, true, err
 		}
 	}
-	return Entry.PrefixAppend(entryUUID.Bytes()), entry, nil
+	return Entry.PrefixAppend(entryUUID.Bytes()), entry, created, nil
 }
 
 func DeleteComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, commentId string) (*pb.Entry, error) {
