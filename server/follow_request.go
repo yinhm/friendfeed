@@ -96,6 +96,12 @@ func (s *ApiServer) CancelFollowRequest(ctx context.Context, request *pb.Request
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
+
+	// Keep cancellation in the same mutation order as request/approve/reject
+	// so concurrent user and approver actions have one linearized outcome.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 		return model.StageDeleteFollowRequest(s.rdb, batch, feed, actor)
 	}); err != nil {
@@ -149,6 +155,12 @@ func (s *ApiServer) RejectFollowRequest(ctx context.Context, action *pb.FollowRe
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
+
+	// Reject competes with re-request/approve/cancel, so serialize it with
+	// the rest of the follow-request state machine as well.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := s.authorizeFollowRequestManage(actor, feed); err != nil {
 			return err
