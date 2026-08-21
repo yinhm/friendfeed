@@ -12,7 +12,8 @@
   - `TableTimelineIndex = 108`、`TableTimelinePosition = 109`、`TableTimelineState = 110` 及其 key/value 编码。
   - FeedService 表 101、Service 表 111-113 与 Task 表 203-207 的表号及相关设计文档所列编码。
   - `TableGroupAdmin = 114`，编码为 `group UUID + admin user UUID -> 空`，是 Group admin 角色的权威来源；LikeTimeline/CommentTimeline/CommentTimelinePosition 固定为 115/116/117，编码见 `docs/feed.md`。
-  - `TableFollowRequest = 118`，编码为 `target feed UUID + requester user UUID -> RFC3339 申请时间`，仅是 private feed/Group 关注审批的工作流数据；批准后的关系仍以 Follow/Follower 边表示。
+  - `TableFollowRequest = 118`，编码为 `target feed UUID + requester user UUID -> RFC3339 时间字符串`；新写入使用 `RFC3339Nano` 保留同秒重复申请的 occurrence 精度，读取必须兼容历史秒精度 RFC3339 值。该表仅是 private feed/Group 关注审批的工作流数据；批准后的关系仍以 Follow/Follower 边表示。
+  - Notification 表固定为 `TableNotification = 120`、`TableNotificationInbox = 121`、`TableNotificationState = 122`。canonical Notification key 为 `recipient UUID + notification UUID`；Inbox key 为 `recipient UUID + ^UnixMillis(activity_at) + notification UUID`；State 记录 `last_read_at_ns/unread_count/total_count`。这些编码和 retention 规则见 `docs/notifications.md`。
   - Entry 与 EntryIndex 中的 Entry key 固定为 `4-byte table prefix + 16-byte raw UUID`，不得写 UUID/hex 字符串。
 - 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/client.py` 的 `get_ohlcs/adjust`、`twitter/config.py` 的 `zh_names` 和 Fabric task。
 - `model/feed.go` 的旧 Feedinfo、`UserMap` 仍用于迁移，不按运行时零引用删除。所有 iterator 必须关闭。
