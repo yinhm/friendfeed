@@ -140,10 +140,25 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		// key and no RPC. Sidebar shows at most 10 Groups
 		// (docs/group_navigation.md).
 		ctx, cancel := DefaultTimeoutContext()
-		defer cancel()
-		groups, err := s.UserGroups(ctx, profile.Uuid)
-		if err == nil {
+		groups, groupErr := s.UserGroups(ctx, profile.Uuid)
+		cancel()
+		if groupErr == nil {
 			data["user_groups"] = groups
+		}
+
+		// Notification summary is deliberately best effort. Navigation is
+		// useful without a badge, so a timeout/adapter failure must never turn
+		// an unrelated SSR page into a 500.
+		ctx, cancel = DefaultTimeoutContext()
+		summary, summaryErr := s.notificationSummary(ctx, profile.Uuid)
+		cancel()
+		if summaryErr == nil {
+			switch {
+			case summary.UnreadCount > 99:
+				data["notification_unread_display"] = "99+"
+			case summary.UnreadCount > 0:
+				data["notification_unread_display"] = fmt.Sprintf("%d", summary.UnreadCount)
+			}
 		}
 	}
 	data["dev"] = s.debug
@@ -284,7 +299,7 @@ func (s *Server) UserGroups(ctx context.Context, userUuid string) ([]*pb.Profile
 // func (s *Server) CurrentFeedinfo(c *gin.Context) (*pb.Feedinfo, error) {
 // 	ctx, cancel := DefaultTimeoutContext()
 // 	defer cancel()
-
+//
 // 	feedinfo := new(pb.Feedinfo)
 // 	uuid := CurrentUserUuid(c)
 // 	if uuid != "" {
