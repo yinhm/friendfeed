@@ -439,6 +439,11 @@ for older rows, bounded batch:
 
 trim 失败不得回滚已经成功的领域 mutation；错误记录并由后续 trigger/startup recovery 重试。
 
+Like/Comment 的通知在 model 层与互动行同批写入，commit 后由 server 的 public-timeline bump
+回调检查 State 并调度 trim；该回调即使目标 feed 为 private 也会先执行 retention 检查。任何未来绕过
+server RPC、直接调用 model 互动 helper 的写入入口，都必须在成功提交后执行同等的 trim 调度，不能只
+依赖进程启动 recovery。
+
 ## 删除与 orphan
 
 ### recipient account delete
@@ -603,7 +608,7 @@ pending marker exists => skip that Group
 
 ## Audit
 
-`audit_store` 后续至少检查：
+`audit_store` 检查：
 
 - Notification key recipient/id 与 value 一致；
 - recipient 是未删除 user（删除账号的残留可以报 orphan）；
@@ -615,6 +620,10 @@ pending marker exists => skip that Group
 - per-recipient row count > 550 报 maintenance lag，>500 可由 repair/trim 收敛。
 
 repair 必须有界执行，不能全量加载 notification 表。
+
+当前 audit 已实现上述检查并输出 canonical、Inbox、State、orphan、counter drift 与 retention lag
+计数；它只做流式扫描和点查，不自动修改数据。State counter 漂移由后续有界 repair 工具修复，超限记录
+由现有 trim/recovery 收敛。
 
 ## 测试要求
 

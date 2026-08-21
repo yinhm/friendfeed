@@ -18,7 +18,10 @@ func notificationInteractionEntry(t *testing.T, db *store.Store, author uuid.UUI
 		ProfileUuid: author.String(),
 		FeedUuid:    author.String(),
 		Date:        time.Now().UTC().Format(time.RFC3339),
-		Body:        "test",
+		// Interaction notification tests do not exercise search indexing. Keep
+		// the body empty so PutEntry does not require the process-global search
+		// index used by production server startup.
+		Body: "",
 	}
 	_, err := PutEntry(db, entry)
 	require.NoError(t, err)
@@ -111,7 +114,7 @@ func TestInteractionNotificationSkipsSelfAndGroupRecipient(t *testing.T) {
 	require.NoError(t, err)
 	groupEntry := &pb.Entry{
 		Id: uuid.Must(uuid.NewV4()).String(), ProfileUuid: group.String(), FeedUuid: group.String(),
-		Date: time.Now().UTC().Format(time.RFC3339), Body: "service post",
+		Date: time.Now().UTC().Format(time.RFC3339),
 	}
 	_, err = PutEntry(db, groupEntry)
 	require.NoError(t, err)

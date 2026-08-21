@@ -55,6 +55,9 @@ func TestFollowRequestUserFeedLifecycle(t *testing.T) {
 	// Idempotent re-request.
 	resp = requestFollow(t, srv, requester, owner)
 	require.True(t, resp.Requested)
+	ownerState, err := model.GetNotificationState(srv.rdb, owner)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), ownerState.TotalCount, "a repeated pending request must not duplicate its notification")
 
 	list, err := srv.ListFollowRequests(context.Background(), &pb.ListFollowRequestsRequest{
 		ActorUuid: owner.String(),
@@ -66,6 +69,12 @@ func TestFollowRequestUserFeedLifecycle(t *testing.T) {
 	require.NotEmpty(t, list.Requests[0].RequestedAt)
 
 	require.NoError(t, approveFollow(t, srv, owner, owner, requester))
+	requesterState, err := model.GetNotificationState(srv.rdb, requester)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), requesterState.TotalCount)
+	requesterNotifications, _, err := model.ListNotifications(srv.rdb, requester, 10, nil)
+	require.NoError(t, err)
+	require.Equal(t, model.NotificationFollowRequestApproved, requesterNotifications[0].Kind)
 
 	following, err := model.IsFollower(srv.rdb, owner, requester)
 	require.NoError(t, err)
@@ -127,6 +136,9 @@ func TestRejectFollowRequestAllowsReRequest(t *testing.T) {
 		TargetUuid: requester.String(),
 	})
 	require.NoError(t, err)
+	state, err := model.GetNotificationState(srv.rdb, requester)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), state.TotalCount)
 
 	pending, err := model.IsFollowRequestPending(srv.rdb, owner, requester)
 	require.NoError(t, err)
@@ -135,6 +147,13 @@ func TestRejectFollowRequestAllowsReRequest(t *testing.T) {
 	// Rejection does not blacklist: a new request is accepted.
 	resp := requestFollow(t, srv, requester, owner)
 	require.True(t, resp.Requested)
+	_, err = srv.RejectFollowRequest(context.Background(), &pb.FollowRequestAction{
+		ActorUuid: owner.String(), FeedUuid: owner.String(), TargetUuid: requester.String(),
+	})
+	require.NoError(t, err)
+	state, err = model.GetNotificationState(srv.rdb, requester)
+	require.NoError(t, err)
+	require.Equal(t, uint32(2), state.TotalCount, "a re-request is a new notification occurrence")
 }
 
 func TestPrivateUserFeedReadClosure(t *testing.T) {

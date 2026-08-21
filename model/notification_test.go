@@ -180,3 +180,28 @@ func TestTrimNotificationsKeepsNewestFiveHundred(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected.String(), items[0].ID)
 }
+
+func TestListNotificationsLazilyDeletesOrphanInboxRow(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	recipient := notificationTestUser(t, db, "recipient")
+	missing := uuid.Must(uuid.NewV4())
+	orphanKey, err := NotificationInboxKey(recipient, missing, time.Now().UTC())
+	require.NoError(t, err)
+	require.NoError(t, db.Put(orphanKey, nil))
+
+	valid := notificationTestRecord(t, NotificationEntryLiked, recipient, "valid", time.Now().UTC().Add(-time.Second), time.Now().UTC())
+	created, _ := stageNotificationTestRecord(t, db, valid)
+	require.True(t, created)
+
+	items, next, err := ListNotifications(db, recipient, 10, nil)
+	require.NoError(t, err)
+	require.Nil(t, next)
+	require.Len(t, items, 1)
+	require.Equal(t, valid.ID, items[0].ID)
+	exists, err := db.Exists(orphanKey)
+	require.NoError(t, err)
+	require.False(t, exists)
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,52 +18,63 @@ import (
 )
 
 type storeAuditStats struct {
-	entries               int
-	noncanonicalEntries   int
-	entryKeyIDMismatches  int
-	entryIndexes          int
-	noncanonicalIndexes   int
-	missingDirectIndexes  int
-	orphanIndexes         int
-	timelineIndexes       int
-	timelinePositions     int
-	timelineMissingEntry  int
-	timelineMissingPos    int
-	timelineMissingIndex  int
-	timelineDuplicates    int
-	timelineTimeMismatch  int
-	timelineViewers       int
-	timelineInactiveRows  int
-	timelineOverLimit     int
-	sameSecondGroups      int
-	sameSecondEntries     int
-	followEdges           int
-	followerEdges         int
-	missingFollowerEdges  int
-	missingFollowEdges    int
-	maxFollowers          int
-	services              int
-	serviceStates         int
-	feedServices          int
-	serviceFeedIndexes    int
-	dormantServices       int
-	stateMissingService   int
-	bindingMissingSource  int
-	bindingMissingIndex   int
-	disabledWithIndex     int
-	orphanServiceIndexes  int
-	likeTimelineRows      int
-	commentTimelineRows   int
-	commentPositionRows   int
-	interactionOrphans    int
-	interactionMismatches int
-	groups                int
-	groupAdmins           int
-	invalidGroupAdmins    int
-	adminMissingMember    int
-	groupsWithoutAdmins   int
-	deletedGroupResiduals int
-	tasks                 taskqueue.AuditStats
+	entries                      int
+	noncanonicalEntries          int
+	entryKeyIDMismatches         int
+	entryIndexes                 int
+	noncanonicalIndexes          int
+	missingDirectIndexes         int
+	orphanIndexes                int
+	timelineIndexes              int
+	timelinePositions            int
+	timelineMissingEntry         int
+	timelineMissingPos           int
+	timelineMissingIndex         int
+	timelineDuplicates           int
+	timelineTimeMismatch         int
+	timelineViewers              int
+	timelineInactiveRows         int
+	timelineOverLimit            int
+	sameSecondGroups             int
+	sameSecondEntries            int
+	followEdges                  int
+	followerEdges                int
+	missingFollowerEdges         int
+	missingFollowEdges           int
+	maxFollowers                 int
+	services                     int
+	serviceStates                int
+	feedServices                 int
+	serviceFeedIndexes           int
+	dormantServices              int
+	stateMissingService          int
+	bindingMissingSource         int
+	bindingMissingIndex          int
+	disabledWithIndex            int
+	orphanServiceIndexes         int
+	likeTimelineRows             int
+	commentTimelineRows          int
+	commentPositionRows          int
+	interactionOrphans           int
+	interactionMismatches        int
+	groups                       int
+	groupAdmins                  int
+	invalidGroupAdmins           int
+	adminMissingMember           int
+	groupsWithoutAdmins          int
+	deletedGroupResiduals        int
+	notifications                int
+	notificationInboxes          int
+	notificationStates           int
+	invalidNotifications         int
+	orphanNotificationRecipients int
+	missingNotificationInbox     int
+	orphanNotificationInbox      int
+	notificationInboxMismatch    int
+	notificationStateMismatch    int
+	notificationOverMax          int
+	notificationOverTrigger      int
+	tasks                        taskqueue.AuditStats
 }
 
 func auditStore(db *store.Store) (storeAuditStats, error) {
@@ -433,8 +445,142 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 	if err == nil {
 		err = auditGroups(db, &stats)
 	}
+	if err == nil {
+		err = auditNotifications(db, &stats)
+	}
 	stats.tasks = taskStats
 	return stats, err
+}
+
+func auditNotifications(db *store.Store, stats *storeAuditStats) error {
+	var currentRecipient uuid.UUID
+	var recipientRows, recipientUnread uint32
+	var currentState model.NotificationStateRecord
+	finishRecipient := func() error {
+		if currentRecipient == uuid.Nil {
+			return nil
+		}
+		if currentState.TotalCount != recipientRows || currentState.UnreadCount != recipientUnread {
+			stats.notificationStateMismatch++
+		}
+		if recipientRows > model.NotificationMaxEntries {
+			stats.notificationOverMax++
+		}
+		if recipientRows > model.NotificationTrimTrigger {
+			stats.notificationOverTrigger++
+		}
+		return nil
+	}
+
+	if err := model.Notification.Iter(db, func(key, raw []byte) error {
+		stats.notifications++
+		if len(key) != model.Notification.Prefix.Len()+2*uuid.Size {
+			stats.invalidNotifications++
+			return nil
+		}
+		suffix := key[model.Notification.Prefix.Len():]
+		recipient, recipientErr := uuid.FromBytes(suffix[:uuid.Size])
+		notificationID, idErr := uuid.FromBytes(suffix[uuid.Size:])
+		if recipientErr != nil || idErr != nil || recipient == uuid.Nil || notificationID == uuid.Nil {
+			stats.invalidNotifications++
+			return nil
+		}
+		if currentRecipient != uuid.Nil && recipient != currentRecipient {
+			if err := finishRecipient(); err != nil {
+				return err
+			}
+			currentRecipient, recipientRows, recipientUnread = uuid.Nil, 0, 0
+			currentState = model.NotificationStateRecord{}
+		}
+		if currentRecipient == uuid.Nil {
+			currentRecipient = recipient
+			var err error
+			currentState, err = model.GetNotificationState(db, recipient)
+			if err != nil {
+				return err
+			}
+			profile, err := model.GetProfileFromUuid(db, recipient)
+			if err != nil || profile.Type != "user" || profile.Deleted {
+				stats.orphanNotificationRecipients++
+			}
+		}
+
+		var record model.NotificationRecord
+		if err := json.Unmarshal(raw, &record); err != nil {
+			stats.invalidNotifications++
+			return nil
+		}
+		if record.Version != model.NotificationRecordVersion || record.ID != notificationID.String() || record.RecipientUUID != recipient.String() {
+			stats.invalidNotifications++
+		}
+		inboxKey, err := model.NotificationInboxKey(recipient, notificationID, time.UnixMilli(record.ActivityAtMS).UTC())
+		if err != nil {
+			stats.invalidNotifications++
+			return nil
+		}
+		exists, err := db.Exists(inboxKey)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			stats.missingNotificationInbox++
+		}
+		recipientRows++
+		if record.CreatedAtNS > currentState.LastReadAtNS {
+			recipientUnread++
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := finishRecipient(); err != nil {
+		return err
+	}
+
+	if err := model.NotificationInbox.Iter(db, func(key, _ []byte) error {
+		stats.notificationInboxes++
+		recipient, notificationID, activity, err := model.ParseNotificationInboxKey(key)
+		if err != nil {
+			stats.notificationInboxMismatch++
+			return nil
+		}
+		record, err := model.GetNotification(db, recipient, notificationID)
+		if errors.Is(err, model.ErrNotFound) {
+			stats.orphanNotificationInbox++
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if record.RecipientUUID != recipient.String() || record.ID != notificationID.String() || record.ActivityAtMS != activity.UnixMilli() {
+			stats.notificationInboxMismatch++
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return model.NotificationState.Iter(db, func(key, raw []byte) error {
+		stats.notificationStates++
+		if len(key) != model.NotificationState.Prefix.Len()+uuid.Size {
+			stats.notificationStateMismatch++
+			return nil
+		}
+		var state model.NotificationStateRecord
+		if err := json.Unmarshal(raw, &state); err != nil || state.Version != model.NotificationStateVersion {
+			stats.notificationStateMismatch++
+			return nil
+		}
+		recipient, _ := uuid.FromBytes(key[model.NotificationState.Prefix.Len():])
+		hasRows, err := prefixHasAny(db, model.NotificationPrefix(recipient))
+		if err != nil {
+			return err
+		}
+		if !hasRows && (state.TotalCount != 0 || state.UnreadCount != 0) {
+			stats.notificationStateMismatch++
+		}
+		return nil
+	})
 }
 
 func prefixHasAny(db *store.Store, prefix store.Key) (bool, error) {
@@ -721,6 +867,11 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "groups=%d group_admins=%d invalid_group_admins=%d admin_missing_membership=%d groups_without_admins=%d deleted_group_residuals=%d\n",
 		stats.groups, stats.groupAdmins, stats.invalidGroupAdmins, stats.adminMissingMember,
 		stats.groupsWithoutAdmins, stats.deletedGroupResiduals)
+	fmt.Fprintf(out, "notifications=%d notification_inbox=%d notification_states=%d invalid_notifications=%d orphan_recipients=%d missing_inbox=%d orphan_inbox=%d inbox_mismatch=%d state_mismatch=%d over_max=%d over_trigger=%d\n",
+		stats.notifications, stats.notificationInboxes, stats.notificationStates, stats.invalidNotifications,
+		stats.orphanNotificationRecipients, stats.missingNotificationInbox, stats.orphanNotificationInbox,
+		stats.notificationInboxMismatch, stats.notificationStateMismatch, stats.notificationOverMax,
+		stats.notificationOverTrigger)
 	fmt.Fprintf(out, "tasks=%d ready=%d leases=%d idem=%d done=%d missing_ready=%d missing_lease=%d missing_idem=%d orphan_ready=%d orphan_lease=%d orphan_idem=%d mismatched_ready=%d mismatched_lease=%d mismatched_idem=%d invalid_done=%d\n",
 		stats.tasks.Tasks, stats.tasks.Ready, stats.tasks.Leases, stats.tasks.Idempotency, stats.tasks.Done,
 		stats.tasks.MissingReady, stats.tasks.MissingLease, stats.tasks.MissingIdem,

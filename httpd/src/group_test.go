@@ -46,7 +46,8 @@ type fakeGroupClient struct {
 	groupView    *pb.GroupView
 	groupViewErr error
 
-	profile *pb.Profile
+	profile    *pb.Profile
+	profileErr error
 
 	membersResp *pb.ListGroupMembersResponse
 	membersErr  error
@@ -67,6 +68,22 @@ type fakeGroupClient struct {
 	followActionErr error
 	approveCalls    int
 	rejectCalls     int
+
+	commandResp  *pb.CommandResponse
+	commandErr   error
+	commandCalls []*pb.CommandRequest
+	commandFunc  func(*pb.CommandRequest) (*pb.CommandResponse, error)
+}
+
+func (f *fakeGroupClient) Command(ctx context.Context, req *pb.CommandRequest, opts ...grpc.CallOption) (*pb.CommandResponse, error) {
+	f.commandCalls = append(f.commandCalls, req)
+	if f.commandFunc != nil {
+		return f.commandFunc(req)
+	}
+	if f.commandResp != nil || f.commandErr != nil {
+		return f.commandResp, f.commandErr
+	}
+	return &pb.CommandResponse{Command: req.Command, Result: `{"version":1,"unread_count":0,"total_count":0}`}, nil
 }
 
 func (f *fakeGroupClient) CreateGroup(ctx context.Context, req *pb.CreateGroupRequest, opts ...grpc.CallOption) (*pb.Profile, error) {
@@ -114,7 +131,7 @@ func (f *fakeGroupClient) GetGroup(ctx context.Context, req *pb.GetGroupRequest,
 }
 
 func (f *fakeGroupClient) FetchProfile(ctx context.Context, req *pb.ProfileRequest, opts ...grpc.CallOption) (*pb.Profile, error) {
-	return f.profile, nil
+	return f.profile, f.profileErr
 }
 
 func (f *fakeGroupClient) ListGroupMembers(ctx context.Context, req *pb.ListGroupMembersRequest, opts ...grpc.CallOption) (*pb.ListGroupMembersResponse, error) {

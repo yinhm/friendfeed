@@ -173,16 +173,22 @@ func (s *Server) NotificationsHandler(c *gin.Context) {
 		items = append(items, notificationToView(record))
 	}
 
-	// Mark-all-read is intentionally best effort: an inbox read must remain
-	// usable even when updating its O(1) read watermark temporarily fails.
-	_, _ = s.client.Command(ctx, &pb.CommandRequest{
-		Command: "NotificationMarkRead",
-		Arg1:    userUUID,
-	})
-
 	s.HTML(c, http.StatusOK, "notifications.html", pongo2.Context{
 		"title":         "Notifications",
 		"notifications": items,
 		"next_cursor":   page.NextCursor,
+	})
+	if c.Writer.Status() >= http.StatusBadRequest {
+		return
+	}
+
+	// Mark-all-read is intentionally best effort and happens only after the
+	// page rendered successfully. Use a fresh timeout because list/render work
+	// may have consumed most of the request's first RPC budget.
+	markCtx, markCancel := DefaultTimeoutContext()
+	defer markCancel()
+	_, _ = s.client.Command(markCtx, &pb.CommandRequest{
+		Command: "NotificationMarkRead",
+		Arg1:    userUUID,
 	})
 }

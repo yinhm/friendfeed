@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -58,6 +59,58 @@ func TestAuditStoreFindsIndexAndGraphDrift(t *testing.T) {
 	require.Zero(t, stats.missingFollowerEdges)
 	require.Zero(t, stats.missingFollowEdges)
 	require.Equal(t, 1, stats.maxFollowers)
+}
+
+func TestAuditStoreChecksNotificationInvariants(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	recipient := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: recipient.String(), Id: "notification-recipient", Type: "user",
+	}))
+	activity := time.Now().UTC().Truncate(time.Millisecond)
+	notificationID, err := model.NotificationID(model.NotificationEntryLiked, "audit-like", recipient)
+	require.NoError(t, err)
+	record := model.NotificationRecord{
+		Version: model.NotificationRecordVersion, ID: notificationID.String(),
+		Kind: model.NotificationEntryLiked, RecipientUUID: recipient.String(),
+		ActivityAtMS: activity.UnixMilli(), CreatedAtNS: activity.UnixNano(),
+	}
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		_, _, err := model.StageNotification(db, batch, record)
+		return err
+	}))
+
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.notifications)
+	require.Equal(t, 1, stats.notificationInboxes)
+	require.Equal(t, 1, stats.notificationStates)
+	require.Zero(t, stats.invalidNotifications)
+	require.Zero(t, stats.missingNotificationInbox)
+	require.Zero(t, stats.orphanNotificationInbox)
+	require.Zero(t, stats.notificationStateMismatch)
+
+	inboxKey, err := model.NotificationInboxKey(recipient, notificationID, activity)
+	require.NoError(t, err)
+	require.NoError(t, db.Delete(inboxKey))
+	orphanID := uuid.Must(uuid.NewV4())
+	orphanKey, err := model.NotificationInboxKey(recipient, orphanID, activity.Add(time.Millisecond))
+	require.NoError(t, err)
+	require.NoError(t, db.Put(orphanKey, nil))
+	badState, err := json.Marshal(model.NotificationStateRecord{
+		Version: model.NotificationStateVersion, TotalCount: 9, UnreadCount: 9,
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.Put(model.NotificationStateKey(recipient), badState))
+
+	stats, err = auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.missingNotificationInbox)
+	require.Equal(t, 1, stats.orphanNotificationInbox)
+	require.Equal(t, 1, stats.notificationStateMismatch)
 }
 
 func TestAuditStoreChecksServiceRelationships(t *testing.T) {
