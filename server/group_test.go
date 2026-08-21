@@ -677,16 +677,19 @@ func TestPrivateGroupAccessControl(t *testing.T) {
 	})
 
 	t.Run("Direct Group metadata and member APIs enforce private visibility", func(t *testing.T) {
-		_, err := srv.GetGroup(context.Background(), &pb.GetGroupRequest{
+		// Metadata is visible to a logged-in outsider (the follow-request
+		// entry point); the member list stays closed.
+		view, err := srv.GetGroup(context.Background(), &pb.GetGroupRequest{
 			GroupUuid: groupUUID.String(), ViewerUuid: outsider.String(),
 		})
-		require.Equal(t, codes.PermissionDenied, status.Code(err))
+		require.NoError(t, err)
+		require.False(t, view.IsMember)
 		_, err = srv.ListGroupMembers(context.Background(), &pb.ListGroupMembersRequest{
 			GroupUuid: groupUUID.String(), ViewerUuid: outsider.String(),
 		})
 		require.Equal(t, codes.PermissionDenied, status.Code(err))
 
-		view, err := srv.GetGroup(context.Background(), &pb.GetGroupRequest{
+		view, err = srv.GetGroup(context.Background(), &pb.GetGroupRequest{
 			GroupUuid: groupUUID.String(), ViewerUuid: member.String(),
 		})
 		require.NoError(t, err)

@@ -210,7 +210,10 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, request *pb.DeleteGroupRequ
 }
 
 // GetGroup returns one Group's metadata plus the viewer's member/admin
-// status, per docs/group.md's read contract.
+// status, per docs/group.md's read contract. Metadata (name, picture,
+// description) is deliberately returned to logged-in non-members of a
+// private Group: it carries no content, and the follow-request flow needs it
+// as its entry point. Content reads stay closed via enforcePrivateFeedRead.
 func (s *ApiServer) GetGroup(ctx context.Context, request *pb.GetGroupRequest) (*pb.GroupView, error) {
 	if request == nil || request.GroupUuid == "" {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
@@ -229,8 +232,8 @@ func (s *ApiServer) GetGroup(ctx context.Context, request *pb.GetGroupRequest) (
 	if profile.Type != "group" {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrNotFound, errors.New("profile is not a Group")))
 	}
-	if err := s.enforcePrivateFeedRead(profile, request.ViewerUuid); err != nil {
-		return nil, err
+	if profile.Private && request.ViewerUuid == "" {
+		return nil, status.Errorf(codes.PermissionDenied, "authentication required for private group")
 	}
 	view := &pb.GroupView{Group: profile}
 	if request.ViewerUuid != "" {
