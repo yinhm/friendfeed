@@ -219,3 +219,21 @@ func TestPublicTimelineTrimScheduling(t *testing.T) {
 		return !srv.publicTimelineTrimming.Load()
 	}, 5*time.Second, time.Millisecond)
 }
+
+func TestPublicFeedHidesExistingEntryAfterFeedBecomesPrivate(t *testing.T) {
+	srv := newPublicTestServer(t)
+	author := addPublicTestProfile(t, srv, "author", false)
+	entry := postPublicTestEntry(t, srv, author, "published while public")
+
+	require.Contains(t, publicFeedEntryIDs(fetchPublicFeed(t, srv, nil)), entry.Id)
+
+	// Flip the author to private after the entry already entered the public
+	// timeline: the stale row must stop rendering on read.
+	profile, err := model.GetProfileFromUuid(srv.mdb, uuid.Must(uuid.FromString(author.Uuid)))
+	require.NoError(t, err)
+	profile.Private = true
+	_, err = model.Profile.Put(srv.mdb, uuid.Must(uuid.FromString(author.Uuid)).Bytes(), profile)
+	require.NoError(t, err)
+
+	require.NotContains(t, publicFeedEntryIDs(fetchPublicFeed(t, srv, nil)), entry.Id)
+}

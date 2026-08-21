@@ -638,6 +638,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			return nil, status.Error(codes.Unavailable, pb.HomeTimelineInitializing)
 		}
 	}
+	publicTimeline := activityTimeline && isPublicFeedRequest(req)
 	cursorKey, err := decodeFeedCursor(req.Cursor, prefix)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid feed cursor: %v", err)
@@ -723,6 +724,14 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 						return nil, visErr
 					}
 					visible = v
+				}
+			} else if publicTimeline {
+				// The shared public timeline is materialized data, not a
+				// permission fact: revalidate the target's current
+				// visibility so entries published before a
+				// public->private flip stop rendering.
+				if target, ok := entryVisibilityTarget(entry); ok {
+					visible = s.publicEntryVisible(target, visibilityCache)
 				}
 			}
 			if visible {

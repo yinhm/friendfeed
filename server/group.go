@@ -623,14 +623,38 @@ func (s *ApiServer) privateFeedEntryVisible(feedUUID, viewer uuid.UUID, cache ma
 }
 
 // entryVisibilityTarget extracts the entry's target feed UUID for visibility
-// checks. Entries without a parseable target feed impose no restriction.
+// checks: FeedUuid when set (Group or cross-posted entries), otherwise the
+// author's own feed. Entries without a parseable target impose no restriction.
 func entryVisibilityTarget(entry *pb.Entry) (uuid.UUID, bool) {
-	if entry.FeedUuid == "" {
+	targetRaw := entry.FeedUuid
+	if targetRaw == "" {
+		targetRaw = entry.ProfileUuid
+	}
+	if targetRaw == "" {
 		return uuid.Nil, false
 	}
-	feedUUID, err := uuid.FromString(entry.FeedUuid)
+	feedUUID, err := uuid.FromString(targetRaw)
 	if err != nil || feedUUID == uuid.Nil {
 		return uuid.Nil, false
 	}
 	return feedUUID, true
+}
+
+// publicEntryVisible reports whether an entry's target feed still qualifies
+// for the shared public timeline on read: the feed must resolve and be
+// non-private. The bump path applies the same admission rule at write time
+// (私有/已删除/不可解析的 target 一律不进入); revalidating on read keeps
+// stale rows left by a public->private flip from leaking through /public.
+// Results are cached per request in cache, keyed by feed UUID.
+func (s *ApiServer) publicEntryVisible(feedUUID uuid.UUID, cache map[uuid.UUID]bool) bool {
+	if visible, ok := cache[feedUUID]; ok {
+		return visible
+	}
+	visible := false
+	feedProfile, err := model.GetProfileFromUuid(s.mdb, feedUUID)
+	if err == nil && !feedProfile.Private {
+		visible = true
+	}
+	cache[feedUUID] = visible
+	return visible
 }
