@@ -75,6 +75,14 @@ func (s *ApiServer) bumpPublicTimeline(entry *pb.Entry, privateFeeds map[string]
 	if err != nil {
 		return err
 	}
+	// Like/Comment notifications are staged atomically in model.PutLike and
+	// model.PutComment. This callback happens after those commits even for a
+	// private target, so use it to arm the same bounded retention maintenance
+	// as server-owned direct notification stages. New Entry bumps simply find
+	// no over-threshold NotificationState and are a cheap no-op.
+	if recipient, err := uuid.FromString(entry.ProfileUuid); err == nil && recipient != uuid.Nil {
+		s.scheduleNotificationTrimIfNeeded(recipient)
+	}
 	feedUUID := entry.FeedUuid
 	if feedUUID == "" {
 		feedUUID = entry.ProfileUuid // same default as model.PutEntry
