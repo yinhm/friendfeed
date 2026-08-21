@@ -62,6 +62,11 @@ type fakeGroupClient struct {
 	promoteCalls  int
 	demoteCalls   int
 	removeCalls   int
+
+	followActionReq *pb.FollowRequestAction
+	followActionErr error
+	approveCalls    int
+	rejectCalls     int
 }
 
 func (f *fakeGroupClient) CreateGroup(ctx context.Context, req *pb.CreateGroupRequest, opts ...grpc.CallOption) (*pb.Profile, error) {
@@ -142,6 +147,18 @@ func (f *fakeGroupClient) RemoveGroupMember(ctx context.Context, req *pb.GroupMe
 	f.removeCalls++
 	f.membershipReq = req
 	return &emptypb.Empty{}, f.membershipErr
+}
+
+func (f *fakeGroupClient) ApproveFollowRequest(ctx context.Context, req *pb.FollowRequestAction, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	f.approveCalls++
+	f.followActionReq = req
+	return &emptypb.Empty{}, f.followActionErr
+}
+
+func (f *fakeGroupClient) RejectFollowRequest(ctx context.Context, req *pb.FollowRequestAction, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	f.rejectCalls++
+	f.followActionReq = req
+	return &emptypb.Empty{}, f.followActionErr
 }
 
 // nopRender lets handlers that answer with c.HTML run without a template FS.
@@ -482,5 +499,32 @@ func TestGroupDeleteHandler(t *testing.T) {
 	}
 	if client.deleteCalls != 1 {
 		t.Fatalf("DeleteGroup called %d times; want 1", client.deleteCalls)
+	}
+}
+
+func TestGroupMemberActionApproveReject(t *testing.T) {
+	target := "33333333-3333-3333-3333-333333333333"
+	for _, action := range []string{"approve", "reject"} {
+		client := &fakeGroupClient{
+			feedResp:  &pb.Feed{Uuid: testGroupUUID, Id: "book-club"},
+			groupView: &pb.GroupView{Group: &pb.Profile{Uuid: testGroupUUID, Id: "book-club"}, IsAdmin: true},
+			profile:   &pb.Profile{Uuid: testGroupUserUUID},
+		}
+		s := newGroupTestServer(client)
+		router := groupTestRouter(s)
+		router.POST("/groups/:name/members/action", s.GroupMemberActionHandler)
+		login := groupLoginCookie(t, router)
+
+		recorder := postForm(t, router, "/groups/book-club/members/action", url.Values{
+			"action": {action}, "target_uuid": {target},
+		}, login)
+
+		if recorder.Code != http.StatusFound {
+			t.Fatalf("%s: status = %d (%s); want 302", action, recorder.Code, recorder.Body.String())
+		}
+		req := client.followActionReq
+		if req == nil || req.ActorUuid != testGroupUserUUID || req.FeedUuid != testGroupUUID || req.TargetUuid != target {
+			t.Fatalf("%s: follow action request = %+v", action, req)
+		}
 	}
 }
