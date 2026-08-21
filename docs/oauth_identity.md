@@ -93,6 +93,8 @@ Google 明确禁止使用 email 作为用户记录的主键：一个账户可能
 
 ## 修改约束
 
+首次登录会创建 profile：初始 Profile ID 是系统生成的 `ff-` 随机 slug（见 `docs/profile_rename.md`），provider 显示名只作为 `Name`。`PutOAuth` 响应用 transient `Profile.newly_created` 标记本次新建，web 层据此把首次登录引导到 profile 页选择 ID。
+
 以下行为属于持久化身份契约，修改前必须提供迁移方案和回归测试：
 
 - OAuth key 的 provider/user ID 拼接方式；
@@ -104,6 +106,7 @@ Google 明确禁止使用 email 作为用户记录的主键：一个账户可能
 回归测试至少应覆盖：
 
 - 同一 provider、同一 User ID 重登时 UUID 不变且 token 刷新；
+- 新 profile 的初始 ID 是 `ff-` 随机 slug，满足 `ValidateProfileId` 且不占用已有 `UserMap` 映射；
 - username、显示名或 email 改变时仍命中原身份；
 - 不同 provider 下相同 User ID 不互相覆盖；
 - 传入 UUID 与已有绑定冲突时拒绝写入；
