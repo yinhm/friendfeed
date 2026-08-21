@@ -5,8 +5,8 @@
 ## 身份与授权
 
 - 用户 UUID 是唯一稳定身份。Profile ID、Name、Picture、Type 都是可变化的展示字段或写入时快照。
-- 新 OAuth profile 的初始 ID 由系统生成（`ff-` + 8 个随机 `[a-z0-9]` 字符，满足 `ValidateProfileId`），provider 显示名只写入 `Name`；用户在 profile 页通过 rename 换成自己的 ID。`PutOAuth` 对本次新建的 profile 在响应里设置 transient `Profile.newly_created`（不持久化），httpd 据此把首次登录 redirect 到 `/account/profile?welcome=1`。
-- `UpdateProfile` 拒绝把已被其他 profile 占用的 ID 写入 `UserMap`（`ErrProfileIdTaken`），创建路径与 `RenameProfileId`、`StageCreateGroup` 的唯一性保证一致。
+- 新 OAuth profile 的初始 ID 由系统生成（`ff-` + 8 个随机 `[a-z0-9]` 字符，满足 `ValidateProfileId`），provider 显示名只写入 `Name`；用户在 profile 页通过 rename 换成自己的 ID。`PutOAuth` 通过 gRPC response header `x-profile-newly-created` 标记本次新建的 profile（Profile 是持久化类型，不承载 transient 状态），httpd 据此把首次登录 redirect 到 `/account/profile?welcome=1`。
+- `UpdateProfile` 在同一个 `ApplyBatch` 内完成保留 ID 检查、`UserMap` 冲突检查和两项写入（与 `RenameProfileId`、`StageCreateGroup` 串行化提交）：并发创建相同 ID 只有一方成功（另一方收到 `ErrProfileIdTaken`），提交失败不留孤儿 `UserMap` 映射。
 - Entry 作者使用 `ProfileUuid`；comment/like 的 `From.Uuid` 保存稳定 UUID。
 - 新 comment/like 的 `From` 必须由 canonical Profile 生成，不能信任客户端提交的身份字段。
 - like 去重与 unlike、comment edit/delete、UI commands 都按有效且非零的 UUID 判断，不得 fallback 到当前 `UserMap` 或相同 ID。
