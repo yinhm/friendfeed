@@ -22,6 +22,12 @@ import (
 )
 
 func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.CommandResponse, error) {
+	if cmd == nil {
+		return nil, errors.New("command is required")
+	}
+	if response, handled, err := s.notificationCommand(ctx, cmd); handled {
+		return response, err
+	}
 	switch cmd.Command {
 	case "ReportJobs":
 		s.DebugJobs()
