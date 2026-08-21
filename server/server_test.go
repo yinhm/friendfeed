@@ -1754,6 +1754,51 @@ func (s *RpcTestSuite) TestPutOAuthNewlyCreatedHeader() {
 	assert.Empty(s.T(), reloginHeader.Get(pb.ProfileNewlyCreatedHeader))
 }
 
+// 软删除账号不得通过 OAuth 登录：RPC 必须失败，Profile 与 FeedService 均不
+// 得被修改（master 通过 GetProfileFromUuid 的 ErrProfileDeleted 拒绝登录）。
+func (s *RpcTestSuite) TestPutOAuthRejectsDeletedProfile() {
+	ctx := context.Background()
+
+	rawProfile := func(profileUUID uuid.UUID) *pb.Profile {
+		raw := new(pb.Profile)
+		s.Require().NoError(model.Profile.Get(s.srv.mdb, profileUUID.Bytes(), raw))
+		return raw
+	}
+
+	// Google：profile 已 soft-delete 的账号登录被拒绝
+	googleUUID := model.UniqueKeyFrom("google", "deleted-google-user")
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, &pb.Profile{
+		Uuid: googleUUID.String(), Id: "ghost-google", Name: "Ghost", Type: "user", Deleted: true,
+	}))
+	_, err := s.srv.PutOAuth(ctx, &pb.OAuthUser{
+		Name: "Ghost", NickName: "Ghost", UserId: "deleted-google-user", Provider: "google",
+	})
+	s.Require().Error(err)
+	assert.ErrorIs(s.T(), err, model.ErrProfileDeleted)
+	// Profile 未被改写
+	ghost := rawProfile(googleUUID)
+	assert.True(s.T(), ghost.Deleted)
+	assert.Equal(s.T(), "ghost-google", ghost.Id)
+
+	// Twitter：同样拒绝，且 FeedService/OAuth 凭据不得写入
+	twitterUUID := model.UniqueKeyFrom("twitter", "deleted-twitter-user")
+	s.Require().NoError(model.UpdateProfile(s.srv.mdb, &pb.Profile{
+		Uuid: twitterUUID.String(), Id: "ghost-twitter", Name: "GhostTw", Type: "user", Deleted: true,
+	}))
+	_, err = s.srv.PutOAuth(ctx, &pb.OAuthUser{
+		Name: "screenname", NickName: "Ghost Tw", UserId: "deleted-twitter-user",
+		AccessToken: "token-x", Provider: "twitter",
+	})
+	s.Require().Error(err)
+	assert.ErrorIs(s.T(), err, model.ErrProfileDeleted)
+	services, err := model.GetFeedServices(s.srv.rdb, twitterUUID)
+	assert.Nil(s.T(), err)
+	assert.Empty(s.T(), services)
+	ghostTw := rawProfile(twitterUUID)
+	assert.True(s.T(), ghostTw.Deleted)
+	assert.Equal(s.T(), "ghost-twitter", ghostTw.Id)
+}
+
 // fakeMirrorStorage simulates media mirroring without network or disk IO:
 // FromUrl rewrites the object URL to the mirror front domain, or fails
 // outright when fail is set. It records every src it was asked to mirror.

@@ -177,6 +177,47 @@ func (s *TableTestSuite) TestGetOrCreateProfileConcurrentSameUuid() {
 	assert.Equal(s.T(), 1, len(ids), "all racers must observe the same profile ID")
 }
 
+func (s *TableTestSuite) TestGetOrCreateProfileRejectsDeleted() {
+	authinfo := &pb.OAuthUser{
+		Uuid:     uuid.Must(uuid.NewV4()).String(),
+		UserId:   "deleted-user",
+		NickName: "Deleted User",
+		Provider: "google",
+	}
+	profile, created, err := GetOrCreateProfileFromOAuthUser(s.db, authinfo)
+	assert.Nil(s.T(), err)
+	assert.True(s.T(), created)
+
+	// Soft-delete the account: the row stays, flagged Deleted.
+	profile.Deleted = true
+	assert.Nil(s.T(), UpdateProfile(s.db, profile))
+
+	// Get-or-create must mirror GetProfileFromUuid and reject the login,
+	// not adopt the deleted profile as an existing account.
+	_, _, err = GetOrCreateProfileFromOAuthUser(s.db, authinfo)
+	assert.ErrorIs(s.T(), err, ErrProfileDeleted)
+}
+
+func (s *TableTestSuite) TestNewProfileFromOAuthUserKeepsOverwriteSemantics() {
+	// Compat contract: the legacy constructor always applies the incoming
+	// OAuth fields, even when the profile already exists. New code uses
+	// GetOrCreateProfileFromOAuthUser instead.
+	authinfo := &pb.OAuthUser{
+		Uuid:     uuid.Must(uuid.NewV4()).String(),
+		UserId:   "legacy-user",
+		NickName: "Legacy User",
+		Provider: "google",
+	}
+	profile, err := NewProfileFromOAuthUser(s.db, authinfo)
+	assert.Nil(s.T(), err)
+	assert.NotEmpty(s.T(), profile.Id)
+
+	authinfo.NickName = "Renamed Display"
+	updated, err := NewProfileFromOAuthUser(s.db, authinfo)
+	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), "Renamed Display", updated.Name)
+}
+
 func (s *TableTestSuite) TestUpdateProfileRejectsReservedId() {
 	profile := &pb.Profile{
 		Uuid: uuid.Must(uuid.NewV4()).String(),

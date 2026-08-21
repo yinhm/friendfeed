@@ -96,6 +96,11 @@ func createProfileIfAbsent(db *store.Store, candidate *pb.Profile) (profile *pb.
 		existing := new(pb.Profile)
 		getErr := Profile.Get(db, profileUUID.Bytes(), existing)
 		if getErr == nil {
+			// Mirror GetProfileFromUuid: a soft-deleted profile is not an
+			// adoptable account, it is a rejected login.
+			if existing.Deleted {
+				return ErrProfileDeleted
+			}
 			profile = existing
 			return nil
 		}
@@ -112,12 +117,39 @@ func createProfileIfAbsent(db *store.Store, candidate *pb.Profile) (profile *pb.
 	return profile, created, err
 }
 
-// NewProfileFromOAuthUser creates the OAuth user's profile with a
-// system-generated ID. Deprecated wrapper for
-// GetOrCreateProfileFromOAuthUser that discards the created flag.
+// NewProfileFromOAuthUser writes a profile for the OAuth user with a
+// system-generated ID, applying the incoming OAuth fields even when a
+// profile for the UUID already exists (the historical create/overwrite
+// semantics). It does not check for an existing or soft-deleted profile
+// first, so concurrent calls can mint duplicate ID aliases for one UUID.
+//
+// Deprecated: new code must use GetOrCreateProfileFromOAuthUser, which is
+// atomic per account, rejects soft-deleted profiles, and reports whether it
+// created the profile.
 func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	profile, _, err := GetOrCreateProfileFromOAuthUser(db, authinfo)
-	return profile, err
+	for attempt := 0; attempt < 10; attempt++ {
+		id, err := generateProfileId()
+		if err != nil {
+			return nil, err
+		}
+		profile := &pb.Profile{
+			Uuid:        authinfo.Uuid,
+			Id:          id,
+			Name:        authinfo.NickName,
+			Type:        "user",
+			Private:     false,
+			Picture:     authinfo.AvatarUrl,
+			Description: authinfo.Description,
+		}
+		if err := UpdateProfile(db, profile); err != nil {
+			if errors.Is(err, ErrProfileIdTaken) || errors.Is(err, ErrProfileIdReserved) {
+				continue
+			}
+			return nil, err
+		}
+		return profile, nil
+	}
+	return nil, errors.New("could not allocate a unique profile ID")
 }
 
 func UpdateProfile(db *store.Store, profile *pb.Profile) error {

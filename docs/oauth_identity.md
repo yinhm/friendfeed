@@ -93,7 +93,7 @@ Google 明确禁止使用 email 作为用户记录的主键：一个账户可能
 
 ## 修改约束
 
-首次登录会创建 profile：初始 Profile ID 是系统生成的 `ff-` 随机 slug（见 `docs/profile_rename.md`），provider 显示名只作为 `Name`。`PutOAuth` 通过 gRPC response header `x-profile-newly-created`（常量定义在 `pb/helper.go`）标记本次新建的 profile——Profile 是持久化类型，不承载 transient RPC 状态；web 层据此把首次登录引导到 profile 页选择 ID。Twitter 等 provider 的 FeedService 写入安排在 profile 创建之前：service 写入失败时不会留下半创建的账号，下次登录仍是首次并保留 onboarding；service 以确定性 profile UUID 为 key，会被之后创建的 profile 自然接管而不是成为孤儿。
+首次登录会创建 profile：初始 Profile ID 是系统生成的 `ff-` 随机 slug（见 `docs/profile_rename.md`），provider 显示名只作为 `Name`。`PutOAuth` 通过 gRPC response header `x-profile-newly-created`（常量定义在 `pb/helper.go`）标记本次新建的 profile——Profile 是持久化类型，不承载 transient RPC 状态；web 层据此把首次登录引导到 profile 页选择 ID。soft-deleted 账号在任何凭据或 FeedService 写入之前就被拒绝登录。Twitter 等 provider 的 FeedService 写入安排在 profile 创建之前：service 写入失败时不会留下半创建的账号，下次登录仍是首次并保留 onboarding；service 以确定性 profile UUID 为 key，会被之后创建的 profile 自然接管而不是成为孤儿。
 
 以下行为属于持久化身份契约，修改前必须提供迁移方案和回归测试：
 

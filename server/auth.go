@@ -40,6 +40,15 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 
 	profileUUID, _ := uuid.FromString(authinfo.Uuid)
 
+	// Reject soft-deleted accounts before any credential-adjacent writes:
+	// GetProfileFromUuid maps Deleted to ErrProfileDeleted, and any other
+	// non-NotFound read error must abort the login as well. The atomic
+	// get-or-create below re-checks Deleted inside its batch, closing the
+	// window between this read and the create.
+	if _, err := model.GetProfileFromUuid(s.mdb, profileUUID); err != nil && !errors.Is(err, model.ErrNotFound) {
+		return nil, err
+	}
+
 	// (re)build services BEFORE the profile exists. A service-write failure
 	// must not strand a half-created account: when this fails no profile has
 	// been written yet, so the next login still counts as first-time and
