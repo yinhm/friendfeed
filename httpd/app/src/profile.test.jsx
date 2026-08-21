@@ -13,7 +13,7 @@ const profile = {
   type: 'user',
 };
 
-const jsonResponse = (value) => ({ json: vi.fn().mockResolvedValue(value) });
+const jsonResponse = (value) => ({ ok: true, json: vi.fn().mockResolvedValue(value) });
 
 afterEach(() => {
   vi.restoreAllMocks();

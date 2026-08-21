@@ -13,7 +13,7 @@ const services = {
   rss: { id: 'rss', name: 'Tech Notes', kind: 'web_feed', enabled: true },
 };
 
-const jsonResponse = (value) => ({ json: vi.fn().mockResolvedValue(value) });
+const jsonResponse = (value) => ({ ok: true, json: vi.fn().mockResolvedValue(value) });
 
 /** Stateful host mirroring AccountApp: owns the services map. */
 function Harness({ initial }) {

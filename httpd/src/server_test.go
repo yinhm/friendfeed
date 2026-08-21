@@ -1,14 +1,18 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/pb"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -330,5 +334,46 @@ func TestRequestErrorReturnsForbiddenForPermissionDenied(t *testing.T) {
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("status = %d; want %d", recorder.Code, http.StatusForbidden)
+	}
+}
+
+// fakeFollowHandlerClient stubs GraphFollow; the embedded interface satisfies
+// the rest (nil, never called).
+type fakeFollowHandlerClient struct {
+	pb.ApiClient
+
+	followResp *pb.FollowResponse
+	followErr  error
+}
+
+func (f *fakeFollowHandlerClient) GraphFollow(ctx context.Context, req *pb.FollowRequest, opts ...grpc.CallOption) (*pb.FollowResponse, error) {
+	return f.followResp, f.followErr
+}
+
+// A domain rejection (e.g. a Group admin leaving before demotion) must reach
+// the browser as a JSON body with the server's reason, not a bare 500 that
+// response.json() cannot parse.
+func TestFollowHandlerReturnsJSONErrorForDomainRejection(t *testing.T) {
+	client := &fakeFollowHandlerClient{
+		followErr: status.Error(codes.FailedPrecondition, "Group admin must be demoted before membership can be removed"),
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.POST("/a/follow", s.FollowHandler)
+	login := groupLoginCookie(t, router)
+
+	recorder := postForm(t, router, "/a/follow", url.Values{
+		"feed_uuid": {"feed-uuid"}, "action": {"unfollow"},
+	}, login)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d; want %d: %s", recorder.Code, http.StatusConflict, recorder.Body.String())
+	}
+	var body map[string]string
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response is not JSON: %v: %q", err, recorder.Body.String())
+	}
+	if body["error"] != "Group admin must be demoted before membership can be removed" {
+		t.Fatalf("error message = %q", body["error"])
 	}
 }

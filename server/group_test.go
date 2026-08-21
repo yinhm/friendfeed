@@ -283,6 +283,8 @@ func TestGraphFollowRoutesGroupThroughJoinLeave(t *testing.T) {
 		Action:      "unfollow",
 	})
 	require.Error(t, err)
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	require.Contains(t, err.Error(), "demoted")
 }
 
 func postGroupEntry(t *testing.T, srv *ApiServer, poster, group uuid.UUID) (*pb.Entry, error) {

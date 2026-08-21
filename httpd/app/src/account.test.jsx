@@ -14,7 +14,7 @@ const services = {
   twitter: { id: 'twitter', name: 'Twitter', username: 'ffuser' },
 };
 
-const jsonResponse = (value) => ({ json: vi.fn().mockResolvedValue(value) });
+const jsonResponse = (value) => ({ ok: true, json: vi.fn().mockResolvedValue(value) });
 
 afterEach(() => {
   vi.restoreAllMocks();

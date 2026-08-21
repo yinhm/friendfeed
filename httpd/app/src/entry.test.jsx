@@ -63,7 +63,7 @@ test('renders only the comment commands authorized by the server', () => {
 });
 
 test('requires confirmation before deleting a comment', async () => {
-  const fetchMock = vi.fn().mockResolvedValue({json: () => Promise.resolve({})});
+  const fetchMock = vi.fn().mockResolvedValue({ok: true, json: () => Promise.resolve({})});
   vi.stubGlobal('fetch', fetchMock);
 
   try {

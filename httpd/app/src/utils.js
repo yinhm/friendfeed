@@ -50,7 +50,25 @@ export function postJSON(url, data) {
         mode: 'cors', // no-cors, cors, *same-origin
         redirect: 'follow', // manual, *follow, error
         referrer: 'no-referrer', // *client, no-referrer
-    }).then(response => response.json()) // parses response to JSON
+    }).then(async response => {
+        if (response.ok) {
+            return response.json();
+        }
+        // Error responses may be JSON ({error}) or plain-text error pages.
+        // Surface the server's message instead of failing response.json()
+        // with an opaque SyntaxError.
+        const text = await response.text();
+        let message = text || `Request failed (${response.status})`;
+        try {
+            const body = JSON.parse(text);
+            if (body && body.error) {
+                message = body.error;
+            }
+        } catch {
+            // plain-text error page; use it as the message as-is
+        }
+        throw new Error(message);
+    })
 }
 
 // Warning: When using FormData to submit POST requests using XMLHttpRequest or 

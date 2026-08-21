@@ -12,6 +12,8 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	taskqueue "github.com/yinhm/friendfeed/task"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // GraphFollow is a compatible entry point for the generic Follow/Unfollow
@@ -81,7 +83,7 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
 				return model.StageJoinGroup(s.rdb, batch, feedUUID, profileUUID)
 			}); err != nil {
-				return nil, err
+				return nil, graphFollowGroupError(err)
 			}
 			followed = true
 			break
@@ -111,7 +113,7 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 			if _, err := s.tasks.EnqueueWith(ctx, []taskqueue.Spec{spec}, func(batch *pebble.Batch) error {
 				return model.StageLeaveGroup(s.rdb, batch, feedUUID, profileUUID)
 			}); err != nil {
-				return nil, err
+				return nil, graphFollowGroupError(err)
 			}
 			followed = false
 			break
@@ -147,4 +149,23 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 		}
 	}
 	return &pb.FollowResponse{Followed: followed}, nil
+}
+
+// graphFollowGroupError maps the Group domain layer's join/leave rejections
+// onto gRPC status codes with the model message intact, so clients can show
+// the user the actual reason (e.g. an admin must be demoted before leaving)
+// instead of a generic internal error.
+func graphFollowGroupError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, model.ErrGroupNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, model.ErrGroupAdminMustBeDemotedFirst),
+		errors.Is(err, model.ErrLastGroupAdmin),
+		errors.Is(err, model.ErrPrivateGroupUnsupported):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	default:
+		return err
+	}
 }

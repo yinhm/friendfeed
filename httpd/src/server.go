@@ -503,7 +503,23 @@ func (s *Server) FollowHandler(c *gin.Context) {
 	defer cancel()
 
 	entry, err := s.client.GraphFollow(ctx, req)
-	if RequestError(c, err) {
+	if err != nil {
+		// Domain rejections (e.g. a Group admin leaving before demotion)
+		// carry a user-meaningful RPC message: return it as JSON so the
+		// caller can show the reason instead of a bare 500.
+		errStatus, _ := status.FromError(err)
+		switch errStatus.Code() {
+		case codes.FailedPrecondition:
+			c.JSON(http.StatusConflict, gin.H{"error": errStatus.Message()})
+		case codes.InvalidArgument:
+			c.JSON(http.StatusBadRequest, gin.H{"error": errStatus.Message()})
+		case codes.PermissionDenied:
+			c.JSON(http.StatusForbidden, gin.H{"error": errStatus.Message()})
+		case codes.NotFound:
+			c.JSON(http.StatusNotFound, gin.H{"error": errStatus.Message()})
+		default:
+			RequestError(c, err)
+		}
 		return
 	}
 

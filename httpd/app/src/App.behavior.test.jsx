@@ -123,3 +123,25 @@ test('Feed header follows and unfollows with semantic actions', async () => {
   });
   expect(screen.getByRole('button', {name: 'Follow'})).toBeInTheDocument();
 });
+
+test('Feed header shows the server reason when unfollow is rejected', async () => {
+  postJSONMock.mockRejectedValue(
+    new Error('Group admin must be demoted before membership can be removed'));
+  const feed = {
+    id: 'group-feed',
+    uuid: 'group-uuid',
+    name: 'Group Feed',
+    commands: ['unfollow'],
+    entries: [],
+  };
+
+  render(<Feed {...makeFeedProps({feed, show_header: true})} />);
+
+  fireEvent.click(screen.getByRole('button', {name: 'Unfollow'}));
+
+  const alert = await screen.findByRole('alert');
+  expect(alert).toHaveTextContent(
+    'Group admin must be demoted before membership can be removed');
+  // The relationship did not change, so the button must not flip to Follow.
+  expect(screen.getByRole('button', {name: 'Unfollow'})).toBeInTheDocument();
+});

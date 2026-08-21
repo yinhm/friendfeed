@@ -89,6 +89,7 @@ function FeedPagin(props) {
  */
 function FeedHeader(props) {
   const [commands, setCommands] = useState(props.commands);
+  const [followError, setFollowError] = useState('');
 
   const handleFollow = () => {
     var data = {
@@ -97,9 +98,10 @@ function FeedHeader(props) {
     }
     postJSON("/a/follow", data)
       .then((resp) => {
+        setFollowError('');
         // A private target turns the follow into a pending request.
         setCommands([resp && resp.requested ? "requested" : "unfollow"]);
-      }).catch(error => console.error(error));
+      }).catch(error => setFollowError(error.message));
   };
 
   const handleUnfollow = () => {
@@ -109,8 +111,9 @@ function FeedHeader(props) {
     }
     postJSON("/a/follow", data)
       .then(() => { // arrow function
+        setFollowError('');
         setCommands(["follow"]);
-      }).catch(error => console.error(error));
+      }).catch(error => setFollowError(error.message));
   };
 
   /** @type {React.ReactNode} */
@@ -151,6 +154,7 @@ function FeedHeader(props) {
         <div className="description">{props.description}</div>
 
         {followBtn}
+        {followError && <div role="alert" className="error-banner">{followError}</div>}
       </div>
       <div className="clear"></div>
     </div>

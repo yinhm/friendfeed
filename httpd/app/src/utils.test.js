@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { dprint, getJSON, intersperse, postForm, postJSON } from './utils';
 
-const jsonResponse = (value) => ({ json: vi.fn().mockResolvedValue(value) });
+const jsonResponse = (value) => ({ ok: true, json: vi.fn().mockResolvedValue(value) });
+
+const errorResponse = (status, body) => ({
+  ok: false,
+  status,
+  text: vi.fn().mockResolvedValue(typeof body === 'string' ? body : JSON.stringify(body)),
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -62,6 +68,28 @@ describe('request helpers', () => {
       credentials: 'same-origin',
       method: 'POST',
     });
+  });
+
+  it('surfaces the server reason from a JSON error body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      errorResponse(409, { error: 'Group admin must be demoted first' })));
+
+    await expect(postJSON('/a/follow', { action: 'unfollow' }))
+      .rejects.toThrow('Group admin must be demoted first');
+  });
+
+  it('surfaces plain-text error pages without a SyntaxError', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(500, 'Server error.')));
+
+    await expect(postJSON('/a/follow', { action: 'unfollow' }))
+      .rejects.toThrow('Server error.');
+  });
+
+  it('falls back to the status code on an empty error body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(502, '')));
+
+    await expect(postJSON('/a/follow', { action: 'unfollow' }))
+      .rejects.toThrow('Request failed (502)');
   });
 });
 
