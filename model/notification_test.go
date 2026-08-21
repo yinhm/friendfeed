@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/pb"
