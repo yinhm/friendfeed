@@ -15,10 +15,16 @@ import (
 	"github.com/yinhm/friendfeed/util"
 )
 
+type notificationRecordDTO struct {
+	model.NotificationRecord
+	TargetType string `json:"target_type,omitempty"`
+	TargetID   string `json:"target_id,omitempty"`
+}
+
 type notificationPageDTO struct {
-	Version    uint32                     `json:"version"`
-	Items      []model.NotificationRecord `json:"items"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
+	Version    uint32                  `json:"version"`
+	Items      []notificationRecordDTO `json:"items"`
+	NextCursor string                  `json:"next_cursor,omitempty"`
 }
 
 type notificationSummaryDTO struct {
@@ -61,6 +67,30 @@ func (s *ApiServer) notificationProfileName(profileID uuid.UUID) string {
 		return ""
 	}
 	return profile.Name
+}
+
+// notificationRecordForResponse resolves live profile presentation data
+// without mutating the immutable canonical notification row. Stored snapshots
+// remain the fallback when an actor/target is missing or deleted.
+func (s *ApiServer) notificationRecordForResponse(record model.NotificationRecord) notificationRecordDTO {
+	dto := notificationRecordDTO{NotificationRecord: record}
+	if record.ActorUUID != "" {
+		if actor, err := uuid.FromString(record.ActorUUID); err == nil {
+			if profile, err := model.GetProfileFromUuid(s.rdb, actor); err == nil {
+				dto.ActorNameSnapshot = profile.Name
+			}
+		}
+	}
+	if record.TargetUUID != "" {
+		if target, err := uuid.FromString(record.TargetUUID); err == nil {
+			if profile, err := model.GetProfileFromUuid(s.rdb, target); err == nil {
+				dto.TargetNameSnapshot = profile.Name
+				dto.TargetType = profile.Type
+				dto.TargetID = profile.Id
+			}
+		}
+	}
+	return dto
 }
 
 // stageNotification writes one direct recipient notification into the
@@ -193,11 +223,15 @@ func (s *ApiServer) notificationCommand(ctx context.Context, cmd *pb.CommandRequ
 			if err != nil || len(cursor) != model.NotificationInboxPositionSize {
 				return nil, true, errors.New("invalid notification cursor")
 			}
+		}
 		items, next, err := model.ListNotifications(s.rdb, recipient, 30, cursor)
 		if err != nil {
 			return nil, true, err
 		}
-		page := notificationPageDTO{Version: 1, Items: items}
+		page := notificationPageDTO{Version: 1, Items: make([]notificationRecordDTO, 0, len(items))}
+		for _, item := range items {
+			page.Items = append(page.Items, s.notificationRecordForResponse(item))
+		}
 		if len(next) != 0 {
 			page.NextCursor = util.Base58Encode(next)
 		}
