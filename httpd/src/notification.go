@@ -27,6 +27,8 @@ type notificationRecordDTO struct {
 	CreatedAtNS        int64  `json:"created_at_ns"`
 	ActorNameSnapshot  string `json:"actor_name_snapshot,omitempty"`
 	TargetNameSnapshot string `json:"target_name_snapshot,omitempty"`
+	TargetType         string `json:"target_type,omitempty"`
+	TargetID           string `json:"target_id,omitempty"`
 }
 
 type notificationPageDTO struct {
@@ -62,32 +64,6 @@ func (s *Server) notificationSummary(ctx context.Context, userUUID string) (noti
 	return summary, nil
 }
 
-func (s *Server) NotificationSummaryHandler(c *gin.Context) {
-	userUUID := CurrentUserUuid(c)
-	if userUUID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in"})
-		return
-	}
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-	summary, err := s.notificationSummary(ctx, userUUID)
-	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "notification summary unavailable"})
-		return
-	}
-	unread := summary.UnreadCount
-	display := ""
-	if unread > 99 {
-		display = "99+"
-	} else if unread > 0 {
-		display = fmt.Sprintf("%d", unread)
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"unread_count": unread,
-		"display":      display,
-	})
-}
-
 func notificationActor(record notificationRecordDTO) string {
 	if record.ActorNameSnapshot != "" {
 		return record.ActorNameSnapshot
@@ -102,6 +78,20 @@ func notificationTarget(record notificationRecordDTO) string {
 	return "this feed"
 }
 
+func notificationFeedHref(record notificationRecordDTO) string {
+	if record.TargetID == "" {
+		return "/notifications"
+	}
+	return "/feed/" + url.PathEscape(record.TargetID)
+}
+
+func notificationGroupMembersHref(record notificationRecordDTO) string {
+	if record.TargetID == "" {
+		return "/groups"
+	}
+	return "/groups/" + url.PathEscape(record.TargetID) + "/members"
+}
+
 func notificationToView(record notificationRecordDTO) notificationView {
 	actor := notificationActor(record)
 	target := notificationTarget(record)
@@ -112,19 +102,27 @@ func notificationToView(record notificationRecordDTO) notificationView {
 	}
 	switch record.Kind {
 	case "FOLLOW_REQUEST_RECEIVED":
-		if record.TargetUUID == record.RecipientUUID {
+		if record.TargetType == "group" || record.TargetUUID != record.RecipientUUID {
+			view.Text = fmt.Sprintf("%s requested to join %s", actor, target)
+			view.Href = notificationGroupMembersHref(record)
+		} else {
 			view.Text = fmt.Sprintf("%s requested to follow you", actor)
 			view.Href = "/account/requests"
-		} else {
-			view.Text = fmt.Sprintf("%s requested to join %s", actor, target)
-			view.Href = "/groups"
 		}
 	case "FOLLOW_REQUEST_APPROVED":
-		view.Text = fmt.Sprintf("Your request to follow %s was approved", target)
-		view.Href = "/groups"
+		if record.TargetType == "group" {
+			view.Text = fmt.Sprintf("Your request to join %s was approved", target)
+		} else {
+			view.Text = fmt.Sprintf("Your request to follow %s was approved", target)
+		}
+		view.Href = notificationFeedHref(record)
 	case "FOLLOW_REQUEST_REJECTED":
-		view.Text = fmt.Sprintf("Your request to follow %s was declined", target)
-		view.Href = "/groups"
+		if record.TargetType == "group" {
+			view.Text = fmt.Sprintf("Your request to join %s was declined", target)
+		} else {
+			view.Text = fmt.Sprintf("Your request to follow %s was declined", target)
+		}
+		view.Href = notificationFeedHref(record)
 	case "ENTRY_COMMENTED":
 		view.Text = fmt.Sprintf("%s commented on your post", actor)
 		if record.EntryUUID != "" {
@@ -137,13 +135,13 @@ func notificationToView(record notificationRecordDTO) notificationView {
 		}
 	case "GROUP_ADMIN_ADDED":
 		view.Text = fmt.Sprintf("%s promoted you to admin of %s", actor, target)
-		view.Href = "/groups"
+		view.Href = notificationFeedHref(record)
 	case "GROUP_ADMIN_REMOVED":
 		view.Text = fmt.Sprintf("%s removed you as admin of %s", actor, target)
-		view.Href = "/groups"
+		view.Href = notificationFeedHref(record)
 	case "GROUP_MEMBER_REMOVED":
 		view.Text = fmt.Sprintf("%s removed you from %s", actor, target)
-		view.Href = "/groups"
+		view.Href = notificationFeedHref(record)
 	}
 	return view
 }
