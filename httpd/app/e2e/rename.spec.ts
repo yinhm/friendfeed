@@ -137,15 +137,18 @@ test('profile rename propagates to author display, like state and comment comman
     liked = true;
     await expect(botEntry.getByRole('button', { name: 'Unlike', exact: true })).toBeVisible();
 
-    // Rename both the profile id (feed slug) and the display name.
+    // Rename both the profile id (feed slug) and the display name. The
+    // seeded ID is a generated "ff-" slug: capture it from the form, the
+    // old-URL redirect assertion below follows that exact slug.
     await page.goto('/account/profile');
+    const oldId = await page.locator('#id').inputValue();
     await page.locator('#id').fill(newId);
     await page.locator('#name').fill('E2E Renamed');
     await page.getByRole('button', { name: 'Save Changes' }).click();
     await expect(page.getByRole('status')).toContainText(`/feed/${newId}`);
 
     // The old feed URL follows the soft-rename record to the canonical ID.
-    await page.goto('/feed/e2e-rename-user');
+    await page.goto(`/feed/${oldId}`);
     await expect(page).toHaveURL(new RegExp(`/feed/${newId}$`));
 
     // Read the entry through its captured permalink rather than the public

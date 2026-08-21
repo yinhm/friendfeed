@@ -36,6 +36,23 @@ func main() {
 
 	client := pb.NewApiClient(conn)
 	ctx := context.Background()
+
+	// PutOAuth now mints random "ff-" IDs for new profiles, so pin the
+	// fixture slugs through the production rename RPC; several specs address
+	// these feeds by ID (e.g. /feed/e2e-user).
+	renameTo := func(profile *pb.Profile, id string) *pb.Profile {
+		renamed, err := client.PostFeedinfo(ctx, &pb.Feedinfo{
+			Uuid: profile.Uuid,
+			Id:   id,
+			Name: profile.Name,
+			Type: profile.Type,
+		})
+		if err != nil {
+			log.Fatalf("rename %s to %s: %v", profile.Uuid, id, err)
+		}
+		return renamed
+	}
+
 	authUser := &pb.OAuthUser{
 		UserId:   "e2e-user-id",
 		Name:     "e2e-user",
@@ -46,6 +63,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("PutOAuth: %v", err)
 	}
+	profile = renameTo(profile, "e2e-user")
 	if *sessionKey != "" && *sessionCookieFile != "" {
 		if err := writeSessionCookie(*sessionCookieFile, *sessionKey, authUser.UserId, profile.Uuid); err != nil {
 			log.Fatalf("write session cookie: %v", err)
@@ -61,6 +79,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("PutOAuth rename user: %v", err)
 	}
+	// Do NOT pin this user's slug: rename.spec renames it exactly once, and
+	// RenameProfileId enforces one active rename per profile. The spec reads
+	// the generated "ff-" ID from the profile form instead.
 	if *sessionKey != "" && *renameSessionCookieFile != "" {
 		if err := writeSessionCookie(*renameSessionCookieFile, *sessionKey, renameAuthUser.UserId, renameProfile.Uuid); err != nil {
 			log.Fatalf("write rename session cookie: %v", err)
