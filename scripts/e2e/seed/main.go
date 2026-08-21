@@ -88,7 +88,23 @@ func main() {
 	owner := &pb.Feed{Id: profile.Id, Name: profile.Name, Type: profile.Type}
 	rawBody := `[{"type":"p","children":[{"text":"E2E smoke "},{"text":"bold marker","bold":true}]}]`
 
-	entries := []*pb.Entry{
+	// Pagination fixtures: 35 bot entries ingested BEFORE the smoke entries.
+	// The public timeline is bump-ordered, so seeding them first keeps the
+	// smoke entries on page 1 while the 39-entry total still spills the
+	// oldest fillers onto page 2.
+	var entries []*pb.Entry
+	for i := 1; i <= 35; i++ {
+		entries = append(entries, &pb.Entry{
+			Id:          uuid.Must(uuid.NewV4()).String(),
+			ProfileUuid: botProfile.Uuid,
+			From:        from,
+			Body:        fmt.Sprintf(`<p>E2E page filler %02d</p>`, i),
+			Date:        time.Now().Add(-time.Hour - time.Duration(i)*10*time.Minute).UTC().Format(time.RFC3339),
+			Commands:    []string{"comment"},
+		})
+	}
+
+	entries = append(entries, []*pb.Entry{
 		{
 			Id:          uuid.Must(uuid.NewV4()).String(),
 			ProfileUuid: botProfile.Uuid,
@@ -126,22 +142,7 @@ func main() {
 			Date:        time.Now().Add(2 * time.Minute).UTC().Format(time.RFC3339),
 			Commands:    []string{"comment", "edit", "delete"},
 		},
-	}
-
-	// Pagination fixtures: 35 bot entries older than everything else, so the
-	// 30-entry first page keeps the smoke entries while a second page exists.
-	// They are numbered; page 1 holds 01-26 after the 4 smoke entries, page 2
-	// holds 27-35.
-	for i := 1; i <= 35; i++ {
-		entries = append(entries, &pb.Entry{
-			Id:          uuid.Must(uuid.NewV4()).String(),
-			ProfileUuid: botProfile.Uuid,
-			From:        from,
-			Body:        fmt.Sprintf(`<p>E2E page filler %02d</p>`, i),
-			Date:        time.Now().Add(-time.Hour - time.Duration(i)*10*time.Minute).UTC().Format(time.RFC3339),
-			Commands:    []string{"comment"},
-		})
-	}
+	}...)
 
 	for _, entry := range entries {
 		if err := stream.Send(entry); err != nil {

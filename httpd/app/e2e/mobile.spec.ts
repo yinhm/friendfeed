@@ -31,13 +31,13 @@ test('sidebar layout switches at the 600px breakpoint', async ({
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
-  await expect(page.locator('.menu')).toBeVisible();
-  await expect(page.locator('.menu > summary')).toBeHidden();
+  await expect(page.locator('details.menu')).toBeVisible();
+  await expect(page.locator('details.menu > summary')).toBeHidden();
   await expect(page.locator('.groups-menu')).toBeVisible();
 
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
-  await expect(page.locator('.menu > summary')).toBeVisible();
+  await expect(page.locator('details.menu > summary')).toBeVisible();
   await expect(page.locator('.groups-menu')).toBeHidden();
 });
 

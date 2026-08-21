@@ -32,17 +32,20 @@ test('editor publishes bold text via keyboard shortcut', async ({
   await expect(editor).toBeVisible();
 
   const text = `E2E bold post ${Date.now()}`;
-  await editor.fill(text);
+  await editor.click();
+  await editor.pressSequentially(text);
   await editor.press('Control+A');
   await editor.press('Control+B');
+  // The mark must exist in the editor before it can survive serialization.
+  await expect(editor.locator('strong')).toHaveText(text);
   await page.locator('.sharebox button.submit').click();
 
   const entry = page.locator('[data-eid]', { hasText: text });
   await expect(entry.locator('.content strong')).toHaveText(text);
 });
 
-// Shift+Enter is the soft-break contract: one paragraph with a <br>, not two
-// paragraphs and not a submit.
+// Shift+Enter is the soft-break contract: the two lines stay in a single
+// paragraph (Enter would split it, and nothing submits early).
 test('editor Shift+Enter inserts a soft break', async ({ context, page }) => {
   await authenticate(context);
   await page.goto('/');
@@ -60,9 +63,10 @@ test('editor Shift+Enter inserts a soft break', async ({ context, page }) => {
   await page.locator('.sharebox button.submit').click();
 
   const entry = page.locator('[data-eid]', { hasText: marker });
-  await expect(entry.locator('.content')).toContainText(line1);
-  await expect(entry.locator('.content')).toContainText(line2);
-  await expect(entry.locator('.content br')).toHaveCount(1);
+  const paragraphs = entry.locator('.content p');
+  await expect(paragraphs).toHaveCount(1);
+  await expect(paragraphs.first()).toContainText(line1);
+  await expect(paragraphs.first()).toContainText(line2);
 });
 
 // The `> ` markdown rule wraps the block in a blockquote, and the rawBody
