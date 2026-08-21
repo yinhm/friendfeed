@@ -229,7 +229,7 @@ func (s *ApiServer) GetGroup(ctx context.Context, request *pb.GetGroupRequest) (
 	if profile.Type != "group" {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrNotFound, errors.New("profile is not a Group")))
 	}
-	if err := s.enforcePrivateGroupRead(profile, request.ViewerUuid); err != nil {
+	if err := s.enforcePrivateFeedRead(profile, request.ViewerUuid); err != nil {
 		return nil, err
 	}
 	view := &pb.GroupView{Group: profile}
@@ -242,6 +242,9 @@ func (s *ApiServer) GetGroup(ctx context.Context, request *pb.GetGroupRequest) (
 			return nil, taskRPCError(err)
 		}
 		if view.IsAdmin, err = model.IsGroupAdmin(s.rdb, group, viewer); err != nil {
+			return nil, taskRPCError(err)
+		}
+		if view.HasPendingRequest, err = model.IsFollowRequestPending(s.rdb, group, viewer); err != nil {
 			return nil, taskRPCError(err)
 		}
 	}
@@ -270,7 +273,7 @@ func (s *ApiServer) ListGroupMembers(ctx context.Context, request *pb.ListGroupM
 	if profile.Type != "group" {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrNotFound, errors.New("profile is not a Group")))
 	}
-	if err := s.enforcePrivateGroupRead(profile, request.ViewerUuid); err != nil {
+	if err := s.enforcePrivateFeedRead(profile, request.ViewerUuid); err != nil {
 		return nil, err
 	}
 
@@ -544,68 +547,73 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGrou
 	return response, nil
 }
 
-// canAccessPrivateGroup checks if viewer can access a private group's content.
-// Returns nil if access is allowed, error otherwise.
-// Access is granted to: group members, super users.
-func (s *ApiServer) canAccessPrivateGroup(groupUUID, viewerUUID uuid.UUID) error {
-	if groupUUID == uuid.Nil || viewerUUID == uuid.Nil {
-		return errors.New("valid group and viewer UUIDs are required")
+// canAccessPrivateFeed checks if viewer can access a private feed's content.
+// Returns nil if access is allowed, error otherwise. Access is granted to:
+// the owner (user feed), a follower (Group member or feed subscriber — the
+// same Follow edge), and super users.
+func (s *ApiServer) canAccessPrivateFeed(feedUUID, viewerUUID uuid.UUID) error {
+	if feedUUID == uuid.Nil || viewerUUID == uuid.Nil {
+		return errors.New("valid feed and viewer UUIDs are required")
 	}
 	// Check if viewer is super
 	viewer, err := model.GetProfileFromUuid(s.mdb, viewerUUID)
 	if err == nil && viewer.IsSuper {
-		return nil // super can access all groups
+		return nil // super can access all feeds
 	}
 
-	// Check if viewer is a member (Follow edge exists)
-	followKey := model.NewKeyFrom(model.Follow.Prefix, viewerUUID.Bytes(), groupUUID.Bytes())
-	isMember, err := s.rdb.Exists(followKey)
-	if err != nil {
-		return fmt.Errorf("failed to check membership: %w", err)
+	// The owner always reads their own feed.
+	if feedUUID == viewerUUID {
+		return nil
 	}
-	if !isMember {
-		return fmt.Errorf("access denied: not a member of private group")
+
+	// Check if viewer follows the feed (Follow edge exists)
+	isFollower, err := model.IsFollower(s.rdb, feedUUID, viewerUUID)
+	if err != nil {
+		return fmt.Errorf("failed to check follow edge: %w", err)
+	}
+	if !isFollower {
+		return fmt.Errorf("access denied: not a follower of private feed")
 	}
 	return nil
 }
 
-// enforcePrivateGroupRead applies docs/group.md's private-Group visibility to
-// a feed-level read: only members and supers may read a private Group,
-// regardless of how the feed was addressed.
-func (s *ApiServer) enforcePrivateGroupRead(profile *pb.Profile, viewerRaw string) error {
-	if profile.Type != "group" || !profile.Private {
+// enforcePrivateFeedRead applies the private-feed visibility rule to a
+// feed-level read: only the owner, followers and supers may read a private
+// feed (user feed or Group), regardless of how the feed was addressed.
+func (s *ApiServer) enforcePrivateFeedRead(profile *pb.Profile, viewerRaw string) error {
+	if !profile.Private {
 		return nil
 	}
 	if viewerRaw == "" {
-		return status.Errorf(codes.PermissionDenied, "authentication required for private group")
+		return status.Errorf(codes.PermissionDenied, "authentication required for private feed")
 	}
 	viewerUUID, err := uuid.FromString(viewerRaw)
 	if err != nil || viewerUUID == uuid.Nil {
 		return status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
 	}
-	groupUUID, err := uuid.FromString(profile.Uuid)
+	feedUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil {
-		return status.Errorf(codes.Internal, "group has invalid UUID")
+		return status.Errorf(codes.Internal, "feed has invalid UUID")
 	}
-	if err := s.canAccessPrivateGroup(groupUUID, viewerUUID); err != nil {
-		return status.Errorf(codes.PermissionDenied, "access denied to private group")
+	if err := s.canAccessPrivateFeed(feedUUID, viewerUUID); err != nil {
+		return status.Errorf(codes.PermissionDenied, "access denied to private feed")
 	}
 	return nil
 }
 
-// privateGroupEntryVisible reports whether viewer may read content whose
-// target feed is feedUUID, per docs/group.md: only a private Group restricts
-// visibility, and only members and supers pass. Results are cached per
-// request in cache, keyed by feed UUID. Unresolvable or deleted feeds stay
-// visible here; orphan cleanup is the read path's existing lazy deletion.
-func (s *ApiServer) privateGroupEntryVisible(feedUUID, viewer uuid.UUID, cache map[uuid.UUID]bool) (bool, error) {
+// privateFeedEntryVisible reports whether viewer may read content whose
+// target feed is feedUUID: only a private feed restricts visibility, and
+// only the owner, followers and supers pass. Results are cached per request
+// in cache, keyed by feed UUID. Unresolvable or deleted feeds stay visible
+// here; orphan cleanup is the read path's existing lazy deletion.
+func (s *ApiServer) privateFeedEntryVisible(feedUUID, viewer uuid.UUID, cache map[uuid.UUID]bool) (bool, error) {
 	if visible, ok := cache[feedUUID]; ok {
 		return visible, nil
 	}
 	visible := true
 	feedProfile, err := model.GetProfileFromUuid(s.mdb, feedUUID)
-	if err == nil && feedProfile.Type == "group" && feedProfile.Private {
-		visible = viewer != uuid.Nil && s.canAccessPrivateGroup(feedUUID, viewer) == nil
+	if err == nil && feedProfile.Private {
+		visible = viewer != uuid.Nil && s.canAccessPrivateFeed(feedUUID, viewer) == nil
 	}
 	cache[feedUUID] = visible
 	return visible, nil

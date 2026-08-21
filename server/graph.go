@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
@@ -45,6 +46,17 @@ func (s *ApiServer) GraphFollow(ctx context.Context, req *pb.FollowRequest) (*pb
 	followkey := model.NewKeyFrom(model.Follow.Prefix, profileUUID.Bytes(), feedUUID.Bytes())
 	switch req.Action {
 	case "follow":
+		// A private target (user feed or Group) never gets a direct edge:
+		// following it requires approval, so the follow becomes a pending
+		// follow request instead.
+		if target != nil && target.Private {
+			if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+				return model.StageRequestFollow(s.rdb, batch, feedUUID, profileUUID, time.Now())
+			}); err != nil {
+				return nil, taskRPCError(followRequestModelError(err))
+			}
+			return &pb.FollowResponse{Followed: false, Requested: true}, nil
+		}
 		if isGroup {
 			// Group membership and the Home rebuild task commit in one
 			// batch, per docs/group.md's timeline rule.

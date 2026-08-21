@@ -140,11 +140,11 @@ func CheckGroupAction(db *store.Store, group, user uuid.UUID, action GroupAction
 	return nil
 }
 
-// ErrPrivateGroupUnsupported is returned when a caller attempts to create a
-// private Group before the approval/invite flow exists. docs/group.md
-// requires rejecting private=true outright rather than creating a Group
-// members can't yet join or read through a closed loop.
-var ErrPrivateGroupUnsupported = errors.New("private Group creation is not yet supported")
+// ErrPrivateGroupUnsupported is returned when a caller attempts to directly
+// join a private Group: private targets admit new followers only through an
+// approved follow request (model/follow_request.go), never through the
+// direct edge-writing path.
+var ErrPrivateGroupUnsupported = errors.New("private Group requires an approved follow request")
 
 // StageCreateGroup stages the atomic multi-write CreateGroup mutation
 // documented in docs/group.md: Profile(Type=group), Group ID UserMap,
@@ -152,13 +152,11 @@ var ErrPrivateGroupUnsupported = errors.New("private Group creation is not yet s
 // GroupAdmin row, all in the caller-supplied batch. The creator must be an
 // existing, non-deleted user Profile. Group IDs share the user ID
 // namespace/validation/UserRenameMap reservation rules via
-// NormalizeProfileId/FindProfileRenameByOldId.
+// NormalizeProfileId/FindProfileRenameByOldId. private Groups are allowed:
+// their Join requests flow through the follow-request approval path.
 func StageCreateGroup(db *store.Store, batch *pebble.Batch, actor uuid.UUID, id, name, description, picture string, private bool, now time.Time) (*pb.Profile, error) {
 	if batch == nil || actor == uuid.Nil {
 		return nil, errors.New("batch and actor UUID are required")
-	}
-	if private {
-		return nil, ErrPrivateGroupUnsupported
 	}
 	if now.IsZero() {
 		return nil, errors.New("group creation time is invalid")
@@ -198,7 +196,7 @@ func StageCreateGroup(db *store.Store, batch *pebble.Batch, actor uuid.UUID, id,
 		Id:          groupID,
 		Name:        name,
 		Type:        "group",
-		Private:     false,
+		Private:     private,
 		Picture:     picture,
 		Description: description,
 	}

@@ -513,7 +513,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	}
 
 	// Access control for private groups
-	if err := s.enforcePrivateGroupRead(profile, req.ViewerUuid); err != nil {
+	if err := s.enforcePrivateFeedRead(profile, req.ViewerUuid); err != nil {
 		return nil, err
 	}
 
@@ -606,7 +606,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	// docs/group.md: private-Group reads must be denied on the cursor path
 	// too; the legacy Start/PageSize path checks inside ForwardFetchFeed.
 	if !activityTimeline {
-		if err := s.enforcePrivateGroupRead(profile, req.ViewerUuid); err != nil {
+		if err := s.enforcePrivateFeedRead(profile, req.ViewerUuid); err != nil {
 			return nil, err
 		}
 	}
@@ -705,7 +705,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			visible := true
 			if homeViewer != uuid.Nil {
 				if target, ok := entryVisibilityTarget(entry); ok {
-					v, visErr := s.privateGroupEntryVisible(target, homeViewer, visibilityCache)
+					v, visErr := s.privateFeedEntryVisible(target, homeViewer, visibilityCache)
 					if visErr != nil {
 						return nil, visErr
 					}
@@ -940,21 +940,27 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
 
-	// Access control for entries in private groups
-	if entry.FeedUuid != "" && entry.FeedUuid != entry.ProfileUuid {
-		feedUUID, err := uuid.FromString(entry.FeedUuid)
+	// Access control for entries on private feeds: the target feed is
+	// FeedUuid when set (Group or cross-posted entries), otherwise the
+	// author's own feed.
+	targetRaw := entry.FeedUuid
+	if targetRaw == "" {
+		targetRaw = entry.ProfileUuid
+	}
+	if targetRaw != "" {
+		feedUUID, err := uuid.FromString(targetRaw)
 		if err == nil {
 			feedProfile, err := model.GetProfileFromUuid(s.mdb, feedUUID)
-			if err == nil && feedProfile.Type == "group" && feedProfile.Private {
+			if err == nil && feedProfile.Private {
 				if req.ViewerUuid == "" {
-					return nil, status.Errorf(codes.PermissionDenied, "authentication required for private group entry")
+					return nil, status.Errorf(codes.PermissionDenied, "authentication required for private feed entry")
 				}
 				viewerUUID, err := uuid.FromString(req.ViewerUuid)
 				if err != nil {
 					return nil, status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
 				}
-				if err := s.canAccessPrivateGroup(feedUUID, viewerUUID); err != nil {
-					return nil, status.Errorf(codes.PermissionDenied, "access denied to private group entry")
+				if err := s.canAccessPrivateFeed(feedUUID, viewerUUID); err != nil {
+					return nil, status.Errorf(codes.PermissionDenied, "access denied to private feed entry")
 				}
 			}
 		}
@@ -1393,7 +1399,7 @@ func (s *ApiServer) searchPage(req *pb.SearchRequest) (entries []*pb.Entry, unus
 			// Search. Invisible hits are skipped, never deleted from the
 			// index — they stay visible to members.
 			if target, ok := entryVisibilityTarget(entry); ok {
-				visible, visErr := s.privateGroupEntryVisible(target, searchViewer, visibilityCache)
+				visible, visErr := s.privateFeedEntryVisible(target, searchViewer, visibilityCache)
 				if visErr != nil {
 					return nil, nil, status.Errorf(codes.Internal, "check entry visibility %s: %v", hit.ID, visErr)
 				}

@@ -145,7 +145,7 @@ func TestCreateGroupRejectsNonUserActor(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCreateGroupRejectsPrivate(t *testing.T) {
+func TestCreateGroupAllowsPrivate(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
@@ -153,11 +153,16 @@ func TestCreateGroupRejectsPrivate(t *testing.T) {
 	actor := uuid.Must(uuid.NewV4())
 	require.NoError(t, UpdateProfile(db, &pb.Profile{Uuid: actor.String(), Id: "creator", Type: "user"}))
 
-	_, err = CreateGroup(db, actor, "private-club", "Private Club", "", "", true, time.Now())
-	require.ErrorIs(t, err, ErrPrivateGroupUnsupported)
+	group, err := CreateGroup(db, actor, "private-club", "Private Club", "", "", true, time.Now())
+	require.NoError(t, err)
+	require.True(t, group.Private)
 
-	_, err = db.Get(NewKeyFrom(TableUserMap.Bytes(), []byte("private-club")))
-	require.ErrorIs(t, err, store.ErrNotFound)
+	// Direct join is still rejected; membership requires an approved request.
+	groupUUID, err := uuid.FromString(group.Uuid)
+	require.NoError(t, err)
+	member := newGroupUser(t, db, "member1")
+	err = JoinGroup(db, groupUUID, member)
+	require.ErrorIs(t, err, ErrPrivateGroupUnsupported)
 }
 
 func TestCreateGroupAtomicWrites(t *testing.T) {

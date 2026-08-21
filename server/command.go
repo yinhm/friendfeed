@@ -239,6 +239,12 @@ func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
 		if err := model.StageExitAllGroups(s.rdb, batch, profileUUID); err != nil {
 			return err
 		}
+		// The account's own feed stops being approvable through
+		// StageSoftDeleteProfile's target-side cleanup; this clears every
+		// request the account itself filed against other private feeds.
+		if err := model.StageDeleteFollowRequestsByRequester(s.rdb, batch, profileUUID); err != nil {
+			return err
+		}
 		return model.StageSoftDeleteProfile(s.rdb, batch, profile)
 	})
 	if err != nil {

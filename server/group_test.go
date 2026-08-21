@@ -49,17 +49,18 @@ func TestCreateGroupAtomicMembershipAndAdmin(t *testing.T) {
 	require.Equal(t, resp.Uuid, fetched.Uuid)
 }
 
-func TestCreateGroupRejectsPrivate(t *testing.T) {
+func TestCreateGroupAllowsPrivate(t *testing.T) {
 	srv := newServiceServer(t)
 	actor := createServiceUser(t, srv, "creator2")
 
-	_, err := srv.CreateGroup(context.Background(), &pb.CreateGroupRequest{
+	resp, err := srv.CreateGroup(context.Background(), &pb.CreateGroupRequest{
 		ActorUuid: actor.String(),
 		Id:        "secret-club",
 		Name:      "Secret Club",
 		Private:   true,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.True(t, resp.Private)
 }
 
 func TestCreateGroupRejectsDuplicateID(t *testing.T) {
@@ -575,7 +576,7 @@ func TestPrivateGroupAccessControl(t *testing.T) {
 		TargetUuid: outsider.String(),
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "private Group creation is not yet supported")
+	require.Contains(t, err.Error(), "private Group requires an approved follow request")
 
 	// Post an entry to the private group
 	entryUUID := uuid.Must(uuid.NewV4())
