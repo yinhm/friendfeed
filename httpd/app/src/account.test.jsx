@@ -87,6 +87,26 @@ describe('AccountApp', () => {
     expect(screen.getByText('No services connected yet.')).toBeInTheDocument();
   });
 
+  it('clears the onboarding banner and welcome param after the first save', async () => {
+    const generated = { ...profile, id: 'ff-x7k2p9qm' };
+    const saved = { ...generated, id: 'alice' };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(saved));
+    vi.stubGlobal('fetch', fetchMock);
+    const replaceState = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
+    const { container } = render(
+      <AccountApp initialTab="profile" profile={generated} services={services} welcome={true} />);
+
+    expect(screen.getByRole('note')).toHaveTextContent('generated automatically');
+
+    fireEvent.change(screen.getByLabelText(/Profile ID/), { target: { value: 'alice' } });
+    fireEvent.submit(container.querySelector('form'));
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+
+    // The banner must not keep claiming the renamed ID was generated.
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(replaceState).toHaveBeenCalledWith({ tab: 'profile' }, '', '/account/profile');
+  });
+
   it('stamps the initial history entry for Back-button restores', () => {
     const replaceState = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
     render(<AccountApp initialTab="profile" profile={profile} services={services} />);

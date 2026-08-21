@@ -50,6 +50,7 @@ export function AccountApp(props) {
   const [tab, setTab] = useState(initialTab);
   const [profile, setProfile] = useState(props.profile);
   const [services, setServices] = useState(props.services);
+  const [welcome, setWelcome] = useState(props.welcome ?? false);
 
   useEffect(() => {
     // Stamp the initial history entry so Back from a pushed tab lands on
@@ -86,6 +87,17 @@ export function AccountApp(props) {
     );
   };
 
+  /** @param {ProfileData} saved */
+  const handleSaved = (saved) => {
+    setProfile(saved);
+    if (welcome) {
+      // Onboarding is done once the user saves; drop ?welcome=1 so a
+      // refresh does not resurrect the banner with a now-stale claim.
+      setWelcome(false);
+      window.history.replaceState({tab: 'profile'}, '', TAB_PATHS.profile);
+    }
+  };
+
   return (
     <div>
       <nav className="mb-6 flex gap-1 border-b border-border">
@@ -93,7 +105,7 @@ export function AccountApp(props) {
         {tabLink('import', 'Import Services')}
       </nav>
       {tab === 'profile'
-        ? <ProfileForm profile={profile} welcome={props.welcome} onSaved={setProfile} />
+        ? <ProfileForm profile={profile} welcome={welcome} onSaved={handleSaved} />
         : <ImportPanel services={services} states={props.states} target={props.target}
             onServicesChange={setServices} />}
     </div>
