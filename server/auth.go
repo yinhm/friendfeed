@@ -15,6 +15,13 @@ import (
 )
 
 func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.Profile, error) {
+	// Serialize identity resolution, deleted-account checks and all
+	// credential-adjacent writes with account profile deletion/update. Those
+	// server paths take this lock before touching the database, so a profile
+	// cannot become deleted between the check and FeedService refresh.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	slog.Debug("auth info", "provider", authinfo.Provider, "user_id", authinfo.UserId, "uuid", authinfo.Uuid)
 	_, msg, err := model.GetOAuthUser(s.mdb, authinfo.Provider, authinfo.UserId)
 	if err != nil && !errors.Is(err, model.ErrNotFound) {
@@ -31,14 +38,17 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 		authinfo.Uuid = msg.Uuid
 	}
 
-	// Update OAuth user or create new OAuth user
-	authinfo, err = model.PutOAuthUser(s.mdb, authinfo)
+	// Resolve the deterministic UUID without writing OAuth credentials yet.
+	// PutOAuthUser uses this same derivation for new identities; doing it here
+	// lets us reject a soft-deleted profile before any token-bearing record is
+	// changed.
+	if authinfo.Uuid == "" {
+		authinfo.Uuid = model.UniqueKeyFrom(authinfo.Provider, authinfo.UserId).String()
+	}
+	profileUUID, err := uuid.FromString(authinfo.Uuid)
 	if err != nil {
 		return nil, err
 	}
-	slog.Debug("PutOAuth", "uuid", authinfo.Uuid, "provider", authinfo.Provider, "user_id", authinfo.UserId)
-
-	profileUUID, _ := uuid.FromString(authinfo.Uuid)
 
 	// Reject soft-deleted accounts before any credential-adjacent writes:
 	// GetProfileFromUuid maps Deleted to ErrProfileDeleted, and any other
@@ -48,6 +58,15 @@ func (s *ApiServer) PutOAuth(ctx context.Context, authinfo *pb.OAuthUser) (*pb.P
 	if _, err := model.GetProfileFromUuid(s.mdb, profileUUID); err != nil && !errors.Is(err, model.ErrNotFound) {
 		return nil, err
 	}
+
+	// The account is eligible to log in. Only now refresh the token-bearing
+	// OAuth record; rejected deleted accounts leave OAuth and FeedService
+	// untouched.
+	authinfo, err = model.PutOAuthUser(s.mdb, authinfo)
+	if err != nil {
+		return nil, err
+	}
+	slog.Debug("PutOAuth", "uuid", authinfo.Uuid, "provider", authinfo.Provider, "user_id", authinfo.UserId)
 
 	// (re)build services BEFORE the profile exists. A service-write failure
 	// must not strand a half-created account: when this fails no profile has

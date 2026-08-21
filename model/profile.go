@@ -117,39 +117,28 @@ func createProfileIfAbsent(db *store.Store, candidate *pb.Profile) (profile *pb.
 	return profile, created, err
 }
 
-// NewProfileFromOAuthUser writes a profile for the OAuth user with a
-// system-generated ID, applying the incoming OAuth fields even when a
-// profile for the UUID already exists (the historical create/overwrite
-// semantics). It does not check for an existing or soft-deleted profile
-// first, so concurrent calls can mint duplicate ID aliases for one UUID.
+// NewProfileFromOAuthUser writes a profile using the provider username as its
+// ID, preserving the historical constructor semantics. Unlike the new
+// get-or-create path, repeated calls with the same OAuth identity therefore
+// reuse the same UserMap key instead of minting random aliases.
 //
 // Deprecated: new code must use GetOrCreateProfileFromOAuthUser, which is
 // atomic per account, rejects soft-deleted profiles, and reports whether it
 // created the profile.
 func NewProfileFromOAuthUser(db *store.Store, authinfo *pb.OAuthUser) (*pb.Profile, error) {
-	for attempt := 0; attempt < 10; attempt++ {
-		id, err := generateProfileId()
-		if err != nil {
-			return nil, err
-		}
-		profile := &pb.Profile{
-			Uuid:        authinfo.Uuid,
-			Id:          id,
-			Name:        authinfo.NickName,
-			Type:        "user",
-			Private:     false,
-			Picture:     authinfo.AvatarUrl,
-			Description: authinfo.Description,
-		}
-		if err := UpdateProfile(db, profile); err != nil {
-			if errors.Is(err, ErrProfileIdTaken) || errors.Is(err, ErrProfileIdReserved) {
-				continue
-			}
-			return nil, err
-		}
-		return profile, nil
+	profile := &pb.Profile{
+		Uuid:        authinfo.Uuid,
+		Id:          authinfo.Name,
+		Name:        authinfo.NickName,
+		Type:        "user",
+		Private:     false,
+		Picture:     authinfo.AvatarUrl,
+		Description: authinfo.Description,
 	}
-	return nil, errors.New("could not allocate a unique profile ID")
+	if err := UpdateProfile(db, profile); err != nil {
+		return nil, err
+	}
+	return profile, nil
 }
 
 func UpdateProfile(db *store.Store, profile *pb.Profile) error {

@@ -96,7 +96,7 @@ func (s *TableTestSuite) TestGenerateProfileId() {
 	}
 }
 
-func (s *TableTestSuite) TestNewProfileFromOAuthUserGeneratesId() {
+func (s *TableTestSuite) TestGetOrCreateProfileFromOAuthUserGeneratesId() {
 	authinfo := &pb.OAuthUser{
 		Uuid:     uuid.Must(uuid.NewV4()).String(),
 		UserId:   "100017389812633262146",
@@ -104,8 +104,9 @@ func (s *TableTestSuite) TestNewProfileFromOAuthUserGeneratesId() {
 		NickName: "Alexander Bykov",
 		Provider: "google",
 	}
-	profile, err := NewProfileFromOAuthUser(s.db, authinfo)
+	profile, created, err := GetOrCreateProfileFromOAuthUser(s.db, authinfo)
 	assert.Nil(s.T(), err)
+	assert.True(s.T(), created)
 
 	// The provider display name is not usable as a feed slug: the profile
 	// gets a system-generated ID and keeps the display name in Name only.
@@ -205,17 +206,26 @@ func (s *TableTestSuite) TestNewProfileFromOAuthUserKeepsOverwriteSemantics() {
 	authinfo := &pb.OAuthUser{
 		Uuid:     uuid.Must(uuid.NewV4()).String(),
 		UserId:   "legacy-user",
+		Name:     "legacy-user",
 		NickName: "Legacy User",
 		Provider: "google",
 	}
 	profile, err := NewProfileFromOAuthUser(s.db, authinfo)
 	assert.Nil(s.T(), err)
-	assert.NotEmpty(s.T(), profile.Id)
+	assert.Equal(s.T(), "legacy-user", profile.Id)
 
 	authinfo.NickName = "Renamed Display"
 	updated, err := NewProfileFromOAuthUser(s.db, authinfo)
 	assert.Nil(s.T(), err)
+	assert.Equal(s.T(), profile.Id, updated.Id)
 	assert.Equal(s.T(), "Renamed Display", updated.Name)
+
+	// Repeated legacy writes reuse the historical provider-name key; they do
+	// not leave a second alias pointing at the same UUID.
+	byID, err := GetProfileFromUserId(s.db, "legacy-user")
+	if assert.NoError(s.T(), err) {
+		assert.Equal(s.T(), authinfo.Uuid, byID.Uuid)
+	}
 }
 
 func (s *TableTestSuite) TestUpdateProfileRejectsReservedId() {

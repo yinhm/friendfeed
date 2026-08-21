@@ -1772,6 +1772,7 @@ func (s *RpcTestSuite) TestPutOAuthRejectsDeletedProfile() {
 	}))
 	_, err := s.srv.PutOAuth(ctx, &pb.OAuthUser{
 		Name: "Ghost", NickName: "Ghost", UserId: "deleted-google-user", Provider: "google",
+		AccessToken: "google-token-x",
 	})
 	s.Require().Error(err)
 	assert.ErrorIs(s.T(), err, model.ErrProfileDeleted)
@@ -1779,6 +1780,8 @@ func (s *RpcTestSuite) TestPutOAuthRejectsDeletedProfile() {
 	ghost := rawProfile(googleUUID)
 	assert.True(s.T(), ghost.Deleted)
 	assert.Equal(s.T(), "ghost-google", ghost.Id)
+	_, _, err = model.GetOAuthUser(s.srv.mdb, "google", "deleted-google-user")
+	assert.ErrorIs(s.T(), err, model.ErrNotFound)
 
 	// Twitter：同样拒绝，且 FeedService/OAuth 凭据不得写入
 	twitterUUID := model.UniqueKeyFrom("twitter", "deleted-twitter-user")
@@ -1794,6 +1797,8 @@ func (s *RpcTestSuite) TestPutOAuthRejectsDeletedProfile() {
 	services, err := model.GetFeedServices(s.srv.rdb, twitterUUID)
 	assert.Nil(s.T(), err)
 	assert.Empty(s.T(), services)
+	_, _, err = model.GetOAuthUser(s.srv.mdb, "twitter", "deleted-twitter-user")
+	assert.ErrorIs(s.T(), err, model.ErrNotFound)
 	ghostTw := rawProfile(twitterUUID)
 	assert.True(s.T(), ghostTw.Deleted)
 	assert.Equal(s.T(), "ghost-twitter", ghostTw.Id)

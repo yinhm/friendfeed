@@ -208,6 +208,13 @@ func (s *ApiServer) TestJob() error {
 }
 
 func (s *ApiServer) MarkDelete(feedId string) (bool, error) {
+	// Serialize account deletion with OAuth identity resolution and profile
+	// updates. PutOAuth holds the same lock across its deleted check and all
+	// credential-adjacent writes, so either login completes before deletion or
+	// deletion wins and the login performs no writes.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	profile, err := model.GetProfileFromUserId(s.mdb, feedId)
 	if err != nil {
 		return false, err

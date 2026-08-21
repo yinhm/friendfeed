@@ -6,7 +6,7 @@
 
 - 用户 UUID 是唯一稳定身份。Profile ID、Name、Picture、Type 都是可变化的展示字段或写入时快照。
 - 新 OAuth profile 的初始 ID 由系统生成（`ff-` + 8 个随机 `[a-z0-9]` 字符，满足 `ValidateProfileId`），provider 显示名只写入 `Name`；用户在 profile 页通过 rename 换成自己的 ID。`PutOAuth` 通过 gRPC response header `x-profile-newly-created` 标记本次新建的 profile（Profile 是持久化类型，不承载 transient 状态），httpd 据此把首次登录 redirect 到 `/account/profile?welcome=1`。
-- `GetOrCreateProfileFromOAuthUser` 把"按 UUID 查 profile 是否存在"与创建写入放进同一个 `ApplyBatch`：同一账号并发首次登录只有一个调用创建成功（`created=true`），其余调用拿到胜者的已存 profile，不会为同一 UUID 铸出第二个游离 ID 别名。遇到 soft-deleted profile 必须返回 `ErrProfileDeleted`（与 `GetProfileFromUuid` 语义一致），已删除账号不能通过 OAuth 登录。`NewProfileFromOAuthUser` 保留原有 create/overwrite 语义并标记 `Deprecated`，新代码不得使用。
+- `GetOrCreateProfileFromOAuthUser` 把"按 UUID 查 profile 是否存在"与创建写入放进同一个 `ApplyBatch`：同一账号并发首次登录只有一个调用创建成功（`created=true`），其余调用拿到胜者的已存 profile，不会为同一 UUID 铸出第二个游离 ID 别名。遇到 soft-deleted profile 必须返回 `ErrProfileDeleted`（与 `GetProfileFromUuid` 语义一致），已删除账号不能通过 OAuth 登录。`NewProfileFromOAuthUser` 保留原有 provider username 作为 ID 的 create/overwrite 语义并标记 `Deprecated`，新代码不得使用。
 - `UpdateProfile` 在同一个 `ApplyBatch` 内完成保留 ID 检查、`UserMap` 冲突检查和两项写入（与 `RenameProfileId`、`StageCreateGroup` 串行化提交）：并发创建相同 ID 只有一方成功（另一方收到 `ErrProfileIdTaken`），提交失败不留孤儿 `UserMap` 映射。`ErrProfileIdTaken` 与 `ErrProfileIdReserved` 同属"ID 不可用"，生成 ID 分配遇到任一都会重试。
 - Entry 作者使用 `ProfileUuid`；comment/like 的 `From.Uuid` 保存稳定 UUID。
 - 新 comment/like 的 `From` 必须由 canonical Profile 生成，不能信任客户端提交的身份字段。
@@ -75,4 +75,3 @@ echo purge_user_rename_map | \
 - 其他用户嵌入的 Profile 快照允许按当前 5 分钟 TTL 自然刷新，不遍历全部用户 cache。
 - 多实例 cache invalidation 尚未实现。
 - rename E2E 使用独立身份，不通过二次 rename 恢复测试数据，并覆盖旧 feed ID 跳转、作者显示、like/unlike 与 comment edit。
-
