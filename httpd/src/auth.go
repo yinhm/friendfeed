@@ -151,6 +151,12 @@ func (s *Server) AuthCallback(c *gin.Context) {
 		return
 	}
 	next = extractNextPath(next)
+	if profile.NewlyCreated {
+		// First login: the profile has a system-generated ID, so onboarding
+		// takes precedence over the original destination and sends the user
+		// to pick their own ID.
+		next = "/account/profile?welcome=1"
+	}
 	http.Redirect(c.Writer, c.Request, next, http.StatusFound)
 }
 

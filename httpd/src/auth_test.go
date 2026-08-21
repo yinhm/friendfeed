@@ -372,6 +372,28 @@ func TestAuthCallbackSuccess(t *testing.T) {
 	}
 }
 
+// 首次登录（PutOAuth 返回 newly_created）跳 profile 引导页而不是 next。
+func TestAuthCallbackNewUserRedirect(t *testing.T) {
+	client := &fakeApiClient{
+		putOAuth: func(ctx context.Context, in *pb.OAuthUser, opts ...grpc.CallOption) (*pb.Profile, error) {
+			return &pb.Profile{Uuid: "uuid-new", NewlyCreated: true}, nil
+		},
+	}
+	router := newFauxAuthRouter(t, client)
+
+	cookies, state := beginFauxAuth(t, router, "/feed/x")
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, callbackRequest("/auth/faux/callback?state="+state, cookies))
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("callback status = %d; want %d", recorder.Code, http.StatusFound)
+	}
+	if location := recorder.Header().Get("Location"); location != "/account/profile?welcome=1" {
+		t.Fatalf("Location = %q; want %q", location, "/account/profile?welcome=1")
+	}
+}
+
 func TestAuthCallbackStateMismatch(t *testing.T) {
 	called := false
 	client := &fakeApiClient{
