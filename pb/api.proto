@@ -330,6 +330,8 @@ message EntryRequest {
 
 message ProfileRequest {
   string uuid = 1;
+  // Resolve by profile ID when uuid is empty.
+  string id = 2;
 }
 
 message LikeRequest {

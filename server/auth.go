@@ -82,7 +82,15 @@ func (s *ApiServer) BindUserFeed(ctx context.Context, user *pb.OAuthUser) (*pb.O
 }
 
 func (s *ApiServer) FetchProfile(ctx context.Context, req *pb.ProfileRequest) (*pb.Profile, error) {
-	slog.Debug("FetchProfile", "uuid", req.Uuid)
+	slog.Debug("FetchProfile", "uuid", req.Uuid, "id", req.Id)
+	if req.Uuid == "" && req.Id != "" {
+		profile, err := model.GetProfileFromUserId(s.mdb, req.Id)
+		if err != nil {
+			slog.Debug("FetchProfile", "id", req.Id, "err", err)
+			return nil, err
+		}
+		return profile, nil
+	}
 	profileUUID, err := uuid.FromString(req.Uuid)
 	if err != nil {
 		return nil, err
