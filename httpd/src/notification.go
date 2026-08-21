@@ -62,6 +62,32 @@ func (s *Server) notificationSummary(ctx context.Context, userUUID string) (noti
 	return summary, nil
 }
 
+func (s *Server) NotificationSummaryHandler(c *gin.Context) {
+	userUUID := CurrentUserUuid(c)
+	if userUUID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in"})
+		return
+	}
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+	summary, err := s.notificationSummary(ctx, userUUID)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "notification summary unavailable"})
+		return
+	}
+	unread := summary.UnreadCount
+	display := ""
+	if unread > 99 {
+		display = "99+"
+	} else if unread > 0 {
+		display = fmt.Sprintf("%d", unread)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"unread_count": unread,
+		"display":      display,
+	})
+}
+
 func notificationActor(record notificationRecordDTO) string {
 	if record.ActorNameSnapshot != "" {
 		return record.ActorNameSnapshot
@@ -157,8 +183,8 @@ func (s *Server) NotificationsHandler(c *gin.Context) {
 	})
 
 	s.HTML(c, http.StatusOK, "notifications.html", pongo2.Context{
-		"title":       "Notifications",
+		"title":         "Notifications",
 		"notifications": items,
-		"next_cursor": page.NextCursor,
+		"next_cursor":   page.NextCursor,
 	})
 }
