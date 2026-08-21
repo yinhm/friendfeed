@@ -151,7 +151,12 @@ func renamedFeedLocationWithSuffix(requestedID string, feed *pb.Feed, suffix, ra
 func (s *Server) InteractionFeedHandler(kind pb.InteractionKind, suffix string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Param("name")
-		baseReq := &pb.FeedRequest{Id: name, PageSize: 1, CursorPaging: true}
+		baseReq := &pb.FeedRequest{
+			Id:           name,
+			PageSize:     1,
+			CursorPaging: true,
+			ViewerUuid:   CurrentUserUuid(c),
+		}
 		_, base, err := s.FetchFeed(c, baseReq)
 		if RequestError(c, err) {
 			return
