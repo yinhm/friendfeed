@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="notifications-page">
+    <h1>Notifications</h1>
+
+    {% if notifications %}
+    <ul class="notification-list">
+        {% for notification in notifications %}
+        <li>
+            <a href="{{ notification.Href|escape }}">{{ notification.Text|escape }}</a>
+            <div class="muted">{{ notification.Date|escape }}</div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No notifications yet.</p>
+    {% endif %}
+
+    {% if next_cursor %}
+    <p><a href="/notifications?cursor={{ next_cursor|urlencode }}">Older notifications</a></p>
+    {% endif %}
+</div>
+{% endblock %}
