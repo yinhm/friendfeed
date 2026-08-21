@@ -73,6 +73,12 @@ service Api {
   rpc ListGroupMembers(ListGroupMembersRequest) returns (ListGroupMembersResponse) {}
   rpc ListUserGroups(ListUserGroupsRequest) returns (ListUserGroupsResponse) {}
 
+  rpc RequestFollow(RequestFollowRequest) returns (RequestFollowResponse) {}
+  rpc CancelFollowRequest(RequestFollowRequest) returns (google.protobuf.Empty) {}
+  rpc ApproveFollowRequest(FollowRequestAction) returns (google.protobuf.Empty) {}
+  rpc RejectFollowRequest(FollowRequestAction) returns (google.protobuf.Empty) {}
+  rpc ListFollowRequests(ListFollowRequestsRequest) returns (ListFollowRequestsResponse) {}
+
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
   // Stock
@@ -456,6 +462,51 @@ message GroupView {
   Profile group = 1;
   bool is_member = 2;
   bool is_admin = 3;
+  // true when the viewer has a pending follow request against this Group.
+  bool has_pending_request = 4;
+}
+
+// RequestFollow asks to follow a private feed (user feed or Group). The
+// actor is the requester; approval comes from the feed owner or a Group
+// admin via FollowRequestAction.
+message RequestFollowRequest {
+  string actor_uuid = 1;
+  string feed_uuid = 2;
+}
+
+message RequestFollowResponse {
+  // true when a pending request now exists; false when the actor already
+  // follows the target and no request was needed.
+  bool requested = 1;
+}
+
+// FollowRequestAction approves or rejects one pending request. actor_uuid
+// must be the feed owner (user feed) or a Group admin/super; target_uuid is
+// the requester.
+message FollowRequestAction {
+  string actor_uuid = 1;
+  string feed_uuid = 2;
+  string target_uuid = 3;
+}
+
+// ListFollowRequestsRequest pages the pending requests against one feed.
+// actor must be allowed to approve them (owner / Group admin / super).
+message ListFollowRequestsRequest {
+  string actor_uuid = 1;
+  string feed_uuid = 2;
+  int32 limit = 3;   // Max requests to return (default 100)
+  string cursor = 4; // Opaque continuation token from previous response
+}
+
+// FollowRequestItem is one pending request with the requester's Profile.
+message FollowRequestItem {
+  Profile requester = 1;
+  string requested_at = 2;
+}
+
+message ListFollowRequestsResponse {
+  repeated FollowRequestItem requests = 1;
+  string next_cursor = 2; // Empty when iteration is complete
 }
 
 // ListGroupMembersRequest pages a Group's membership. Follower edges are the

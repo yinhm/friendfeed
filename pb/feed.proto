@@ -136,6 +136,9 @@ message FollowRequest {
 
 message FollowResponse {
   bool followed = 1;
+  // true when the action created a pending follow request instead of an
+  // edge (private target awaiting approval).
+  bool requested = 2;
 }
 
 // Feed
@@ -163,6 +166,8 @@ message Feed {
   repeated Entry entries = 9;
   // Opaque positions used only by cursor-paged profile and timeline feeds.
   string next_cursor = 10;
+  // true when the viewer has a pending follow request against this feed.
+  bool has_pending_follow_request = 11;
 }
 
 // /feedinfo - Feed information
