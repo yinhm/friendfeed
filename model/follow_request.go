@@ -12,12 +12,33 @@ import (
 )
 
 // FollowRequestKey encodes a pending follow request: target feed UUID
-// followed by requester user UUID. The value is the RFC3339 request time.
+// followed by requester user UUID. The value is an RFC3339-compatible request
+// time; new writes use RFC3339Nano so reject/cancel + re-request in the same
+// second remains a distinct occurrence while old second-precision values stay
+// readable.
 func FollowRequestKey(target, requester uuid.UUID) (store.Key, error) {
 	if target == uuid.Nil || requester == uuid.Nil {
 		return nil, errors.New("target feed UUID and requester user UUID are required")
 	}
 	return NewKeyFrom(FollowRequest.Prefix, target.Bytes(), requester.Bytes()), nil
+}
+
+// FollowRequestRequestedAt returns the stored occurrence time for one pending
+// request. Callers that approve/reject must read it before deleting the row so
+// result notifications can use the same occurrence identity.
+func FollowRequestRequestedAt(db *store.Store, target, requester uuid.UUID) (string, error) {
+	key, err := FollowRequestKey(target, requester)
+	if err != nil {
+		return "", err
+	}
+	raw, err := db.Get(key)
+	if errors.Is(err, store.ErrNotFound) {
+		return "", ErrFollowRequestNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }
 
 // IsFollowRequestPending reports whether requester has a pending follow
@@ -84,7 +105,7 @@ func StageRequestFollow(db *store.Store, batch *pebble.Batch, target, requester 
 	if err != nil {
 		return err
 	}
-	return batch.Set(key, []byte(now.UTC().Format(time.RFC3339)), nil)
+	return batch.Set(key, []byte(now.UTC().Format(time.RFC3339Nano)), nil)
 }
 
 // StageApproveFollowRequest converts a pending request into the actual
