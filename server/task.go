@@ -105,6 +105,14 @@ func (s *ApiServer) TaskReapLoop() {
 		return
 	}
 	defer s.wg.Done()
+
+	// A crash may happen after a notification commit but before its async
+	// retention trim starts. One streaming recovery pass at background-job
+	// startup re-schedules any recipient left above the steady-state cap.
+	if err := s.RecoverNotificationRetention(); err != nil && s.taskCtx.Err() == nil {
+		slog.Error("notification retention recovery failed", "error", err)
+	}
+
 	ticker := time.NewTicker(taskReapInterval)
 	defer ticker.Stop()
 	for {
@@ -129,6 +137,13 @@ func (s *ApiServer) StartTaskWorkers() {
 
 func (s *ApiServer) startTaskWorkersLocked() {
 	if s.taskWorkersStarted || s.shuttingDown {
+		return
+	}
+	// Notification fanout is an optional server-owned task domain installed
+	// after Queue construction. Register it before workers snapshot the handled
+	// type list so the same worker pool consumes fanout tasks.
+	if err := s.ensureNotificationTaskDefinition(); err != nil {
+		slog.Error("register notification task definition", "error", err)
 		return
 	}
 	types := s.tasks.TypesWithHandlers()
