@@ -308,26 +308,6 @@ func (s *Server) CurrentGraph(c *gin.Context) (*pb.Graph, error) {
 	return s.GraphFrom(CurrentUserUuid(c))
 }
 
-func (s *Server) feedReadable(c *gin.Context, feedUuid string) bool {
-	user, err := s.CurrentUser(c)
-	if err != nil {
-		return false
-	}
-	if user.Uuid == feedUuid {
-		return true
-	}
-
-	graph, err := s.CurrentGraph(c)
-	if err != nil || graph == nil {
-		return false
-	}
-	// if _, ok := graph.Subscriptions[feedId]; ok {
-	// 	return true
-	// }
-
-	return false
-}
-
 func (s *Server) ExpandCommentHandler(c *gin.Context) {
 	s.expandEntry(c, true)
 }

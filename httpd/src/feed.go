@@ -251,10 +251,6 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	if RequestError(c, err) {
 		return
 	}
-	if feed.Private && !s.feedReadable(c, feed.Uuid) {
-		c.HTML(http.StatusForbidden, "403.html", pongo2.Context{})
-		return
-	}
 	if location, renamed := renamedFeedLocation(feedname, feed, c.Request.URL.RawQuery); renamed {
 		// Rename metadata is periodically reclaimed, so do not let clients
 		// cache this redirect permanently after the old ID becomes reusable.
