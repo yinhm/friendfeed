@@ -66,6 +66,12 @@ func (s *ApiServer) RequestFollow(ctx context.Context, request *pb.RequestFollow
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
+
+	// Serialize the private-target check and request write with PostFeedinfo's
+	// privacy transition, matching GraphFollow's coarse mutation boundary.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	following, err := model.IsFollower(s.rdb, feed, actor)
 	if err != nil {
 		return nil, taskRPCError(err)
@@ -110,6 +116,13 @@ func (s *ApiServer) ApproveFollowRequest(ctx context.Context, action *pb.FollowR
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
+
+	// Approval must observe the same target privacy state as the profile
+	// mutation boundary; a feed cannot become public/private midway through
+	// authorization and edge creation.
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+
 	spec, err := homeRebuildSpec(target)
 	if err != nil {
 		return nil, taskRPCError(err)
