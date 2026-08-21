@@ -184,6 +184,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	}
 
 	r.GET("/", s.HomeHandler)
+	r.GET("/notifications", server.LoginRequired(), s.NotificationsHandler)
 	r.GET("/favicon.ico", FaviconHandler)
 	r.GET("/logout", server.LogoutHandler)
 
