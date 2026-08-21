@@ -51,6 +51,11 @@ const (
 	TableLikeTimeline            store.KeyPrefix = 115
 	TableCommentTimeline         store.KeyPrefix = 116
 	TableCommentTimelinePosition store.KeyPrefix = 117
+	// TableFollowRequest holds pending follow requests for private feeds
+	// (user feed or Group): key = target feed UUID + requester user UUID,
+	// value = RFC3339 request time. Workflow data only; the approved
+	// relationship is always the Follow/Follower edge pair.
+	TableFollowRequest store.KeyPrefix = 118
 
 	TableJobFeed    store.KeyPrefix = 200
 	TableJobRunning store.KeyPrefix = 201
@@ -101,6 +106,7 @@ var (
 	ServiceState     = NewTable(KeyPrefixToBytes(TableServiceState))
 	ServiceFeedIndex = NewTable(KeyPrefixToBytes(TableServiceFeedIndex))
 	GroupAdmin       = NewTable(KeyPrefixToBytes(TableGroupAdmin))
+	FollowRequest    = NewTable(KeyPrefixToBytes(TableFollowRequest))
 
 	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
 	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))

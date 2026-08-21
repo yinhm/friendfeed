@@ -315,6 +315,14 @@ func StageJoinGroup(db *store.Store, batch *pebble.Batch, group, user uuid.UUID)
 	if _, err := getGroupMemberProfile(db, user); err != nil {
 		return err
 	}
+	return stageGroupJoinEdges(db, batch, group, user)
+}
+
+// stageGroupJoinEdges writes the Follow/Follower membership edges plus the
+// activity-index adjustment. Callers must have authorized the join already:
+// a public Group through StageJoinGroup's checks, or an approved follow
+// request through StageApproveFollowRequest.
+func stageGroupJoinEdges(db *store.Store, batch *pebble.Batch, group, user uuid.UUID) error {
 	alreadyMember, err := IsGroupMember(db, group, user)
 	if err != nil {
 		return err
@@ -544,6 +552,10 @@ func StageSoftDeleteProfile(db *store.Store, batch *pebble.Batch, profile *pb.Pr
 	profileUUID, err := uuid.FromString(profile.Uuid)
 	if err != nil || profileUUID == uuid.Nil {
 		return errors.New("profile has no valid UUID")
+	}
+	// A deleted feed must not leave approvable follow requests behind.
+	if err := StageDeleteFollowRequestsByTarget(db, batch, profileUUID); err != nil {
+		return err
 	}
 	profile.Deleted = true
 	return setProto(batch, Profile.PrefixAppend(profileUUID.Bytes()), profile)
