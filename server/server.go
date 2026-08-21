@@ -37,6 +37,9 @@ const (
 
 // server implementation.
 type ApiServer struct {
+	// profileUpdateMu is also the coarse relationship/privacy mutation lock:
+	// profile privacy flips, follow writes/requests and approvals serialize on
+	// it so the privacy decision cannot change between authorization and write.
 	profileUpdateMu sync.Mutex
 	jobMu           sync.Mutex
 	// entryLifecycleMu lets independent interaction rows mutate concurrently,
@@ -208,9 +211,10 @@ func (s *ApiServer) Destroy() {
 // fields onto the stored profile so system-only fields (IsSuper, Deleted)
 // are preserved; Feedinfo does not carry them.
 func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Profile, error) {
-	// Keep the read/rename/patch sequence together. RenameProfileId makes
-	// its key changes atomic; this lock prevents a concurrent profile
-	// update from writing an older snapshot back after that atomic commit.
+	// Keep profile edits and the privacy/follow state machine in one coarse
+	// mutation critical section. RenameProfileId still makes its key changes
+	// atomic; this lock also prevents follow decisions from racing a privacy
+	// flip and writing an edge under a stale public/private snapshot.
 	s.profileUpdateMu.Lock()
 	defer s.profileUpdateMu.Unlock()
 
@@ -260,18 +264,19 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		}
 		currentProfile.Name = profile.Name
 		currentProfile.Type = profile.Type
-		wasPrivate := currentProfile.Private
 		currentProfile.Private = profile.Private
 		currentProfile.Picture = profile.Picture
 		currentProfile.Description = profile.Description
 		if err := model.UpdateProfile(s.mdb, currentProfile); err != nil {
 			return nil, err
 		}
-		if wasPrivate && !currentProfile.Private {
-			// Requests only apply while the feed is private: going public
-			// cancels every pending request rather than letting it resurface
-			// on a later flip. Not atomic with the profile write; the
-			// follow/unfollow self-healing and the audit are the backstop.
+		if !currentProfile.Private {
+			// Requests only exist while the target is private. Run this on
+			// every public profile update, not just the transition edge, so a
+			// prior cleanup failure is retried on the next save. GraphFollow,
+			// RequestFollow and ApproveFollowRequest share this lock, so no
+			// new pending request can slip in between the profile write and
+			// this cleanup.
 			if err := s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 				return model.StageDeleteFollowRequestsByTarget(s.rdb, batch, profileUUID)
 			}); err != nil {
@@ -727,11 +732,13 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 				}
 			} else if publicTimeline {
 				// The shared public timeline is materialized data, not a
-				// permission fact: revalidate the target's current
-				// visibility so entries published before a
-				// public->private flip stop rendering.
+				// permission fact. Fail closed when an old/corrupt row has no
+				// resolvable target, and otherwise require that target to
+				// remain public now.
 				if target, ok := entryVisibilityTarget(entry); ok {
 					visible = s.publicEntryVisible(target, visibilityCache)
+				} else {
+					visible = false
 				}
 			}
 			if visible {
