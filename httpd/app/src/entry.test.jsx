@@ -20,7 +20,7 @@ test('expands placeholder likes once when clicked', () => {
 });
 
 test('renders archived interactions without an actor snapshot', () => {
-  render(
+  const {container} = render(
     <Entry
       entry={{
         id: 'entry-id',
@@ -37,6 +37,8 @@ test('renders archived interactions without an actor snapshot', () => {
   expect(screen.getAllByText('Unknown')).toHaveLength(2);
   expect(screen.getByText('Archived comment')).toBeInTheDocument();
   expect(screen.queryByRole('link', {name: 'Unknown'})).not.toBeInTheDocument();
+  expect(container.querySelector('.likes-icon')).toBeEmptyDOMElement();
+  expect(container.querySelector('.comment-icon')).toBeEmptyDOMElement();
 });
 
 test('renders only the comment commands authorized by the server', () => {

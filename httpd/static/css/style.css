@@ -358,13 +358,56 @@ a:not([class]):hover {
 
 .entry .likes {
     margin-top: 7px;
-    background: url("/static/images/smile.png") no-repeat top left;
+	position: relative;
     line-height: 16px;
+}
+
+/* These masks use the official Lucide paths without repeating SVG markup in
+   every entry. The fill follows the palette sampled from the original icon. */
+.entry .likes-icon {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: block;
+	width: 16px;
+	height: 16px;
+}
+
+.entry .likes-icon::before {
+	position: absolute;
+	inset: 1px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 38% 30%, #fbefbd 0%, #f7e396 45%, #f1d36b 72%, #e8bd45 100%);
+	content: "";
+}
+
+.entry .likes-icon::after {
+	position: relative;
+	display: block;
+	width: 16px;
+	height: 16px;
+	background-color: #bd994d;
+	content: "";
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 10V9'/%3E%3Cpath d='M16.472 15a6 6 0 0 1-8.943 0'/%3E%3Cpath d='M9 10V9'/%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3C/svg%3E") center / contain no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 10V9'/%3E%3Cpath d='M16.472 15a6 6 0 0 1-8.943 0'/%3E%3Cpath d='M9 10V9'/%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .entry .comment {
     margin-top: 8px;
-    background: url("/static/images/comment-lighter.png") no-repeat top left;
+	position: relative;
+    line-height: 16px;
+}
+
+.entry .comment-icon {
+	position: absolute;
+	top: 1px;
+	left: 0;
+	display: block;
+	width: 14px;
+	height: 14px;
+	background-color: #a3a3a3;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center / contain no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .entry .comment.placeholder {
@@ -411,7 +454,7 @@ a:not([class]):hover {
     visibility: visible;
 }
 
-@media (hover: none) {
+@media (any-hover: none) and (pointer: coarse) {
     .entry .comment .commands {
         visibility: visible;
     }

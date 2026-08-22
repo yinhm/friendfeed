@@ -676,6 +676,7 @@ function EntryLikes(props) {
   if (likes.length === 1) {
     return (
       <div className="likes">
+        <span className="likes-icon" aria-hidden="true" />
         {likes}{" liked this"}
       </div>
     );
@@ -687,6 +688,7 @@ function EntryLikes(props) {
 
   return (
     <div className="likes">
+      <span className="likes-icon" aria-hidden="true" />
       {likes}{" and "}{last}{" liked this"}
     </div>
   );
@@ -774,6 +776,7 @@ class EntryComment extends React.Component{
         : <span>{actorName}</span>;
       return (
         <div className="comment" title={comment.date}>
+          <span className="comment-icon" aria-hidden="true" />
           <span dangerouslySetInnerHTML={{__html: comment.body ?? ''}}></span>
           {' - '}{actorNode}
           {cmds}
