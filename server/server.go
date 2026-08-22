@@ -37,6 +37,8 @@ const (
 
 // server implementation.
 type ApiServer struct {
+	pb.UnimplementedRealtimeServer
+
 	// profileUpdateMu is also the coarse relationship/privacy mutation lock:
 	// profile privacy flips, follow writes/requests and approvals serialize on
 	// it so the privacy decision cannot change between authorization and write.
@@ -82,6 +84,7 @@ type ApiServer struct {
 	serviceFetch          serviceFetcher
 	rssNow                func() time.Time
 	rssHostLocks          [64]sync.Mutex
+	realtime              *realtimeBus
 }
 
 // grpcSlogLogger routes gRPC internal logs into slog. gRPC fatal-level
@@ -131,6 +134,7 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		taskWorkerPollMin:  time.Second,
 		taskWorkerPollMax:  30 * time.Second,
 		rssNow:             func() time.Time { return time.Now().UTC() },
+		realtime:           newRealtimeBus(),
 	}
 	srv.taskCtx, srv.taskCancel = context.WithCancel(context.Background())
 	srv.serviceFetch = fetchServiceHTTP
@@ -184,6 +188,12 @@ func (s *ApiServer) Shutdown() {
 		s.shuttingDown = true
 		close(s.done)
 		s.lifecycleMu.Unlock()
+		// Shutdown may be called directly in tests or embedding programs without
+		// the production BeginShutdown phase. Stop the broadcaster before
+		// waiting, otherwise a permanent stream remains in wg forever.
+		if s.realtime != nil {
+			s.realtime.stop()
+		}
 		s.wg.Wait()
 
 		s.rdb.Close()

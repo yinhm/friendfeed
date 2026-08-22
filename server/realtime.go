@@ -99,18 +99,8 @@ func (b *realtimeBus) dropCount() uint64 {
 	return b.drops.Load()
 }
 
-// ApiServer intentionally keeps realtime delivery outside its durable state.
-// A package registry avoids coupling Pebble/database construction to a hint
-// transport while still giving every ApiServer instance an isolated bus.
-var realtimeBuses sync.Map // map[*ApiServer]*realtimeBus
-
 func (s *ApiServer) realtimeBus() *realtimeBus {
-	if bus, ok := realtimeBuses.Load(s); ok {
-		return bus.(*realtimeBus)
-	}
-	created := newRealtimeBus()
-	bus, _ := realtimeBuses.LoadOrStore(s, created)
-	return bus.(*realtimeBus)
+	return s.realtime
 }
 
 func (s *ApiServer) observeTimelineMove(viewer, entry uuid.UUID, kind model.TimelineActivityKind, at time.Time) {
@@ -127,13 +117,7 @@ func (s *ApiServer) observeTimelineMove(viewer, entry uuid.UUID, kind model.Time
 // in Shutdown after the gRPC server has drained.
 func (s *ApiServer) BeginShutdown() {
 	s.StopTaskClaims()
-	if bus, ok := realtimeBuses.Load(s); ok {
-		bus.(*realtimeBus).stop()
-	}
-}
-
-func (s *ApiServer) forgetRealtimeBus() {
-	if bus, ok := realtimeBuses.LoadAndDelete(s); ok {
-		bus.(*realtimeBus).stop()
+	if s.realtime != nil {
+		s.realtime.stop()
 	}
 }

@@ -21,8 +21,9 @@ V1 的核心原则是：**实时事件只表示“Home 可能变脏了”，不�
 
 ## 现状依据
 
-- ffdb 与 ffweb 是两个进程。浏览器只连接 nginx/ffweb；ffweb 通过
-  `pb.NewApiClient` 访问 ffdb。因此事件必须跨进程：
+- ffdb 与 ffweb 是两个进程。浏览器只连接 nginx/ffweb；ffweb 的普通数据请求通过
+  `pb.NewApiClient` 访问 ffdb，实时事件通过独立的 `pb.NewRealtimeClient` 长流接收。
+  因此事件必须跨进程：
 
   ```text
   ffdb -> gRPC server stream -> ffweb/httpd -> SSE -> browser
@@ -83,10 +84,12 @@ best-effort；在当前规模下没有必要引入 Redis Pub/Sub 或按 viewer �
 
 ## 事件模型
 
-gRPC 面使用泛化的 realtime 类型，而不是把 transport 固定成 TimelineEvent：
+gRPC 面使用泛化的 realtime 类型，而不是把 transport 固定成 TimelineEvent。协议位于
+独立的 `pb/realtime.proto`，并注册为独立 `pb.Realtime` service；它不修改历史
+`pb.Api` service，也不要求为一个流式 RPC 重生成庞大的 legacy `api.pb.go`：
 
 ```proto
-// pb/api.proto 追加
+// pb/realtime.proto
 
 enum RealtimeEventType {
   REALTIME_EVENT_UNSPECIFIED = 0;
@@ -106,8 +109,10 @@ message SubscribeRealtimeEventsRequest {
   string subscriber_id = 1;   // ffweb 实例/进程标识，只用于日志与诊断
 }
 
-rpc SubscribeRealtimeEvents(SubscribeRealtimeEventsRequest)
-    returns (stream RealtimeEvent) {}
+service Realtime {
+  rpc SubscribeRealtimeEvents(SubscribeRealtimeEventsRequest)
+      returns (stream RealtimeEvent) {}
+}
 ```
 
 语义约定：
@@ -596,9 +601,9 @@ close grpc.ClientConn / process exit
 
 1. **model + ffdb producer**：`TimelineMoveObserver`、moved 语义修正、runtime mutator
    variant、realtime broadcaster；此阶段不改变浏览器行为。
-2. **protobuf + gRPC stream + shutdown**：新增 `RealtimeEvent` /
-   `SubscribeRealtimeEvents`，实现 ffdb stream，并先解决 `BeginShutdown -> GracefulStop ->
-   Shutdown` 生命周期。
+2. **protobuf + gRPC stream + shutdown**：在独立 `pb.Realtime` service 新增
+   `RealtimeEvent` / `SubscribeRealtimeEvents`，实现 ffdb stream，并先解决
+   `BeginShutdown -> GracefulStop -> Shutdown` 生命周期。
 3. **ffweb hub + SSE + nginx**：全局 receive loop、本地 viewer hub、`/a/events`、连接
    限额、heartbeat、显式 ffweb realtime shutdown、nginx no-buffering。
 4. **frontend**：增加 `realtime_home` page flag，在现有 Feed state 内加入 dirty banner，

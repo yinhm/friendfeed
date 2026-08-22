@@ -351,7 +351,7 @@ func (s *RpcTestSuite) TestHomeCursorContinuesAfterMovedAndDeletedAnchors() {
 	// continue at the following rows without repeating or looping.
 	anchor, err := model.GetEntry(s.srv.rdb, entryIDs[3])
 	s.Require().NoError(err)
-	_, err = model.FanoutTimelineActivity(s.srv.rdb, anchor, base.Add(30*time.Minute), model.TimelineActivityComment)
+	_, err = model.FanoutTimelineActivity(s.srv.rdb, anchor, base.Add(30*time.Minute), model.TimelineActivityComment, nil)
 	s.Require().NoError(err)
 	second, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true, Cursor: first.NextCursor,

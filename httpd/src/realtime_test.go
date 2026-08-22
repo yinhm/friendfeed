@@ -1,6 +1,12 @@
 package server
 
 import (
+	"bufio"
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofrs/uuid"
@@ -87,4 +93,50 @@ func TestEventsHubCloseWakesConnectionsAndRejectsNewOnes(t *testing.T) {
 	}
 	_, err = hub.register(viewer)
 	require.ErrorIs(t, err, errSSEHubClosed)
+}
+
+func TestEventsHandlerRequiresLoginAndSetsStreamingHeaders(t *testing.T) {
+	server := newGroupTestServer(new(fakeGroupClient))
+	state := &webRealtime{hub: newEventsHub()}
+	webRealtimeStates.Store(server, state)
+	t.Cleanup(func() {
+		state.hub.closeAll()
+		webRealtimeStates.Delete(server)
+	})
+	router := groupTestRouter(server)
+	router.GET("/a/events", LoginRequired(), server.EventsHandler)
+	httpServer := httptest.NewServer(router)
+	defer httpServer.Close()
+
+	unauthorized, err := http.NewRequest(http.MethodGet, httpServer.URL+"/a/events", nil)
+	require.NoError(t, err)
+	unauthorized.Header.Set("X-Requested-With", "XMLHttpRequest")
+	response, err := http.DefaultClient.Do(unauthorized)
+	require.NoError(t, err)
+	response.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, response.StatusCode)
+
+	cookie := groupLoginCookie(t, router)
+	ctx, cancel := context.WithCancel(context.Background())
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, httpServer.URL+"/a/events", nil)
+	require.NoError(t, err)
+	request.AddCookie(cookie)
+	response, err = http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.Equal(t, "text/event-stream", response.Header.Get("Content-Type"))
+	require.Equal(t, "no-cache", response.Header.Get("Cache-Control"))
+	require.Equal(t, "no", response.Header.Get("X-Accel-Buffering"))
+
+	reader := bufio.NewReader(response.Body)
+	var initial strings.Builder
+	for !strings.Contains(initial.String(), ":ok\n\n") {
+		line, readErr := reader.ReadString('\n')
+		require.NoError(t, readErr)
+		initial.WriteString(line)
+	}
+	require.Contains(t, initial.String(), "retry: 3000\n\n")
+	cancel()
+	_, _ = io.Copy(io.Discard, response.Body)
+	response.Body.Close()
 }
