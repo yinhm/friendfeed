@@ -15,6 +15,12 @@ import (
 )
 
 func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
+	return PutEntryWithTimelineObserver(db, entry, nil)
+}
+
+// PutEntryWithTimelineObserver writes the canonical Entry and observes only
+// the committed per-viewer Home moves caused by its derived fanout.
+func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer TimelineMoveObserver) (store.Key, error) {
 	if entry.FeedUuid == "" {
 		entry.FeedUuid = entry.ProfileUuid // backward compatible
 	}
@@ -87,7 +93,7 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 
 	// Initialize activity-ranked Home timelines after the canonical Entry and
 	// direct indexes commit. Follower count is unbounded.
-	if _, err := FanoutTimelineActivity(db, entry, oldtime, TimelineActivityPublish); err != nil {
+	if _, err := FanoutTimelineActivity(db, entry, oldtime, TimelineActivityPublish, observer); err != nil {
 		return nil, fmt.Errorf("fanout entry: %w", err)
 	}
 
