@@ -199,6 +199,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	r.GET("/a/expandlikes/:uuid", s.ExpandLikeHandler)
 	action := r.Group("/a", server.LoginRequired())
 	{
+		action.GET("/events", s.EventsHandler)
 		action.POST("/share", s.EntryPostHandler)
 		action.POST("/upload", s.UploadHandler)
 		action.POST("/follow", s.FollowHandler)
@@ -255,6 +256,9 @@ func Serve(s *server.Server, config *util.Config) error {
 		log.Println("shutting down webserver...")
 	}
 
+	// Long-lived SSE handlers must be signalled before HTTP graceful shutdown;
+	// otherwise every deployment can wait for the full 10 second timeout.
+	s.ShutdownRealtime()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
@@ -291,6 +295,8 @@ func main() {
 	defer rpcConn.Close()
 
 	s := server.NewServer(rpcConn, assetsFS, cfg, options.SecretKey, options.Debug)
+	s.StartRealtime(rpcConn)
+	defer s.ShutdownRealtime()
 	if err := Serve(s, cfg); err != nil {
 		log.Fatalf("webserver: %v", err)
 	}
