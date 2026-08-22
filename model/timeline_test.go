@@ -202,7 +202,7 @@ func TestFanoutTimelineActivityBumpsFollowersButNotDirectFeed(t *testing.T) {
 	require.NoError(t, err)
 
 	commentAt := base.Add(30 * time.Minute)
-	_, err = FanoutTimelineActivity(db, entry, commentAt, TimelineActivityComment)
+	_, err = FanoutTimelineActivity(db, entry, commentAt, TimelineActivityComment, nil)
 	require.NoError(t, err)
 	for _, viewer := range []uuid.UUID{author, follower} {
 		position, err := TimelinePositionTime(db, viewer, entryID)
