@@ -235,6 +235,9 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		data = cursorFeedContext(feed)
 	}
 	data["show_share"] = s.feedWritable(c, feed.Uuid)
+	// Realtime belongs only to the newest Home page. The existing cursor is
+	// an older-page position, never a "since" token.
+	data["realtime_home"] = req.Cursor == "" && req.Start == 0
 	s.renderFeed(c, data)
 }
 
