@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package pb;
+option go_package = ".;pb";
+
+enum RealtimeEventType {
+  REALTIME_EVENT_UNSPECIFIED = 0;
+  REALTIME_EVENT_TIMELINE_DIRTY = 1;
+  REALTIME_EVENT_NOTIFICATIONS_DIRTY = 2;
+}
+
+message RealtimeEvent {
+  string viewer_uuid = 1;
+  RealtimeEventType type = 2;
+  string object_uuid = 3;
+  int64 activity_at_ms = 4;
+}
+
+message SubscribeRealtimeEventsRequest {
+  string subscriber_id = 1;
+}
+
+// Realtime is deliberately separate from the legacy Api service so its
+// server-streaming lifecycle and generated stubs can evolve independently.
+service Realtime {
+  rpc SubscribeRealtimeEvents(SubscribeRealtimeEventsRequest)
+      returns (stream RealtimeEvent) {}
+}
