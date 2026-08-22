@@ -58,7 +58,7 @@ MoveTimelineEntry(viewer)
       |
       | moved == true
       v
-non-blocking TimelineMoveSink
+non-blocking TimelineMoveObserver
       |
       v
 ffdb realtime broadcaster
@@ -119,6 +119,8 @@ rpc SubscribeRealtimeEvents(SubscribeRealtimeEventsRequest)
 - 不提供 event id、sequence、Last-Event-ID 或 replay。
 - `viewer_uuid` 只用于 ffweb 内部分流，不下发给浏览器。
 - `object_uuid` 为后续诊断/去重扩展保留；V1 浏览器不依赖它。
+- `activity_at_ms` 表示触发该 timeline move 的业务 activity 时间，只用于服务端诊断、
+  延迟观测和未来 telemetry；V1 不下发给浏览器，也不参与排序、去重或正确性判断。
 - realtime event 永远不是权限事实。最终 Home 内容仍由既有 TimelineIndex + read-time
   visibility 校验决定。
 
@@ -129,10 +131,10 @@ rpc SubscribeRealtimeEvents(SubscribeRealtimeEventsRequest)
 不要把 `FanoutTimelineActivity` 从 `(int, error)` 改成 `([]uuid.UUID, error)`。
 Follower 数量无界，为 SSE 再构造一个 O(follower count) 的 viewer slice 没必要。
 
-改为给 fanout 增加一个可选、同步、**必须非阻塞**的 sink：
+改为给 fanout 增加一个可选、同步、**必须非阻塞**的 observer：
 
 ```go
-type TimelineMoveSink func(
+type TimelineMoveObserver func(
     viewer uuid.UUID,
     entry uuid.UUID,
     kind TimelineActivityKind,
@@ -144,9 +146,15 @@ func FanoutTimelineActivity(
     entry *pb.Entry,
     activity time.Time,
     kind TimelineActivityKind,
-    onMoved TimelineMoveSink,
+    observer TimelineMoveObserver,
 ) (int, error)
 ```
+
+这里**有意直接升级 `FanoutTimelineActivity` 的导出签名**，不再额外保留一个无 observer
+的兼容 wrapper。原因是它本身就是 model 层的 timeline fanout primitive，当前运行时
+调用点都应明确决定是否观察实际 move；仓库内调用点可一次性迁移。相比机械保留旧签名，
+直接把 observer 变成该 primitive 的显式参数更能约束未来调用者。migration/rebuild/audit
+等不需要 realtime 的调用方显式传 `nil` 即可。
 
 内部 `update(viewer)` 必须使用 `MoveTimelineEntry` 的真实返回值：
 
@@ -155,8 +163,8 @@ moved, err := MoveTimelineEntry(...)
 if err != nil {
     return false, err
 }
-if moved && onMoved != nil {
-    onMoved(viewer, entryUUID, kind, activity)
+if moved && observer != nil {
+    observer(viewer, entryUUID, kind, activity)
 }
 return moved, nil
 ```
@@ -164,44 +172,52 @@ return moved, nil
 返回的 `int` 建议同步修正为 **实际 moved viewer 数量**，包含 author（如果 author 的
 Home 也真的 move），使日志/测试语义与名字一致。
 
-### 2. sink 只观察已经 commit 的 derived move
+### 2. observer 只观察已经 commit 的 derived move
 
 `MoveTimelineEntry` 自己通过独立 `ApplyBatch` 提交一个 viewer 的 TimelineIndex 变更。
-因此 sink 必须在该调用成功且 `moved == true` 后执行。
+因此 observer 必须在该调用成功且 `moved == true` 后执行。
+
+`TimelineMoveObserver` 的语义是**旁观已经发生的事实**，不能反向影响 timeline 正确性：
+
+- 不返回 error；
+- 必须 non-blocking；
+- realtime publish/drop 失败不能让已成功的 timeline move 变成请求错误；
+- observer 内不得做持久化或无界工作。
 
 Follower fanout 不是一个大事务：如果前 100 个 viewer 已经 move，第 101 个失败，前
 100 个派生写入不会回滚。对应的前 100 个 hint 可以已经发布；不要求“整个 fanout
 全成功后才发事件”。这与 hint 的 best-effort 语义一致，也避免为了延迟发布而缓存
 viewer 列表。
 
-### 3. 保持 model API 的兼容 wrapper
+### 3. 保持上层 model mutation API 的兼容 wrapper
 
 当前 `model.PutEntry`、`PutLike`、`PutComment` 内部自己调用
-`FanoutTimelineActivity`。realtime sink 不能只在 RPC 返回后补发，否则 server 层拿不到
-每个实际 moved viewer。
+`FanoutTimelineActivity`。realtime observer 不能只在 RPC 返回后补发，否则 server 层
+拿不到每个实际 moved viewer。
 
-实现时保留现有无 sink 的 wrapper，供 migration/rebuild/测试等旧调用方使用；新增
-带 timeline sink 的 variant 或内部共享函数。示意：
+`FanoutTimelineActivity` 本身按上节直接升级签名；但更高层的 mutation API 继续保留
+现有无 observer wrapper，供 migration/rebuild/测试等旧调用方使用，并新增带 observer
+的 runtime variant 或内部共享函数。示意：
 
 ```go
 func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
-    return PutEntryWithTimelineSink(db, entry, nil)
+    return PutEntryWithTimelineObserver(db, entry, nil)
 }
 
-func PutEntryWithTimelineSink(
+func PutEntryWithTimelineObserver(
     db *store.Store,
     entry *pb.Entry,
-    sink TimelineMoveSink,
+    observer TimelineMoveObserver,
 ) (store.Key, error) {
     // canonical write ...
-    // FanoutTimelineActivity(..., sink)
+    // FanoutTimelineActivity(..., observer)
 }
 ```
 
 Like/Comment 同理：保留当前 public wrapper/created-hook 语义，内部共享实现增加可选
-`TimelineMoveSink`。不要让 rebuild、migration、audit 工具产生 realtime 事件。
+`TimelineMoveObserver`。不要让 rebuild、migration、audit 工具产生 realtime 事件。
 
-server 的 `PostEntry` / `LikeEntry` / `CommentEntry` 调用带 sink 的 runtime variant；
+server 的 `PostEntry` / `LikeEntry` / `CommentEntry` 调用带 observer 的 runtime variant；
 删除 Like/Comment 暂不产生 timeline dirty（当前删除路径也不做 Home bump）。
 
 ## ffdb：进程级 realtime broadcaster
@@ -225,7 +241,7 @@ realtimeBus
 - 不持久化、不重放；
 - 日志只记录 subscriber id、drop counter、连接/断开，不记录正文。
 
-`ApiServer` 持有 broadcaster，并提供一个 `TimelineMoveSink` adapter：把
+`ApiServer` 持有 broadcaster，并提供一个 `TimelineMoveObserver` adapter：把
 `TimelineActivityKind` 转成 `REALTIME_EVENT_TIMELINE_DIRTY` 后 non-blocking publish。
 
 ## ffdb：gRPC stream
@@ -359,7 +375,7 @@ action.GET("/events", s.EventsHandler)
 
 ### 浏览器 SSE payload
 
-V1 只需要 dirty bit，因此不下发 viewer UUID、entry UUID 或计数：
+V1 只需要 dirty bit，因此不下发 viewer UUID、entry UUID、activity time 或计数：
 
 ```text
 event: timeline-dirty
@@ -527,13 +543,13 @@ close grpc.ClientConn / process exit
 
 ### model
 
-- active follower + `MoveTimelineEntry moved == true` → sink 收到该 viewer；
-- inactive follower → 无 sink event；
-- Like cooldown 导致 `moved == false` → 无 sink event；
-- author timeline 实际 move 时也计入 moved count / sink；
+- active follower + `MoveTimelineEntry moved == true` → observer 收到该 viewer；
+- inactive follower → 无 observer event；
+- Like cooldown 导致 `moved == false` → 无 observer event；
+- author timeline 实际 move 时也计入 moved count / observer；
 - 同一 entry 的旧 activity 不向后移动 → 无 event；
 - follower 扫描中途失败时，失败前已 commit 的 move 可以已经产生 hint；错误仍向上返回；
-- nil sink 完全保持旧调用语义。
+- nil observer 完全保持不产生 realtime hint 的调用语义。
 
 ### ffdb server/realtime bus
 
@@ -578,8 +594,8 @@ close grpc.ClientConn / process exit
 
 ## 实施阶段
 
-1. **model + ffdb producer**：`TimelineMoveSink`、moved 语义修正、runtime mutator variant、
-   realtime broadcaster；此阶段不改变浏览器行为。
+1. **model + ffdb producer**：`TimelineMoveObserver`、moved 语义修正、runtime mutator
+   variant、realtime broadcaster；此阶段不改变浏览器行为。
 2. **protobuf + gRPC stream + shutdown**：新增 `RealtimeEvent` /
    `SubscribeRealtimeEvents`，实现 ffdb stream，并先解决 `BeginShutdown -> GracefulStop ->
    Shutdown` 生命周期。
