@@ -1085,7 +1085,7 @@ func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemF
 	if err != nil {
 		return nil, err
 	}
-	_, err = model.PutEntry(s.rdb, entry) // always use false
+	_, err = model.PutEntryWithTimelineObserver(s.rdb, entry, s.observeTimelineMove)
 	if err != nil {
 		return nil, err
 	}
@@ -1100,8 +1100,8 @@ func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemF
 // authorizeEntryPost enforces Group posting membership at the mutation
 // boundary per docs/group.md: httpd's feedWritable is display-only and must
 // not be the sole check. A public RPC may never use a Group as its actor;
-// only trusted in-process producers such as FeedService imports may create
-// a Group-authored Entry, via the private postEntry boundary.
+// only trusted in-process producers such as FeedService imports may create a
+// Group-authored Entry, via the private postEntry boundary.
 func (s *ApiServer) authorizeEntryPost(entry *pb.Entry, authorUUID uuid.UUID) error {
 	feedUUID, err := uuid.FromString(entry.FeedUuid)
 	if err != nil {
@@ -1238,7 +1238,7 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 		if checkErr != nil {
 			return nil, checkErr
 		}
-		_, entry, err = model.PutLike(s.rdb, profile, entry)
+		_, entry, err = model.PutLikeWithTimelineObserver(s.rdb, profile, entry, s.observeTimelineMove)
 		if err == nil && created {
 			if bumpErr := s.bumpPublicTimeline(entry, nil); bumpErr != nil {
 				return nil, bumpErr
@@ -1294,7 +1294,7 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	_, entry, err = model.PutComment(s.rdb, profile, entry, req.Comment)
+	_, entry, err = model.PutCommentWithTimelineObserver(s.rdb, profile, entry, req.Comment, s.observeTimelineMove)
 	if err != nil {
 		return nil, err
 	}
