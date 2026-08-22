@@ -38,10 +38,11 @@ func waitShutdown(rpcSrv *grpc.Server, apiSrv *server.ApiServer, health *healthC
 	signal := <-sigCh
 
 	log.Printf("Signal %s received, shutdown server...", signal)
-	// Flip health to NOT_SERVING before draining so new probes fail
-	// while in-flight requests finish.
+	// Flip health to NOT_SERVING before draining so new probes fail while
+	// in-flight requests finish. Permanent realtime streams must receive their
+	// exit signal before GracefulStop waits for RPC handlers.
 	health.shutdown()
-	apiSrv.StopTaskClaims()
+	apiSrv.BeginShutdown()
 	rpcSrv.GracefulStop()
 	log.Println("rpc server stopped.")
 	apiSrv.Shutdown()
@@ -103,6 +104,7 @@ func main() {
 	}()
 
 	pb.RegisterApiServer(rpcServer, apiServer)
+	pb.RegisterRealtimeServer(rpcServer, apiServer)
 	health.markReady()
 	// Serve returns nil once GracefulStop completes; main must not
 	// return before waitShutdown finished closing the index and db,
