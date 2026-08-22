@@ -24,6 +24,33 @@ vi.mock('./editor', () => ({
 
 import {Feed} from './App';
 
+class MockEventSource {
+  static instances = [];
+
+  constructor(url) {
+    this.url = url;
+    this.closed = false;
+    this.listeners = new Map();
+    MockEventSource.instances.push(this);
+  }
+
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) ?? [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  emit(type) {
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(new Event(type));
+    }
+  }
+
+  close() {
+    this.closed = true;
+  }
+}
+
 const makeEntry = (id, body) => ({
   id,
   body,
@@ -39,42 +66,115 @@ const makeFeedProps = (overrides = {}) => ({
   show_share: false,
   prev_start: 0,
   next_start: 0,
+  realtime_home: false,
   query: '',
   onpage: false,
   onpage_edit: false,
   ...overrides,
 });
 
+const newestHomeResponse = (entry = makeEntry('new', 'Fresh entry')) => ({
+  ...makeFeedProps({realtime_home: true}),
+  feed: {id: 'home', uuid: 'home', entries: [entry]},
+});
+
+function setVisibility(value) {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value,
+  });
+  document.dispatchEvent(new Event('visibilitychange'));
+}
+
+beforeEach(() => {
+  MockEventSource.instances = [];
+  globalThis.EventSource = MockEventSource;
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
+});
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
+  delete globalThis.EventSource;
 });
 
-test('Feed refreshes after 20 seconds and stops polling after unmount', async () => {
+test('non-home Feed does not open realtime or poll', async () => {
   vi.useFakeTimers();
-  getJSONMock.mockResolvedValue({
-    ...makeFeedProps(),
-    feed: {id: 'home', uuid: 'home', entries: [makeEntry('new', 'Fresh entry')]},
-  });
-
-  const {rerender, unmount} = render(<Feed {...makeFeedProps()} />);
-  expect(screen.getByText('Old entry')).toBeInTheDocument();
+  render(<Feed {...makeFeedProps()} />);
 
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(60_000);
   });
-  rerender(<Feed {...makeFeedProps({url: '/feed/latest?output=json'})} />);
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(10_000);
-  });
+  expect(MockEventSource.instances).toHaveLength(0);
+  expect(getJSONMock).not.toHaveBeenCalled();
+});
 
+test('realtime Home folds dirty hints and refreshes newest page without cursor', async () => {
+  getJSONMock.mockResolvedValue(newestHomeResponse());
+  render(<Feed {...makeFeedProps({realtime_home: true, url: '/?cursor=older-position'})} />);
+
+  expect(MockEventSource.instances).toHaveLength(1);
+  expect(MockEventSource.instances[0].url).toBe('/a/events');
+
+  act(() => {
+    MockEventSource.instances[0].emit('timeline-dirty');
+    MockEventSource.instances[0].emit('timeline-dirty');
+  });
+  expect(screen.getAllByRole('status')).toHaveLength(1);
+  expect(screen.getByRole('button', {name: '有新动态，点击刷新'})).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', {name: '有新动态，点击刷新'}));
+  await waitFor(() => expect(getJSONMock).toHaveBeenCalledOnce());
+  expect(getJSONMock).toHaveBeenCalledWith('/');
+  expect(await screen.findByText('Fresh entry')).toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '有新动态，点击刷新'})).not.toBeInTheDocument();
+});
+
+test('failed realtime refresh keeps the dirty banner', async () => {
+  getJSONMock.mockRejectedValue(new Error('offline'));
+  render(<Feed {...makeFeedProps({realtime_home: true})} />);
+  act(() => MockEventSource.instances[0].emit('timeline-dirty'));
+
+  fireEvent.click(screen.getByRole('button', {name: '有新动态，点击刷新'}));
+  await waitFor(() => expect(getJSONMock).toHaveBeenCalledOnce());
+  expect(screen.getByRole('button', {name: '有新动态，点击刷新'})).toBeInTheDocument();
+});
+
+test('hidden Home closes SSE and visible Home reconnects then reconciles', async () => {
+  getJSONMock.mockResolvedValue(newestHomeResponse());
+  render(<Feed {...makeFeedProps({realtime_home: true})} />);
+  const first = MockEventSource.instances[0];
+
+  act(() => setVisibility('hidden'));
+  expect(first.closed).toBe(true);
+
+  await act(async () => setVisibility('visible'));
+  expect(MockEventSource.instances).toHaveLength(2);
+  await waitFor(() => expect(getJSONMock).toHaveBeenCalledWith('/'));
+});
+
+test('visible realtime Home reconciles every 60 seconds and stops after unmount', async () => {
+  vi.useFakeTimers();
+  getJSONMock.mockResolvedValue(newestHomeResponse());
+  const {unmount} = render(<Feed {...makeFeedProps({realtime_home: true})} />);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(59_999);
+  });
+  expect(getJSONMock).not.toHaveBeenCalled();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
   expect(getJSONMock).toHaveBeenCalledOnce();
-  expect(getJSONMock).toHaveBeenCalledWith('/feed/latest?output=json');
-  expect(screen.getByText('Fresh entry')).toBeInTheDocument();
+  expect(getJSONMock).toHaveBeenCalledWith('/');
 
   unmount();
-  await vi.advanceTimersByTimeAsync(20_000);
+  await vi.advanceTimersByTimeAsync(60_000);
   expect(getJSONMock).toHaveBeenCalledOnce();
+  expect(MockEventSource.instances[0].closed).toBe(true);
 });
 
 test('Feed prepends a successfully posted entry', async () => {
