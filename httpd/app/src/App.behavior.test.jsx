@@ -114,10 +114,15 @@ test('non-home Feed does not open realtime or retain legacy polling', async () =
 
 test('realtime Home folds dirty hints and refreshes newest page without cursor', async () => {
   getJSONMock.mockResolvedValue(newestHomeResponse());
-  render(<Feed {...makeFeedProps({realtime_home: true, url: '/?cursor=older-position'})} />);
+  const {container} = render(<Feed {...makeFeedProps({
+    realtime_home: true,
+    show_share: true,
+    url: '/?cursor=older-position',
+  })} />);
 
   expect(MockEventSource.instances).toHaveLength(1);
   expect(MockEventSource.instances[0].url).toBe('/a/events');
+  const editor = await screen.findByRole('button', {name: 'Submit test entry'});
 
   act(() => {
     MockEventSource.instances[0].emit('timeline-dirty');
@@ -125,6 +130,11 @@ test('realtime Home folds dirty hints and refreshes newest page without cursor',
   });
   expect(screen.getAllByRole('status')).toHaveLength(1);
   expect(screen.getByRole('button', {name: '有新动态，点击刷新'})).toBeInTheDocument();
+  const notification = container.querySelector('.notification.home-dirty-banner');
+  const entry = container.querySelector('.entry');
+  expect(notification).not.toBeNull();
+  expect(editor.compareDocumentPosition(notification) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  expect(notification.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 
   fireEvent.click(screen.getByRole('button', {name: '有新动态，点击刷新'}));
   await waitFor(() => expect(getJSONMock).toHaveBeenCalledOnce());

@@ -78,6 +78,26 @@ func TestRealtimeBusStopWakesSubscribersAndRejectsNewOnes(t *testing.T) {
 	bus.publish(realtimeHint{}) // drop silently after shutdown
 }
 
+func TestRealtimeObserverExcludesInitiatingActor(t *testing.T) {
+	api := newServiceServer(t)
+	sub, err := api.realtimeBus().subscribe("observer-test")
+	require.NoError(t, err)
+	actor := uuid.Must(uuid.NewV4())
+	follower := uuid.Must(uuid.NewV4())
+	entry := uuid.Must(uuid.NewV4())
+	observer := api.realtimeObserverExcluding(actor)
+
+	observer(actor, entry, model.TimelineActivityPublish, time.Now().UTC())
+	select {
+	case <-sub.ch:
+		t.Fatal("initiating actor received its own realtime hint")
+	default:
+	}
+
+	observer(follower, entry, model.TimelineActivityPublish, time.Now().UTC())
+	require.Equal(t, follower, (<-sub.ch).Viewer)
+}
+
 func TestBeginShutdownWakesRealtimeStreamBeforeGracefulStop(t *testing.T) {
 	api := newServiceServer(t)
 	listener := bufconn.Listen(1024 * 1024)

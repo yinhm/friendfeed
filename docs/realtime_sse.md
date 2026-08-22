@@ -226,6 +226,11 @@ Like/Comment 同理：保留当前 public wrapper/created-hook 语义，内部�
 server 的 `PostEntry` / `LikeEntry` / `CommentEntry` 调用带 observer 的 runtime variant；
 删除 Like/Comment 暂不产生 timeline dirty（当前删除路径也不做 Home bump）。
 
+runtime producer 不把 hint 回送给本次 mutation 的 actor：发帖、Like、Comment 的 HTTP
+响应已经让当前标签页更新权威 Entry，再发 dirty 只会制造一次多余刷新。其他 viewer
+仍正常收到 hint；actor 的其它标签页由 Home 的 180s reconciliation 最终收敛。model
+observer 仍会如实观察并计数 author move，这个过滤只属于 server realtime adapter。
+
 ## ffdb：进程级 realtime broadcaster
 
 `server` 包新增一个进程内 broadcaster，subscriber 是**下游 ffweb stream**，不是

@@ -308,15 +308,15 @@ export function Feed(props) {
     <FeedContext.Provider value={config}>
       {feedHeader}
       <div id="feed" className="feed">
+		{editorNodes}
         {homeDirty && props.realtime_home === true && (
-          <div className="home-dirty-banner" role="status">
+          <div className="notification home-dirty-banner" role="status">
             <button type="button" className="inline-action"
                     onClick={() => refreshNewestHome().catch(error => console.error(error))}>
               有新动态，点击刷新
             </button>
           </div>
         )}
-        {editorNodes}
         {entryNodes}
         {feedPaginNodes}
       </div>

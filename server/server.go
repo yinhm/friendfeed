@@ -1095,7 +1095,7 @@ func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemF
 	if err != nil {
 		return nil, err
 	}
-	_, err = model.PutEntryWithTimelineObserver(s.rdb, entry, s.observeTimelineMove)
+	_, err = model.PutEntryWithTimelineObserver(s.rdb, entry, s.realtimeObserverExcluding(profileUuid))
 	if err != nil {
 		return nil, err
 	}
@@ -1248,7 +1248,7 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 		if checkErr != nil {
 			return nil, checkErr
 		}
-		_, entry, err = model.PutLikeWithTimelineObserver(s.rdb, profile, entry, s.observeTimelineMove)
+		_, entry, err = model.PutLikeWithTimelineObserver(s.rdb, profile, entry, s.realtimeObserverExcluding(userUUID))
 		if err == nil && created {
 			if bumpErr := s.bumpPublicTimeline(entry, nil); bumpErr != nil {
 				return nil, bumpErr
@@ -1304,7 +1304,11 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	_, entry, err = model.PutCommentWithTimelineObserver(s.rdb, profile, entry, req.Comment, s.observeTimelineMove)
+	actorUUID, err := uuid.FromString(profile.Uuid)
+	if err != nil || actorUUID == uuid.Nil {
+		return nil, status.Error(codes.Internal, "profile has invalid UUID")
+	}
+	_, entry, err = model.PutCommentWithTimelineObserver(s.rdb, profile, entry, req.Comment, s.realtimeObserverExcluding(actorUUID))
 	if err != nil {
 		return nil, err
 	}

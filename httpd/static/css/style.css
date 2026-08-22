@@ -29,6 +29,8 @@
 
     --ff-box-bg: #eee;
     --ff-box-border: silver;
+	--ff-notification-bg: #f3f7fb;
+	--ff-notification-border: #d4e1ee;
 
     --ff-quote-border: #d1d5db;
     --ff-quote-fg: #4b5563;
@@ -262,6 +264,24 @@ a:not([class]):hover {
     padding-bottom: 12px;
     border-bottom: 1px solid var(--ff-hairline);
     margin-bottom: 12px;
+}
+
+/* A transient feed notification occupies the same vertical rhythm as an
+   Entry while remaining visually distinct from authoritative feed content. */
+.notification {
+	box-sizing: border-box;
+	margin-bottom: 12px;
+	padding: 9px 12px;
+	border: 1px solid var(--ff-notification-border);
+	border-radius: 3px;
+	background: var(--ff-notification-bg);
+}
+
+.notification button.inline-action {
+	width: 100%;
+	color: var(--ff-link);
+	font-weight: bold;
+	text-align: left;
 }
 
 .entry::after {

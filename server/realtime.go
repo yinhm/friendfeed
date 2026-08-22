@@ -112,6 +112,19 @@ func (s *ApiServer) observeTimelineMove(viewer, entry uuid.UUID, kind model.Time
 	})
 }
 
+// realtimeObserverExcluding keeps the initiating tab from receiving a dirty
+// hint for a mutation whose authoritative response it already applies locally.
+// Other viewers still receive the committed move, while another tab belonging
+// to the actor converges through the low-frequency Home reconciliation.
+func (s *ApiServer) realtimeObserverExcluding(actor uuid.UUID) model.TimelineMoveObserver {
+	return func(viewer, entry uuid.UUID, kind model.TimelineActivityKind, at time.Time) {
+		if viewer == actor {
+			return
+		}
+		s.observeTimelineMove(viewer, entry, kind, at)
+	}
+}
+
 // BeginShutdown terminates permanent realtime streams before grpc.GracefulStop
 // waits for RPC handlers. Full background-job draining and Pebble close remain
 // in Shutdown after the gRPC server has drained.
