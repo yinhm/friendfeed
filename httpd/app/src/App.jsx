@@ -1,6 +1,6 @@
 // @ts-check
 
-import React, { useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useContext, useEffect, useState, lazy, Suspense } from 'react';
 import { Entry } from './entry';
 import { getJSON, postJSON, postForm } from './utils';
 import { FeedContext } from './context'
@@ -38,6 +38,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {boolean} [show_next]
  * @property {boolean} [cursor_paging]
  * @property {string} [next_cursor]
+ * @property {boolean} [realtime_home]
  * @property {string} query
  * @property {boolean} onpage
  * @property {boolean} onpage_edit
@@ -165,27 +166,62 @@ function FeedHeader(props) {
 /** @param {FeedProps} props */
 export function Feed(props) {
   const [state, setState] = useState(/** @type {FeedState} */ ({...props}));
-  const urlRef = useRef(props.url);
-  urlRef.current = props.url;
+  const [homeDirty, setHomeDirty] = useState(false);
 
   const context = useContext(FeedContext);
 
-  // UNSAFE_componentWillReceiveProps(nextProps){
-  //   dprint("componentWillReceiveProps");
-  //   this.setState(this.getInitialState(nextProps));
-  // }
+  const refreshNewestHome = useCallback(() => {
+    return getJSON('/').then(data => {
+      setState(current => ({...current, ...data}));
+      setHomeDirty(false);
+      return data;
+    });
+  }, []);
 
   useEffect(() => {
-    const refreshFeed = setInterval(() => {
-      getJSON(urlRef.current)
-        .then(data => {
-          setState(current => ({...current, ...data}));
-        })
-        .catch(error => console.error(error));
-    }, 20 * 1000);
+    if (props.realtime_home !== true) {
+      return undefined;
+    }
 
-    return () => clearInterval(refreshFeed);
-  }, []);
+    /** @type {EventSource | null} */
+    let source = null;
+    const markDirty = () => setHomeDirty(true);
+    const closeRealtime = () => {
+      if (source !== null) {
+        source.close();
+        source = null;
+      }
+    };
+    const openRealtime = () => {
+      if (source !== null || document.visibilityState === 'hidden') {
+        return;
+      }
+      source = new EventSource('/a/events');
+      source.addEventListener('timeline-dirty', markDirty);
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        closeRealtime();
+        return;
+      }
+      openRealtime();
+      refreshNewestHome().catch(error => console.error(error));
+    };
+
+    openRealtime();
+    document.addEventListener('visibilitychange', handleVisibility);
+    const reconcile = setInterval(() => {
+      if (document.visibilityState !== 'hidden') {
+        refreshNewestHome().catch(error => console.error(error));
+      }
+    }, 60 * 1000);
+
+    return () => {
+      clearInterval(reconcile);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      closeRealtime();
+    };
+  }, [props.realtime_home, refreshNewestHome]);
 
   /** @param {FormData} formData */
   const onPostEntry = (formData) => {
@@ -272,6 +308,14 @@ export function Feed(props) {
     <FeedContext.Provider value={config}>
       {feedHeader}
       <div id="feed" className="feed">
+        {homeDirty && props.realtime_home === true && (
+          <div className="home-dirty-banner" role="status">
+            <button type="button" className="inline-action"
+                    onClick={() => refreshNewestHome().catch(error => console.error(error))}>
+              有新动态，点击刷新
+            </button>
+          </div>
+        )}
         {editorNodes}
         {entryNodes}
         {feedPaginNodes}
@@ -308,6 +352,7 @@ export function App() {
       show_next={appData.show_next}
       cursor_paging={appData.cursor_paging}
       next_cursor={appData.next_cursor}
+      realtime_home={appData.realtime_home}
       query={appData.query}
       onpage={appData.onpage}
       onpage_edit={appData.onpage_edit} />
