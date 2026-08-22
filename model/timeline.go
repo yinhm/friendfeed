@@ -215,10 +215,15 @@ const (
 	TimelineActivityComment
 )
 
+// TimelineMoveObserver observes an already committed per-viewer timeline move.
+// Observers are best-effort only: they must not block, persist data, or affect
+// the correctness/error result of the timeline fanout.
+type TimelineMoveObserver func(viewer, entry uuid.UUID, kind TimelineActivityKind, at time.Time)
+
 // FanoutTimelineActivity updates only active Home caches. Inactive viewers are
 // rebuilt on their next Home request; source mutations are committed before
-// this derived-data fanout.
-func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time, kind TimelineActivityKind) (int, error) {
+// this derived-data fanout. observer runs only after a real committed move.
+func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time, kind TimelineActivityKind, observer TimelineMoveObserver) (int, error) {
 	entryUUID, err := uuid.FromString(entry.Id)
 	if err != nil {
 		return 0, err
@@ -262,24 +267,34 @@ func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time
 				return !exists || activity.Sub(old) >= LikeBumpCooldown
 			}
 		}
-		_, err = MoveTimelineEntry(db, viewer, entryUUID, activity, qualify)
-		return true, err
+		moved, err := MoveTimelineEntry(db, viewer, entryUUID, activity, qualify)
+		if err != nil {
+			return false, err
+		}
+		if moved && observer != nil {
+			observer(viewer, entryUUID, kind, activity)
+		}
+		return moved, nil
 	}
-	if _, err := update(author); err != nil {
+	updated := 0
+	moved, err := update(author)
+	if err != nil {
 		return 0, fmt.Errorf("update author timeline: %w", err)
 	}
+	if moved {
+		updated++
+	}
 	prefix := NewPrefixKeyFrom(TableFollower, feed.Bytes())
-	updated := 0
 	_, err = db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
 		follower, err := uuid.FromBytes(ParseFollowerKey(key))
 		if err != nil {
 			return err
 		}
-		active, err := update(follower)
+		moved, err := update(follower)
 		if err != nil {
 			return err
 		}
-		if active {
+		if moved {
 			updated++
 		}
 		return nil
