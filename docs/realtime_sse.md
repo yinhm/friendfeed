@@ -39,8 +39,9 @@ V1 的核心原则是：**实时事件只表示“Home 可能变脏了”，不�
   应产生 realtime hint。
 - Home cursor 是向旧内容翻页的 **older-page cursor**：命中 cursor 后会 `Next()` 再
   读取更旧的行。它不是 `since` cursor，不能拿来获取“刚出现的新内容”。
-- 当前 React `Feed` 每 20s 会 `getJSON(url)` 做一次刷新。SSE 落地后必须把这条 polling
-  路径与 dirty banner 统一，否则后台刷新已经拿到新内容时 banner 仍可能保持 dirty。
+- 旧 React `Feed` 每 20s 对所有页面执行 `getJSON(url)`。SSE 落地后该全站 polling
+  正式退役：Public、普通 Feed 和 Home 旧分页不再自动刷新；只有 Home 第一页保留低频
+  reconciliation，并与 dirty banner 使用同一个权威刷新函数。
 - 当前 ffdb 的 `ApiServer.Shutdown()` 才会设置 `shuttingDown`、关闭 `done`、等待 `wg`
   并关闭 Pebble；而进程入口当前先执行 `grpc.GracefulStop()` 再调用 `Shutdown()`。
   引入永久 server-streaming RPC 后必须拆开“发出 shutdown 信号”和“等待/关库”两个
@@ -474,16 +475,19 @@ Entry UUID 重复。
 
 ### polling 与 SSE 的关系
 
-当前 20s polling 不能原样与 dirty banner 并存。建议把两者统一到同一个
-`refreshNewestHome()`：
+旧 20s 全站 polling 不再保留。Home 第一页的 SSE dirty banner 与低频兜底统一使用
+同一个 `refreshNewestHome()`：
 
 - SSE：秒级提示，设置 dirty；
 - banner click：立即 `refreshNewestHome()`；
 - `visibilitychange`：
   - hidden → `EventSource.close()`；
   - visible → 重建 EventSource，并立即 `refreshNewestHome()`，覆盖隐藏期间丢失的 hint；
-- periodic reconciliation：保留低频兜底（例如 60s），仅在 Home 第一页且页面可见时
+- periodic reconciliation：保留 180s 低频兜底，仅在 Home 第一页且页面可见时
   调用 `refreshNewestHome()`；成功刷新时同步清除 dirty。
+
+Public、普通 Feed、Home older cursor page 和 legacy `?start=N` 页面不建立 SSE，也不再
+polling。这是对旧自动刷新机制的有意退役，不是 realtime 覆盖遗漏。
 
 这样 SSE 丢事件、ffdb/ffweb 重启或代理短暂断流只会让提示变慢，最终仍会被
 reconciliation 修正。
@@ -607,7 +611,8 @@ close grpc.ClientConn / process exit
 3. **ffweb hub + SSE + nginx**：全局 receive loop、本地 viewer hub、`/a/events`、连接
    限额、heartbeat、显式 ffweb realtime shutdown、nginx no-buffering。
 4. **frontend**：增加 `realtime_home` page flag，在现有 Feed state 内加入 dirty banner，
-   抽出 `refreshNewestHome()`，把原 20s polling 改成低频 reconciliation。
+   抽出 `refreshNewestHome()`；退役原 20s 全站 polling，仅为 Home 第一页保留 180s
+   reconciliation。
 5. **观察与扩展**：记录连接数、bus/hub drop counter、gRPC reconnect 次数；稳定后再评估
    notification badge、Public/feed 页或更细粒度 realtime UI。
 

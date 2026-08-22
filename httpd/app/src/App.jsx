@@ -214,7 +214,7 @@ export function Feed(props) {
       if (document.visibilityState !== 'hidden') {
         refreshNewestHome().catch(error => console.error(error));
       }
-    }, 60 * 1000);
+    }, 180 * 1000);
 
     return () => {
       clearInterval(reconcile);

@@ -101,12 +101,12 @@ afterEach(() => {
   delete globalThis.EventSource;
 });
 
-test('non-home Feed does not open realtime or poll', async () => {
+test('non-home Feed does not open realtime or retain legacy polling', async () => {
   vi.useFakeTimers();
   render(<Feed {...makeFeedProps()} />);
 
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(180_000);
   });
   expect(MockEventSource.instances).toHaveLength(0);
   expect(getJSONMock).not.toHaveBeenCalled();
@@ -156,13 +156,13 @@ test('hidden Home closes SSE and visible Home reconnects then reconciles', async
   await waitFor(() => expect(getJSONMock).toHaveBeenCalledWith('/'));
 });
 
-test('visible realtime Home reconciles every 60 seconds and stops after unmount', async () => {
+test('visible realtime Home reconciles every 180 seconds and stops after unmount', async () => {
   vi.useFakeTimers();
   getJSONMock.mockResolvedValue(newestHomeResponse());
   const {unmount} = render(<Feed {...makeFeedProps({realtime_home: true})} />);
 
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(59_999);
+    await vi.advanceTimersByTimeAsync(179_999);
   });
   expect(getJSONMock).not.toHaveBeenCalled();
   await act(async () => {
@@ -172,7 +172,7 @@ test('visible realtime Home reconciles every 60 seconds and stops after unmount'
   expect(getJSONMock).toHaveBeenCalledWith('/');
 
   unmount();
-  await vi.advanceTimersByTimeAsync(60_000);
+  await vi.advanceTimersByTimeAsync(180_000);
   expect(getJSONMock).toHaveBeenCalledOnce();
   expect(MockEventSource.instances[0].closed).toBe(true);
 });
