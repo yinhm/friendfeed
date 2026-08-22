@@ -377,7 +377,7 @@ a:not([class]):hover {
 	position: absolute;
 	inset: 1px;
 	border-radius: 50%;
-	background: radial-gradient(circle at 38% 30%, #fbefbd 0%, #f7e396 45%, #f1d36b 72%, #e8bd45 100%);
+	background: radial-gradient(circle at 38% 30%, #ffe9a5 0%, #ffd75b 55%, #f8ca45 82%, #edbf32 100%);
 	content: "";
 }
 
