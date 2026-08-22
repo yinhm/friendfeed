@@ -23,6 +23,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {string} [name]
  * @property {string} [picture]
  * @property {string} [description]
+ * @property {boolean} [private]
  * @property {string[]} [commands]
  * @property {FeedEntry[]} [entries]
  *
@@ -86,7 +87,7 @@ function FeedPagin(props) {
 
 /**
  * @param {{feedId: string, feedUuid: string, name?: string, picture?: string,
- * description?: string, commands?: string[]}} props
+ * description?: string, private?: boolean, commands?: string[]}} props
  */
 function FeedHeader(props) {
   const [commands, setCommands] = useState(props.commands);
@@ -150,7 +151,10 @@ function FeedHeader(props) {
         <img src={props.picture} alt={props.name ?? ''} /></a>
       </div>
       <div className="body">
-        <h1><a href={"/feed/" + props.feedId}>{props.name}</a></h1>
+        <h1>
+          <a href={"/feed/" + props.feedId}>{props.name}</a>
+          {props.private && <span className="private-icon" role="img" aria-label="Private" title="Private" />}
+        </h1>
 
         <div className="description">{props.description}</div>
 
@@ -267,6 +271,7 @@ export function Feed(props) {
                   name={feed.name}
                   picture={feed.picture}
                   description={feed.description}
+                  private={feed.private}
                   commands={feed.commands} />
     )
   }

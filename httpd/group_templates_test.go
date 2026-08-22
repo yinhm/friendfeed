@@ -121,7 +121,7 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	body := renderEmbeddedTemplate(t, "group_create.html", createCtx())
 	for _, want := range []string{
 		`<a href="/feed/alpha" title="alpha">Alpha</a>`,
-		`Secret Club (private)`,
+		`<a href="/feed/secret-club" title="secret-club">Secret Club</a><span class="private-icon" role="img" aria-label="Private" title="Private"></span>`,
 		// The create affordance is the "+" sharing the Groups heading row,
 		// in its own block below the navigation menu.
 		`<h3 class="groups-heading">Groups <a href="/groups/create" title="Create a group">+</a></h3>`,
@@ -178,7 +178,7 @@ func TestGroupsPageRendersCompleteList(t *testing.T) {
 		`<h2 class="page-title">My groups</h2>`,
 		`href="/feed/alpha"`,
 		`href="/feed/secret"`,
-		`class="admin-badge">private</span>`,
+		`href="/feed/secret" title="secret">Secret</a><span class="private-icon" role="img" aria-label="Private" title="Private"></span>`,
 		`href="/groups/create"`,
 		`<img class="avatar" src="https://example.com/a.png"`,
 		`<img class="avatar" src="/static/images/ff-default.jpg"`,
@@ -186,5 +186,8 @@ func TestGroupsPageRendersCompleteList(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("groups.html missing %q", want)
 		}
+	}
+	if strings.Contains(body, `>private</span>`) || strings.Contains(body, `(private)`) {
+		t.Fatal("private Groups must use the lock icon instead of a text label")
 	}
 }

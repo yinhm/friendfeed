@@ -15,7 +15,7 @@
     {% for r in requests %}
     <li>
         <img src="{{ r.Requester.Picture|escape }}" class="avatar" alt="" />
-        <a href="/feed/{{ r.Requester.Id }}">{{ r.Requester.Name|escape }}</a>
+        <a href="/feed/{{ r.Requester.Id }}">{{ r.Requester.Name|escape }}</a>{% if r.Requester.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}
         <span class="item-time">{{ r.RequestedAt|escape }}</span>
         <form method="post" action="/account/requests/action">
             <input type="hidden" name="target_uuid" value="{{ r.Requester.Uuid }}" />

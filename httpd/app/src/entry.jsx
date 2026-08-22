@@ -6,7 +6,7 @@ import {EntryLike} from './entry-like';
 import {getJSON, postJSON, postForm, intersperse} from './utils';
 
 /**
- * @typedef {{id: string, name: string, picture?: string, title?: string}} FeedRef
+ * @typedef {{id: string, name: string, picture?: string, title?: string, private?: boolean}} FeedRef
  * @typedef {{width?: number, height?: number, link: string, url: string}} Thumbnail
  * @typedef {{id?: string, body: string, rawBody?: string, is_editing?: boolean,
  * commands?: string[], placeholder?: boolean, from?: FeedRef, date?: string}} CommentData
@@ -384,7 +384,10 @@ function EntryToFeeds(props) {
 
 /** @param {{feed: FeedRef}} props */
 function EntryToFeed(props) {
-  return <a href={'/feed/' + props.feed.id}>{props.feed.name}</a>;
+  return <>
+    <a href={'/feed/' + props.feed.id}>{props.feed.name}</a>
+    {props.feed.private && <span className="private-icon" role="img" aria-label="Private" title="Private" />}
+  </>;
 }
 
 /** @param {{from: FeedRef, to?: FeedRef[]}} props */
@@ -772,7 +775,7 @@ class EntryComment extends React.Component{
       const actor = comment.from;
       const actorName = actor?.name || actor?.id || 'Unknown';
       const actorNode = actor?.id
-        ? <a href={'/feed/' + actor.id}>{actorName}</a>
+        ? <><a href={'/feed/' + actor.id}>{actorName}</a>{actor.private && <span className="private-icon" role="img" aria-label="Private" title="Private" />}</>
         : <span>{actorName}</span>;
       return (
         <div className="comment" title={comment.date}>

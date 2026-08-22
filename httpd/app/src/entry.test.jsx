@@ -41,6 +41,28 @@ test('renders archived interactions without an actor snapshot', () => {
   expect(container.querySelector('.comment-icon')).toBeEmptyDOMElement();
 });
 
+test('marks private Feed names in entry interactions', () => {
+  render(
+    <Entry
+      entry={{
+        id: 'private-entry',
+        from: {id: 'author', name: 'Author', private: true},
+        body: 'Private actors',
+        commands: [],
+        likes: [{from: {id: 'liker', name: 'Liker', private: true}}],
+        comments: [{
+          id: 'comment',
+          body: 'Comment',
+          from: {id: 'commenter', name: 'Commenter', private: true},
+        }],
+      }}
+      onpage_edit={false}
+    />
+  );
+
+  expect(screen.getAllByRole('img', {name: 'Private'})).toHaveLength(3);
+});
+
 test('renders only the comment commands authorized by the server', () => {
   render(
     <Entry

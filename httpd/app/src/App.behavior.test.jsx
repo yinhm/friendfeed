@@ -234,6 +234,21 @@ test('Feed header follows and unfollows with semantic actions', async () => {
   expect(screen.getByRole('button', {name: 'Follow'})).toBeInTheDocument();
 });
 
+test('private Feed header marks its name with a lock icon', () => {
+  const feed = {
+    id: 'private-feed',
+    uuid: 'private-uuid',
+    name: 'Private Feed',
+    private: true,
+    entries: [],
+  };
+
+  render(<Feed {...makeFeedProps({feed, show_header: true})} />);
+
+  expect(screen.getByRole('heading', {name: /^Private Feed/}))
+    .toContainElement(screen.getByRole('img', {name: 'Private'}));
+});
+
 test('Feed header shows the error when unfollow is rejected', async () => {
   postJSONMock.mockRejectedValue(
     new Error('This action cannot be completed.'));

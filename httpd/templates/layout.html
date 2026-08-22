@@ -80,7 +80,7 @@
                     {% if user_groups %}
                     <ul>
                         {% for g in user_groups %}
-                        <li><a href="/feed/{{ g.Id }}" title="{{ g.Id }}">{{ g.Name }}{% if g.Private %} (private){% endif %}</a></li>
+                        <li><a href="/feed/{{ g.Id }}" title="{{ g.Id }}">{{ g.Name }}</a>{% if g.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}</li>
                         {% endfor %}
                     </ul>
                     {% endif %}
