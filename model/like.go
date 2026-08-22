@@ -23,7 +23,7 @@ type InteractionCreatedHook func(batch *pebble.Batch, activity time.Time) error
 
 // returns a full key and entry if succedd
 func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, *pb.Entry, error) {
-	key, updated, _, err := PutLikeWithCreatedHook(db, profile, entry, nil)
+	key, updated, _, err := putLikeWithHooks(db, profile, entry, nil, nil)
 	return key, updated, err
 }
 
@@ -32,6 +32,17 @@ func PutLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (store.Key, 
 // that real transition, allowing callers to drive non-atomic derived fanout
 // from the committed result instead of a racy preflight read.
 func PutLikeWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.Entry, hook InteractionCreatedHook) (store.Key, *pb.Entry, bool, error) {
+	return putLikeWithHooks(db, profile, entry, hook, nil)
+}
+
+// PutLikeWithTimelineObserver is PutLike plus a best-effort observer for each
+// committed Home timeline move caused by a newly-created Like.
+func PutLikeWithTimelineObserver(db *store.Store, profile *pb.Profile, entry *pb.Entry, observer TimelineMoveObserver) (store.Key, *pb.Entry, error) {
+	key, updated, _, err := putLikeWithHooks(db, profile, entry, nil, observer)
+	return key, updated, err
+}
+
+func putLikeWithHooks(db *store.Store, profile *pb.Profile, entry *pb.Entry, hook InteractionCreatedHook, observer TimelineMoveObserver) (store.Key, *pb.Entry, bool, error) {
 	// Validate the caller's identity before anything else: the canonical
 	// mint must not be bypassed by a dedupe hit, and a nil profile must
 	// not panic the dedupe scan.
@@ -97,7 +108,7 @@ func PutLikeWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.Entr
 		return nil, nil, created, err
 	}
 	if created {
-		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityLike); err != nil {
+		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityLike, observer); err != nil {
 			return nil, nil, true, err
 		}
 	}
@@ -155,7 +166,7 @@ func DeleteLike(db *store.Store, profile *pb.Profile, entry *pb.Entry) (*pb.Entr
 }
 
 func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment) (store.Key, *pb.Entry, error) {
-	key, updated, _, err := PutCommentWithCreatedHook(db, profile, entry, comment, nil)
+	key, updated, _, err := putCommentWithHooks(db, profile, entry, comment, nil, nil)
 	return key, updated, err
 }
 
@@ -164,6 +175,18 @@ func PutComment(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *
 // hook, so notification emission follows the state transition rather than RPC
 // call count.
 func PutCommentWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment, hook InteractionCreatedHook) (store.Key, *pb.Entry, bool, error) {
+	return putCommentWithHooks(db, profile, entry, comment, hook, nil)
+}
+
+// PutCommentWithTimelineObserver is PutComment plus a best-effort observer for
+// each committed Home timeline move caused by a newly-created Comment. Edits
+// never fan out and therefore never invoke the observer.
+func PutCommentWithTimelineObserver(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment, observer TimelineMoveObserver) (store.Key, *pb.Entry, error) {
+	key, updated, _, err := putCommentWithHooks(db, profile, entry, comment, nil, observer)
+	return key, updated, err
+}
+
+func putCommentWithHooks(db *store.Store, profile *pb.Profile, entry *pb.Entry, comment *pb.Comment, hook InteractionCreatedHook, observer TimelineMoveObserver) (store.Key, *pb.Entry, bool, error) {
 	// Validate the caller's identity before scanning existing comments;
 	// the author reference always comes from the canonical profile
 	// resolved server-side, any From the caller sent is display data.
@@ -283,7 +306,7 @@ func PutCommentWithCreatedHook(db *store.Store, profile *pb.Profile, entry *pb.E
 		return nil, nil, created, err
 	}
 	if created {
-		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityComment); err != nil {
+		if _, err := FanoutTimelineActivity(db, entry, activity, TimelineActivityComment, observer); err != nil {
 			return nil, nil, true, err
 		}
 	}
