@@ -2,14 +2,14 @@
 
 {% block content %}
 <div class="notifications-page">
-    <h1>Notifications</h1>
+    <h2 class="page-title">Notifications</h2>
 
     {% if notifications %}
-    <ul class="notification-list">
+    <ul class="item-list">
         {% for notification in notifications %}
         <li>
+            <span class="item-time">{{ notification.Date|escape }}</span>
             <a href="{{ notification.Href|escape }}">{{ notification.Text|escape }}</a>
-            <div class="muted">{{ notification.Date|escape }}</div>
         </li>
         {% endfor %}
     </ul>

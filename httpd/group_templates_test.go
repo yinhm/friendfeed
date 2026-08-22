@@ -175,7 +175,7 @@ func TestGroupsPageRendersCompleteList(t *testing.T) {
 		},
 	})
 	for _, want := range []string{
-		`<h2>My groups</h2>`,
+		`<h2 class="page-title">My groups</h2>`,
 		`href="/feed/alpha"`,
 		`href="/feed/secret"`,
 		`class="admin-badge">private</span>`,

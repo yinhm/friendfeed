@@ -1,12 +1,12 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<h2>My groups</h2>
+<h2 class="page-title">My groups</h2>
 
 <p><a href="/groups/create">Create a group</a></p>
 
 {% if groups %}
-<ul class="member-list">
+<ul class="item-list">
     {% for group in groups %}
     <li>
         <img class="avatar" src="{{ group.Picture|escape }}" alt="" />

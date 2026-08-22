@@ -13,6 +13,7 @@
     --ff-bg: #fff;
     --ff-fg: #000;
     --ff-font: Arial, sans-serif;
+    --ff-font-family: Arial, Heiti SC, Microsoft Yahei, simsun;
 
     --ff-link: #00c;
     --ff-link-light: #77c;
@@ -638,14 +639,33 @@ div.content pre {
     color: var(--ff-muted);
 }
 
-.member-list {
+/* Shared page title for list pages (Notifications / Groups / Requests):
+   compact serif display face in the newspaper tradition. */
+.page-title {
+    margin: 0 0 12px;
+    display: block;
+    font-family: var(--ff-font-family);
+    font-size: 22px;
+    line-height: 26px;
+    font-weight: 700;
+}
+
+@media screen and (min-width: 640px) {
+    .page-title {
+        font-size: 28px;
+        line-height: 32px;
+        padding: 0.5px 0;
+    }
+}
+
+.item-list {
     list-style: none;
     margin: 0;
     padding: 0;
-    max-width: 36em;
+    max-width: 48em;
 }
 
-.member-list li {
+.item-list li {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -653,12 +673,57 @@ div.content pre {
     border-bottom: 1px solid var(--ff-hairline);
 }
 
-.member-list .avatar {
+/* Rows stay on one line at any viewport: the text column truncates with an
+   ellipsis while timestamps, badges and action forms keep their width. */
+.item-list li > * {
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.item-list li > a,
+.item-list li > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Avatar, badge and link keep their footprint; only the muted description
+   span folds. */
+.item-list li > img {
+    flex: none;
+}
+
+.item-list li > a {
+    flex: none;
+}
+
+.item-list li > .muted {
+    flex-shrink: 1000;
+}
+
+.item-list li > .admin-badge {
+    flex: none;
+}
+
+/* Notification rows carry full sentences: there the link is the truncating
+   column. */
+.notifications-page .item-list li > a {
+    flex: 0 1 auto;
+}
+
+/* Timestamps stay intact: only the text column truncates. */
+.item-list li > .item-time {
+    flex: none;
+    overflow: visible;
+    color: var(--ff-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.item-list .avatar {
     width: 24px;
     height: 24px;
 }
 
-.member-list .admin-badge {
+.item-list .admin-badge {
     font-size: 12px;
     color: var(--ff-muted);
     border: 1px solid var(--ff-border);
@@ -666,7 +731,7 @@ div.content pre {
     padding: 0 4px;
 }
 
-.member-list form {
+.item-list form {
     margin-left: auto;
     display: flex;
     gap: 6px;
