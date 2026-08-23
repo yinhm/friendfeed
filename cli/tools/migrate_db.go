@@ -1262,6 +1262,7 @@ func main() {
 		(command == "migrate_interactions" && dryRun) ||
 		(command == "rebuild_entry_index" && dryRun) ||
 		(command == "backfill_actor_uuids" && dryRun) ||
+		(command == "migrate_group_entry_authors" && dryRun) ||
 		(command == "backfill_group_admins" && dryRun) ||
 		(command == "rebuild_interaction_timelines" && dryRun) ||
 		(command == "rebuild_group_activity" && dryRun) ||
@@ -1384,6 +1385,15 @@ func main() {
 			stats.wayback, stats.dead, stats.failed, dryRun, outPath)
 	case "backfill_actor_uuids":
 		runBackfillActorUUIDsCommand(ndb)
+	case "migrate_group_entry_authors":
+		stats, err := migrateGroupEntryAuthors(ndb, groupEntryAuthorMigrationOptions{
+			user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Group entry author migration: scanned=%d candidates=%d fixed=%d unresolved=%d skipped=%d dry-run=%t",
+			stats.entriesScanned, stats.candidates, stats.fixed, stats.unresolved, stats.skipped, dryRun)
 	case "rebuild_search_index":
 		if indexPath == "" {
 			indexPath = filepath.Join(toPath, "index")

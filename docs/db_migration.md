@@ -233,6 +233,36 @@ inspect 只读；purge 会释放全部保留的旧 ID，并允许相关用户再
 
 迁移不依赖 old DB，不修改 ID/Name/Picture 等展示快照，不修改 `FeedUuid`；可重复执行，第二次应报告零 changed。dry-run 的安全边界是核心迁移函数在所有 mutation API 之前返回；末尾是否调用 Pebble `Flush` 不决定数据是否已经写入。
 
+## 修复历史 Group Entry 作者
+
+早期归档器在抓取 Group Feed 时曾把 `Entry.ProfileUuid` 覆盖为 Group UUID，原作者仍保留在
+`Entry.From.Id`，目标 Group 则保留在 `Entry.FeedUuid`。这会令页面把 Group 显示为作者，并令
+作者自己的 Profile Feed 缺少该 Entry。
+
+命令只接受可以严格证明的记录：当前 `ProfileUuid` 和 `FeedUuid` 指向同一 Group，且
+`From.Id` 能通过当前 `UserMap -> Profile` 解析为另一个有效 user。Group 自身发布的 Service/system
+Entry、目标不一致及无法解析的记录均不修改。修复 Entry 与新增作者 EntryIndex 在同一 Pebble batch
+提交；原 Group 目标索引保留。
+
+先对单个作者、小批量 dry-run：
+
+```bash
+./tools -to <db-dir> -c migrate_group_entry_authors -user yinhm -max-limit 20 -dry-run
+```
+
+确认计数后执行同一范围，再全量 dry-run 和执行：
+
+```bash
+./tools -to <db-dir> -c migrate_group_entry_authors -user yinhm -max-limit 20
+./tools -to <db-dir> -c migrate_group_entry_authors -dry-run
+./tools -to <db-dir> -c migrate_group_entry_authors
+./tools -to <db-dir> -c audit_store
+```
+
+该命令流式处理且幂等，不依赖 old DB。它已经补齐作者索引，因此正常执行后无需再运行
+`rebuild_entry_index`；全量 `rebuild_entry_index` 仍会从修复后的 `ProfileUuid`（作者）和
+`FeedUuid`（Group 目标）正确重建两类 direct index，可作为额外恢复手段。
+
 ## EntryIndex 与互动表离线升级
 
 当前版本把 EntryIndex 升级为同秒不碰撞的 key，并把 Like/Comment 从 Entry value
