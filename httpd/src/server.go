@@ -152,13 +152,8 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 		ctx, cancel = DefaultTimeoutContext()
 		summary, summaryErr := s.notificationSummary(ctx, profile.Uuid)
 		cancel()
-		if summaryErr == nil {
-			switch {
-			case summary.UnreadCount > 99:
-				data["notification_unread_display"] = "99+"
-			case summary.UnreadCount > 0:
-				data["notification_unread_display"] = fmt.Sprintf("%d", summary.UnreadCount)
-			}
+		if summaryErr == nil && summary.UnreadCount > 0 {
+			data["has_unread_notifications"] = true
 		}
 	}
 	data["dev"] = s.debug
@@ -555,6 +550,7 @@ func (s *Server) renderGroupCreate(c *gin.Context, code int, group *pb.Profile, 
 		"cancel_url":   "/",
 		"show_id":      true,
 		"show_private": true,
+		"group_page":   "create",
 		"group":        group,
 		"error":        errMsg,
 	})

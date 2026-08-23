@@ -110,6 +110,7 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 			"cancel_url":   "/",
 			"show_id":      true,
 			"show_private": true,
+			"group_page":   "create",
 			"group":        &pb.Profile{},
 			"current_user": &pb.Profile{Uuid: "u", Id: "me"},
 			"user_groups": []*pb.Profile{
@@ -122,9 +123,7 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	for _, want := range []string{
 		`<a href="/feed/alpha" title="alpha">Alpha</a>`,
 		`<a href="/feed/secret-club" title="secret-club">Secret Club</a><span class="private-icon" role="img" aria-label="Private" title="Private"></span>`,
-		// The create affordance is the "+" sharing the Groups heading row,
-		// in its own block below the navigation menu.
-		`<h3 class="groups-heading">Groups <a href="/groups/create" title="Create a group">+</a></h3>`,
+		`<h3 class="groups-heading">Groups</h3>`,
 		`<li><a href="/groups">Groups</a></li>`,
 		`name="id"`,
 		`name="picture"`,
@@ -145,12 +144,12 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 		t.Fatal("Groups block must render below the navigation menu, not inside it")
 	}
 
-	// Logged in with no Groups: the block still renders the create affordance.
+	// Logged in with no Groups: the block still links to the full list.
 	empty := createCtx()
 	empty["user_groups"] = []*pb.Profile{}
 	emptyBody := renderEmbeddedTemplate(t, "group_create.html", empty)
-	if !strings.Contains(emptyBody, `groups-menu`) || !strings.Contains(emptyBody, `title="Create a group">+</a>`) {
-		t.Fatal("empty Groups block must still offer the create affordance")
+	if !strings.Contains(emptyBody, `groups-menu`) || !strings.Contains(emptyBody, `>More&hellip;</a>`) {
+		t.Fatal("empty Groups block must still link to the full list")
 	}
 
 	// Anonymous visitors get no Groups block at all.

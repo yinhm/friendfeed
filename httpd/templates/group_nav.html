@@ -1,0 +1,5 @@
+<nav class="mb-6 flex gap-1 border-b border-border" aria-label="Group navigation">
+    <a href="/groups" {% if group_page == "discover" %}aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary"{% else %}class="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"{% endif %}>Discover</a>
+    <a href="/feed/{{ current_user.Id }}/groups" {% if group_page == "mine" %}aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary"{% else %}class="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"{% endif %}>My Groups</a>
+    <a href="/groups/create" {% if group_page == "create" %}aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary"{% else %}class="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"{% endif %}>Create</a>
+</nav>

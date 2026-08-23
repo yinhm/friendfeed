@@ -1,11 +1,11 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="notifications-page">
+<div class="feed">
     <h2 class="page-title">Notifications</h2>
 
     {% if notifications %}
-    <ul class="item-list">
+    <ul class="item-list notifications-list">
         {% for notification in notifications %}
         <li>
             <span class="item-time">{{ notification.Date|escape }}</span>

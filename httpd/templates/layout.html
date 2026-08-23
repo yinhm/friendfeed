@@ -44,8 +44,7 @@
                         <li><a href="/">Home</a></li>
                         {% if current_user %}
                         <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
-                        <li><a href="/feed/{{ current_user.Id }}/groups">My groups</a></li>
-                        <li><a href="/notifications">Notifications<span id="notification-badge"{% if !notification_unread_display %} hidden{% endif %}>{% if notification_unread_display %} ({{ notification_unread_display }}){% endif %}</span></a></li>
+                        <li><a href="/notifications">Notifications<span id="notification-badge" class="notification-badge" role="img" aria-label="New notifications"{% if !has_unread_notifications %} hidden{% endif %}></span></a></li>
                         <li><a href="/feed/{{ current_user.Id }}/likes">Likes</a></li>
                         <li><a href="/feed/{{ current_user.Id }}/comments">Comments</a></li>
                         <li><a href="/public">Public</a></li>
@@ -77,7 +76,7 @@
             {% if current_user %}
             <div class="menu groups-menu">
                 <div class="section">
-                    <h3 class="groups-heading">Groups <a href="/groups/create" title="Create a group">+</a></h3>
+                    <h3 class="groups-heading">Groups</h3>
                     {% if user_groups %}
                     <ul>
                         {% for g in user_groups %}
@@ -85,7 +84,7 @@
                         {% endfor %}
                     </ul>
                     {% endif %}
-                    <div><a href="/feed/{{ current_user.Id }}/groups">All groups&hellip;</a></div>
+                    <div><a href="/feed/{{ current_user.Id }}/groups">More&hellip;</a></div>
                 </div>
             </div>
             {% endif %}

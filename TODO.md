@@ -37,10 +37,10 @@
 
 - 复用现有 Realtime SSE transport，只发送“notification summary 已变化”的 hint。
 - Feed React 复用 Home 已有 SSE；收到通知 hint 后只标记 badge，不发起额外 summary 请求。
-- SSE 不携带通知正文或未读计数；精确计数继续由普通 SSR 页面初始化。
+- SSE 不携带通知正文或未读计数；普通 SSR 页面只恢复“有新通知”图标。
 - 隐藏页关闭连接，恢复可见时重连；慢连接和断线不影响领域 mutation。
 
-验收：在线 Feed 页面无需整页刷新即可看到新通知标记；下次普通页面加载恢复精确计数。
+验收：在线 Feed 页面无需整页刷新即可看到新通知图标；普通页面加载保持相同的有/无语义。
 
 ## 5. 可见性与权限收口
 

@@ -110,15 +110,15 @@ test('non-home Feed keeps realtime hints but does not retain legacy polling', as
   expect(getJSONMock).not.toHaveBeenCalled();
 });
 
-test('notification dirty hint marks the sidebar badge without fetching a count', () => {
-  document.body.innerHTML = '<span id="notification-badge" hidden></span>';
+test('notification dirty hint reveals the sidebar icon without fetching a count', () => {
+  document.body.innerHTML = '<span id="notification-badge" class="notification-badge" hidden></span>';
   render(<Feed {...makeFeedProps()} />);
 
   act(() => MockEventSource.instances[0].emit('notifications-dirty'));
 
   const badge = document.getElementById('notification-badge');
   expect(badge).not.toHaveAttribute('hidden');
-  expect(badge).toHaveClass('notification-dirty');
+  expect(badge).toBeEmptyDOMElement();
   expect(badge).toHaveAttribute('title', 'New notifications');
   expect(getJSONMock).not.toHaveBeenCalled();
 });

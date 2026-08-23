@@ -1,14 +1,15 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<div class="feed">
 <h2 class="page-title">{{ heading }}</h2>
 
 {% if show_create %}
-<p><a href="/groups/create">Create a group</a></p>
+{% include "group_nav.html" %}
 {% endif %}
 
 {% if groups %}
-<ul class="item-list">
+<ul class="item-list groups-list">
     {% for group in groups %}
     <li>
         <img class="avatar" src="{{ group.Picture|escape }}" alt="" />
@@ -24,4 +25,5 @@
 {% if next_cursor %}
 <p class="pagination"><a href="/groups?cursor={{ next_cursor|urlencode }}">Next &raquo;</a></p>
 {% endif %}
+</div>
 {% endblock %}

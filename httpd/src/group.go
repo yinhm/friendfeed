@@ -80,6 +80,7 @@ func (s *Server) UserGroupsPageHandler(c *gin.Context) {
 		"heading":     "My groups",
 		"groups":      groups,
 		"show_create": true,
+		"group_page":  "mine",
 		"empty_text":  "You have not joined any groups yet.",
 	})
 }
@@ -100,6 +101,7 @@ func (s *Server) GroupDiscoveryPageHandler(c *gin.Context) {
 		"groups":      response.Groups,
 		"next_cursor": response.NextCursor,
 		"show_create": CurrentUserId(c) != "",
+		"group_page":  "discover",
 		"empty_text":  "No groups are available yet.",
 	})
 }

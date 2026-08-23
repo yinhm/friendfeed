@@ -192,7 +192,6 @@ export function Feed(props) {
       const badge = document.getElementById('notification-badge');
       if (badge) {
         badge.hidden = false;
-        badge.classList.add('notification-dirty');
         badge.title = 'New notifications';
       }
     };

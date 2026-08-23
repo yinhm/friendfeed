@@ -102,12 +102,11 @@ func TestHTMLNotificationBadgeAndSummaryFailure(t *testing.T) {
 		name   string
 		unread uint32
 		fail   bool
-		want   string
+		want   bool
 	}{
 		{name: "zero"},
-		{name: "one", unread: 1, want: "1"},
-		{name: "ninety-nine", unread: 99, want: "99"},
-		{name: "capped", unread: 100, want: "99+"},
+		{name: "one", unread: 1, want: true},
+		{name: "many", unread: 100, want: true},
 		{name: "summary failure", fail: true},
 	}
 	for _, tc := range tests {
@@ -131,11 +130,11 @@ func TestHTMLNotificationBadgeAndSummaryFailure(t *testing.T) {
 			router.ServeHTTP(response, req)
 
 			require.Equal(t, http.StatusOK, response.Code)
-			value, present := capture.data["notification_unread_display"]
-			if tc.want == "" {
+			value, present := capture.data["has_unread_notifications"]
+			if !tc.want {
 				require.False(t, present)
 			} else {
-				require.Equal(t, tc.want, value)
+				require.Equal(t, true, value)
 			}
 		})
 	}

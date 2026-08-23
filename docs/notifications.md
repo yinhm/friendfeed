@@ -623,7 +623,7 @@ sidebar 主导航：
 ```text
 Home
 My feed
-Notifications (N)
+Notifications [bell-ring when unread]
 Groups
 Likes
 Comments
@@ -635,9 +635,8 @@ Notifications 属于主产品导航，不放在 Account 设置区。
 badge：
 
 ```text
-0       -> Notifications
-1..99   -> Notifications (N)
->=100   -> Notifications (99+)
+0  -> Notifications
+>0 -> Notifications + bell-ring icon
 ```
 
 `Server.HTML` 已经为登录用户注入 sidebar context；在该路径请求 `NotificationSummary`，失败时只省略
@@ -645,7 +644,7 @@ badge，不能让所有页面因通知摘要失败而 500。
 
 通知事务提交后，ffdb 只发送 `NOTIFICATIONS_DIRTY` hint；ffweb 转成 `notifications-dirty`。
 已加载 Feed React 的页面收到 hint 后只显示新通知图标，不额外请求 summary，也不猜测未读数。
-hint 不携带通知正文或计数；精确 badge 继续由下次 SSR 页面加载时的 `NotificationSummary` 收敛。
+hint 不携带通知正文或计数；下次 SSR 页面加载时只根据 `NotificationSummary` 收敛图标的有/无状态。
 
 `/notifications` 每行按 kind render user-facing 文案和 source link：
 
@@ -754,7 +753,7 @@ Domain：
 
 HTTP：
 
-- sidebar badge 0/1/99/99+；
+- sidebar badge 仅区分无通知/有通知图标；
 - Notification page render 和 link；
 - Notification summary failure 不拖垮普通页面；
 - notification 页面 render 后 mark read；
