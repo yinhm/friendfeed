@@ -159,7 +159,8 @@ div.content img {
     display: flex;
     align-items: baseline;
     max-width: 1200px;
-    padding: 15px 0 0;
+    box-sizing: border-box;
+    padding: 15px 25px 0;
     margin: auto;
 }
 
@@ -190,6 +191,11 @@ div.content img {
 }
 
 @media (max-width: 600px) {
+    .topmenu {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
     .page {
         flex-direction: column;
         padding: 15px 12px;
