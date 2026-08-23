@@ -41,8 +41,8 @@ value = empty
 运行时维护规则：
 
 - `CreateGroup` 在创建 Profile 的同一 batch 写首条目录行，时间使用服务端时间。
-- 向 Group 新建 Entry、首次 Like 或新建 Comment 时，在权威 mutation 成功后移动目录位置；
-  目录更新失败必须返回错误并由 audit/rebuild 收敛，不回滚已提交的权威数据。
+- 向 Group 新建 Entry、首次 Like 或新建 Comment 时，在权威 mutation 的同一 batch 移动目录位置；
+  目录更新失败会中止该 mutation，避免运行时产生漂移。
 - 为定位旧 key，移动时按 `T119` 扫描最多一个完整目录并匹配 UUID。Group 数量当前较小，第一版
   接受这一成本，避免为定位记录再建第二张表；实现必须关闭 iterator、检查错误且保持恒定内存。
 - soft delete 不要求请求路径扫描删除目录行；读路径跳过 deleted/missing Profile，audit/rebuild

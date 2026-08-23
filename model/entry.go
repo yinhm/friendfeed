@@ -85,6 +85,9 @@ func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer Tim
 			if err := stageAdjustGroupActivityIfMember(db, batch, userUuid, groupUUID, GroupActivityPostScore); err != nil {
 				return fmt.Errorf("update Group activity: %w", err)
 			}
+			if err := StageMoveGroupIndex(db, batch, groupUUID, time.Now().UTC()); err != nil {
+				return fmt.Errorf("update Group discovery index: %w", err)
+			}
 		}
 		return nil
 	}); err != nil {

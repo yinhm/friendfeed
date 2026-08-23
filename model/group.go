@@ -228,6 +228,9 @@ func StageCreateGroup(db *store.Store, batch *pebble.Batch, actor uuid.UUID, id,
 	if err := StageAdjustGroupActivity(db, batch, actor, groupUUID, GroupActivityCreateScore); err != nil {
 		return nil, fmt.Errorf("stage creator Group activity: %w", err)
 	}
+	if err := StageCreateGroupIndex(batch, groupUUID, now); err != nil {
+		return nil, fmt.Errorf("stage Group discovery index: %w", err)
+	}
 
 	return group, nil
 }

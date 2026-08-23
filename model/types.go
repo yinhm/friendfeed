@@ -47,7 +47,7 @@ const (
 	TableServiceFeedIndex store.KeyPrefix = 113
 	// TableGroupAdmin holds the authoritative admin role for a Group:
 	// key = group UUID + admin user UUID, value = nil.
-	TableGroupAdmin store.KeyPrefix = 114
+	TableGroupAdmin              store.KeyPrefix = 114
 	TableLikeTimeline            store.KeyPrefix = 115
 	TableCommentTimeline         store.KeyPrefix = 116
 	TableCommentTimelinePosition store.KeyPrefix = 117
@@ -56,8 +56,10 @@ const (
 	// value = RFC3339 request time. Workflow data only; the approved
 	// relationship is always the Follow/Follower edge pair.
 	TableFollowRequest store.KeyPrefix = 118
+	// TableGroupIndex is the rebuildable activity-ordered Group discovery
+	// index: reverse activity milliseconds + raw Group UUID -> empty.
+	TableGroupIndex store.KeyPrefix = 119
 
-	// 119 is intentionally left unused. Notification storage begins at 120.
 	// Notification is recipient-owned canonical data; NotificationInbox is a
 	// reverse-millisecond sort index; NotificationState carries bounded
 	// unread/retention metadata for that recipient.
@@ -100,21 +102,22 @@ var (
 	CommentTimeline         = NewTable(KeyPrefixToBytes(TableCommentTimeline))
 	CommentTimelinePosition = NewTable(KeyPrefixToBytes(TableCommentTimelinePosition))
 
-	FeedService      = NewTable(KeyPrefixToBytes(TableFeedService))
-	Follow           = NewTable(KeyPrefixToBytes(TableFollow))
-	Follower         = NewTable(KeyPrefixToBytes(TableFollower))
-	OAuth            = NewTable(KeyPrefixToBytes(TableOAuth))
-	File             = NewTable(KeyPrefixToBytes(TableFile))
-	Like             = NewTable(KeyPrefixToBytes(TableLike))
-	Comment          = NewTable(KeyPrefixToBytes(TableComment))
-	TimelineIndex    = NewTable(KeyPrefixToBytes(TableTimelineIndex))
-	TimelinePosition = NewTable(KeyPrefixToBytes(TableTimelinePosition))
-	TimelineState    = NewTable(KeyPrefixToBytes(TableTimelineState))
-	Service          = NewTable(KeyPrefixToBytes(TableService))
-	ServiceState     = NewTable(KeyPrefixToBytes(TableServiceState))
-	ServiceFeedIndex = NewTable(KeyPrefixToBytes(TableServiceFeedIndex))
-	GroupAdmin       = NewTable(KeyPrefixToBytes(TableGroupAdmin))
-	FollowRequest    = NewTable(KeyPrefixToBytes(TableFollowRequest))
+	FeedService       = NewTable(KeyPrefixToBytes(TableFeedService))
+	Follow            = NewTable(KeyPrefixToBytes(TableFollow))
+	Follower          = NewTable(KeyPrefixToBytes(TableFollower))
+	OAuth             = NewTable(KeyPrefixToBytes(TableOAuth))
+	File              = NewTable(KeyPrefixToBytes(TableFile))
+	Like              = NewTable(KeyPrefixToBytes(TableLike))
+	Comment           = NewTable(KeyPrefixToBytes(TableComment))
+	TimelineIndex     = NewTable(KeyPrefixToBytes(TableTimelineIndex))
+	TimelinePosition  = NewTable(KeyPrefixToBytes(TableTimelinePosition))
+	TimelineState     = NewTable(KeyPrefixToBytes(TableTimelineState))
+	Service           = NewTable(KeyPrefixToBytes(TableService))
+	ServiceState      = NewTable(KeyPrefixToBytes(TableServiceState))
+	ServiceFeedIndex  = NewTable(KeyPrefixToBytes(TableServiceFeedIndex))
+	GroupAdmin        = NewTable(KeyPrefixToBytes(TableGroupAdmin))
+	FollowRequest     = NewTable(KeyPrefixToBytes(TableFollowRequest))
+	GroupIndex        = NewTable(KeyPrefixToBytes(TableGroupIndex))
 	Notification      = NewTable(KeyPrefixToBytes(TableNotification))
 	NotificationInbox = NewTable(KeyPrefixToBytes(TableNotificationInbox))
 	NotificationState = NewTable(KeyPrefixToBytes(TableNotificationState))

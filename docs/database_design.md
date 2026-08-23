@@ -79,6 +79,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 116 | CommentTimeline | `T + actor UUID + reverse Unix ms + entry UUID` | 16 B latest comment UUID | 用户 Comment 折叠排序索引 |
 | 117 | CommentTimelinePosition | `T + actor UUID + entry UUID` | reverse ms + latest comment UUID | Comment 排序位置索引 |
 | 118 | FollowRequest | `T + target feed UUID + requester user UUID` | RFC3339 时间字符串；新写为 RFC3339Nano | private feed/Group 关注申请（工作流数据，非关系事实） |
+| 119 | GroupIndex | `T + reverse activity Unix ms + group UUID` | 空 | Group 发现页排序派生索引 |
 | 120 | Notification | `T + recipient UUID + notification UUID` | versioned JSON NotificationRecord | recipient-owned canonical 通知 |
 | 121 | NotificationInbox | `T + recipient UUID + ^UnixMillis(activity_at) + notification UUID` | 空 | newest-first 通知排序索引 |
 | 122 | NotificationState | `T + recipient UUID` | versioned JSON：read watermark + counters | O(1) unread/total 状态 |

@@ -89,6 +89,9 @@ func putLikeWithHooks(db *store.Store, profile *pb.Profile, entry *pb.Entry, hoo
 			if err := stageAdjustGroupActivityIfMember(db, batch, actorUUID, group, GroupActivityLikeScore); err != nil {
 				return err
 			}
+			if err := StageMoveGroupIndex(db, batch, group, activity); err != nil {
+				return err
+			}
 		}
 		if err := stageLikeNotification(db, batch, profile, entry, activity); err != nil {
 			return err
@@ -243,6 +246,9 @@ func putCommentWithHooks(db *store.Store, profile *pb.Profile, entry *pb.Entry, 
 			return err
 		} else if ok {
 			if err := stageAdjustGroupActivityIfMember(db, batch, actorUUID, group, GroupActivityCommentScore); err != nil {
+				return err
+			}
+			if err := StageMoveGroupIndex(db, batch, group, activity); err != nil {
 				return err
 			}
 		}

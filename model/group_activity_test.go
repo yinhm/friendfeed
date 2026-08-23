@@ -18,9 +18,25 @@ func TestGroupActivityTracksMutationsAndRebuilds(t *testing.T) {
 	user := uuid.Must(uuid.NewV4())
 	profile := &pb.Profile{Uuid: user.String(), Id: "active-user", Name: "Active", Type: "user"}
 	require.NoError(t, UpdateProfile(db, profile))
-	group, err := CreateGroup(db, user, "active-group", "Active Group", "", "", false, time.Now().UTC())
+	createdAt := time.Now().UTC().Add(-time.Hour).Truncate(time.Millisecond)
+	group, err := CreateGroup(db, user, "active-group", "Active Group", "", "", false, createdAt)
 	require.NoError(t, err)
 	groupUUID := uuid.Must(uuid.FromString(group.Uuid))
+	indexActivity := func() time.Time {
+		t.Helper()
+		iter, err := db.NewIterator(GroupIndex.Prefix)
+		require.NoError(t, err)
+		defer iter.Close()
+		require.True(t, iter.First())
+		indexedGroup, activity, err := ParseGroupIndexKey(iter.Key())
+		require.NoError(t, err)
+		require.Equal(t, groupUUID, indexedGroup)
+		iter.Next()
+		require.False(t, iter.Valid())
+		require.NoError(t, iter.Error())
+		return activity
+	}
+	require.Equal(t, createdAt, indexActivity())
 
 	assertScore := func(want int64) {
 		t.Helper()
@@ -37,10 +53,13 @@ func TestGroupActivityTracksMutationsAndRebuilds(t *testing.T) {
 	_, err = PutEntry(db, entry)
 	require.NoError(t, err)
 	assertScore(110)
+	entryActivity := indexActivity()
+	require.True(t, entryActivity.After(createdAt))
 
 	_, entry, err = PutLike(db, profile, entry)
 	require.NoError(t, err)
 	assertScore(113)
+	require.False(t, indexActivity().Before(entryActivity))
 	commentID := uuid.Must(uuid.NewV4()).String()
 	_, entry, err = PutComment(db, profile, entry, &pb.Comment{Id: commentID, Body: "hello"})
 	require.NoError(t, err)
