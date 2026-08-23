@@ -52,7 +52,6 @@ export function ImportPanel(props) {
 
   /** @param {ServiceData} service */
   const handleRemove = (service) => {
-    if (!window.confirm('Remove this import service? Historical entries will be kept.')) return;
     setError(null);
     setRemoving(service.id);
     const target = props.target ? `?target=${encodeURIComponent(props.target)}` : '';
@@ -131,7 +130,9 @@ export function ImportPanel(props) {
       {list.length === 0
         ? <div className="mb-4 text-sm text-muted-foreground">No services connected yet.</div>
         : <ul className="mb-4 divide-y divide-border rounded-md border border-border">
-            {list.map((service) => (
+            {list.map((service, index) => {
+              const confirmationId = `remove-import-service-${index}`;
+              return (
               <li key={service.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div className="text-sm">
                   <span className="font-semibold">{serviceLabel(service).type}</span>
@@ -161,13 +162,25 @@ export function ImportPanel(props) {
                   </>}
                   <button type="button"
                           disabled={removing === service.id}
-                          onClick={() => handleRemove(service)}
+                          popoverTarget={confirmationId}
                           className="rounded-md border border-destructive/40 bg-background px-3 py-1.5 text-xs font-medium text-destructive shadow-sm hover:bg-destructive/10 disabled:opacity-50">
                     {removing === service.id ? 'Removing…' : 'Remove'}
                   </button>
                 </div>
+                <div id={confirmationId} popover="auto" className="destructive-confirmation">
+                  <p><strong>Remove {serviceLabel(service).title || serviceLabel(service).type}?</strong></p>
+                  <p className="hint">The import will stop. Historical entries will be kept.</p>
+                  <div className="confirm-delete">
+                    <button type="button" className="yes"
+                            popoverTarget={confirmationId} popoverTargetAction="hide"
+                            onClick={() => handleRemove(service)}>Confirm remove</button>
+                    <button type="button" className="cancel"
+                            popoverTarget={confirmationId} popoverTargetAction="hide">Cancel</button>
+                  </div>
+                </div>
               </li>
-            ))}
+              );
+            })}
           </ul>}
 
       {!hasTwitter &&

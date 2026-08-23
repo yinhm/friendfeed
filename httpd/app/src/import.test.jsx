@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FeedImportPage, ImportPanel } from './import';
 
@@ -46,12 +46,14 @@ describe('ImportPanel', () => {
   });
 
   it('removes a service after confirmation', async () => {
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ deleted: 'rss' }));
     vi.stubGlobal('fetch', fetchMock);
     render(<Harness initial={services} />);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
+    const service = screen.getByText('Tech Notes').closest('li');
+    fireEvent.click(within(service).getByRole('button', {name: 'Remove'}));
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(within(service).getByRole('button', {name: 'Confirm remove', hidden: true}));
 
     await waitFor(() => expect(screen.queryByText('Tech Notes')).not.toBeInTheDocument());
     expect(screen.getByText('Twitter')).toBeInTheDocument();
@@ -93,24 +95,26 @@ describe('ImportPanel', () => {
   });
 
   it('keeps the service when confirmation is cancelled', () => {
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(false));
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     render(<ImportPanel services={services} />);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
+    const service = screen.getByText('Tech Notes').closest('li');
+    fireEvent.click(within(service).getByRole('button', {name: 'Remove'}));
+    fireEvent.click(within(service).getByRole('button', {name: 'Cancel', hidden: true}));
 
     expect(screen.getByText('Tech Notes')).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('shows the server error when removal fails', async () => {
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'service busy' }));
     vi.stubGlobal('fetch', fetchMock);
     render(<ImportPanel services={services} />);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
+    const service = screen.getByText('Tech Notes').closest('li');
+    fireEvent.click(within(service).getByRole('button', {name: 'Remove'}));
+    fireEvent.click(within(service).getByRole('button', {name: 'Confirm remove', hidden: true}));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('service busy'));
     expect(screen.getByText('Tech Notes')).toBeInTheDocument();

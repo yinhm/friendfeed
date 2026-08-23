@@ -721,7 +721,7 @@ div.content pre {
     border-top: 1px solid var(--ff-hairline);
 }
 
-.delete-group-confirmation {
+.destructive-confirmation {
     position: fixed;
     inset: 0;
     width: min(28em, calc(100vw - 32px));
@@ -737,15 +737,15 @@ div.content pre {
     box-shadow: 0 8px 30px rgb(0 0 0 / 20%);
 }
 
-.delete-group-confirmation::backdrop {
+.destructive-confirmation::backdrop {
     background: rgb(0 0 0 / 22%);
 }
 
-.delete-group-confirmation p:first-child {
+.destructive-confirmation p:first-child {
     margin-top: 0;
 }
 
-.delete-group-confirmation .confirm-delete {
+.destructive-confirmation .confirm-delete {
     margin-top: 14px;
 }
 

@@ -12,7 +12,7 @@
     <h3>Delete this group</h3>
     <p class="hint">The group is soft-deleted: it immediately blocks joins, posting and new deliveries. Historical content is cleaned up in the background.</p>
     <button type="button" class="legacy-button danger" popovertarget="delete-group-confirmation">Delete group</button>
-    <div id="delete-group-confirmation" class="delete-group-confirmation" popover>
+    <div id="delete-group-confirmation" class="destructive-confirmation" popover>
         <p><strong>Delete {{ group.Name|escape }}?</strong></p>
         <p class="hint">This action immediately disables the group and cannot be undone here.</p>
         <div class="confirm-delete">

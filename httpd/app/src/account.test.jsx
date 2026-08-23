@@ -72,12 +72,12 @@ describe('AccountApp', () => {
   });
 
   it('keeps service removals across tab switches', async () => {
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ deleted: 'twitter' }));
     vi.stubGlobal('fetch', fetchMock);
     render(<AccountApp initialTab="import" profile={profile} services={services} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    fireEvent.click(screen.getByRole('button', {name: 'Confirm remove', hidden: true}));
     await waitFor(() => expect(screen.queryByText('Twitter')).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('link', { name: 'Edit Profile' }));
