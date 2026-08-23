@@ -26,7 +26,7 @@ func TestRealtimeBusBroadcastsAndUnsubscribes(t *testing.T) {
 	hint := realtimeHint{
 		Viewer: uuid.Must(uuid.NewV4()),
 		Object: uuid.Must(uuid.NewV4()),
-		Kind:   model.TimelineActivityPublish,
+		Type:   pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY,
 		At:     time.Now().UTC(),
 	}
 	bus.publish(hint)
@@ -96,6 +96,25 @@ func TestRealtimeObserverExcludesInitiatingActor(t *testing.T) {
 
 	observer(follower, entry, model.TimelineActivityPublish, time.Now().UTC())
 	require.Equal(t, follower, (<-sub.ch).Viewer)
+}
+
+func TestCommittedNotificationPublishesDirtyHint(t *testing.T) {
+	api := newServiceServer(t)
+	sub, err := api.realtimeBus().subscribe("notification-test")
+	require.NoError(t, err)
+	recipient := uuid.Must(uuid.NewV4())
+
+	api.finishNotificationStage(notificationStageResult{Recipient: recipient})
+	select {
+	case <-sub.ch:
+		t.Fatal("idempotent notification emitted a dirty hint")
+	default:
+	}
+
+	api.finishNotificationStage(notificationStageResult{Recipient: recipient, Created: true})
+	hint := <-sub.ch
+	require.Equal(t, recipient, hint.Viewer)
+	require.Equal(t, pb.RealtimeEventType_REALTIME_EVENT_NOTIFICATIONS_DIRTY, hint.Type)
 }
 
 func TestBeginShutdownWakesRealtimeStreamBeforeGracefulStop(t *testing.T) {

@@ -16,7 +16,7 @@ V1 的核心原则是：**实时事件只表示“Home 可能变脏了”，不�
 - 事件不携带 Entry 正文，不用于构造 timeline，不做 replay，不落盘。
 - 暂不做：Public/普通 feed 页推送、评论实时插入、Entry 内容流式下发、多 tab 状态
   同步、跨进程 durable queue。
-- gRPC transport 从一开始使用泛化的 realtime 命名，后续 notification badge 可复用同
+- gRPC transport 使用泛化的 realtime 命名，Home timeline 与 notification badge 复用同
   一条流；V1 只实现 timeline dirty producer/consumer。
 
 ## 现状依据
@@ -95,7 +95,7 @@ gRPC 面使用泛化的 realtime 类型，而不是把 transport 固定成 Timel
 enum RealtimeEventType {
   REALTIME_EVENT_UNSPECIFIED = 0;
   REALTIME_EVENT_TIMELINE_DIRTY = 1;
-  // 预留后续 notification badge；V1 可先不产生该事件。
+  // Notification 已提交，客户端应重新读取权威 summary。
   REALTIME_EVENT_NOTIFICATIONS_DIRTY = 2;
 }
 
@@ -615,11 +615,11 @@ close grpc.ClientConn / process exit
    `BeginShutdown -> GracefulStop -> Shutdown` 生命周期。
 3. **ffweb hub + SSE + nginx**：全局 receive loop、本地 viewer hub、`/a/events`、连接
    限额、heartbeat、显式 ffweb realtime shutdown、nginx no-buffering。
-4. **frontend**：增加 `realtime_home` page flag，在现有 Feed state 内加入 dirty banner，
-   抽出 `refreshNewestHome()`；退役原 20s 全站 polling，仅为 Home 第一页保留 180s
+4. **frontend**：Feed React 维护 EventSource；Notification hint 只给 sidebar badge 加新通知
+   标记，不额外请求精确计数。退役原 20s 全站 polling，仅为 Home 第一页保留 180s
    reconciliation。
 5. **观察与扩展**：记录连接数、bus/hub drop counter、gRPC reconnect 次数；稳定后再评估
-   notification badge、Public/feed 页或更细粒度 realtime UI。
+   Public/feed 页或更细粒度 realtime UI。
 
 ## 明确不做的复杂化
 

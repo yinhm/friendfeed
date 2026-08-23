@@ -139,10 +139,38 @@ func (s *ApiServer) stageNotification(batch *pebble.Batch, kind model.Notificati
 }
 
 func (s *ApiServer) finishNotificationStage(result notificationStageResult) {
-	if !result.Created || !result.NeedsTrim || result.Recipient == uuid.Nil {
+	if !result.Created || result.Recipient == uuid.Nil {
 		return
 	}
-	recipient := result.Recipient
+	s.publishNotificationDirty(result.Recipient)
+	if result.NeedsTrim {
+		s.scheduleNotificationTrim(result.Recipient)
+	}
+}
+
+// publishInteractionNotificationDirty mirrors StageNotification's recipient
+// guards for model-owned Like/Comment notification writes. A dirty hint may be
+// spurious after an unlike/re-like idempotency hit; clients always re-read the
+// authoritative summary, so that is safe.
+func (s *ApiServer) publishInteractionNotificationDirty(entry *pb.Entry, actor uuid.UUID) {
+	if entry == nil {
+		return
+	}
+	recipient, err := uuid.FromString(entry.ProfileUuid)
+	if err != nil || recipient == uuid.Nil || recipient == actor {
+		return
+	}
+	profile, err := model.GetProfileFromUuid(s.rdb, recipient)
+	if err != nil || profile.Type != "user" {
+		return
+	}
+	s.publishNotificationDirty(recipient)
+}
+
+func (s *ApiServer) scheduleNotificationTrim(recipient uuid.UUID) {
+	if recipient == uuid.Nil {
+		return
+	}
 	go func() {
 		if !s.beginBackgroundJob() {
 			return
@@ -179,11 +207,7 @@ func (s *ApiServer) scheduleNotificationTrimIfNeeded(recipient uuid.UUID) {
 	if err != nil || state.TotalCount <= model.NotificationTrimTrigger {
 		return
 	}
-	s.finishNotificationStage(notificationStageResult{
-		Recipient: recipient,
-		Created:   true,
-		NeedsTrim: true,
-	})
+	s.scheduleNotificationTrim(recipient)
 }
 
 // RecoverNotificationRetention streams NotificationState on startup and
@@ -205,7 +229,7 @@ func (s *ApiServer) RecoverNotificationRetention() error {
 			return err
 		}
 		if state.TotalCount > model.NotificationMaxEntries {
-			s.finishNotificationStage(notificationStageResult{Recipient: recipient, Created: true, NeedsTrim: true})
+			s.scheduleNotificationTrim(recipient)
 		}
 		return nil
 	})

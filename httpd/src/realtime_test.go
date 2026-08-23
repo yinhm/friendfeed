@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/yinhm/friendfeed/pb"
 )
 
 func TestEventsHubRoutesByViewer(t *testing.T) {
@@ -22,9 +23,10 @@ func TestEventsHubRoutesByViewer(t *testing.T) {
 	bobConn, err := hub.register(bob)
 	require.NoError(t, err)
 
-	hub.publish(alice)
+	hub.publish(alice, pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY)
 	select {
-	case <-aliceConn.events:
+	case eventType := <-aliceConn.events:
+		require.Equal(t, pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY, eventType)
 	default:
 		t.Fatal("alice did not receive her dirty hint")
 	}
@@ -33,6 +35,8 @@ func TestEventsHubRoutesByViewer(t *testing.T) {
 		t.Fatal("bob received alice's dirty hint")
 	default:
 	}
+	hub.publish(alice, pb.RealtimeEventType_REALTIME_EVENT_NOTIFICATIONS_DIRTY)
+	require.Equal(t, pb.RealtimeEventType_REALTIME_EVENT_NOTIFICATIONS_DIRTY, <-aliceConn.events)
 }
 
 func TestEventsHubEnforcesPerViewerLimit(t *testing.T) {
@@ -63,10 +67,10 @@ func TestEventsHubDisconnectsSlowConsumer(t *testing.T) {
 	conn, err := hub.register(viewer)
 	require.NoError(t, err)
 	for i := 0; i < cap(conn.events); i++ {
-		conn.events <- struct{}{}
+		conn.events <- pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY
 	}
 
-	hub.publish(viewer)
+	hub.publish(viewer, pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY)
 	select {
 	case <-conn.done:
 	default:

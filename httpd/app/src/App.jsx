@@ -183,45 +183,52 @@ export function Feed(props) {
   }, []);
 
   useEffect(() => {
-    if (props.realtime_home !== true) {
-      return undefined;
-    }
-
     /** @type {EventSource | null} */
     let source = null;
-    const markDirty = () => setHomeDirty(true);
+    const markTimelineDirty = () => {
+      if (props.realtime_home === true) setHomeDirty(true);
+    };
+    const markNotificationsDirty = () => {
+      const badge = document.getElementById('notification-badge');
+      if (badge) {
+        badge.hidden = false;
+        badge.classList.add('notification-dirty');
+        badge.title = 'New notifications';
+      }
+    };
     const closeRealtime = () => {
-      if (source !== null) {
+      if (source) {
         source.close();
         source = null;
       }
     };
     const openRealtime = () => {
-      if (source !== null || document.visibilityState === 'hidden') {
-        return;
-      }
+      if (source || document.visibilityState === 'hidden' || typeof EventSource === 'undefined') return;
       source = new EventSource('/a/events');
-      source.addEventListener('timeline-dirty', markDirty);
+      source.addEventListener('timeline-dirty', markTimelineDirty);
+      source.addEventListener('notifications-dirty', markNotificationsDirty);
     };
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         closeRealtime();
-        return;
+      } else {
+        openRealtime();
       }
-      openRealtime();
-      refreshNewestHome().catch(error => console.error(error));
+      if (props.realtime_home === true && document.visibilityState !== 'hidden') {
+        refreshNewestHome().catch(error => console.error(error));
+      }
     };
 
     openRealtime();
     document.addEventListener('visibilitychange', handleVisibility);
-    const reconcile = setInterval(() => {
+    const reconcile = props.realtime_home === true ? setInterval(() => {
       if (document.visibilityState !== 'hidden') {
         refreshNewestHome().catch(error => console.error(error));
       }
-    }, 180 * 1000);
+    }, 180 * 1000) : undefined;
 
     return () => {
-      clearInterval(reconcile);
+      if (reconcile !== undefined) clearInterval(reconcile);
       document.removeEventListener('visibilitychange', handleVisibility);
       closeRealtime();
     };

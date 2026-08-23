@@ -19,11 +19,11 @@ import (
 
 const (
 	maxSSEConnectionsPerViewer = 3
-	maxSSEConnections           = 512
-	sseConnectionBuffer         = 32
-	sseHeartbeatInterval        = 25 * time.Second
-	realtimeReconnectMin        = time.Second
-	realtimeReconnectMax        = 30 * time.Second
+	maxSSEConnections          = 512
+	sseConnectionBuffer        = 32
+	sseHeartbeatInterval       = 25 * time.Second
+	realtimeReconnectMin       = time.Second
+	realtimeReconnectMax       = 30 * time.Second
 )
 
 var (
@@ -33,14 +33,14 @@ var (
 )
 
 type sseConnection struct {
-	events   chan struct{}
+	events   chan pb.RealtimeEventType
 	done     chan struct{}
 	stopOnce sync.Once
 }
 
 func newSSEConnection() *sseConnection {
 	return &sseConnection{
-		events: make(chan struct{}, sseConnectionBuffer),
+		events: make(chan pb.RealtimeEventType, sseConnectionBuffer),
 		done:   make(chan struct{}),
 	}
 }
@@ -50,10 +50,10 @@ func (c *sseConnection) stop() {
 }
 
 type eventsHub struct {
-	mu                sync.Mutex
-	viewers           map[uuid.UUID]map[*sseConnection]struct{}
-	totalConnections  int
-	closed            bool
+	mu               sync.Mutex
+	viewers          map[uuid.UUID]map[*sseConnection]struct{}
+	totalConnections int
+	closed           bool
 }
 
 func newEventsHub() *eventsHub {
@@ -100,7 +100,7 @@ func (h *eventsHub) unregister(viewer uuid.UUID, conn *sseConnection) {
 	}
 }
 
-func (h *eventsHub) publish(viewer uuid.UUID) {
+func (h *eventsHub) publish(viewer uuid.UUID, eventType pb.RealtimeEventType) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
@@ -109,7 +109,7 @@ func (h *eventsHub) publish(viewer uuid.UUID) {
 	connections := h.viewers[viewer]
 	for conn := range connections {
 		select {
-		case conn.events <- struct{}{}:
+		case conn.events <- eventType:
 		default:
 			// A slow tab is cheaper to reconnect than to let it grow memory or
 			// apply backpressure to the single ffdb receive loop.
@@ -223,7 +223,9 @@ func (r *webRealtime) receiveLoop() {
 			}
 			connected = true
 			backoff = realtimeReconnectMin
-			if event.GetType() != pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY {
+			eventType := event.GetType()
+			if eventType != pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY &&
+				eventType != pb.RealtimeEventType_REALTIME_EVENT_NOTIFICATIONS_DIRTY {
 				continue
 			}
 			viewer, parseErr := uuid.FromString(event.GetViewerUuid())
@@ -231,7 +233,7 @@ func (r *webRealtime) receiveLoop() {
 				slog.Warn("realtime event has invalid viewer UUID")
 				continue
 			}
-			r.hub.publish(viewer)
+			r.hub.publish(viewer, eventType)
 		}
 		if connected {
 			backoff = realtimeReconnectMin
@@ -312,8 +314,12 @@ func (s *Server) EventsHandler(c *gin.Context) {
 			return
 		case <-conn.done:
 			return
-		case <-conn.events:
-			if _, err := fmt.Fprint(c.Writer, "event: timeline-dirty\ndata: {}\n\n"); err != nil {
+		case eventType := <-conn.events:
+			eventName := "timeline-dirty"
+			if eventType == pb.RealtimeEventType_REALTIME_EVENT_NOTIFICATIONS_DIRTY {
+				eventName = "notifications-dirty"
+			}
+			if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: {}\n\n", eventName); err != nil {
 				return
 			}
 			flusher.Flush()

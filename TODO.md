@@ -28,22 +28,19 @@
 
 验收：新用户可以发现并加入活跃 Public Group，Private Group 不泄露内容。
 
-## 3. RSS/Atom 导入体验
+## 3. RSS/Atom 导入体验（暂缓）
 
-- 输入网站页面时发现标准 `rel=alternate` RSS/Atom 链接，并让用户确认目标来源。
-- 添加来源前预览标题及少量最新条目；继续执行 SSRF、响应大小和超时限制。
-- 支持有界 OPML 导入：流式解析、限制来源数量、逐项报告成功/重复/失败。
-- 重复 URL 明确显示复用既有 Service；不得生成第二套来源身份。
+当前导入能力满足实际需求，本轮不优化交互，V1 明确不支持 OPML。未来重新启动本项时，
+仍须复用现有 Service 身份、SSRF 防护、响应大小和超时边界，不得另建旁路抓取链路。
 
-验收：用户可从普通网站 URL 或受限 OPML 文件完成导入，无无界内存或网络请求。
+## 4. Notification 实时 badge（已完成）
 
-## 4. Notification 实时 badge
+- 复用现有 Realtime SSE transport，只发送“notification summary 已变化”的 hint。
+- Feed React 复用 Home 已有 SSE；收到通知 hint 后只标记 badge，不发起额外 summary 请求。
+- SSE 不携带通知正文或未读计数；精确计数继续由普通 SSR 页面初始化。
+- 隐藏页关闭连接，恢复可见时重连；慢连接和断线不影响领域 mutation。
 
-- 复用现有 Realtime SSE transport，仅发送“notification summary 已变化”的 hint。
-- 浏览器收到 hint 后读取权威 summary；SSE 不携带通知正文或未读计数真相。
-- 多个事件合并刷新，慢连接和断线不影响领域 mutation；普通页面加载仍能收敛正确 badge。
-
-验收：在线用户无需整页刷新即可看到未读数变化，重连后计数与持久化状态一致。
+验收：在线 Feed 页面无需整页刷新即可看到新通知标记；下次普通页面加载恢复精确计数。
 
 ## 5. 可见性与权限收口
 

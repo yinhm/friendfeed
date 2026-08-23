@@ -35,15 +35,11 @@ class MockEventSource {
   }
 
   addEventListener(type, listener) {
-    const listeners = this.listeners.get(type) ?? [];
-    listeners.push(listener);
-    this.listeners.set(type, listeners);
+    this.listeners.set(type, listener);
   }
 
   emit(type) {
-    for (const listener of this.listeners.get(type) ?? []) {
-      listener(new Event(type));
-    }
+    this.listeners.get(type)?.(new Event(type));
   }
 
   close() {
@@ -101,14 +97,29 @@ afterEach(() => {
   delete globalThis.EventSource;
 });
 
-test('non-home Feed does not open realtime or retain legacy polling', async () => {
+test('non-home Feed keeps realtime hints but does not retain legacy polling', async () => {
   vi.useFakeTimers();
   render(<Feed {...makeFeedProps()} />);
+
+  act(() => MockEventSource.instances[0].emit('timeline-dirty'));
 
   await act(async () => {
     await vi.advanceTimersByTimeAsync(180_000);
   });
-  expect(MockEventSource.instances).toHaveLength(0);
+  expect(screen.queryByRole('button', {name: '有新动态，点击刷新'})).not.toBeInTheDocument();
+  expect(getJSONMock).not.toHaveBeenCalled();
+});
+
+test('notification dirty hint marks the sidebar badge without fetching a count', () => {
+  document.body.innerHTML = '<span id="notification-badge" hidden></span>';
+  render(<Feed {...makeFeedProps()} />);
+
+  act(() => MockEventSource.instances[0].emit('notifications-dirty'));
+
+  const badge = document.getElementById('notification-badge');
+  expect(badge).not.toHaveAttribute('hidden');
+  expect(badge).toHaveClass('notification-dirty');
+  expect(badge).toHaveAttribute('title', 'New notifications');
   expect(getJSONMock).not.toHaveBeenCalled();
 });
 
@@ -120,8 +131,6 @@ test('realtime Home folds dirty hints and refreshes newest page without cursor',
     url: '/?cursor=older-position',
   })} />);
 
-  expect(MockEventSource.instances).toHaveLength(1);
-  expect(MockEventSource.instances[0].url).toBe('/a/events');
   const editor = await screen.findByRole('button', {name: 'Submit test entry'});
 
   act(() => {
@@ -153,13 +162,13 @@ test('failed realtime refresh keeps the dirty banner', async () => {
   expect(screen.getByRole('button', {name: '有新动态，点击刷新'})).toBeInTheDocument();
 });
 
-test('hidden Home closes SSE and visible Home reconnects then reconciles', async () => {
+test('visible Home reconciles after returning from a hidden tab', async () => {
   getJSONMock.mockResolvedValue(newestHomeResponse());
   render(<Feed {...makeFeedProps({realtime_home: true})} />);
   const first = MockEventSource.instances[0];
-
   act(() => setVisibility('hidden'));
   expect(first.closed).toBe(true);
+  expect(getJSONMock).not.toHaveBeenCalled();
 
   await act(async () => setVisibility('visible'));
   expect(MockEventSource.instances).toHaveLength(2);
@@ -184,6 +193,7 @@ test('visible realtime Home reconciles every 180 seconds and stops after unmount
   unmount();
   await vi.advanceTimersByTimeAsync(180_000);
   expect(getJSONMock).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', {name: '有新动态，点击刷新'})).not.toBeInTheDocument();
   expect(MockEventSource.instances[0].closed).toBe(true);
 });
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
+	"github.com/yinhm/friendfeed/pb"
 )
 
 const realtimeSubscriberBuffer = 64
@@ -17,7 +18,7 @@ var errRealtimeStopped = errors.New("realtime broadcaster stopped")
 type realtimeHint struct {
 	Viewer uuid.UUID
 	Object uuid.UUID
-	Kind   model.TimelineActivityKind
+	Type   pb.RealtimeEventType
 	At     time.Time
 }
 
@@ -104,11 +105,27 @@ func (s *ApiServer) realtimeBus() *realtimeBus {
 }
 
 func (s *ApiServer) observeTimelineMove(viewer, entry uuid.UUID, kind model.TimelineActivityKind, at time.Time) {
-	s.realtimeBus().publish(realtimeHint{
+	bus := s.realtimeBus()
+	if bus == nil {
+		return
+	}
+	bus.publish(realtimeHint{
 		Viewer: viewer,
 		Object: entry,
-		Kind:   kind,
+		Type:   pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY,
 		At:     at.UTC(),
+	})
+}
+
+func (s *ApiServer) publishNotificationDirty(recipient uuid.UUID) {
+	bus := s.realtimeBus()
+	if recipient == uuid.Nil || bus == nil {
+		return
+	}
+	bus.publish(realtimeHint{
+		Viewer: recipient,
+		Type:   pb.RealtimeEventType_REALTIME_EVENT_NOTIFICATIONS_DIRTY,
+		At:     time.Now().UTC(),
 	})
 }
 

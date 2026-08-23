@@ -11,7 +11,7 @@ import (
 func realtimeEventFromHint(hint realtimeHint) *pb.RealtimeEvent {
 	return &pb.RealtimeEvent{
 		ViewerUuid:   hint.Viewer.String(),
-		Type:         pb.RealtimeEventType_REALTIME_EVENT_TIMELINE_DIRTY,
+		Type:         hint.Type,
 		ObjectUuid:   hint.Object.String(),
 		ActivityAtMs: hint.At.UnixMilli(),
 	}

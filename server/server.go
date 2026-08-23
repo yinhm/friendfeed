@@ -1250,6 +1250,7 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 		}
 		_, entry, err = model.PutLikeWithTimelineObserver(s.rdb, profile, entry, s.realtimeObserverExcluding(userUUID))
 		if err == nil && created {
+			s.publishInteractionNotificationDirty(entry, userUUID)
 			if bumpErr := s.bumpPublicTimeline(entry, nil); bumpErr != nil {
 				return nil, bumpErr
 			}
@@ -1313,6 +1314,7 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 		return nil, err
 	}
 	if created {
+		s.publishInteractionNotificationDirty(entry, actorUUID)
 		if err := s.bumpPublicTimeline(entry, nil); err != nil {
 			return nil, err
 		}

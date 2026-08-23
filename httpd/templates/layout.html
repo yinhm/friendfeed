@@ -45,7 +45,7 @@
                         {% if current_user %}
                         <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
                         <li><a href="/feed/{{ current_user.Id }}/groups">My groups</a></li>
-                        <li><a href="/notifications">Notifications{% if notification_unread_display %} ({{ notification_unread_display }}){% endif %}</a></li>
+                        <li><a href="/notifications">Notifications<span id="notification-badge"{% if !notification_unread_display %} hidden{% endif %}>{% if notification_unread_display %} ({{ notification_unread_display }}){% endif %}</span></a></li>
                         <li><a href="/feed/{{ current_user.Id }}/likes">Likes</a></li>
                         <li><a href="/feed/{{ current_user.Id }}/comments">Comments</a></li>
                         <li><a href="/public">Public</a></li>
