@@ -237,7 +237,8 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 	now := s.rssNow().UTC()
 	if err != nil {
 		if task.Attempts >= task.MaxAttempts {
-			if state.Status == model.ServiceStatusDead {
+			wasDead := state.Status == model.ServiceStatusDead
+			if wasDead {
 				// Only a seed probe reaches here with a dead state (non-seed
 				// dead sources return early above). A failed probe must still
 				// re-enter scheduling, so restart the permanent-failure
@@ -248,7 +249,12 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 				state.DeadAtMs = 0
 			}
 			applyServiceFetchFailure(state, result, err, now)
-			if putErr := model.PutServiceState(s.rdb, serviceID, state); putErr != nil {
+			becameDead := !wasDead && state.Status == model.ServiceStatusDead
+			if becameDead {
+				if persistErr := s.persistDeadServiceFailure(ctx, serviceID, state); persistErr != nil {
+					return fmt.Errorf("fetch failed (%v), persist dead transition: %w", err, persistErr)
+				}
+			} else if putErr := model.PutServiceState(s.rdb, serviceID, state); putErr != nil {
 				return fmt.Errorf("fetch failed (%v), persist failure: %w", err, putErr)
 			}
 			// The source lifecycle now owns this resolved failure. Completing the

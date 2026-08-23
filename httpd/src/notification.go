@@ -92,6 +92,13 @@ func notificationGroupMembersHref(record notificationRecordDTO) string {
 	return "/groups/" + url.PathEscape(record.TargetID) + "/members"
 }
 
+func notificationFeedServicesHref(record notificationRecordDTO) string {
+	if record.TargetUUID == "" {
+		return "/notifications"
+	}
+	return "/account/feed/" + url.PathEscape(record.TargetUUID) + "/import"
+}
+
 func notificationToView(record notificationRecordDTO) notificationView {
 	actor := notificationActor(record)
 	target := notificationTarget(record)
@@ -142,6 +149,9 @@ func notificationToView(record notificationRecordDTO) notificationView {
 	case "GROUP_MEMBER_REMOVED":
 		view.Text = fmt.Sprintf("%s removed you from %s", actor, target)
 		view.Href = notificationFeedHref(record)
+	case "FEED_SERVICE_FAILED":
+		view.Text = fmt.Sprintf("An imported service for %s needs attention", target)
+		view.Href = notificationFeedServicesHref(record)
 	}
 	return view
 }

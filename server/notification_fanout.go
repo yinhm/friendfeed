@@ -67,18 +67,36 @@ func notificationFanoutTaskDefinition(handler taskqueue.Handler) taskqueue.Defin
 	}
 }
 
-// ensureNotificationTaskDefinition is safe to call repeatedly. RequestFollow
-// calls it before enqueue so tests/embedded callers that do not start the
-// background worker pool can still stage a durable fanout task; worker startup
-// calls it before snapshotting handled task types.
+// ensureNotificationTaskDefinition is safe to call repeatedly. Startup
+// installs the definitions before workers snapshot handled types. Mutation
+// paths only fill missing definitions for tests/embedded callers, avoiding
+// registry writes once a normal worker pool is running.
 func (s *ApiServer) ensureNotificationTaskDefinition() error {
 	if s.tasks == nil {
 		return taskqueue.ErrClosed
 	}
-	return s.tasks.RegisterDefinition(
-		notificationGroupFollowRequestTaskType,
-		notificationFanoutTaskDefinition(s.handleGroupFollowRequestNotificationTask),
-	)
+	definitions := []struct {
+		taskType   string
+		definition taskqueue.Definition
+	}{
+		{
+			taskType:   notificationGroupFollowRequestTaskType,
+			definition: notificationFanoutTaskDefinition(s.handleGroupFollowRequestNotificationTask),
+		},
+		{
+			taskType:   notificationFeedServiceFailedTaskType,
+			definition: feedServiceFailedNotificationTaskDefinition(s.handleFeedServiceFailedNotificationTask),
+		},
+	}
+	for _, item := range definitions {
+		if _, exists := s.tasks.Definition(item.taskType); exists {
+			continue
+		}
+		if err := s.tasks.RegisterDefinition(item.taskType, item.definition); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func groupFollowRequestNotificationSpec(feed, requester uuid.UUID, requestedAt string, activity time.Time, cursor string) (taskqueue.Spec, error) {
