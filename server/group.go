@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -679,76 +678,22 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, request *pb.ListUserGrou
 	return response, nil
 }
 
-// canAccessPrivateFeed checks if viewer can access a private feed's content.
-// Returns nil if access is allowed, error otherwise. Access is granted to:
-// the owner (user feed), a follower (Group member or feed subscriber — the
-// same Follow edge), and super users.
-func (s *ApiServer) canAccessPrivateFeed(feedUUID, viewerUUID uuid.UUID) error {
-	if feedUUID == uuid.Nil || viewerUUID == uuid.Nil {
-		return errors.New("valid feed and viewer UUIDs are required")
-	}
-	// Check if viewer is super
-	viewer, err := model.GetProfileFromUuid(s.mdb, viewerUUID)
-	if err == nil && viewer.IsSuper {
-		return nil // super can access all feeds
-	}
-
-	// The owner always reads their own feed.
-	if feedUUID == viewerUUID {
-		return nil
-	}
-
-	// Check if viewer follows the feed (Follow edge exists)
-	isFollower, err := model.IsFollower(s.rdb, feedUUID, viewerUUID)
-	if err != nil {
-		return fmt.Errorf("failed to check follow edge: %w", err)
-	}
-	if !isFollower {
-		return fmt.Errorf("access denied: not a follower of private feed")
-	}
-	return nil
-}
-
 // enforcePrivateFeedRead applies the private-feed visibility rule to a
-// feed-level read: only the owner, followers and supers may read a private
-// feed (user feed or Group), regardless of how the feed was addressed.
+// feed-level read through the same request-scoped identity semantics used by
+// Entry reads. It remains as the narrow adapter used by Group member APIs.
 func (s *ApiServer) enforcePrivateFeedRead(profile *pb.Profile, viewerRaw string) error {
-	if !profile.Private {
-		return nil
-	}
-	if viewerRaw == "" {
-		return status.Errorf(codes.PermissionDenied, "authentication required for private feed")
-	}
-	viewerUUID, err := uuid.FromString(viewerRaw)
-	if err != nil || viewerUUID == uuid.Nil {
-		return status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
-	}
-	feedUUID, err := uuid.FromString(profile.Uuid)
+	resolver, err := newEntryVisibilityResolver(s, viewerRaw)
 	if err != nil {
-		return status.Errorf(codes.Internal, "feed has invalid UUID")
+		return err
 	}
-	if err := s.canAccessPrivateFeed(feedUUID, viewerUUID); err != nil {
-		return status.Errorf(codes.PermissionDenied, "access denied to private feed")
+	decision, err := resolver.feed(profile)
+	if err != nil {
+		return err
 	}
-	return nil
-}
-
-// privateFeedEntryVisible reports whether viewer may read content whose
-// target feed is feedUUID: only a private feed restricts visibility, and
-// only the owner, followers and supers pass. Results are cached per request
-// in cache, keyed by feed UUID. Unresolvable or deleted feeds stay visible
-// here; orphan cleanup is the read path's existing lazy deletion.
-func (s *ApiServer) privateFeedEntryVisible(feedUUID, viewer uuid.UUID, cache map[uuid.UUID]bool) (bool, error) {
-	if visible, ok := cache[feedUUID]; ok {
-		return visible, nil
+	if decision == visibilityDenied && viewerRaw == "" && profile != nil && profile.Private {
+		return status.Error(codes.PermissionDenied, "authentication required for private feed")
 	}
-	visible := true
-	feedProfile, err := model.GetProfileFromUuid(s.mdb, feedUUID)
-	if err == nil && feedProfile.Private {
-		visible = viewer != uuid.Nil && s.canAccessPrivateFeed(feedUUID, viewer) == nil
-	}
-	cache[feedUUID] = visible
-	return visible, nil
+	return visibilityReadError(decision, "private feed")
 }
 
 // entryVisibilityTarget extracts the entry's target feed UUID for visibility
@@ -767,23 +712,4 @@ func entryVisibilityTarget(entry *pb.Entry) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return feedUUID, true
-}
-
-// publicEntryVisible reports whether an entry's target feed still qualifies
-// for the shared public timeline on read: the feed must resolve and be
-// non-private. The bump path applies the same admission rule at write time
-// (私有/已删除/不可解析的 target 一律不进入); revalidating on read keeps
-// stale rows left by a public->private flip from leaking through /public.
-// Results are cached per request in cache, keyed by feed UUID.
-func (s *ApiServer) publicEntryVisible(feedUUID uuid.UUID, cache map[uuid.UUID]bool) bool {
-	if visible, ok := cache[feedUUID]; ok {
-		return visible
-	}
-	visible := false
-	feedProfile, err := model.GetProfileFromUuid(s.mdb, feedUUID)
-	if err == nil && !feedProfile.Private {
-		visible = true
-	}
-	cache[feedUUID] = visible
-	return visible
 }

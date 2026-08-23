@@ -317,7 +317,7 @@ func (s *RpcTestSuite) TestHomeCursorRanksActivityWithoutMovingProfileFeed() {
 	s.Require().NoError(err)
 	s.Require().NoError(s.srv.maintainHomeTimeline(profileID, time.Now().UTC()))
 
-	home, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{ProfileUuid: profileID.String(), PageSize: 10})
+	home, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), PageSize: 10})
 	s.Require().NoError(err)
 	s.Equal([]string{oldID.String(), newID.String()}, feedEntryIDs(home))
 	profileFeed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{Id: profile.Id, PageSize: 10, CursorPaging: true})
@@ -341,7 +341,7 @@ func (s *RpcTestSuite) TestHomeCursorContinuesAfterMovedAndDeletedAnchors() {
 	}
 	s.Require().NoError(s.srv.maintainHomeTimeline(profileID, time.Now().UTC()))
 	first, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
-		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true,
+		ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), PageSize: 2, CursorPaging: true,
 	})
 	s.Require().NoError(err)
 	s.Equal([]string{entryIDs[4], entryIDs[3]}, feedEntryIDs(first))
@@ -354,7 +354,7 @@ func (s *RpcTestSuite) TestHomeCursorContinuesAfterMovedAndDeletedAnchors() {
 	_, err = model.FanoutTimelineActivity(s.srv.rdb, anchor, base.Add(30*time.Minute), model.TimelineActivityComment, nil)
 	s.Require().NoError(err)
 	second, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
-		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true, Cursor: first.NextCursor,
+		ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), PageSize: 2, CursorPaging: true, Cursor: first.NextCursor,
 	})
 	s.Require().NoError(err)
 	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(second))
@@ -364,7 +364,7 @@ func (s *RpcTestSuite) TestHomeCursorContinuesAfterMovedAndDeletedAnchors() {
 	// stable cursor position, then disappears when encountered by a reader.
 	s.Require().NoError(model.DeleteEntry(s.srv.rdb, entryIDs[1]))
 	third, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
-		ProfileUuid: profileID.String(), PageSize: 2, CursorPaging: true, Cursor: second.NextCursor,
+		ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), PageSize: 2, CursorPaging: true, Cursor: second.NextCursor,
 	})
 	s.Require().NoError(err)
 	s.Equal([]string{entryIDs[0]}, feedEntryIDs(third))
@@ -387,7 +387,7 @@ func (s *RpcTestSuite) TestHomeStartLinkUsesActivityTimelineOffset() {
 	}
 	s.Require().NoError(s.srv.maintainHomeTimeline(profileID, time.Now().UTC()))
 	feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
-		ProfileUuid: profileID.String(), Start: 2, PageSize: 2,
+		ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), Start: 2, PageSize: 2,
 	})
 	s.Require().NoError(err)
 	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(feed))
@@ -418,7 +418,7 @@ func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline
 			defer wg.Done()
 			<-start
 			_, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
-				ProfileUuid: profileID.String(), PageSize: entryCount,
+				ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), PageSize: entryCount,
 			})
 			errs <- err
 		}()
@@ -440,7 +440,7 @@ func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline
 		return err == nil && active
 	}, 5*time.Second, 10*time.Millisecond)
 	feed, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
-		ProfileUuid: profileID.String(), PageSize: entryCount,
+		ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), PageSize: entryCount,
 	})
 	s.Require().NoError(err)
 	s.Len(feed.Entries, entryCount)
@@ -916,6 +916,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 	tReq := &pb.FeedRequest{
 		Id:          "yinhm",
 		ProfileUuid: "c6f8dca854f011ddb489003048343a40",
+		ViewerUuid:  "c6f8dca854f011ddb489003048343a40",
 	}
 	feed, err = s.srv.FetchFeed(context.Background(), tReq)
 	assert.Nil(s.T(), err)
@@ -989,6 +990,7 @@ func (s *RpcTestSuite) TestPostProfile() {
 	tReq = &pb.FeedRequest{
 		Id:          "foobar",
 		ProfileUuid: "4e580875-46c3-58fe-a436-bcc17d7e2509",
+		ViewerUuid:  "4e580875-46c3-58fe-a436-bcc17d7e2509",
 	}
 	feed, err = s.srv.FetchFeed(context.Background(), tReq)
 	assert.Nil(s.T(), err)

@@ -26,10 +26,14 @@ type entryVisibilityResolver struct {
 	viewer  uuid.UUID
 	profile *pb.Profile
 	targets map[uuid.UUID]visibilityDecision
+	public  map[uuid.UUID]visibilityDecision
 }
 
 func newEntryVisibilityResolver(s *ApiServer, viewerRaw string) (*entryVisibilityResolver, error) {
-	r := &entryVisibilityResolver{server: s, targets: make(map[uuid.UUID]visibilityDecision)}
+	r := &entryVisibilityResolver{
+		server: s, targets: make(map[uuid.UUID]visibilityDecision),
+		public: make(map[uuid.UUID]visibilityDecision),
+	}
 	if viewerRaw == "" {
 		return r, nil
 	}
@@ -66,9 +70,48 @@ func (r *entryVisibilityResolver) feed(profile *pb.Profile) (visibilityDecision,
 func (r *entryVisibilityResolver) entry(entry *pb.Entry) (visibilityDecision, error) {
 	target, ok := entryVisibilityTarget(entry)
 	if !ok {
-		return visibilityTargetUnavailable, nil
+		// Historical rows may predate ProfileUuid/FeedUuid. Their author id is
+		// the only canonical target reference available; resolve it once here
+		// rather than making every aggregate reader carry a legacy exception.
+		if entry == nil || entry.From == nil || entry.From.Id == "" {
+			return visibilityTargetUnavailable, nil
+		}
+		profile, err := model.GetProfileFromUserId(r.server.mdb, entry.From.Id)
+		if errors.Is(err, model.ErrNotFound) || errors.Is(err, model.ErrProfileDeleted) {
+			return visibilityTargetUnavailable, nil
+		}
+		if err != nil {
+			return visibilityDenied, status.Errorf(codes.Internal, "resolve legacy entry target: %v", err)
+		}
+		return r.feed(profile)
 	}
 	return r.target(target, nil)
+}
+
+func (r *entryVisibilityResolver) publicEntry(entry *pb.Entry) (visibilityDecision, error) {
+	target, ok := entryVisibilityTarget(entry)
+	if !ok {
+		return visibilityTargetUnavailable, nil
+	}
+	if decision, ok := r.public[target]; ok {
+		return decision, nil
+	}
+	profile, err := model.GetProfileFromUuid(r.server.mdb, target)
+	if errors.Is(err, model.ErrNotFound) || errors.Is(err, model.ErrProfileDeleted) {
+		r.public[target] = visibilityTargetUnavailable
+		return visibilityTargetUnavailable, nil
+	}
+	if err != nil {
+		return visibilityDenied, status.Errorf(codes.Internal, "read public target feed: %v", err)
+	}
+	decision := visibilityAllowed
+	if profile == nil || profile.Deleted {
+		decision = visibilityTargetUnavailable
+	} else if profile.Private {
+		decision = visibilityDenied
+	}
+	r.public[target] = decision
+	return decision, nil
 }
 
 func (r *entryVisibilityResolver) target(feed uuid.UUID, known *pb.Profile) (visibilityDecision, error) {
@@ -124,4 +167,11 @@ func visibilityReadError(decision visibilityDecision, subject string) error {
 	default:
 		return nil
 	}
+}
+
+func (r *entryVisibilityResolver) readError(decision visibilityDecision, subject string) error {
+	if decision == visibilityDenied && r.profile == nil {
+		return status.Errorf(codes.PermissionDenied, "authentication required for %s", subject)
+	}
+	return visibilityReadError(decision, subject)
 }

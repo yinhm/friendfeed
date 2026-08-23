@@ -720,6 +720,7 @@ func fetchHomeEntryIDs(t *testing.T, srv *ApiServer, viewer uuid.UUID) []string 
 	t.Helper()
 	feed, err := srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		ProfileUuid:  viewer.String(),
+		ViewerUuid:   viewer.String(),
 		CursorPaging: true,
 		PageSize:     30,
 	})
@@ -1033,6 +1034,45 @@ func TestHomeReadPathFiltersStalePrivateGroupRows(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, fetchHomeEntryIDs(t, srv, member), entry.Id,
 		"a stale private-Group row must not be readable after losing membership")
+}
+
+// An author's direct EntryIndex also contains posts targeted at Groups. The
+// author Feed must therefore revalidate each Entry target instead of treating
+// the author profile's visibility as sufficient.
+func TestAuthorFeedDoesNotExposePrivateGroupEntries(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "author")
+	group := createTestGroup(t, srv, creator, "private-target")
+	entry, err := postGroupEntry(t, srv, creator, group)
+	require.NoError(t, err)
+
+	profile, err := model.GetProfileFromUuid(srv.rdb, group)
+	require.NoError(t, err)
+	profile.Private = true
+	_, err = model.Profile.Put(srv.rdb, group.Bytes(), profile)
+	require.NoError(t, err)
+	author, err := model.GetProfileFromUuid(srv.rdb, creator)
+	require.NoError(t, err)
+
+	for _, cursorPaging := range []bool{false, true} {
+		feed, err := srv.FetchFeed(context.Background(), &pb.FeedRequest{
+			Id: author.Id, PageSize: 30, CursorPaging: cursorPaging,
+		})
+		require.NoError(t, err)
+		require.NotContains(t, feedEntryIDs(feed), entry.Id)
+	}
+}
+
+func TestHomeTimelineCannotBeReadAsAnotherViewer(t *testing.T) {
+	srv := newServiceServer(t)
+	owner := createServiceUser(t, srv, "home-owner")
+	other := createServiceUser(t, srv, "home-other")
+
+	_, err := srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: owner.String(), ViewerUuid: other.String(),
+		CursorPaging: true, PageSize: 30,
+	})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 // docs/group.md: private-Group content must not leak through Search results.

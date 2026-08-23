@@ -539,8 +539,15 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		prefix = store.NewUUIDKey(model.TableEntryIndex, profileUuid).Bytes()
 	}
 
-	// Access control for private groups
-	if err := s.enforcePrivateFeedRead(profile, req.ViewerUuid); err != nil {
+	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	if err != nil {
+		return nil, err
+	}
+	feedDecision, err := visibility.feed(profile)
+	if err != nil {
+		return nil, err
+	}
+	if err := visibility.readError(feedDecision, "feed"); err != nil {
 		return nil, err
 	}
 
@@ -551,11 +558,6 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	found := 0
 	resolver := newProfileResolver(s.mdb)
 	_, err = s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
-		if start > 0 {
-			start--
-			return nil // continue
-		}
-
 		// Direct index values are empty; the entry UUID lives in the index
 		// key suffix.
 		_, entryUUID, _, err := model.ParseEntryIndexKey(k)
@@ -577,6 +579,17 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		}
 		if err := proto.Unmarshal(rawdata, entry); err != nil {
 			return err
+		}
+		decision, err := visibility.entry(entry)
+		if err != nil {
+			return err
+		}
+		if decision != visibilityAllowed {
+			return nil
+		}
+		if start > 0 {
+			start--
+			return nil
 		}
 		if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
 			return err
@@ -618,6 +631,8 @@ type cursorFeedEntry struct {
 	indexKey store.Key
 }
 
+const minimumCursorVisibilityScan = 300
+
 // ForwardFetchFeedWithCursor pages profile feeds and user timelines from an
 // opaque index position. Home timelines use TimelineIndex; profile feeds keep
 // using direct EntryIndex. Legacy Start/PageSize behavior remains available to
@@ -631,20 +646,27 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 	if err != nil {
 		return nil, err
 	}
-	// docs/group.md: private-Group reads must be denied on the cursor path
-	// too; the legacy Start/PageSize path checks inside ForwardFetchFeed.
+	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	if err != nil {
+		return nil, err
+	}
 	if !activityTimeline {
-		if err := s.enforcePrivateFeedRead(profile, req.ViewerUuid); err != nil {
+		decision, err := visibility.feed(profile)
+		if err != nil {
+			return nil, err
+		}
+		if err := visibility.readError(decision, "feed"); err != nil {
 			return nil, err
 		}
 	}
-	homeViewer := uuid.Nil
 	if activityTimeline && !isPublicFeedRequest(req) {
 		viewer, parseErr := uuid.FromString(profile.Uuid)
-		if parseErr != nil {
+		if parseErr != nil || viewer == uuid.Nil {
 			return nil, status.Error(codes.Internal, "profile has invalid UUID")
 		}
-		homeViewer = viewer
+		if visibility.profile == nil || visibility.viewer != viewer {
+			return nil, status.Error(codes.PermissionDenied, "home timeline is owner-only")
+		}
 		initializing, err := s.prepareHomeTimeline(viewer, time.Now().UTC())
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "initialize home timeline: %v", err)
@@ -673,21 +695,22 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		}
 	} else {
 		iter.First()
-		// Home and public links generated before cursor pagination used
-		// ?start=N. Keep them useful by applying the offset to the new
-		// TimelineIndex rather than falling back to retired storage.
-		if activityTimeline && !req.CursorPaging {
-			for skipped := int32(0); iter.Valid() && skipped < req.Start; skipped++ {
-				iter.Next()
-			}
-		}
 	}
 
 	resolver := newProfileResolver(s.mdb)
-	visibilityCache := make(map[uuid.UUID]bool)
 	items := make([]cursorFeedEntry, 0, req.PageSize+1)
-	for iter.Valid() && len(items) <= int(req.PageSize) {
+	visibleStart := int32(0)
+	if activityTimeline && !req.CursorPaging {
+		// Legacy ?start=N counts visible rows, not raw derived-index rows.
+		visibleStart = req.Start
+	}
+	scanBudget := max(int(req.PageSize)*10, minimumCursorVisibilityScan) + int(visibleStart)
+	scanned := 0
+	var lastScanned store.Key
+	for iter.Valid() && len(items) <= int(req.PageSize) && scanned < scanBudget {
 		indexKey := iter.Key()
+		lastScanned = indexKey
+		scanned++
 		var entryKey store.Key
 		var timelineEntryUUID uuid.UUID
 		var timelineViewerUUID uuid.UUID
@@ -729,29 +752,19 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 			if err := proto.Unmarshal(rawdata, entry); err != nil {
 				return nil, err
 			}
-			// docs/group.md: a stale Home row sourced from a private Group
-			// must be revalidated on read even before the rebuild cleans it.
-			visible := true
-			if homeViewer != uuid.Nil {
-				if target, ok := entryVisibilityTarget(entry); ok {
-					v, visErr := s.privateFeedEntryVisible(target, homeViewer, visibilityCache)
-					if visErr != nil {
-						return nil, visErr
-					}
-					visible = v
-				}
-			} else if publicTimeline {
-				// The shared public timeline is materialized data, not a
-				// permission fact. Fail closed when an old/corrupt row has no
-				// resolvable target, and otherwise require that target to
-				// remain public now.
-				if target, ok := entryVisibilityTarget(entry); ok {
-					visible = s.publicEntryVisible(target, visibilityCache)
-				} else {
-					visible = false
-				}
+			decision, visibilityErr := visibility.entry(entry)
+			if publicTimeline {
+				decision, visibilityErr = visibility.publicEntry(entry)
 			}
-			if visible {
+			if visibilityErr != nil {
+				return nil, visibilityErr
+			}
+			if decision == visibilityAllowed {
+				if visibleStart > 0 {
+					visibleStart--
+					iter.Next()
+					continue
+				}
 				if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
 					return nil, err
 				}
@@ -789,6 +802,9 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		if hasExtra {
 			feed.NextCursor = encodeFeedCursor(items[len(items)-1].indexKey, prefix)
 		}
+	}
+	if !hasExtra && iter.Valid() && len(lastScanned) > 0 {
+		feed.NextCursor = encodeFeedCursor(lastScanned, prefix)
 	}
 	s.withPendingFollowRequest(feed, req.ViewerUuid)
 	return feed, nil
@@ -972,38 +988,24 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		slog.Debug("FetchEntry error", "err", err)
 		return nil, status.Errorf(codes.NotFound, "entry not found")
 	}
+	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	if err != nil {
+		return nil, err
+	}
+	decision, err := visibility.entry(entry)
+	if err != nil {
+		return nil, err
+	}
+	if err := visibilityReadError(decision, "entry"); err != nil {
+		return nil, err
+	}
+
 	// slog.Debug("entry", "raw_body", entry.RawBody)
 	// fmtEntryProfiles resolves the author by stable ProfileUuid, falling back
 	// to From.Id for legacy entries without one, and refreshes entry.From.
 	profile, err := fmtEntryProfiles(s.mdb, entry)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
-	}
-
-	// Access control for entries on private feeds: the target feed is
-	// FeedUuid when set (Group or cross-posted entries), otherwise the
-	// author's own feed.
-	targetRaw := entry.FeedUuid
-	if targetRaw == "" {
-		targetRaw = entry.ProfileUuid
-	}
-	if targetRaw != "" {
-		feedUUID, err := uuid.FromString(targetRaw)
-		if err == nil {
-			feedProfile, err := model.GetProfileFromUuid(s.mdb, feedUUID)
-			if err == nil && feedProfile.Private {
-				if req.ViewerUuid == "" {
-					return nil, status.Errorf(codes.PermissionDenied, "authentication required for private feed entry")
-				}
-				viewerUUID, err := uuid.FromString(req.ViewerUuid)
-				if err != nil {
-					return nil, status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
-				}
-				if err := s.canAccessPrivateFeed(feedUUID, viewerUUID); err != nil {
-					return nil, status.Errorf(codes.PermissionDenied, "access denied to private feed entry")
-				}
-			}
-		}
 	}
 
 	feed := &pb.Feed{
@@ -1398,14 +1400,10 @@ func unusableSearchDoc(err error) bool {
 // decides whether to delete them and retry.
 func (s *ApiServer) searchPage(req *pb.SearchRequest) (entries []*pb.Entry, unusable []string, err error) {
 	resolver := newProfileResolver(s.mdb)
-	searchViewer := uuid.Nil
-	if req.ViewerUuid != "" {
-		searchViewer, err = uuid.FromString(req.ViewerUuid)
-		if err != nil {
-			return nil, nil, status.Errorf(codes.InvalidArgument, "invalid viewer_uuid")
-		}
+	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	if err != nil {
+		return nil, nil, err
 	}
-	visibilityCache := make(map[uuid.UUID]bool)
 	from := int(req.Start)
 	for len(entries) <= int(req.PageSize) {
 		bReq := bleve.NewSearchRequest(bleve.NewQueryStringQuery(req.Query))
@@ -1441,17 +1439,17 @@ func (s *ApiServer) searchPage(req *pb.SearchRequest) (entries []*pb.Entry, unus
 				unusable = append(unusable, hit.ID)
 				continue
 			}
-			// docs/group.md: private-Group content must not leak through
-			// Search. Invisible hits are skipped, never deleted from the
-			// index — they stay visible to members.
-			if target, ok := entryVisibilityTarget(entry); ok {
-				visible, visErr := s.privateFeedEntryVisible(target, searchViewer, visibilityCache)
-				if visErr != nil {
-					return nil, nil, status.Errorf(codes.Internal, "check entry visibility %s: %v", hit.ID, visErr)
-				}
-				if !visible {
-					continue
-				}
+			decision, visErr := visibility.entry(entry)
+			if visErr != nil {
+				return nil, nil, visErr
+			}
+			switch decision {
+			case visibilityDenied:
+				// Keep the document: another viewer may be allowed to see it.
+				continue
+			case visibilityTargetUnavailable:
+				unusable = append(unusable, hit.ID)
+				continue
 			}
 			entries = append(entries, entry)
 		}
