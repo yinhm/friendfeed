@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ImportPanel } from './import';
+import { FeedImportPage, ImportPanel } from './import';
 
 const services = {
   twitter: {
@@ -115,4 +115,16 @@ describe('ImportPanel', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('service busy'));
     expect(screen.getByText('Tech Notes')).toBeInTheDocument();
   });
+});
+
+it('renders the standalone Feed import page from its own bootstrap data', () => {
+  window.feedImportData = {
+    services: {rss: {id: 'rss', name: 'Tech Notes', kind: 'web_feed'}},
+    states: {},
+    target: 'group-uuid',
+  };
+  render(<FeedImportPage />);
+  expect(screen.getByText('Tech Notes')).toBeInTheDocument();
+  expect(screen.getByRole('heading', {name: 'Import Services'})).toBeInTheDocument();
+  delete window.feedImportData;
 });

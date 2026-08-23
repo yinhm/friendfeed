@@ -655,7 +655,7 @@ Bob commented on your post                   -> /e/<entry>
 Carol liked your post                        -> /e/<entry>
 David promoted you to admin of Go Developers -> /feed/<group>
 An imported service for Book Club needs attention
-                                             -> /account/feed/<target UUID>/import
+                                             -> /feed/<target ID>/import
 ```
 
 Service failure 文案只包含安全摘要和 target 名称，不显示 source URL、query、响应正文或内部错误。
@@ -758,7 +758,7 @@ HTTP：
 - Notification summary failure 不拖垮普通页面；
 - notification 页面 render 后 mark read；
 - source object 不可见时不泄漏正文；
-- `FEED_SERVICE_FAILED` 只显示安全摘要并链接对应 `/account/feed/<target UUID>/import`。
+- `FEED_SERVICE_FAILED` 只显示安全摘要并链接对应 `/feed/<target ID>/import`。
 
 完整验证沿用 `AGENTS.md`：
 

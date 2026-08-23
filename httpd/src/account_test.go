@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -22,6 +24,9 @@ type fakeAccountClient struct {
 	services     *pb.ListFeedServicesResponse
 	servicesErr  error
 	servicesWait time.Duration
+	servicesReq  *pb.ListFeedServicesRequest
+	feed         *pb.Feed
+	feedErr      error
 }
 
 func (f *fakeAccountClient) FetchProfile(ctx context.Context, req *pb.ProfileRequest, opts ...grpc.CallOption) (*pb.Profile, error) {
@@ -32,10 +37,23 @@ func (f *fakeAccountClient) FetchProfile(ctx context.Context, req *pb.ProfileReq
 }
 
 func (f *fakeAccountClient) ListFeedServices(ctx context.Context, req *pb.ListFeedServicesRequest, opts ...grpc.CallOption) (*pb.ListFeedServicesResponse, error) {
+	f.servicesReq = req
 	if f.servicesWait > 0 {
 		time.Sleep(f.servicesWait)
 	}
 	return f.services, f.servicesErr
+}
+
+func (f *fakeAccountClient) FetchFeed(ctx context.Context, req *pb.FeedRequest, opts ...grpc.CallOption) (*pb.Feed, error) {
+	return f.feed, f.feedErr
+}
+
+func (f *fakeAccountClient) ListUserGroups(ctx context.Context, req *pb.ListUserGroupsRequest, opts ...grpc.CallOption) (*pb.ListUserGroupsResponse, error) {
+	return &pb.ListUserGroupsResponse{}, nil
+}
+
+func (f *fakeAccountClient) Command(ctx context.Context, req *pb.CommandRequest, opts ...grpc.CallOption) (*pb.CommandResponse, error) {
+	return &pb.CommandResponse{Result: `{"version":1,"unread_count":0,"total_count":0}`}, nil
 }
 
 func TestFetchAccountData(t *testing.T) {
@@ -76,6 +94,36 @@ func TestFetchAccountDataServicesFailure(t *testing.T) {
 	}
 	if _, _, err := fetchAccountData(client, "u1", "u1"); err == nil {
 		t.Fatal("want error when ListFeedServices fails")
+	}
+}
+
+func TestFeedImportPageUsesFeedIDAndAuthorizedTarget(t *testing.T) {
+	client := &fakeAccountClient{
+		profile:  &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user", Type: "user"},
+		feed:     &pb.Feed{Uuid: testGroupUUID, Id: "book-club", Name: "Book Club", Type: "group"},
+		services: &pb.ListFeedServicesResponse{},
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	capture := new(captureNotificationRender)
+	router.HTMLRender = capture
+	router.GET("/feed/:name/import", LoginRequired(), s.FeedImportPageHandler)
+	cookie := groupLoginCookie(t, router)
+	req := httptest.NewRequest(http.MethodGet, "/feed/book-club/import", nil)
+	req.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d; want 200", response.Code)
+	}
+	if client.servicesReq == nil || client.servicesReq.ActorUuid != testGroupUserUUID ||
+		client.servicesReq.TargetFeedUuid != testGroupUUID {
+		t.Fatalf("ListFeedServices request=%+v", client.servicesReq)
+	}
+	if capture.data["feed_management_page"] != "import" ||
+		capture.data["manage_services_url"] != "/feed/book-club/import" {
+		t.Fatalf("feed import context=%v", capture.data)
 	}
 }
 

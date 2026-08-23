@@ -269,7 +269,7 @@ test('Feed management nav preserves server-authorized links after React mounts',
   render(<Feed {...makeFeedProps({
     feed,
     show_header: true,
-    manage_services_url: '/account/feed/group-uuid/import',
+    manage_services_url: '/feed/book-club/import',
     group_settings_url: '/groups/book-club/settings',
     group_members_url: '/groups/book-club/members',
   })} />);
@@ -279,7 +279,7 @@ test('Feed management nav preserves server-authorized links after React mounts',
   expect(navigation.closest('.header')).not.toBeNull();
   expect(screen.getByRole('link', {name: 'Feed'})).toHaveAttribute('aria-current', 'page');
   expect(screen.getByRole('link', {name: 'Import Services'}))
-    .toHaveAttribute('href', '/account/feed/group-uuid/import');
+    .toHaveAttribute('href', '/feed/book-club/import');
   expect(screen.getByRole('link', {name: 'Settings'}))
     .toHaveAttribute('href', '/groups/book-club/settings');
   expect(screen.getByRole('link', {name: 'Members'}))

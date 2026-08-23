@@ -93,10 +93,10 @@ func notificationGroupMembersHref(record notificationRecordDTO) string {
 }
 
 func notificationFeedServicesHref(record notificationRecordDTO) string {
-	if record.TargetUUID == "" {
-		return "/notifications"
+	if record.TargetID != "" {
+		return "/feed/" + url.PathEscape(record.TargetID) + "/import"
 	}
-	return "/account/feed/" + url.PathEscape(record.TargetUUID) + "/import"
+	return "/notifications"
 }
 
 func notificationToView(record notificationRecordDTO) notificationView {

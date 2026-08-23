@@ -50,7 +50,7 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 		"feed_management_page": "settings",
 		"group_settings_url":   "/groups/book-club/settings",
 		"group_members_url":    "/groups/book-club/members",
-		"manage_services_url":  "/account/feed/22222222-2222-2222-2222-222222222222/import",
+		"manage_services_url":  "/feed/book-club/import",
 		"current_user":         currentUser,
 	})
 	for _, want := range []string{
@@ -82,7 +82,7 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 		"feed_management_page": "members",
 		"group_settings_url":   "/groups/book-club/settings",
 		"group_members_url":    "/groups/book-club/members",
-		"manage_services_url":  "/account/feed/22222222-2222-2222-2222-222222222222/import",
+		"manage_services_url":  "/feed/book-club/import",
 		"current_user":         currentUser,
 	})
 	for _, want := range []string{

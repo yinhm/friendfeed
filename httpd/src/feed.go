@@ -280,7 +280,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		})
 		cancel()
 		if manageErr == nil {
-			data["manage_services_url"] = "/account/feed/" + url.PathEscape(feed.Uuid) + "/import"
+			data["manage_services_url"] = "/feed/" + url.PathEscape(feed.Id) + "/import"
 		}
 
 		// Group feeds offer admin/super viewers entry points to the

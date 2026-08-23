@@ -176,7 +176,6 @@ func Serve(s *server.Server, config *util.Config) error {
 		authorized.GET("/import/twitter", s.TwitterImportHandler)
 		authorized.GET("/requests", s.AccountRequestsHandler)
 		authorized.POST("/requests/action", s.AccountRequestActionHandler)
-		authorized.GET("/feed/:uuid/import", s.FeedServicePageHandler)
 		authorized.POST("/feed-service", s.AddFeedServiceHandler)
 		authorized.POST("/feed-service/:service/:action", s.FeedServiceActionHandler)
 		// TODO: fix get
@@ -192,6 +191,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	// see: gin #205
 	r.GET("/feed/:name", s.FeedHandler)
 	r.GET("/feed/:name/groups", server.LoginRequired(), s.UserGroupsPageHandler)
+	r.GET("/feed/:name/import", server.LoginRequired(), s.FeedImportPageHandler)
 	r.GET("/feed/:name/likes", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_LIKE, "likes"))
 	r.GET("/feed/:name/comments", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_COMMENT, "comments"))
 	r.GET("/e/:uuid", s.EntryHandler)

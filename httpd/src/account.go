@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -168,8 +169,61 @@ func (s *Server) ImportHandler(c *gin.Context) {
 	s.renderAccountPage(c, "import", CurrentUserUuid(c))
 }
 
-func (s *Server) FeedServicePageHandler(c *gin.Context) {
-	s.renderAccountPage(c, "import", c.Param("uuid"))
+func (s *Server) FeedImportPageHandler(c *gin.Context) {
+	actor := CurrentUserUuid(c)
+	name := c.Param("name")
+	ctx, cancel := DefaultTimeoutContext()
+	feed, err := s.client.FetchFeed(ctx, &pb.FeedRequest{
+		Id: name, PageSize: 1, ViewerUuid: actor,
+	})
+	cancel()
+	if RequestError(c, err) {
+		return
+	}
+	if location, renamed := renamedFeedLocationWithSuffix(name, feed, "import", c.Request.URL.RawQuery); renamed {
+		c.Redirect(http.StatusFound, location)
+		return
+	}
+
+	ctx, cancel = DefaultTimeoutContext()
+	services, err := s.client.ListFeedServices(ctx, &pb.ListFeedServicesRequest{
+		ActorUuid: actor, TargetFeedUuid: feed.Uuid,
+	})
+	cancel()
+	if RequestError(c, err) {
+		return
+	}
+	if services == nil {
+		services = &pb.ListFeedServicesResponse{}
+	}
+	serviceMap := make(map[string]*pb.FeedService, len(services.Services))
+	for _, service := range services.Services {
+		if service != nil {
+			serviceMap[service.Id] = service
+		}
+	}
+	encoded, err := json.Marshal(gin.H{
+		"services": serviceMap,
+		"states":   services.States,
+		"target":   feed.Uuid,
+	})
+	if err != nil {
+		c.String(http.StatusInternalServerError, "failed to encode feed services")
+		return
+	}
+	data := pongo2.Context{
+		"title":                "Import Services",
+		"feed":                 feed,
+		"feedImportData":       string(encoded),
+		"feed_management_id":   feed.Id,
+		"feed_management_page": "import",
+		"manage_services_url":  "/feed/" + url.PathEscape(feed.Id) + "/import",
+	}
+	if feed.Type == "group" {
+		data["group_settings_url"] = "/groups/" + url.PathEscape(feed.Id) + "/settings"
+		data["group_members_url"] = "/groups/" + url.PathEscape(feed.Id) + "/members"
+	}
+	s.HTML(c, http.StatusOK, "feed_import.html", data)
 }
 
 func (s *Server) AddFeedServiceHandler(c *gin.Context) {

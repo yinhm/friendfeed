@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="feed">
+  <h2 class="page-title">Import Services: {{ feed.Name|escape }}</h2>
+  {% include "feed_management_nav.html" %}
+  <div id="feed-import-root">
+    <noscript>This page requires JavaScript.</noscript>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.feedImportData = {{feedImportData|safe}};
+</script>
+
+{% if dev %}
+  {% for filename in jsFiles %}
+  <script type="module" src="/app/build/static/js/{{filename}}"></script>
+  {% endfor %}
+{% else %}
+  <script type="module" src="/{{ jsFile }}"></script>
+{% endif %}
+{% endblock %}

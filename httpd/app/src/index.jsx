@@ -7,6 +7,7 @@ import './styles/globals.css';
 import { App } from './App';
 import { Search } from './search';
 import { AccountPage } from './account';
+import { FeedImportPage } from './import';
 import { initNavigation } from './navigation';
 
 // Pages without the sidebar have no #search element, so guard every mount.
@@ -33,6 +34,15 @@ if (accountEl) {
   createRoot(accountEl).render(
     <React.StrictMode>
       <AccountPage />
+    </React.StrictMode>
+  );
+}
+
+const feedImportEl = document.getElementById("feed-import-root");
+if (feedImportEl) {
+  createRoot(feedImportEl).render(
+    <React.StrictMode>
+      <FeedImportPage />
     </React.StrictMode>
   );
 }

@@ -173,7 +173,7 @@ func (s *Server) renderGroupSettings(c *gin.Context, view *pb.GroupView, errMsg 
 		"feed_management_page": "settings",
 		"group_settings_url":   "/groups/" + url.PathEscape(view.Group.Id) + "/settings",
 		"group_members_url":    "/groups/" + url.PathEscape(view.Group.Id) + "/members",
-		"manage_services_url":  "/account/feed/" + url.PathEscape(view.Group.Uuid) + "/import",
+		"manage_services_url":  "/feed/" + url.PathEscape(view.Group.Id) + "/import",
 	})
 }
 
@@ -282,7 +282,7 @@ func (s *Server) renderGroupMembers(c *gin.Context, view *pb.GroupView, errMsg s
 	}
 	if manage {
 		data["group_settings_url"] = "/groups/" + url.PathEscape(view.Group.Id) + "/settings"
-		data["manage_services_url"] = "/account/feed/" + url.PathEscape(view.Group.Uuid) + "/import"
+		data["manage_services_url"] = "/feed/" + url.PathEscape(view.Group.Id) + "/import"
 	}
 	s.HTML(c, 200, "group_members.html", data)
 }
