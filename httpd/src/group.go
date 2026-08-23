@@ -163,12 +163,17 @@ func (s *Server) requireGroupManage(c *gin.Context, name string) *pb.GroupView {
 
 func (s *Server) renderGroupSettings(c *gin.Context, view *pb.GroupView, errMsg string) {
 	s.HTML(c, 200, "group_settings.html", pongo2.Context{
-		"title":        "Group settings",
-		"group":        view.Group,
-		"error":        errMsg,
-		"form_action":  "/groups/" + url.PathEscape(view.Group.Id) + "/settings",
-		"submit_label": "Save",
-		"cancel_url":   "/feed/" + url.PathEscape(view.Group.Id),
+		"title":                "Group settings",
+		"group":                view.Group,
+		"error":                errMsg,
+		"form_action":          "/groups/" + url.PathEscape(view.Group.Id) + "/settings",
+		"submit_label":         "Save",
+		"cancel_url":           "/feed/" + url.PathEscape(view.Group.Id),
+		"feed_management_id":   view.Group.Id,
+		"feed_management_page": "settings",
+		"group_settings_url":   "/groups/" + url.PathEscape(view.Group.Id) + "/settings",
+		"group_members_url":    "/groups/" + url.PathEscape(view.Group.Id) + "/members",
+		"manage_services_url":  "/account/feed/" + url.PathEscape(view.Group.Uuid) + "/import",
 	})
 }
 
@@ -263,15 +268,23 @@ func (s *Server) renderGroupMembers(c *gin.Context, view *pb.GroupView, errMsg s
 		}
 		requests = reqResp.Requests
 	}
-	s.HTML(c, 200, "group_members.html", pongo2.Context{
-		"title":      "Group members",
-		"group":      view.Group,
-		"members":    resp.Members,
-		"requests":   requests,
-		"has_more":   resp.NextCursor != "",
-		"can_manage": manage,
-		"error":      errMsg,
-	})
+	data := pongo2.Context{
+		"title":                "Group members",
+		"group":                view.Group,
+		"members":              resp.Members,
+		"requests":             requests,
+		"has_more":             resp.NextCursor != "",
+		"can_manage":           manage,
+		"error":                errMsg,
+		"feed_management_id":   view.Group.Id,
+		"feed_management_page": "members",
+		"group_members_url":    "/groups/" + url.PathEscape(view.Group.Id) + "/members",
+	}
+	if manage {
+		data["group_settings_url"] = "/groups/" + url.PathEscape(view.Group.Id) + "/settings"
+		data["manage_services_url"] = "/account/feed/" + url.PathEscape(view.Group.Uuid) + "/import"
+	}
+	s.HTML(c, 200, "group_members.html", data)
 }
 
 // GroupMembersPageHandler lists the Group's members. Any logged-in user may

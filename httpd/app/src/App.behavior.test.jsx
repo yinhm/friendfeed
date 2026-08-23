@@ -259,6 +259,33 @@ test('private Feed header marks its name with a lock icon', () => {
     .toContainElement(screen.getByRole('img', {name: 'Private'}));
 });
 
+test('Feed management nav preserves server-authorized links after React mounts', () => {
+  const feed = {
+    id: 'book-club',
+    uuid: 'group-uuid',
+    name: 'Book Club',
+    entries: [],
+  };
+  render(<Feed {...makeFeedProps({
+    feed,
+    show_header: true,
+    manage_services_url: '/account/feed/group-uuid/import',
+    group_settings_url: '/groups/book-club/settings',
+    group_members_url: '/groups/book-club/members',
+  })} />);
+
+  const navigation = screen.getByRole('navigation', {name: 'Feed management'});
+  expect(navigation).toBeInTheDocument();
+  expect(navigation.closest('.header')).not.toBeNull();
+  expect(screen.getByRole('link', {name: 'Feed'})).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('link', {name: 'Import Services'}))
+    .toHaveAttribute('href', '/account/feed/group-uuid/import');
+  expect(screen.getByRole('link', {name: 'Settings'}))
+    .toHaveAttribute('href', '/groups/book-club/settings');
+  expect(screen.getByRole('link', {name: 'Members'}))
+    .toHaveAttribute('href', '/groups/book-club/members');
+});
+
 test('Feed header shows the error when unfollow is rejected', async () => {
   postJSONMock.mockRejectedValue(
     new Error('This action cannot be completed.'));

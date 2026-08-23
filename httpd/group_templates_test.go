@@ -40,13 +40,18 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 	currentUser := &pb.Profile{Uuid: "11111111-1111-1111-1111-111111111111", Id: "me"}
 
 	settings := renderEmbeddedTemplate(t, "group_settings.html", pongo2.Context{
-		"title":        "Group settings",
-		"group":        group,
-		"error":        "boom",
-		"form_action":  "/groups/book-club/settings",
-		"submit_label": "Save",
-		"cancel_url":   "/feed/book-club",
-		"current_user": currentUser,
+		"title":                "Group settings",
+		"group":                group,
+		"error":                "boom",
+		"form_action":          "/groups/book-club/settings",
+		"submit_label":         "Save",
+		"cancel_url":           "/feed/book-club",
+		"feed_management_id":   "book-club",
+		"feed_management_page": "settings",
+		"group_settings_url":   "/groups/book-club/settings",
+		"group_members_url":    "/groups/book-club/members",
+		"manage_services_url":  "/account/feed/22222222-2222-2222-2222-222222222222/import",
+		"current_user":         currentUser,
 	})
 	for _, want := range []string{
 		`action="/groups/book-club/settings"`,
@@ -71,9 +76,14 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 			{Profile: &pb.Profile{Uuid: "u1", Id: "alice", Name: "Alice"}, IsAdmin: true},
 			{Profile: &pb.Profile{Uuid: "u2", Id: "bob", Name: "Bob"}},
 		},
-		"has_more":     true,
-		"can_manage":   true,
-		"current_user": currentUser,
+		"has_more":             true,
+		"can_manage":           true,
+		"feed_management_id":   "book-club",
+		"feed_management_page": "members",
+		"group_settings_url":   "/groups/book-club/settings",
+		"group_members_url":    "/groups/book-club/members",
+		"manage_services_url":  "/account/feed/22222222-2222-2222-2222-222222222222/import",
+		"current_user":         currentUser,
 	})
 	for _, want := range []string{
 		`action="/groups/book-club/members/action"`,
@@ -90,13 +100,22 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 
 	// Members page for a plain logged-in user hides management controls.
 	plain := renderEmbeddedTemplate(t, "group_members.html", pongo2.Context{
-		"title":        "Group members",
-		"group":        group,
-		"members":      []*pb.GroupMember{{Profile: &pb.Profile{Uuid: "u1", Id: "alice", Name: "Alice"}}},
-		"current_user": currentUser,
+		"title":                "Group members",
+		"group":                group,
+		"members":              []*pb.GroupMember{{Profile: &pb.Profile{Uuid: "u1", Id: "alice", Name: "Alice"}}},
+		"feed_management_id":   "book-club",
+		"feed_management_page": "members",
+		"group_members_url":    "/groups/book-club/members",
+		"current_user":         currentUser,
 	})
 	if strings.Contains(plain, "members/action") {
 		t.Fatal("plain member must not see management forms")
+	}
+	if strings.Contains(plain, ">Settings</a>") || strings.Contains(plain, ">Import Services</a>") {
+		t.Fatal("plain member must not see admin navigation")
+	}
+	if !strings.Contains(plain, `aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary">Members</a>`) {
+		t.Fatal("members navigation must remain available and selected")
 	}
 }
 

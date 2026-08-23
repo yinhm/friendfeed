@@ -271,6 +271,8 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		data = cursorFeedContext(feed)
 	}
 	data["show_header"] = true
+	data["feed_management_id"] = feed.Id
+	data["feed_management_page"] = "feed"
 	if actor := CurrentUserUuid(c); actor != "" {
 		ctx, cancel := DefaultTimeoutContext()
 		_, manageErr := s.client.ListFeedServices(ctx, &pb.ListFeedServicesRequest{
@@ -290,10 +292,10 @@ func (s *Server) FeedHandler(c *gin.Context) {
 			})
 			cancel()
 			if viewErr == nil {
+				data["group_members_url"] = "/groups/" + url.PathEscape(feed.Id) + "/members"
 				profile, _ := s.CurrentUser(c)
 				if canManageGroup(view, profile) {
 					data["group_settings_url"] = "/groups/" + url.PathEscape(feed.Id) + "/settings"
-					data["group_members_url"] = "/groups/" + url.PathEscape(feed.Id) + "/members"
 				}
 			}
 		}

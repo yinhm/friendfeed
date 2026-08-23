@@ -1,0 +1,6 @@
+<nav class="mb-6 flex gap-1 border-b border-border" aria-label="Feed management">
+    <a href="/feed/{{ feed_management_id }}" {% if feed_management_page == "feed" %}aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary"{% else %}class="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"{% endif %}>Feed</a>
+    {% if group_settings_url %}<a href="{{ group_settings_url|escape }}" {% if feed_management_page == "settings" %}aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary"{% else %}class="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"{% endif %}>Settings</a>{% endif %}
+    {% if group_members_url %}<a href="{{ group_members_url|escape }}" {% if feed_management_page == "members" %}aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary"{% else %}class="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"{% endif %}>Members</a>{% endif %}
+    {% if manage_services_url %}<a href="{{ manage_services_url|escape }}" class="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Import Services</a>{% endif %}
+</nav>

@@ -1,12 +1,10 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<h2>Members of {{ group.Name|escape }}{% if group.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}</h2>
+<div class="feed">
+<h2 class="page-title">Members of {{ group.Name|escape }}{% if group.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}</h2>
 
-<p>
-    <a href="/feed/{{ group.Id }}">&laquo; Back to feed</a>
-    {% if can_manage %}&middot; <a href="/groups/{{ group.Id }}/settings">Group settings</a>{% endif %}
-</p>
+{% include "feed_management_nav.html" %}
 
 {% if error %}
 <div class="error-banner" role="alert">{{ error|escape }}</div>
@@ -56,4 +54,5 @@
 {% if has_more %}
 <p class="muted">This group has more members than shown here.</p>
 {% endif %}
+</div>
 {% endblock %}
