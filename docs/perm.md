@@ -217,4 +217,4 @@ Like/Comment timeline 是派生索引；暂时不可见的行不删除，未来�
 5. ✅ 接入 Interaction Feed，继续保持 owner-only；
 6. ✅ 接入 Like/Comment mutation；
 7. ✅ 单独收紧向其他 user Feed 投稿；
-8. ✅ 补 HTTP 状态测试并同步 `docs/feed.md`、`docs/group.md` 与 `TODO.md`。
+8. ✅ 补 HTTP 状态测试并同步 `docs/feed.md`、`docs/group.md`。
