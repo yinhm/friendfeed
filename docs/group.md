@@ -256,8 +256,7 @@ following，不得为此把全量订阅塞回 Graph 响应。
 - owner/admin 主动邀请（邀请制）；目前只实现 join request/批准方向；
 - 申请的通知机制（申请人/批准人均通过页面状态感知，无主动通知）；
 - 删除 Group 后 Follow/Follower、timeline、FeedService 的无上限清理（由 audit 报告，
-  后台/运维命令有界清理）；
-- `/groups` 完整列表页（sidebar 超过 20 个时只截断，不出死链）。
+  后台/运维命令有界清理）。
 
 ## 实施顺序与验收
 

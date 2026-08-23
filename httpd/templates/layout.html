@@ -44,12 +44,13 @@
                         <li><a href="/">Home</a></li>
                         {% if current_user %}
                         <li><a href="/feed/{{ current_user.Id }}">My feed</a></li>
+                        <li><a href="/feed/{{ current_user.Id }}/groups">My groups</a></li>
                         <li><a href="/notifications">Notifications{% if notification_unread_display %} ({{ notification_unread_display }}){% endif %}</a></li>
-                        <li><a href="/groups">Groups</a></li>
                         <li><a href="/feed/{{ current_user.Id }}/likes">Likes</a></li>
                         <li><a href="/feed/{{ current_user.Id }}/comments">Comments</a></li>
                         <li><a href="/public">Public</a></li>
                         {% endif %}
+                        <li><a href="/groups">Groups</a></li>
                         <!-- <li><a href="/summary/1">Best of day</a></li> -->
                     </ul>
                 </div>
@@ -84,7 +85,7 @@
                         {% endfor %}
                     </ul>
                     {% endif %}
-                    <div><a href="/groups">All groups&hellip;</a></div>
+                    <div><a href="/feed/{{ current_user.Id }}/groups">All groups&hellip;</a></div>
                 </div>
             </div>
             {% endif %}

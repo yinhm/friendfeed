@@ -166,6 +166,9 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 func TestGroupsPageRendersCompleteList(t *testing.T) {
 	body := renderEmbeddedTemplate(t, "groups.html", pongo2.Context{
 		"title":        "My groups",
+		"heading":      "My groups",
+		"show_create":  true,
+		"empty_text":   "You have not joined any groups yet.",
 		"current_user": &pb.Profile{Uuid: "u", Id: "me"},
 		"groups": []*pb.Profile{
 			{Id: "alpha", Name: "Alpha", Description: "First", Picture: "https://example.com/a.png"},

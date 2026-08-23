@@ -1,9 +1,11 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<h2 class="page-title">My groups</h2>
+<h2 class="page-title">{{ heading }}</h2>
 
+{% if show_create %}
 <p><a href="/groups/create">Create a group</a></p>
+{% endif %}
 
 {% if groups %}
 <ul class="item-list">
@@ -16,6 +18,10 @@
     {% endfor %}
 </ul>
 {% else %}
-<p class="muted">You have not joined any groups yet.</p>
+<p class="muted">{{ empty_text }}</p>
+{% endif %}
+
+{% if next_cursor %}
+<p class="pagination"><a href="/groups?cursor={{ next_cursor|urlencode }}">Next &raquo;</a></p>
 {% endif %}
 {% endblock %}

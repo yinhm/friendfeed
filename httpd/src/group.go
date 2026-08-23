@@ -44,21 +44,63 @@ func (s *Server) allUserGroups(ctx context.Context, userUUID string) ([]*pb.Prof
 	return groups, nil
 }
 
-func (s *Server) GroupsPageHandler(c *gin.Context) {
-	ctx, cancel := DefaultTimeoutContext()
-	defer cancel()
-	groups, err := s.allUserGroups(ctx, CurrentUserUuid(c))
-	if RequestError(c, err) {
-		return
-	}
+func prepareGroupPictures(groups []*pb.Profile) {
 	for _, group := range groups {
 		if group != nil {
 			group.Picture = PictureOrDefault(group.Picture)
 		}
 	}
+}
+
+func (s *Server) UserGroupsPageHandler(c *gin.Context) {
+	name := c.Params.ByName("name")
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+	feed, err := s.client.FetchFeed(ctx, &pb.FeedRequest{
+		Id: name, PageSize: 1, ViewerUuid: CurrentUserUuid(c),
+	})
+	if RequestError(c, err) {
+		return
+	}
+	if location, renamed := renamedFeedLocationWithSuffix(name, feed, "groups", c.Request.URL.RawQuery); renamed {
+		c.Redirect(http.StatusFound, location)
+		return
+	}
+	if feed.Uuid != CurrentUserUuid(c) {
+		c.HTML(http.StatusForbidden, "403.html", pongo2.Context{})
+		return
+	}
+	groups, err := s.allUserGroups(ctx, feed.Uuid)
+	if RequestError(c, err) {
+		return
+	}
+	prepareGroupPictures(groups)
 	s.HTML(c, http.StatusOK, "groups.html", pongo2.Context{
-		"title":  "My groups",
-		"groups": groups,
+		"title":       "My groups",
+		"heading":     "My groups",
+		"groups":      groups,
+		"show_create": true,
+		"empty_text":  "You have not joined any groups yet.",
+	})
+}
+
+func (s *Server) GroupDiscoveryPageHandler(c *gin.Context) {
+	ctx, cancel := DefaultTimeoutContext()
+	defer cancel()
+	response, err := s.client.ListGroups(ctx, &pb.ListGroupsRequest{
+		Limit: 30, Cursor: c.Query("cursor"),
+	})
+	if RequestError(c, err) {
+		return
+	}
+	prepareGroupPictures(response.Groups)
+	s.HTML(c, http.StatusOK, "groups.html", pongo2.Context{
+		"title":       "Groups",
+		"heading":     "Groups",
+		"groups":      response.Groups,
+		"next_cursor": response.NextCursor,
+		"show_create": CurrentUserId(c) != "",
+		"empty_text":  "No groups are available yet.",
 	})
 }
 

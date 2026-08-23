@@ -34,11 +34,14 @@ type fakeGroupClient struct {
 	createErr   error
 	createCalls int
 
-	groupsResp  *pb.ListUserGroupsResponse
-	groupPages  []*pb.ListUserGroupsResponse
-	groupsErr   error
-	groupsCalls int
-	groupsReq   *pb.ListUserGroupsRequest
+	groupsResp    *pb.ListUserGroupsResponse
+	groupPages    []*pb.ListUserGroupsResponse
+	groupsErr     error
+	groupsCalls   int
+	groupsReq     *pb.ListUserGroupsRequest
+	discoveryResp *pb.ListGroupsResponse
+	discoveryErr  error
+	discoveryReq  *pb.ListGroupsRequest
 
 	feedResp *pb.Feed
 	feedErr  error
@@ -104,6 +107,14 @@ func (f *fakeGroupClient) ListUserGroups(ctx context.Context, req *pb.ListUserGr
 	return f.groupsResp, f.groupsErr
 }
 
+func (f *fakeGroupClient) ListGroups(ctx context.Context, req *pb.ListGroupsRequest, opts ...grpc.CallOption) (*pb.ListGroupsResponse, error) {
+	f.discoveryReq = req
+	if f.discoveryResp == nil {
+		return &pb.ListGroupsResponse{}, f.discoveryErr
+	}
+	return f.discoveryResp, f.discoveryErr
+}
+
 func TestAllUserGroupsConsumesEveryCursorPageAndSorts(t *testing.T) {
 	client := &fakeGroupClient{groupPages: []*pb.ListUserGroupsResponse{
 		{Groups: []*pb.Profile{{Name: "Zulu"}}, NextCursor: "next"},
@@ -119,6 +130,56 @@ func TestAllUserGroupsConsumesEveryCursorPageAndSorts(t *testing.T) {
 	}
 	if client.groupsCalls != 2 || len(groups) != 2 || groups[0].Name != "alpha" || groups[1].Name != "Zulu" {
 		t.Fatalf("groups=%v calls=%d", groups, client.groupsCalls)
+	}
+}
+
+func TestGroupDiscoveryPageIsPublicAndForwardsCursor(t *testing.T) {
+	client := &fakeGroupClient{discoveryResp: &pb.ListGroupsResponse{
+		Groups: []*pb.Profile{{Id: "book-club", Name: "Book Club"}}, NextCursor: "next-page",
+	}}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.GET("/groups", s.GroupDiscoveryPageHandler)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/groups?cursor=current-page", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d; want 200", recorder.Code)
+	}
+	if client.discoveryReq == nil || client.discoveryReq.Cursor != "current-page" || client.discoveryReq.Limit != 30 {
+		t.Fatalf("ListGroups request=%+v", client.discoveryReq)
+	}
+	if client.groupsCalls != 0 {
+		t.Fatalf("ListUserGroups called %d times", client.groupsCalls)
+	}
+}
+
+func TestUserGroupsPageIsOwnerOnly(t *testing.T) {
+	client := &fakeGroupClient{
+		feedResp: &pb.Feed{Uuid: testGroupUserUUID, Id: "test-user"},
+		profile:  &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user", Type: "user"},
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.GET("/feed/:name/groups", s.UserGroupsPageHandler)
+	login := groupLoginCookie(t, router)
+	req := httptest.NewRequest(http.MethodGet, "/feed/test-user/groups", nil)
+	req.AddCookie(login)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d; want 200", recorder.Code)
+	}
+	if client.groupsReq == nil || client.groupsReq.UserUuid != testGroupUserUUID {
+		t.Fatalf("ListUserGroups request=%+v", client.groupsReq)
+	}
+
+	client.feedResp = &pb.Feed{Uuid: testGroupUUID, Id: "other-user"}
+	req = httptest.NewRequest(http.MethodGet, "/feed/other-user/groups", nil)
+	req.AddCookie(login)
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("other user status=%d; want 403", recorder.Code)
 	}
 }
 

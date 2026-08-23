@@ -191,6 +191,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	// TODO: httproute not support "/:name" to catch all
 	// see: gin #205
 	r.GET("/feed/:name", s.FeedHandler)
+	r.GET("/feed/:name/groups", server.LoginRequired(), s.UserGroupsPageHandler)
 	r.GET("/feed/:name/likes", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_LIKE, "likes"))
 	r.GET("/feed/:name/comments", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_COMMENT, "comments"))
 	r.GET("/e/:uuid", s.EntryHandler)
@@ -212,9 +213,9 @@ func Serve(s *server.Server, config *util.Config) error {
 		action.POST("/comment/delete", s.CommentDeleteHandler)
 	}
 
+	r.GET("/groups", s.GroupDiscoveryPageHandler)
 	groups := r.Group("/groups", server.LoginRequired())
 	{
-		groups.GET("", s.GroupsPageHandler)
 		groups.GET("/create", s.GroupCreatePageHandler)
 		groups.POST("/create", s.GroupCreateHandler)
 		groups.GET("/:name/settings", s.GroupSettingsPageHandler)

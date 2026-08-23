@@ -119,6 +119,10 @@ func TestRenamedInteractionFeedLocationPreservesSuffixAndQuery(t *testing.T) {
 	if !redirect || got != "/feed/new-name/comments?cursor=abc" {
 		t.Fatalf("renamedFeedLocationWithSuffix() = %q, %t", got, redirect)
 	}
+	got, redirect = renamedFeedLocationWithSuffix("old-name", &pb.Feed{Id: "new-name"}, "groups", "")
+	if !redirect || got != "/feed/new-name/groups" {
+		t.Fatalf("renamed groups location = %q, %t", got, redirect)
+	}
 }
 
 func TestInteractionFeedPassesOwnerIdentityToPrivateFeedLookup(t *testing.T) {

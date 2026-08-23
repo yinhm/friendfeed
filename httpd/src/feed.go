@@ -139,7 +139,7 @@ func renamedFeedLocationWithSuffix(requestedID string, feed *pb.Feed, suffix, ra
 		return "", false
 	}
 	location := "/feed/" + url.PathEscape(feed.Id)
-	if suffix == "likes" || suffix == "comments" {
+	if suffix == "likes" || suffix == "comments" || suffix == "groups" {
 		location += "/" + suffix
 	}
 	if rawQuery != "" {
