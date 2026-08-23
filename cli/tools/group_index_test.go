@@ -42,6 +42,11 @@ func TestRebuildGroupIndexDryRunAndApply(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 	require.Equal(t, time.Unix(0, 0).UTC(), activity)
+	stats, err = rebuildGroupIndex(db, "", false)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.profiles)
+	require.Equal(t, 1, stats.indexed)
+	require.Zero(t, stats.changed)
 
 	audit, err := auditStore(db)
 	require.NoError(t, err)

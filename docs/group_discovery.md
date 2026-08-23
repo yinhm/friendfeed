@@ -96,7 +96,7 @@ message ListGroupsResponse {
 
 ## rebuild、audit 与部署
 
-新增 `rebuild_group_directory`：
+新增 `rebuild_group_index`：
 
 - 支持 `-group <id>` 与 `-dry-run`；全量模式流式扫描 Profile，只保留有效、未删除的 Group。
 - 每个 Group 的活动时间取其最新 direct Entry；无 Entry 的历史 Group 使用 Unix epoch，新建 Group
@@ -113,7 +113,7 @@ message ListGroupsResponse {
 ## 实施步骤
 
 1. 固定 T119 编码，增加 Create/新 Entry/首次 Like/新 Comment 的目录维护及 model 测试。
-2. 实现有界 `rebuild_group_directory`、audit 与迁移测试。
+2. 实现有界 `rebuild_group_index`、audit 与迁移测试。
 3. 实现 `ListGroups`、cursor/孤儿/扫描预算测试。
 4. 将 `/groups` 改为公开发现页，把用户列表迁到 `/feed/:name/groups`，复用列表 UI 并更新导航。
 5. 更新 protobuf、数据库与部署文档，执行 Go/前端全量门禁。
