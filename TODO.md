@@ -3,7 +3,7 @@
 本清单只记录已经确认值得推进的产品与运维改进。按顺序执行；每项独立提交、独立验收，
 不得借机调整既有数据库、RPC 或持久化契约。
 
-## 1. Service 来源失败通知
+## 1. Service 来源失败通知（已完成：`44c003f`）
 
 闭合 Service → Task → Notification → UI 链路，让绑定者及时知道长期失效的外部来源。
 
@@ -16,12 +16,15 @@
 
 验收：来源长期失效时相关用户各收到一条可导航通知，短暂故障和重复任务不产生通知风暴。
 
-## 2. Public Group 发现页
+## 2. Public Group 发现页（设计完成，待实施）
 
-- 新增公开 Group 列表，不改变现有 `/groups`（My Groups）语义。
-- 使用已有可重建活跃度数据排序，展示名称、锁状态、简介、成员数和最近活跃时间。
-- Public Group 可直接 Join；Private Group 进入既有申请流程。
-- 分页必须有界，不在请求中扫描全部 Entry、Follow 或 Group。
+完整实现契约与验收矩阵见 [`docs/group_discovery.md`](docs/group_discovery.md)。
+
+- 新增公开 `/groups`，现有用户 Group 列表迁到 `/feed/:id/groups`。
+- 使用 `TableGroupIndex = 119` 按最近创建、发帖和互动活动排序，避免每次扫描 Profile
+  筛选 Group。
+- 列表复用现有用户 Group 页面样式，只展示 metadata；关系状态与操作统一进入 Group Feed 处理。
+- 分页和 rebuild 必须流式有界；请求路径不扫描 Profile、Entry、Follow 或 Group 关系。
 
 验收：新用户可以发现并加入活跃 Public Group，Private Group 不泄露内容。
 
@@ -71,4 +74,3 @@
 - 通用消息中间件、多进程 worker 或 celebrity fanout；
 - mention、comment thread subscriber、email/Web Push；
 - 纯 CSR 化和主题系统扩张。
-

@@ -3,7 +3,9 @@
 本文定义 sidebar 中独立的 Group 导航区域：创建 Group 的入口页面，以及当前用户
 已加入的 Group 列表（自己创建的 Group 也在此列表中，因为 `CreateGroup` 会写入
 creator 的 Follow 边）。领域规则、权限与 mutation 契约见 `docs/group.md`；本文
-只定义读取接口与 UI。sidebar 是展示层，不是授权边界。
+只定义读取接口与 UI。sidebar 是展示层，不是授权边界。全站 Group 发现页由
+`TableGroupIndex = 119` 提供全局活动顺序，见 `docs/group_discovery.md`；不得复用本文件的
+每用户分数 JSON。
 
 ## 数据来源：ListUserGroups
 
@@ -91,7 +93,7 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
             {% endfor %}
         </ul>
         {% endif %}
-        <div><a href="/groups">All groups&hellip;</a></div>
+        <div><a href="/feed/{{ current_user.Id }}/groups">All groups&hellip;</a></div>
     </div>
 </div>
 {% endif %}
@@ -102,11 +104,12 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
 - 仅登录用户可见该 section；未登录完全不渲染。
 - 空状态：没有任何 Group 时 section 仍渲染，仅含标题行的 "+" 创建入口与
   "All groups…" 链接，作为功能引导；不额外显示占位文案。
-- sidebar 最多显示 10 个 Group，并始终显示 "All groups…" 指向 `/groups`。
-  主导航在 "My feed" 下也提供 `/groups` 入口。完整列表页逐页消费
+- sidebar 最多显示 10 个 Group，并始终显示 "All groups…" 指向
+  `/feed/:current-user-id/groups`。主导航在 "My feed" 下也提供该用户列表入口，并另以 `/groups`
+  进入公开发现页。完整列表页逐页消费
   `ListUserGroups.next_cursor` 直到结束，不受 sidebar 单页退化边界影响。
 - private Group 对成员正常显示（列表来自用户自己的 Follow 边，天然只含自己
-  可见的内容），名称后加锁形标记（文本 `(private)` 即可，不引入图标资源）。
+  可见的内容），名称后使用现有 lock icon，不显示 `private` 文本。
 - 展示用 `Name`，`title` 属性带 `Id`；链接沿用既有 `/feed/:name` 路由。
 - 移动端（<=600px）沿用现有 `.menu` 的 `<details>` 折叠行为，无特殊处理。
 - 样式使用 `docs/theme.md` 的 token，不新增裸颜色值。
@@ -139,7 +142,7 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
    （此阶段 create 链接尚未渲染）。
 3. `CreateGroup` RPC 落地后（`docs/group.md` 实施顺序第 2 步），新增
    `/groups/create` 页面并在 sidebar 显示 create 链接。
-4. `/groups` 完整列表页逐页读取并展示当前用户加入的全部 Group。
+4. `/feed/:name/groups` 完整列表页逐页读取并展示当前用户加入的全部 Group；仅本人可访问。
 
 验收至少覆盖：未登录不渲染 section 也不发起 RPC；加入/退出与互动计分在下次渲染
 立即反映（无缓存）；超过 10 个 Group 时截断并链接完整列表；

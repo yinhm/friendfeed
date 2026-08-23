@@ -14,7 +14,9 @@
 
 ## 协议、数据与服务模型
 
-- **股票存储**：`GetStockList`/`GetStock` 当前读取整表 gob。按 symbol 建索引会改变 schema，需先确定新数据模型和迁移方式。
+- **Stock 退役**：Stock 功能即将退役，不再为其设计新 schema。历史 stock/system Feed 可能以
+  `Type=group` 存在，因此第一版 Group 发现页可能展示这些记录；退役时统一删除或改正其 Profile
+  类型和派生目录，不在 `ListGroups` 中长期维护特判。
 - **Twitter 写入模型**：先决定 `fetch_user` 是否继续维护 legacy Entry feed，还是迁往 Tweet/PostTweet，再考虑复用转换代码。
 
 ## 数据库性能与扩展
