@@ -154,3 +154,16 @@ func TestPublicTimelineFailsClosedForUnresolvableEntryTarget(t *testing.T) {
 
 	require.NotContains(t, publicFeedEntryIDs(fetchPublicFeed(t, srv, nil)), entry.Id)
 }
+
+func TestPostEntryRejectsAnotherUserFeed(t *testing.T) {
+	srv := newServiceServer(t)
+	author := createServiceUser(t, srv, "cross-post-author")
+	target := createServiceUser(t, srv, "cross-post-target")
+
+	_, err := srv.PostEntry(context.Background(), &pb.Entry{
+		Id: uuid.Must(uuid.NewV4()).String(), ProfileUuid: author.String(),
+		FeedUuid: target.String(), Date: time.Now().UTC().Format(time.RFC3339),
+		Body: "must not be written",
+	})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}

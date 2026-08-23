@@ -1127,7 +1127,7 @@ func (s *ApiServer) authorizeEntryPost(entry *pb.Entry, authorUUID uuid.UUID) er
 		return nil
 	}
 	if target.Type != "group" {
-		return nil
+		return status.Error(codes.PermissionDenied, "actor may not post to another user feed")
 	}
 	if err := model.CheckGroupAction(s.mdb, feedUUID, authorUUID, model.GroupActionPost); err != nil {
 		return status.Errorf(codes.PermissionDenied, "actor may not post to this Group: %v", err)
@@ -1244,6 +1244,9 @@ func (s *ApiServer) LikeEntry(ctx context.Context, req *pb.LikeRequest) (*pb.Ent
 	if err != nil || profile == nil {
 		return nil, err
 	}
+	if err := s.requireEntryReadable(entry, profile.Uuid); err != nil {
+		return nil, err
+	}
 
 	if req.Like {
 		created, checkErr := s.likeCreated(entry, profile)
@@ -1302,6 +1305,9 @@ func (s *ApiServer) CommentEntry(ctx context.Context, req *pb.CommentRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireEntryReadable(entry, profile.Uuid); err != nil {
+		return nil, err
+	}
 
 	created, err := s.commentCreated(entry, req.Comment)
 	if err != nil {
@@ -1337,8 +1343,23 @@ func (s *ApiServer) DeleteComment(ctx context.Context, req *pb.CommentDeleteRequ
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireEntryReadable(entry, profile.Uuid); err != nil {
+		return nil, err
+	}
 
 	return model.DeleteComment(s.rdb, profile, entry, req.Comment)
+}
+
+func (s *ApiServer) requireEntryReadable(entry *pb.Entry, viewerRaw string) error {
+	visibility, err := newEntryVisibilityResolver(s, viewerRaw)
+	if err != nil {
+		return err
+	}
+	decision, err := visibility.entry(entry)
+	if err != nil {
+		return err
+	}
+	return visibility.readError(decision, "entry")
 }
 
 func (s *ApiServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Feed, error) {

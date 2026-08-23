@@ -96,6 +96,10 @@ func (s *ApiServer) FetchInteractionFeed(ctx context.Context, req *pb.Interactio
 	items := make([]*pb.InteractionItem, 0, pageSize+1)
 	keys := make([]store.Key, 0, pageSize+1)
 	resolver := newProfileResolver(s.mdb)
+	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	if err != nil {
+		return nil, err
+	}
 	scanned := 0
 	var lastScanned store.Key
 	for iter.Valid() && len(items) <= pageSize && scanned < scanBudget {
@@ -114,6 +118,14 @@ func (s *ApiServer) FetchInteractionFeed(ctx context.Context, req *pb.Interactio
 		}
 		if getErr != nil {
 			return nil, getErr
+		}
+		decision, visErr := visibility.entry(entry)
+		if visErr != nil {
+			return nil, visErr
+		}
+		if decision != visibilityAllowed {
+			iter.Next()
+			continue
 		}
 		if err := model.LoadEntryInteractions(s.rdb, entry); err != nil {
 			return nil, err

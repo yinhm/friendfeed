@@ -1075,6 +1075,64 @@ func TestHomeTimelineCannotBeReadAsAnotherViewer(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
+func TestPrivateGroupEntryMutationsRequireReadAccess(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "private-author")
+	outsider := createServiceUser(t, srv, "private-outsider")
+	group := createTestGroup(t, srv, creator, "private-mutations")
+	entry, err := postGroupEntry(t, srv, creator, group)
+	require.NoError(t, err)
+	profile, err := model.GetProfileFromUuid(srv.rdb, group)
+	require.NoError(t, err)
+	profile.Private = true
+	_, err = model.Profile.Put(srv.rdb, group.Bytes(), profile)
+	require.NoError(t, err)
+
+	_, err = srv.LikeEntry(context.Background(), &pb.LikeRequest{
+		Entry: entry.Id, User: outsider.String(), Like: true,
+	})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+	_, err = srv.CommentEntry(context.Background(), &pb.CommentRequest{
+		Entry: entry.Id, UserUuid: outsider.String(),
+		Comment: &pb.Comment{Id: uuid.Must(uuid.NewV4()).String(), Body: "hidden"},
+	})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	stored, err := model.GetEntry(srv.rdb, entry.Id)
+	require.NoError(t, err)
+	require.NoError(t, model.LoadEntryInteractions(srv.rdb, stored))
+	require.Empty(t, stored.Likes)
+	require.Empty(t, stored.Comments)
+}
+
+func TestInteractionFeedFiltersEntriesAfterPrivateAccessIsLost(t *testing.T) {
+	srv := newServiceServer(t)
+	creator := createServiceUser(t, srv, "interaction-author")
+	viewer := createServiceUser(t, srv, "interaction-viewer")
+	group := createTestGroup(t, srv, creator, "interaction-private")
+	entry, err := postGroupEntry(t, srv, creator, group)
+	require.NoError(t, err)
+	require.NoError(t, model.JoinGroup(srv.rdb, group, viewer))
+	_, err = srv.LikeEntry(context.Background(), &pb.LikeRequest{
+		Entry: entry.Id, User: viewer.String(), Like: true,
+	})
+	require.NoError(t, err)
+
+	profile, err := model.GetProfileFromUuid(srv.rdb, group)
+	require.NoError(t, err)
+	profile.Private = true
+	_, err = model.Profile.Put(srv.rdb, group.Bytes(), profile)
+	require.NoError(t, err)
+	require.NoError(t, model.LeaveGroup(srv.rdb, group, viewer))
+
+	feed, err := srv.FetchInteractionFeed(context.Background(), &pb.InteractionFeedRequest{
+		ProfileUuid: viewer.String(), ViewerUuid: viewer.String(),
+		Kind: pb.InteractionKind_INTERACTION_KIND_LIKE,
+	})
+	require.NoError(t, err)
+	require.Empty(t, feed.Items)
+}
+
 // docs/group.md: private-Group content must not leak through Search results.
 func TestSearchFiltersPrivateGroupEntries(t *testing.T) {
 	srv := newServiceServer(t)
