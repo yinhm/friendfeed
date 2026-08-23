@@ -25,6 +25,7 @@ var fromPath string
 var toPath string
 var command string
 var timelineUser string
+var groupID string
 var timelineMaxLimit int
 var timelinePublic bool
 var debugTable string
@@ -48,6 +49,7 @@ func init() {
 	flag.StringVar(&toPath, "to", "", "to directory")
 	flag.StringVar(&command, "c", "", "command to do")
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
+	flag.StringVar(&groupID, "group", "", "limit a Group-specific command to one Group ID")
 	flag.IntVar(&timelineMaxLimit, "max-limit", 0, "command-specific record/feed limit (0 uses the command default or unlimited)")
 	flag.BoolVar(&timelinePublic, "public", false, "rebuild the shared public timeline instead of per-user Home timelines")
 	flag.StringVar(&debugTable, "table", "", "debug: dump decoded records of the given table (oauth, profile)")
@@ -1263,6 +1265,7 @@ func main() {
 		(command == "backfill_group_admins" && dryRun) ||
 		(command == "rebuild_interaction_timelines" && dryRun) ||
 		(command == "rebuild_group_activity" && dryRun) ||
+		(command == "rebuild_group_index" && dryRun) ||
 		(command == "fix_default_picture" && dryRun) ||
 		(command == "purge_public_cache" && dryRun)
 	if command == "compact_timelines" && dryRun {
@@ -1322,6 +1325,13 @@ func main() {
 		}
 		log.Printf("Group activity rebuild: users=%d groups=%d changed=%d dry-run=%t",
 			stats.users, stats.groups, stats.changed, dryRun)
+	case "rebuild_group_index":
+		stats, err := rebuildGroupIndex(ndb, groupID, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Group index rebuild: profiles=%d indexed=%d changed=%d stale=%d dry-run=%t",
+			stats.profiles, stats.indexed, stats.changed, stats.stale, dryRun)
 	case "fix_default_picture":
 		stats, err := fixDefaultPictures(ndb, timelineUser, dryRun)
 		if err != nil {

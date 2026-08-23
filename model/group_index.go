@@ -9,7 +9,9 @@ import (
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 const groupIndexKeySize = 4 + 8 + uuid.Size
@@ -90,4 +92,67 @@ func StageCreateGroupIndex(batch *pebble.Batch, group uuid.UUID, createdAt time.
 		return err
 	}
 	return batch.Set(key, nil, nil)
+}
+
+// GroupIndexActivity scans the small global directory for one Group. count is
+// returned so audit/rebuild can detect duplicate positions without retaining
+// the whole directory in memory.
+func GroupIndexActivity(db *store.Store, group uuid.UUID) (activity time.Time, count int, err error) {
+	iter, err := db.NewIterator(GroupIndex.Prefix)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	defer iter.Close()
+	for iter.First(); iter.Valid(); iter.Next() {
+		indexedGroup, at, parseErr := ParseGroupIndexKey(iter.UnsafeKey())
+		if parseErr != nil {
+			return time.Time{}, 0, parseErr
+		}
+		if indexedGroup == group {
+			if count == 0 || at.After(activity) {
+				activity = at
+			}
+			count++
+		}
+	}
+	return activity, count, iter.Error()
+}
+
+// LatestGroupEntryActivity returns the newest valid direct Entry indexed for
+// a Group. Orphan index rows are skipped; malformed live rows fail loudly.
+func LatestGroupEntryActivity(db *store.Store, group uuid.UUID) (time.Time, bool, error) {
+	iter, err := db.NewIterator(NewKeyFrom(EntryIndex.Prefix, group.Bytes()))
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	defer iter.Close()
+	for iter.First(); iter.Valid(); iter.Next() {
+		owner, entryID, _, err := ParseEntryIndexKey(iter.UnsafeKey())
+		if err != nil {
+			return time.Time{}, false, err
+		}
+		if owner != group {
+			return time.Time{}, false, fmt.Errorf("EntryIndex owner mismatch for Group %s", group)
+		}
+		raw, err := db.Get(Entry.PrefixAppend(entryID.Bytes()))
+		if errors.Is(err, store.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return time.Time{}, false, err
+		}
+		entry := new(pb.Entry)
+		if err := proto.Unmarshal(raw, entry); err != nil {
+			return time.Time{}, false, err
+		}
+		at, err := time.Parse(time.RFC3339, entry.Date)
+		if err != nil {
+			return time.Time{}, false, fmt.Errorf("Entry %s date: %w", entry.Id, err)
+		}
+		return at.UTC().Truncate(time.Millisecond), true, nil
+	}
+	if err := iter.Error(); err != nil {
+		return time.Time{}, false, err
+	}
+	return time.Time{}, false, nil
 }

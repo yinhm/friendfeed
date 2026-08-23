@@ -63,6 +63,11 @@ type storeAuditStats struct {
 	adminMissingMember           int
 	groupsWithoutAdmins          int
 	deletedGroupResiduals        int
+	groupIndexRows               int
+	invalidGroupIndexRows        int
+	orphanGroupIndexRows         int
+	missingGroupIndexRows        int
+	duplicateGroupIndexRows      int
 	notifications                int
 	notificationInboxes          int
 	notificationStates           int
@@ -615,6 +620,15 @@ func auditGroups(db *store.Store, stats *storeAuditStats) error {
 		}
 		adminPrefix := model.NewKeyFrom(model.GroupAdmin.Prefix, group.Bytes())
 		if !profile.Deleted {
+			_, indexCount, err := model.GroupIndexActivity(db, group)
+			if err != nil {
+				return err
+			}
+			if indexCount == 0 {
+				stats.missingGroupIndexRows++
+			} else if indexCount > 1 {
+				stats.duplicateGroupIndexRows += indexCount - 1
+			}
 			hasAdmin, err := prefixHasAny(db, adminPrefix)
 			if err != nil {
 				return err
@@ -643,7 +657,7 @@ func auditGroups(db *store.Store, stats *storeAuditStats) error {
 		return err
 	}
 
-	return model.GroupAdmin.Iter(db, func(key, _ []byte) error {
+	if err := model.GroupAdmin.Iter(db, func(key, _ []byte) error {
 		stats.groupAdmins++
 		if len(key) != model.GroupAdmin.Prefix.Len()+2*uuid.Size {
 			stats.invalidGroupAdmins++
@@ -677,6 +691,29 @@ func auditGroups(db *store.Store, stats *storeAuditStats) error {
 		}
 		if !follow || !follower {
 			stats.adminMissingMember++
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return model.GroupIndex.Iter(db, func(key, _ []byte) error {
+		stats.groupIndexRows++
+		group, _, err := model.ParseGroupIndexKey(key)
+		if err != nil {
+			stats.invalidGroupIndexRows++
+			return nil
+		}
+		profile, err := model.GetProfileFromUuid(db, group)
+		if errors.Is(err, model.ErrNotFound) || errors.Is(err, model.ErrProfileDeleted) {
+			stats.orphanGroupIndexRows++
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if profile.Type != "group" {
+			stats.orphanGroupIndexRows++
 		}
 		return nil
 	})
@@ -867,6 +904,9 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "groups=%d group_admins=%d invalid_group_admins=%d admin_missing_membership=%d groups_without_admins=%d deleted_group_residuals=%d\n",
 		stats.groups, stats.groupAdmins, stats.invalidGroupAdmins, stats.adminMissingMember,
 		stats.groupsWithoutAdmins, stats.deletedGroupResiduals)
+	fmt.Fprintf(out, "group_index=%d invalid_group_index=%d orphan_group_index=%d missing_group_index=%d duplicate_group_index=%d\n",
+		stats.groupIndexRows, stats.invalidGroupIndexRows, stats.orphanGroupIndexRows,
+		stats.missingGroupIndexRows, stats.duplicateGroupIndexRows)
 	fmt.Fprintf(out, "notifications=%d notification_inbox=%d notification_states=%d invalid_notifications=%d orphan_recipients=%d missing_inbox=%d orphan_inbox=%d inbox_mismatch=%d state_mismatch=%d over_max=%d over_trigger=%d\n",
 		stats.notifications, stats.notificationInboxes, stats.notificationStates, stats.invalidNotifications,
 		stats.orphanNotificationRecipients, stats.missingNotificationInbox, stats.orphanNotificationInbox,

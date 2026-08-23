@@ -349,6 +349,23 @@ actor UUID、缺失日期的 archive 互动只计入 `unresolved_actor` / `missi
 sudo -u <ffdb-user> ./tools -to new_db -c rebuild_search_index
 ```
 
+## Group 发现索引重建
+
+表 119 是可重建的 Group 活动排序索引。首次上线先对一个 Group 验证，再执行全量重建：
+
+```bash
+./tools -to <db-dir> -c rebuild_group_index -group <group-id> -dry-run
+./tools -to <db-dir> -c rebuild_group_index -group <group-id>
+./tools -to <db-dir> -c rebuild_group_index -dry-run
+./tools -to <db-dir> -c rebuild_group_index
+./tools -to <db-dir> -c audit_store
+```
+
+全量 apply 会先范围删除 T119，再流式扫描 Profile；每个有效 Group 只读取其最新 direct Entry，
+无历史 Entry 的 Group 使用 Unix epoch。运行时 Like/Comment activity 无法由 direct EntryIndex
+完整还原，重建后会回到最新发帖位置，之后的新互动会再次移动它。命令必须停服执行；中途中断时
+目录可能不完整，直接重跑即可。
+
 ## Task Queue / Service 聚合上线
 
 表 111-113、203-207 都是新增表，无历史数据迁移或 rebuild。部署前停止 ffdb 并备份
