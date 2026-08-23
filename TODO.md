@@ -16,7 +16,7 @@
 
 验收：来源长期失效时相关用户各收到一条可导航通知，短暂故障和重复任务不产生通知风暴。
 
-## 2. Public Group 发现页（设计完成，待实施）
+## 2. Public Group 发现页（已完成）
 
 完整实现契约与验收矩阵见 [`docs/group_discovery.md`](docs/group_discovery.md)。
 
