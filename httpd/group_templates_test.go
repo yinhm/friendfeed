@@ -60,6 +60,8 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 		`value="Book Club"`,
 		`class="error-banner" role="alert">boom`,
 		`class="legacy-button danger"`,
+		`popovertarget="delete-group-confirmation"`,
+		`>Confirm delete</button>`,
 	} {
 		if !strings.Contains(settings, want) {
 			t.Fatalf("group_settings.html missing %q", want)

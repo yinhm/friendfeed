@@ -11,9 +11,17 @@
 <div class="danger-zone">
     <h3>Delete this group</h3>
     <p class="hint">The group is soft-deleted: it immediately blocks joins, posting and new deliveries. Historical content is cleaned up in the background.</p>
-    <form method="post" action="/groups/{{ group.Id }}/delete">
-        <button type="submit" class="legacy-button danger">Delete group</button>
-    </form>
+    <button type="button" class="legacy-button danger" popovertarget="delete-group-confirmation">Delete group</button>
+    <div id="delete-group-confirmation" class="delete-group-confirmation" popover>
+        <p><strong>Delete {{ group.Name|escape }}?</strong></p>
+        <p class="hint">This action immediately disables the group and cannot be undone here.</p>
+        <div class="confirm-delete">
+            <form method="post" action="/groups/{{ group.Id }}/delete">
+                <button type="submit" class="yes">Confirm delete</button>
+            </form>
+            <button type="button" class="cancel" popovertarget="delete-group-confirmation" popovertargetaction="hide">Cancel</button>
+        </div>
+    </div>
 </div>
 </div>
 {% endblock %}

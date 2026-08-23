@@ -721,6 +721,34 @@ div.content pre {
     border-top: 1px solid var(--ff-hairline);
 }
 
+.delete-group-confirmation {
+    position: fixed;
+    inset: 0;
+    width: min(28em, calc(100vw - 32px));
+    max-width: 28em;
+    height: fit-content;
+    margin: auto;
+    box-sizing: border-box;
+    padding: 16px;
+    border: 1px solid var(--ff-danger-border);
+    border-radius: 5px;
+    background: var(--ff-bg);
+    color: var(--ff-fg);
+    box-shadow: 0 8px 30px rgb(0 0 0 / 20%);
+}
+
+.delete-group-confirmation::backdrop {
+    background: rgb(0 0 0 / 22%);
+}
+
+.delete-group-confirmation p:first-child {
+    margin-top: 0;
+}
+
+.delete-group-confirmation .confirm-delete {
+    margin-top: 14px;
+}
+
 .muted {
     color: var(--ff-muted);
 }
