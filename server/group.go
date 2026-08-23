@@ -13,6 +13,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
 	taskqueue "github.com/yinhm/friendfeed/task"
+	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -457,6 +458,88 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, request *pb.UpdateGroupRequ
 // ListUserGroups/ListGroupMembers call may scan, per
 // docs/group_navigation.md's bounded-iteration contract.
 const maxMembershipEdgeScan = 1000
+
+const maxGroupIndexScan = 300
+
+// ListGroups returns public Group metadata in GroupIndex activity order. The
+// index is the only scan source; Profile point reads validate each derived row
+// without calculating viewer-specific relationship state.
+func (s *ApiServer) ListGroups(ctx context.Context, request *pb.ListGroupsRequest) (*pb.ListGroupsResponse, error) {
+	if request == nil {
+		request = &pb.ListGroupsRequest{}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, taskRPCError(err)
+	}
+	limit := int(request.Limit)
+	if limit <= 0 {
+		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	scanLimit := max(limit*3, 100)
+	if scanLimit > maxGroupIndexScan {
+		scanLimit = maxGroupIndexScan
+	}
+
+	var cursorKey store.Key
+	if request.Cursor != "" {
+		position, err := util.Base58Decode(request.Cursor)
+		if err != nil || len(position) != 8+uuid.Size {
+			return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("invalid cursor")))
+		}
+		cursorKey = model.NewKeyFrom(model.GroupIndex.Prefix, position)
+		if _, _, err := model.ParseGroupIndexKey(cursorKey); err != nil {
+			return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, errors.New("invalid cursor")))
+		}
+	}
+
+	iter, err := s.rdb.NewIterator(model.GroupIndex.Prefix)
+	if err != nil {
+		return nil, taskRPCError(err)
+	}
+	defer iter.Close()
+	if cursorKey == nil {
+		iter.First()
+	} else {
+		iter.SeekGE(cursorKey)
+		if iter.Valid() && bytes.Equal(iter.UnsafeKey(), cursorKey) {
+			iter.Next()
+		}
+	}
+
+	groups := make([]*pb.Profile, 0, limit)
+	var lastPosition []byte
+	scanned := 0
+	for iter.Valid() && scanned < scanLimit && len(groups) < limit {
+		if err := ctx.Err(); err != nil {
+			return nil, taskRPCError(err)
+		}
+		key := iter.UnsafeKey()
+		group, _, err := model.ParseGroupIndexKey(key)
+		if err != nil {
+			return nil, taskRPCError(err)
+		}
+		lastPosition = append(lastPosition[:0], key[len(model.GroupIndex.Prefix):]...)
+		scanned++
+		profile, err := model.GetProfileFromUuid(s.rdb, group)
+		if err == nil && profile.Type == "group" && !profile.Deleted {
+			groups = append(groups, profile)
+		} else if err != nil && !errors.Is(err, model.ErrNotFound) && !errors.Is(err, model.ErrProfileDeleted) {
+			return nil, taskRPCError(err)
+		}
+		iter.Next()
+	}
+	if err := iter.Error(); err != nil {
+		return nil, taskRPCError(err)
+	}
+	response := &pb.ListGroupsResponse{Groups: groups}
+	if iter.Valid() && len(lastPosition) > 0 {
+		response.NextCursor = util.Base58Encode(lastPosition)
+	}
+	return response, nil
+}
 
 // ListUserGroups returns Groups the user has joined, filtered from their
 // Follow edges. Iteration is streaming and bounded: limit counts returned

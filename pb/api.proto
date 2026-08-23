@@ -72,6 +72,7 @@ service Api {
   rpc GetGroup(GetGroupRequest) returns (GroupView) {}
   rpc ListGroupMembers(ListGroupMembersRequest) returns (ListGroupMembersResponse) {}
   rpc ListUserGroups(ListUserGroupsRequest) returns (ListUserGroupsResponse) {}
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse) {}
 
   rpc RequestFollow(RequestFollowRequest) returns (RequestFollowResponse) {}
   rpc CancelFollowRequest(RequestFollowRequest) returns (google.protobuf.Empty) {}
@@ -443,6 +444,18 @@ message ListUserGroupsRequest {
 message ListUserGroupsResponse {
   repeated Profile groups = 1;
   string next_cursor = 2; // Empty when iteration is complete
+}
+
+// ListGroups reads the global activity-ordered discovery index. It is public
+// metadata and deliberately carries no viewer or relationship state.
+message ListGroupsRequest {
+  int32 limit = 1;   // default 30, cap 100
+  string cursor = 2; // opaque GroupIndex position
+}
+
+message ListGroupsResponse {
+  repeated Profile groups = 1;
+  string next_cursor = 2;
 }
 
 // DeleteGroupRequest soft-deletes a Group. actor_uuid must be a Group admin
