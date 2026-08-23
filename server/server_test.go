@@ -1422,13 +1422,10 @@ func (s *RpcTestSuite) TestPostEntryCanonicalizesTo() {
 	_, err = s.srv.PostEntry(ctx, newEntry(uuid.Must(uuid.NewV4()).String(), nil))
 	assert.NotNil(s.T(), err)
 
-	// user target: any canonical feed type yields a canonical snapshot
-	entry, err = s.srv.PostEntry(ctx, newEntry(other.Uuid, nil))
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), 1, len(entry.To))
-	assert.Equal(s.T(), other.Uuid, entry.To[0].Uuid)
-	assert.Equal(s.T(), other.Id, entry.To[0].Id)
-	assert.Equal(s.T(), "user", entry.To[0].Type)
+	// A user cannot post into another user's Feed. Target canonicalization does
+	// not grant cross-user write permission.
+	_, err = s.srv.PostEntry(ctx, newEntry(other.Uuid, nil))
+	assert.Equal(s.T(), codes.PermissionDenied, status.Code(err))
 
 	// special target
 	special, err := s.srv.PostFeedinfo(ctx, &pb.Feedinfo{
@@ -1438,11 +1435,8 @@ func (s *RpcTestSuite) TestPostEntryCanonicalizesTo() {
 		Type: "special",
 	})
 	assert.Nil(s.T(), err)
-	entry, err = s.srv.PostEntry(ctx, newEntry(special.Uuid, nil))
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), 1, len(entry.To))
-	assert.Equal(s.T(), "specialfeed", entry.To[0].Id)
-	assert.Equal(s.T(), "special", entry.To[0].Type)
+	_, err = s.srv.PostEntry(ctx, newEntry(special.Uuid, nil))
+	assert.Equal(s.T(), codes.PermissionDenied, status.Code(err))
 }
 
 func (s *RpcTestSuite) TestKLines() {

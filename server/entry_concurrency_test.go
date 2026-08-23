@@ -25,6 +25,9 @@ func TestConcurrentLikesDoNotLoseUpdates(t *testing.T) {
 	}
 
 	authorUUID := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: authorUUID.String(), Id: "author", Name: "Author", Type: "user",
+	}))
 	entryUUID := uuid.Must(uuid.NewV4())
 	entry := &pb.Entry{
 		Id:          entryUUID.String(),
@@ -38,7 +41,7 @@ func TestConcurrentLikesDoNotLoseUpdates(t *testing.T) {
 	users := []uuid.UUID{uuid.Must(uuid.NewV4()), uuid.Must(uuid.NewV4())}
 	for i, userUUID := range users {
 		require.NoError(t, model.UpdateProfile(db, &pb.Profile{
-			Uuid: userUUID.String(), Id: "liker" + string(rune('a'+i)), Name: "Liker",
+			Uuid: userUUID.String(), Id: "liker" + string(rune('a'+i)), Name: "Liker", Type: "user",
 		}))
 	}
 

@@ -5,12 +5,10 @@
 当前 loopback gRPC 可信边界；`viewer_uuid` 仍是 ffweb 传入的过渡身份，不把它描述成可抵御
 恶意本机调用方的认证 principal。
 
-## 当前实现与缺口
+## 已修复的历史缺口
 
-现有实现已经覆盖了主要 private 路径：Feed legacy/cursor、Entry permalink、Home stale 行、
-Public 和 Search 都有不同程度的 viewer-aware 检查，private user Feed 与 private Group 均按
-owner/follower/super 规则读取。但这些判断分散在 `server/group.go`、`server/server.go` 和
-`server/interaction_feed.go`，且边界并不一致。
+下表记录统一 resolver 落地前的缺口，防止后续重构重新引入同类旁路。当前实现已经由
+`server/visibility.go` 统一这些判断。
 
 | 入口 | 当前行为 | 缺口 |
 |---|---|---|
@@ -209,18 +207,14 @@ Like/Comment timeline 是派生索引；暂时不可见的行不删除，未来�
 验收标准：同一 Entry 在 Feed、作者 Feed、permalink、Home、Public、Search 和 Interaction 中对
 同一 viewer 得到一致允许/拒绝结果；任何 Entry-returning mutation 也不能成为 private 内容旁路。
 
-## 实施顺序
+## 已完成的实施步骤
 
-1. 增加 resolver characterization/权限矩阵测试，先证明作者 Feed 泄露、Home 越权和 target
+1. ✅ 增加 resolver characterization/权限矩阵测试，先证明作者 Feed 泄露、Home 越权和 target
    fail-open；
-2. 实现 viewer/target resolver，严格区分 denied、missing/deleted 与存储错误；
-3. 接入 legacy/cursor Feed、permalink、Home、Public 和 Search；
-4. 修正过滤后的 Feed 分页预算与 cursor 锚点；
-5. 接入 Interaction Feed，继续保持 owner-only；
-6. 接入 Like/Comment mutation；
-7. 单独收紧向其他 user Feed 投稿；
-8. 补 HTTP 状态测试，更新 `docs/feed.md`、`docs/group.md` 与 `TODO.md`，全量验证后关闭任务。
-
-`docs/feed.md` 当前仍写着 private Profile Feed 为 owner-only、permalink 无 viewer-aware 检查，已经
-与现状不符；`docs/group.md` 的“private 读取已闭环”则忽略了作者 Profile Feed 和 Interaction
-Feed。两份文档必须随实现同步修正，不能仅修改代码。
+2. ✅ 实现 viewer/target resolver，严格区分 denied、missing/deleted 与存储错误；
+3. ✅ 接入 legacy/cursor Feed、permalink、Home、Public 和 Search；
+4. ✅ 修正过滤后的 Feed 分页预算与 cursor 锚点；
+5. ✅ 接入 Interaction Feed，继续保持 owner-only；
+6. ✅ 接入 Like/Comment mutation；
+7. ✅ 单独收紧向其他 user Feed 投稿；
+8. ✅ 补 HTTP 状态测试并同步 `docs/feed.md`、`docs/group.md` 与 `TODO.md`。

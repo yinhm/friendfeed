@@ -42,7 +42,7 @@
 
 验收：在线 Feed 页面无需整页刷新即可看到新通知图标；普通页面加载保持相同的有/无语义。
 
-## 5. 可见性与权限收口
+## 5. 可见性与权限收口（已完成）
 
 - 将 Feed、Entry permalink、Search、Home 和 Interaction feed 的 viewer-aware 判断收敛到
   ffdb 的单一权限语义，避免各路径独立猜测 private 规则。

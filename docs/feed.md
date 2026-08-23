@@ -41,22 +41,19 @@ GET /feed/:name/comments
 只在本人 Home/Profile 导航中提供 “Likes” 与 “Comments” 链接。第一版不提供其他用户入口、
 跨用户聚合、搜索、计数排行或 RSS 输出。
 
-## 第一版授权边界
+## 互动页授权边界
 
-当前仓库没有可复用的统一 Entry 可见性函数：私有 Profile Feed 实际为 owner-only，permalink
-也没有 viewer-aware 权限检查。第一版不得在互动页自行发明 follower/private 规则：
+互动页保持 owner-only，并复用 `docs/perm.md` 定义的统一 Entry 可见性判断：
 
 1. 两个 Web route 必须经过登录中间件；
 2. URL 解析出目标 Profile UUID 后，要求当前 session 的稳定 UUID 与目标 UUID 完全相同；
 3. ffdb RPC 再执行同一条 `viewer_uuid == profile_uuid` 校验，不能只相信 httpd 隐藏链接；
 4. 不相同返回 403；不存在、已删除或非 user Profile 返回 404；
-5. 通过本人校验后，第一版返回其互动对应的现存 Entry，不另行推断目标 Feed 的 follower/private
-   权限；该数据不会提供给第三方。已删除或缺失 Entry 视为派生索引孤儿，读路径跳过并安排
+5. 通过本人校验后，仍逐条检查用户当前能否读取 Entry target；退出 private Group 或失去
+   Follow 边后立即隐藏对应 Entry。已删除或缺失 Entry 视为派生索引孤儿，读路径跳过并安排
    有界懒删，audit/rebuild 最终收敛。
 
-因此第一版只解决“查看自己的互动历史”，不承诺其他用户可见。未来开放外部查看前，必须先
-统一 `/feed/:name`、entry permalink、Group/private Feed 的 viewer-aware 可见性函数，再让三条
-路径共同调用；不得只放宽互动页。该工作与 `group.md` 的 private visibility 项属于同一权限工程。
+本页不承诺其他用户可见；未来开放前必须单独设计授权矩阵，不得只放宽 httpd 路由。
 
 ## 权威数据与派生索引
 
