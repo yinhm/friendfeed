@@ -198,10 +198,11 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 	actor := CurrentUserUuid(c)
 	requestedShare, _ := data["show_share"].(bool)
 	data["show_share"] = showShareForUser(actor, requestedShare)
-	// The React feed is also rendered for anonymous readers. Tell it explicitly
-	// whether the session may open the authenticated SSE endpoint; otherwise an
-	// anonymous EventSource follows the login redirect and retries forever.
-	data["realtime_enabled"] = actor != ""
+	realtimeHome, _ := data["realtime_home"].(bool)
+	// Only the authenticated newest Home page may open /a/events. Keeping this
+	// decision at the SSR boundary prevents ordinary Feed pages from creating
+	// long-lived connections even if their client-side props drift.
+	data["realtime_enabled"] = actor != "" && realtimeHome
 	feed := data["feed"].(*pb.Feed)
 	sanitizeFeedEntries(feed)
 	defaultFeedPictures(feed)

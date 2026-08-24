@@ -210,12 +210,12 @@ export function Feed(props) {
   }, []);
 
   useEffect(() => {
-    if (props.realtime_enabled !== true) return undefined;
+    if (props.realtime_enabled !== true || props.realtime_home !== true) return undefined;
 
     /** @type {EventSource | null} */
     let source = null;
     const markTimelineDirty = () => {
-      if (props.realtime_home === true) setHomeDirty(true);
+      setHomeDirty(true);
     };
     const markNotificationsDirty = () => {
       const badge = document.getElementById('notification-badge');
@@ -242,21 +242,21 @@ export function Feed(props) {
       } else {
         openRealtime();
       }
-      if (props.realtime_home === true && document.visibilityState !== 'hidden') {
+      if (document.visibilityState !== 'hidden') {
         refreshNewestHome().catch(error => console.error(error));
       }
     };
 
     openRealtime();
     document.addEventListener('visibilitychange', handleVisibility);
-    const reconcile = props.realtime_home === true ? setInterval(() => {
+    const reconcile = setInterval(() => {
       if (document.visibilityState !== 'hidden') {
         refreshNewestHome().catch(error => console.error(error));
       }
-    }, 180 * 1000) : undefined;
+    }, 180 * 1000);
 
     return () => {
-      if (reconcile !== undefined) clearInterval(reconcile);
+      clearInterval(reconcile);
       document.removeEventListener('visibilitychange', handleVisibility);
       closeRealtime();
     };

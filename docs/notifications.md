@@ -643,8 +643,9 @@ badge：
 badge，不能让所有页面因通知摘要失败而 500。
 
 通知事务提交后，ffdb 只发送 `NOTIFICATIONS_DIRTY` hint；ffweb 转成 `notifications-dirty`。
-已加载 Feed React 的页面收到 hint 后只显示新通知图标，不额外请求 summary，也不猜测未读数。
-hint 不携带通知正文或计数；下次 SSR 页面加载时只根据 `NotificationSummary` 收敛图标的有/无状态。
+仅 Home 最新页持有 realtime 连接，收到 hint 后只显示新通知图标，不额外请求 summary，也不
+猜测未读数。其他页面不为 badge 单独维持 SSE；hint 不携带通知正文或计数，下次 SSR 页面
+加载时根据 `NotificationSummary` 收敛图标的有/无状态。
 
 `/notifications` 每行按 kind render user-facing 文案和 source link：
 

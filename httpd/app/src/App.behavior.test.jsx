@@ -98,11 +98,11 @@ afterEach(() => {
   delete globalThis.EventSource;
 });
 
-test('non-home Feed keeps realtime hints but does not retain legacy polling', async () => {
+test('non-home Feed opens neither realtime events nor polling', async () => {
   vi.useFakeTimers();
   render(<Feed {...makeFeedProps()} />);
 
-  act(() => MockEventSource.instances[0].emit('timeline-dirty'));
+  expect(MockEventSource.instances).toHaveLength(0);
 
   await act(async () => {
     await vi.advanceTimersByTimeAsync(180_000);
@@ -124,7 +124,7 @@ test('anonymous Feed does not open the authenticated realtime stream', async () 
 
 test('notification dirty hint reveals the sidebar icon without fetching a count', () => {
   document.body.innerHTML = '<span id="notification-badge" class="notification-badge" hidden></span>';
-  render(<Feed {...makeFeedProps()} />);
+  render(<Feed {...makeFeedProps({realtime_home: true})} />);
 
   act(() => MockEventSource.instances[0].emit('notifications-dirty'));
 
