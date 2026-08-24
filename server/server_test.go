@@ -247,6 +247,18 @@ func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
 	})
 	s.Require().NoError(err)
 	s.Len(legacy.Entries, 3, "legacy pagination should return one lookahead entry")
+	s.NotEmpty(legacy.NextCursor, "legacy pagination should expose a redirect anchor")
+
+	anchor, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id: profile.Id, Start: 1, PageSize: 1,
+	})
+	s.Require().NoError(err)
+	s.NotEmpty(anchor.NextCursor)
+	translated, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id: profile.Id, PageSize: 2, CursorPaging: true, Cursor: anchor.NextCursor,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(translated))
 
 	first, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		Id: profile.Id, PageSize: 2, CursorPaging: true,
@@ -391,6 +403,18 @@ func (s *RpcTestSuite) TestHomeStartLinkUsesActivityTimelineOffset() {
 	})
 	s.Require().NoError(err)
 	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(feed))
+
+	anchor, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), Start: 1, PageSize: 1,
+	})
+	s.Require().NoError(err)
+	s.NotEmpty(anchor.NextCursor)
+	translated, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		ProfileUuid: profileID.String(), ViewerUuid: profileID.String(), PageSize: 2,
+		CursorPaging: true, Cursor: anchor.NextCursor,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(translated))
 }
 
 func (s *RpcTestSuite) TestConcurrentFirstHomeRequestsBuildOneConsistentTimeline() {

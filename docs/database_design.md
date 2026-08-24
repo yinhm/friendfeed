@@ -210,8 +210,9 @@ FetchFeed(cursor mode)
   └── profile hydration + formatting
 ```
 
-profile/timeline 使用 cursor；旧客户端、public 和 search 保持 Start/PageSize。cursor
-不是 Entry UUID，不得脱离当前 feed prefix 解释。
+profile/timeline/public 使用 cursor；ffweb 将这些 Feed 的旧 `?start=N` URL 通过一次 legacy
+RPC 锚点定位后 302 到 cursor URL。Search/Tag 继续使用 Start/PageSize。cursor 不是 Entry
+UUID，不得脱离当前 feed prefix 解释。
 
 ## Home activity timeline
 

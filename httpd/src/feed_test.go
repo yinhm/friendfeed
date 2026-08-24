@@ -77,6 +77,74 @@ func TestRenamedFeedLocation(t *testing.T) {
 	}
 }
 
+func TestFeedHandlerRedirectsLegacyStartToCursor(t *testing.T) {
+	client := &fakeGroupClient{feedResp: &pb.Feed{
+		Uuid: testGroupUUID, Id: "alice", NextCursor: "anchor-cursor",
+	}}
+	server := newGroupTestServer(client)
+	router := groupTestRouter(server)
+	router.GET("/feed/:name", server.FeedHandler)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/feed/alice?start=30&source=bot", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status=%d; want 302", recorder.Code)
+	}
+	if got := recorder.Header().Get("Location"); got != "/feed/alice?cursor=anchor-cursor&source=bot" {
+		t.Fatalf("Location=%q; want cursor canonical URL", got)
+	}
+	if client.feedCalls != 1 || client.feedReq == nil {
+		t.Fatalf("FetchFeed calls=%d request=%v; want one anchor lookup", client.feedCalls, client.feedReq)
+	}
+	if client.feedReq.Start != 29 || client.feedReq.PageSize != 1 || client.feedReq.CursorPaging {
+		t.Fatalf("anchor request=%+v; want Start=29 PageSize=1 legacy mode", client.feedReq)
+	}
+}
+
+func TestFeedHandlerCanonicalizesZeroStartWithoutLookup(t *testing.T) {
+	client := new(fakeGroupClient)
+	server := newGroupTestServer(client)
+	router := groupTestRouter(server)
+	router.GET("/feed/:name", server.FeedHandler)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/feed/alice?start=0&source=bot", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status=%d; want 302", recorder.Code)
+	}
+	if got := recorder.Header().Get("Location"); got != "/feed/alice?source=bot" {
+		t.Fatalf("Location=%q; want start removed", got)
+	}
+	if client.feedCalls != 0 {
+		t.Fatalf("FetchFeed calls=%d; want zero", client.feedCalls)
+	}
+}
+
+func TestFeedHandlerDropsStartWhenCursorAlreadyExists(t *testing.T) {
+	client := new(fakeGroupClient)
+	server := newGroupTestServer(client)
+	router := groupTestRouter(server)
+	router.GET("/feed/:name", server.FeedHandler)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/feed/alice?cursor=existing&start=30", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status=%d; want 302", recorder.Code)
+	}
+	if got := recorder.Header().Get("Location"); got != "/feed/alice?cursor=existing" {
+		t.Fatalf("Location=%q; want redundant start removed", got)
+	}
+	if client.feedCalls != 0 {
+		t.Fatalf("FetchFeed calls=%d; want zero", client.feedCalls)
+	}
+}
+
 func TestInteractionFeedUsesNormalFeedFormattingWithoutFilteringInteractions(t *testing.T) {
 	entry := &pb.Entry{
 		Id: "entry", Date: time.Now().UTC().Format(time.RFC3339),

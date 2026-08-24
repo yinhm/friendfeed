@@ -123,7 +123,8 @@ max(page_size * 10, 300)
 ```
 
 预算耗尽时 cursor 锚定最后扫描位置，即使页面不足 `page_size` 也允许返回 `next_cursor`。旧
-`Start/PageSize` 链接继续兼容，但 Start 必须表示跳过的可见 Entry 数。
+旧 `Start/PageSize` 链接仍以跳过的可见 Entry 数定位锚点，但 ffweb 随后 302 到 cursor URL，
+不再直接渲染 offset 页面。
 
 ### Entry permalink 与展开接口
 

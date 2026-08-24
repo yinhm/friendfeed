@@ -449,7 +449,8 @@ realtime_home = true
 req.Cursor == "" && req.Start == 0
 ```
 
-older cursor page、legacy `?start=N`、Public、普通 feed 都为 false，不建立 SSE。
+older cursor page、Public、普通 feed 都为 false，不建立 SSE。legacy `?start=N` 请求只返回
+到 cursor URL 的 302，本身不建立 SSE。
 
 ### refreshNewestHome：不使用现有 cursor
 
@@ -487,7 +488,7 @@ Entry UUID 重复。
 - periodic reconciliation：保留 180s 低频兜底，仅在 Home 第一页且页面可见时
   调用 `refreshNewestHome()`；成功刷新时同步清除 dirty。
 
-Public、普通 Feed、Home older cursor page 和 legacy `?start=N` 页面不建立 SSE，也不再
+Public、普通 Feed 和 Home older cursor page 不建立 SSE，也不再
 polling。这是对旧自动刷新机制的有意退役，不是 realtime 覆盖遗漏。
 
 这样 SSE 丢事件、ffdb/ffweb 重启或代理短暂断流只会让提示变慢，最终仍会被

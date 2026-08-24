@@ -130,6 +130,52 @@ func configureFeedPagination(r *http.Request, req *pb.FeedRequest) bool {
 	return false
 }
 
+// redirectLegacyFeedStart translates an old visible-row offset into the
+// opaque index position immediately before that row. Search and tag results
+// deliberately keep their separate offset protocol and never call this
+// helper. The existing FetchFeed RPC fields are sufficient: PageSize=1 at
+// Start=N-1 returns the required anchor in Feed.NextCursor.
+func (s *Server) redirectLegacyFeedStart(c *gin.Context, req *pb.FeedRequest) bool {
+	query := c.Request.URL.Query()
+	if !query.Has("start") {
+		return false
+	}
+
+	start := ParseStart(c.Request)
+	query.Del("start")
+	location := c.Request.URL.Path
+	if start > 0 && query.Get("cursor") == "" {
+		anchorRequest := proto.Clone(req).(*pb.FeedRequest)
+		anchorRequest.Start = int32(start - 1)
+		anchorRequest.PageSize = 1
+		anchorRequest.Cursor = ""
+		anchorRequest.CursorPaging = false
+		ctx, cancel := DefaultTimeoutContext()
+		feed, err := s.client.FetchFeed(ctx, anchorRequest)
+		cancel()
+		// Preserve the existing private-feed request/approval page. There is no
+		// readable cursor page to canonicalize for an unauthorized viewer.
+		if status.Code(err) == codes.PermissionDenied {
+			return false
+		}
+		if RequestError(c, err) {
+			return true
+		}
+		if feed.NextCursor != "" {
+			query.Set("cursor", feed.NextCursor)
+		}
+		if requestedName := c.Param("name"); requestedName != "" && feed.Id != "" && feed.Id != requestedName {
+			location = "/feed/" + url.PathEscape(feed.Id)
+		}
+	}
+
+	if encoded := query.Encode(); encoded != "" {
+		location += "?" + encoded
+	}
+	c.Redirect(http.StatusFound, location)
+	return true
+}
+
 func renamedFeedLocation(requestedID string, feed *pb.Feed, rawQuery string) (string, bool) {
 	return renamedFeedLocationWithSuffix(requestedID, feed, "", rawQuery)
 }
@@ -222,6 +268,9 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		PageSize:    30,
 		ViewerUuid:  userUuid,
 	}
+	if s.redirectLegacyFeedStart(c, req) {
+		return
+	}
 	cursorPaging := configureFeedPagination(c.Request, req)
 
 	_, feed, err := s.FetchFeed(c, req)
@@ -247,6 +296,9 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		Id:         feedname,
 		PageSize:   30,
 		ViewerUuid: CurrentUserUuid(c),
+	}
+	if s.redirectLegacyFeedStart(c, req) {
+		return
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
 	_, feed, err := s.FetchFeed(c, req)
@@ -306,6 +358,9 @@ func (s *Server) PublicHandler(c *gin.Context) {
 		Id:         "public",
 		PageSize:   30,
 		ViewerUuid: CurrentUserUuid(c),
+	}
+	if s.redirectLegacyFeedStart(c, req) {
+		return
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
 

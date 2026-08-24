@@ -556,6 +556,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	start := req.Start
 	var entries []*pb.Entry
 	found := 0
+	var pageCursorKey store.Key
 	resolver := newProfileResolver(s.mdb)
 	_, err = s.rdb.ForwardScan(prefix, func(i int, k, v []byte) error {
 		// Direct index values are empty; the entry UUID lives in the index
@@ -601,6 +602,9 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 
 		entries = append(entries, entry)
 		found++
+		if found == int(req.PageSize) {
+			pageCursorKey = append(pageCursorKey[:0], k...)
+		}
 		if found > int(req.PageSize) { // retain one lookahead entry for legacy paging
 			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
 		}
@@ -621,6 +625,11 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		Private:     profile.Private,
 		Description: profile.Description,
 		Entries:     entries,
+	}
+	// Legacy offset callers use NextCursor to canonicalize ?start=N in ffweb.
+	// The anchor remains useful even when it points at the final row.
+	if found >= int(req.PageSize) && len(pageCursorKey) > 0 {
+		feed.NextCursor = encodeFeedCursor(pageCursorKey, prefix)
 	}
 	s.withPendingFollowRequest(feed, req.ViewerUuid)
 	return feed, nil
@@ -799,7 +808,9 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		feed.Entries[i] = items[i].entry
 	}
 	if len(items) > 0 {
-		if hasExtra {
+		// Non-cursor callers are legacy offset requests used only to locate the
+		// preceding row for an HTTP redirect. Return that anchor even at EOF.
+		if hasExtra || !req.CursorPaging {
 			feed.NextCursor = encodeFeedCursor(items[len(items)-1].indexKey, prefix)
 		}
 	}
