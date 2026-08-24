@@ -73,6 +73,16 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		if err := s.DBMetrics(); err != nil {
 			return nil, err
 		}
+	case "RuntimeInspect":
+		report, err := collectRuntimeReport(s.rdb, s.realtime)
+		if err != nil {
+			return nil, err
+		}
+		result, err := marshalRuntimeReport(report)
+		if err != nil {
+			return nil, err
+		}
+		return &pb.CommandResponse{Command: cmd.Command, Result: result}, nil
 	case "CreateSystemProfile":
 		if err := s.CreateSystemProfile(); err != nil {
 			return nil, err
