@@ -13,6 +13,7 @@ import (
 )
 
 var runtimeInspectJSON bool
+var runtimeInspectHeapProfile bool
 
 type runtimeInspectReport struct {
 	CollectedAt string `json:"collected_at"`
@@ -89,9 +90,18 @@ var inspectRuntimeCmd = &cobra.Command{
 				return err
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), string(data))
-			return nil
+		} else {
+			writeRuntimeInspectReport(cmd.OutOrStdout(), report)
 		}
-		writeRuntimeInspectReport(cmd.OutOrStdout(), report)
+		if runtimeInspectHeapProfile {
+			profileCtx, profileCancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			defer profileCancel()
+			profile, err := agent.client.Command(profileCtx, &pb.CommandRequest{Command: "RuntimeHeapProfile"})
+			if err != nil {
+				return fmt.Errorf("capture ffdb heap profile: %w", err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "heap profile: %s (contains process memory; copy and remove explicitly)\n", profile.Result)
+		}
 		return nil
 	},
 }
@@ -99,6 +109,7 @@ var inspectRuntimeCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(inspectRuntimeCmd)
 	inspectRuntimeCmd.Flags().BoolVar(&runtimeInspectJSON, "json", false, "print the complete report as JSON")
+	inspectRuntimeCmd.Flags().BoolVar(&runtimeInspectHeapProfile, "heap-profile", false, "capture one private server-side Go heap profile")
 }
 
 func writeRuntimeInspectReport(w io.Writer, r runtimeInspectReport) {

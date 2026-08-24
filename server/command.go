@@ -83,6 +83,12 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 			return nil, err
 		}
 		return &pb.CommandResponse{Command: cmd.Command, Result: result}, nil
+	case "RuntimeHeapProfile":
+		path, err := captureRuntimeHeapProfile(runtimeProfileDir)
+		if err != nil {
+			return nil, err
+		}
+		return &pb.CommandResponse{Command: cmd.Command, Result: path}, nil
 	case "CreateSystemProfile":
 		if err := s.CreateSystemProfile(); err != nil {
 			return nil, err
