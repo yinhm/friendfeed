@@ -24,8 +24,15 @@ func captureRuntimeHeapProfile(dir string) (string, error) {
 	}
 	defer heapProfileMu.Unlock()
 
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 		return "", fmt.Errorf("create diagnostics directory: %w", err)
+	}
+	dirInfo, err := os.Lstat(dir)
+	if err != nil {
+		return "", fmt.Errorf("inspect diagnostics directory: %w", err)
+	}
+	if !dirInfo.IsDir() || dirInfo.Mode()&os.ModeSymlink != 0 {
+		return "", errors.New("diagnostics path is not a real directory")
 	}
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return "", fmt.Errorf("protect diagnostics directory: %w", err)
