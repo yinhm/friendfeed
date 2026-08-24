@@ -247,7 +247,7 @@ func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
 	})
 	s.Require().NoError(err)
 	s.Len(legacy.Entries, 3, "legacy pagination should return one lookahead entry")
-	s.NotEmpty(legacy.NextCursor, "legacy pagination should expose a redirect anchor")
+	s.NotEmpty(legacy.NextCursor, "legacy pagination should expose a cursor continuation")
 
 	anchor, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		Id: profile.Id, Start: 1, PageSize: 1,
@@ -259,6 +259,13 @@ func (s *RpcTestSuite) TestCursorFeedPagesForwardAndSurvivesDeletedAnchor() {
 	})
 	s.Require().NoError(err)
 	s.Equal([]string{entryIDs[2], entryIDs[1]}, feedEntryIDs(translated))
+
+	legacyTail, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
+		Id: profile.Id, Start: 4, PageSize: 2,
+	})
+	s.Require().NoError(err)
+	s.Equal([]string{entryIDs[0]}, feedEntryIDs(legacyTail))
+	s.Empty(legacyTail.NextCursor, "legacy tail must not advertise an empty next page")
 
 	first, err := s.srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		Id: profile.Id, PageSize: 2, CursorPaging: true,

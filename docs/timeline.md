@@ -130,9 +130,10 @@ entry UUID             16 B
 ```
 
 解码后必须与当前请求的 `TableTimelineIndex | viewer UUID` 前缀重新拼接。cursor 不是 Entry
-UUID，也不得跨 viewer 解释。HTTP 层收到旧 Home `?start=N` 时，用一次 legacy
-`FetchFeed(Start=N-1, PageSize=1)` 定位前一行，再 302 到对应 cursor URL；不回读已退役的
-`EntryIndex | TimelineUUID`。RPC 内的 Start 分支仅用于这次兼容定位，不再直接渲染 offset 页面。
+UUID，也不得跨 viewer 解释。匿名 HTTP 请求携带旧 Home/Public/Profile `?start=N` 时直接
+302 到对应 Feed 第一页，不执行 O(Start) 扫描；登录用户可读取一次 legacy offset 页，但该页
+只生成 cursor 形式的下一页链接，不再延续 offset 链。不回读已退役的
+`EntryIndex | TimelineUUID`。
 
 当前 cursor 编解码对 TimelineIndex 和 direct EntryIndex 使用同一 24 B 位置格式
 （reverse ms 8 B + entry UUID 16 B）；同秒多帖由 UUID 后缀消歧。这是显式表格式选择，
@@ -433,8 +434,8 @@ const publicTimelineMaxEntries = 10_000 // 独立于 homeTimelineMaxEntries
 - "仅新建 Entry bump" 的存在性判断为 `db.Exists(entryKey)` 点读，发生在 archive 流
   的每条 Entry 上；archive 流内隐私结论按 `FeedUuid` 缓存，每个流每个 feed 只点读
   一次 profile；
-- 旧 `?start=N` 链接由 ffweb 做一次 O(Start) 锚点定位并 302 到 cursor URL，深度被 public
-  Max（10,000）约束；重定向后的分页无此开销；
+- 匿名旧 `?start=N` 链接直接 302 到第一页；仅登录用户允许执行一次 O(Start) 兼容扫描，
+  当前页之后立即切换 cursor，深度仍被 public Max（10,000）约束；
 - 读路径每页为 PageSize 次 Entry 点读加 interaction 加载，与 Home/profile 读路径相同；
 - trim 单次为 O(Max + 尾部行数) 的 iterator 步进，每 100 次 bump 最多触发一次，无新
   bump 时不执行。
@@ -470,7 +471,8 @@ CommentEntry）改为调用 public bump，调用前完成两个前置判断（�
 `TableTimelineIndex | publicTimelineUUID`：
 
 - cursor 分页直接可用，ffweb 后续可迁移；
-- 旧 `?start=N` 链接按 Home 相同方式定位锚点并 302 到 cursor URL，不破坏已发出链接；
+- 匿名旧 `?start=N` 链接按 Home 相同规则回到第一页；登录用户可读取一次原页，下一页切换
+  cursor；
 - 读到指向缺失 Entry 的孤儿行时复用 Home 的懒删除逻辑。
 
 ### 回填

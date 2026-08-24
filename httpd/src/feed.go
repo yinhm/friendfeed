@@ -115,6 +115,16 @@ func cursorFeedContext(feed *pb.Feed) pongo2.Context {
 	}
 }
 
+// legacyFeedCursorContext renders the requested offset page once, then emits
+// only the cursor link returned for the following page. Direct feed legacy
+// responses retain one lookahead entry, which is not part of the page.
+func legacyFeedCursorContext(feed *pb.Feed, pageSize int32) pongo2.Context {
+	if len(feed.Entries) > int(pageSize) {
+		feed.Entries = feed.Entries[:pageSize]
+	}
+	return cursorFeedContext(feed)
+}
+
 // configureFeedPagination preserves explicit legacy ?start=N links. Cursor
 // pagination is the default for new profile/timeline requests, and wins when
 // both styles are present.
@@ -130,45 +140,19 @@ func configureFeedPagination(r *http.Request, req *pb.FeedRequest) bool {
 	return false
 }
 
-// redirectLegacyFeedStart translates an old visible-row offset into the
-// opaque index position immediately before that row. Search and tag results
-// deliberately keep their separate offset protocol and never call this
-// helper. The existing FetchFeed RPC fields are sufficient: PageSize=1 at
-// Start=N-1 returns the required anchor in Feed.NextCursor.
-func (s *Server) redirectLegacyFeedStart(c *gin.Context, req *pb.FeedRequest) bool {
+// redirectAnonymousLegacyFeedStart prevents bots and anonymous readers from
+// exercising the O(Start) compatibility scan. Logged-in users may render one
+// legacy page, whose next link switches permanently to cursor pagination.
+// Search and tag results keep their independent offset protocol.
+func redirectAnonymousLegacyFeedStart(c *gin.Context) bool {
 	query := c.Request.URL.Query()
-	if !query.Has("start") {
+	if !query.Has("start") || CurrentUserUuid(c) != "" {
 		return false
 	}
 
-	start := ParseStart(c.Request)
 	query.Del("start")
+	query.Del("cursor")
 	location := c.Request.URL.Path
-	if start > 0 && query.Get("cursor") == "" {
-		anchorRequest := proto.Clone(req).(*pb.FeedRequest)
-		anchorRequest.Start = int32(start - 1)
-		anchorRequest.PageSize = 1
-		anchorRequest.Cursor = ""
-		anchorRequest.CursorPaging = false
-		ctx, cancel := DefaultTimeoutContext()
-		feed, err := s.client.FetchFeed(ctx, anchorRequest)
-		cancel()
-		// Preserve the existing private-feed request/approval page. There is no
-		// readable cursor page to canonicalize for an unauthorized viewer.
-		if status.Code(err) == codes.PermissionDenied {
-			return false
-		}
-		if RequestError(c, err) {
-			return true
-		}
-		if feed.NextCursor != "" {
-			query.Set("cursor", feed.NextCursor)
-		}
-		if requestedName := c.Param("name"); requestedName != "" && feed.Id != "" && feed.Id != requestedName {
-			location = "/feed/" + url.PathEscape(feed.Id)
-		}
-	}
-
 	if encoded := query.Encode(); encoded != "" {
 		location += "?" + encoded
 	}
@@ -268,10 +252,11 @@ func (s *Server) HomeHandler(c *gin.Context) {
 		PageSize:    30,
 		ViewerUuid:  userUuid,
 	}
-	if s.redirectLegacyFeedStart(c, req) {
+	if redirectAnonymousLegacyFeedStart(c) {
 		return
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
+	legacyStart := !cursorPaging
 
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
@@ -282,11 +267,13 @@ func (s *Server) HomeHandler(c *gin.Context) {
 	data := feedContext(feed, req.Start, req.PageSize)
 	if cursorPaging {
 		data = cursorFeedContext(feed)
+	} else if legacyStart {
+		data = legacyFeedCursorContext(feed, req.PageSize)
 	}
 	data["show_share"] = s.feedWritable(c, feed.Uuid)
 	// Realtime belongs only to the newest Home page. The existing cursor is
 	// an older-page position, never a "since" token.
-	data["realtime_home"] = req.Cursor == "" && req.Start == 0
+	data["realtime_home"] = cursorPaging && req.Cursor == "" && req.Start == 0
 	s.renderFeed(c, data)
 }
 
@@ -297,10 +284,11 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		PageSize:   30,
 		ViewerUuid: CurrentUserUuid(c),
 	}
-	if s.redirectLegacyFeedStart(c, req) {
+	if redirectAnonymousLegacyFeedStart(c) {
 		return
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
+	legacyStart := !cursorPaging
 	_, feed, err := s.FetchFeed(c, req)
 	if err != nil && status.Code(err) == codes.PermissionDenied {
 		// Private feed the viewer may not read: offer the follow-request
@@ -321,6 +309,8 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	data := feedContext(feed, req.Start, req.PageSize)
 	if cursorPaging {
 		data = cursorFeedContext(feed)
+	} else if legacyStart {
+		data = legacyFeedCursorContext(feed, req.PageSize)
 	}
 	data["show_header"] = true
 	if actor := CurrentUserUuid(c); actor != "" && feed.Type == "group" {
@@ -359,22 +349,24 @@ func (s *Server) PublicHandler(c *gin.Context) {
 		PageSize:   30,
 		ViewerUuid: CurrentUserUuid(c),
 	}
-	if s.redirectLegacyFeedStart(c, req) {
+	if redirectAnonymousLegacyFeedStart(c) {
 		return
 	}
 	cursorPaging := configureFeedPagination(c.Request, req)
+	legacyStart := !cursorPaging
 
 	_, feed, err := s.FetchFeed(c, req)
 	if RequestError(c, err) {
 		return
 	}
 
-	// Public now reads from the shared TimelineIndex, which trims to exactly
-	// PageSize entries and reports older pages via NextCursor. Legacy
-	// ?start=N links still render, but only cursor mode shows a Next link.
+	// Public reads from TimelineIndex. A logged-in legacy page renders once,
+	// then exposes only its cursor-based continuation.
 	data := feedContext(feed, req.Start, req.PageSize)
 	if cursorPaging {
 		data = cursorFeedContext(feed)
+	} else if legacyStart {
+		data = legacyFeedCursorContext(feed, req.PageSize)
 	}
 	s.renderFeed(c, data)
 }

@@ -450,8 +450,8 @@ realtime_home = true
 req.Cursor == "" && req.Start == 0
 ```
 
-older cursor page、Public、普通 feed 都为 false，不建立 SSE。legacy `?start=N` 请求只返回
-到 cursor URL 的 302，本身不建立 SSE。
+older cursor page、Public、普通 feed 都为 false，不建立 SSE。legacy `?start=N` 无论是匿名
+重定向还是登录用户读取的兼容页，也不建立 SSE。
 
 ### refreshNewestHome：不使用现有 cursor
 

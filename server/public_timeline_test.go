@@ -186,7 +186,8 @@ func TestPublicFeedPagingByStartAndCursor(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 	third := postPublicTestEntry(t, srv, author, "third")
 
-	// Legacy offsets still locate a cursor anchor for ffweb's canonical 302.
+	// A logged-in legacy page continues through the cursor returned for its
+	// following page.
 	feed := fetchPublicFeed(t, srv, &pb.FeedRequest{Id: "public", Start: 1, PageSize: 1})
 	require.Equal(t, []string{second.Id}, publicFeedEntryIDs(feed))
 	require.NotEmpty(t, feed.NextCursor)
@@ -194,6 +195,9 @@ func TestPublicFeedPagingByStartAndCursor(t *testing.T) {
 		Id: "public", PageSize: 1, CursorPaging: true, Cursor: feed.NextCursor,
 	})
 	require.Equal(t, []string{first.Id}, publicFeedEntryIDs(translated))
+	tail := fetchPublicFeed(t, srv, &pb.FeedRequest{Id: "public", Start: 2, PageSize: 2})
+	require.Equal(t, []string{first.Id}, publicFeedEntryIDs(tail))
+	require.Empty(t, tail.NextCursor)
 
 	// Cursor paging walks the same order without overlap.
 	feed = fetchPublicFeed(t, srv, &pb.FeedRequest{Id: "public", PageSize: 2, CursorPaging: true})

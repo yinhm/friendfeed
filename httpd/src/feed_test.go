@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -77,71 +78,63 @@ func TestRenamedFeedLocation(t *testing.T) {
 	}
 }
 
-func TestFeedHandlerRedirectsLegacyStartToCursor(t *testing.T) {
-	client := &fakeGroupClient{feedResp: &pb.Feed{
-		Uuid: testGroupUUID, Id: "alice", NextCursor: "anchor-cursor",
-	}}
-	server := newGroupTestServer(client)
-	router := groupTestRouter(server)
-	router.GET("/feed/:name", server.FeedHandler)
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/feed/alice?start=30&source=bot", nil)
-	router.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusFound {
-		t.Fatalf("status=%d; want 302", recorder.Code)
-	}
-	if got := recorder.Header().Get("Location"); got != "/feed/alice?cursor=anchor-cursor&source=bot" {
-		t.Fatalf("Location=%q; want cursor canonical URL", got)
-	}
-	if client.feedCalls != 1 || client.feedReq == nil {
-		t.Fatalf("FetchFeed calls=%d request=%v; want one anchor lookup", client.feedCalls, client.feedReq)
-	}
-	if client.feedReq.Start != 29 || client.feedReq.PageSize != 1 || client.feedReq.CursorPaging {
-		t.Fatalf("anchor request=%+v; want Start=29 PageSize=1 legacy mode", client.feedReq)
-	}
-}
-
-func TestFeedHandlerCanonicalizesZeroStartWithoutLookup(t *testing.T) {
+func TestAnonymousFeedStartRedirectsToFirstPage(t *testing.T) {
 	client := new(fakeGroupClient)
 	server := newGroupTestServer(client)
 	router := groupTestRouter(server)
 	router.GET("/feed/:name", server.FeedHandler)
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/feed/alice?start=0&source=bot", nil)
+	request := httptest.NewRequest(http.MethodGet, "/feed/alice?cursor=ignored&start=30&source=bot", nil)
 	router.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusFound {
 		t.Fatalf("status=%d; want 302", recorder.Code)
 	}
 	if got := recorder.Header().Get("Location"); got != "/feed/alice?source=bot" {
-		t.Fatalf("Location=%q; want start removed", got)
+		t.Fatalf("Location=%q; want anonymous first page", got)
 	}
 	if client.feedCalls != 0 {
-		t.Fatalf("FetchFeed calls=%d; want zero", client.feedCalls)
+		t.Fatalf("FetchFeed calls=%d; anonymous offset must not reach ffdb", client.feedCalls)
 	}
 }
 
-func TestFeedHandlerDropsStartWhenCursorAlreadyExists(t *testing.T) {
-	client := new(fakeGroupClient)
-	server := newGroupTestServer(client)
+func TestLoggedInFeedStartMayRenderCompatibilityPage(t *testing.T) {
+	server := newGroupTestServer(new(fakeGroupClient))
 	router := groupTestRouter(server)
-	router.GET("/feed/:name", server.FeedHandler)
+	router.GET("/feed/:name", func(c *gin.Context) {
+		if redirectAnonymousLegacyFeedStart(c) {
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+	login := groupLoginCookie(t, router)
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/feed/alice?cursor=existing&start=30", nil)
+	request := httptest.NewRequest(http.MethodGet, "/feed/alice?start=30", nil)
+	request.AddCookie(login)
 	router.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusFound {
-		t.Fatalf("status=%d; want 302", recorder.Code)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status=%d; logged-in legacy page should be allowed", recorder.Code)
 	}
-	if got := recorder.Header().Get("Location"); got != "/feed/alice?cursor=existing" {
-		t.Fatalf("Location=%q; want redundant start removed", got)
+}
+
+func TestLegacyFeedPageContinuesWithCursor(t *testing.T) {
+	feed := &pb.Feed{Id: "alice", NextCursor: "next-cursor"}
+	for i := 0; i < 31; i++ {
+		feed.Entries = append(feed.Entries, &pb.Entry{Id: fmt.Sprintf("entry-%d", i)})
 	}
-	if client.feedCalls != 0 {
-		t.Fatalf("FetchFeed calls=%d; want zero", client.feedCalls)
+	data := legacyFeedCursorContext(feed, 30)
+
+	if len(feed.Entries) != 30 {
+		t.Fatalf("entries=%d; want lookahead trimmed", len(feed.Entries))
+	}
+	if got := data["cursor_paging"]; got != true {
+		t.Fatalf("cursor_paging=%v; want true", got)
+	}
+	if got := data["next_cursor"]; got != "next-cursor" {
+		t.Fatalf("next_cursor=%v; want next-cursor", got)
 	}
 }
 

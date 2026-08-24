@@ -210,9 +210,9 @@ FetchFeed(cursor mode)
   └── profile hydration + formatting
 ```
 
-profile/timeline/public 使用 cursor；ffweb 将这些 Feed 的旧 `?start=N` URL 通过一次 legacy
-RPC 锚点定位后 302 到 cursor URL。Search/Tag 继续使用 Start/PageSize。cursor 不是 Entry
-UUID，不得脱离当前 feed prefix 解释。
+profile/timeline/public 使用 cursor；这些 Feed 的匿名旧 `?start=N` URL 由 ffweb 直接 302
+到第一页，登录用户仅可读取一次 legacy offset 页，随后通过响应的 `NextCursor` 继续。
+Search/Tag 继续使用 Start/PageSize。cursor 不是 Entry UUID，不得脱离当前 feed prefix 解释。
 
 ## Home activity timeline
 

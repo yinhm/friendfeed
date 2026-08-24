@@ -122,9 +122,9 @@ Feed 级入口继续先检查 Feed metadata 的可读性；随后所有 Entry �
 max(page_size * 10, 300)
 ```
 
-预算耗尽时 cursor 锚定最后扫描位置，即使页面不足 `page_size` 也允许返回 `next_cursor`。旧
-旧 `Start/PageSize` 链接仍以跳过的可见 Entry 数定位锚点，但 ffweb 随后 302 到 cursor URL，
-不再直接渲染 offset 页面。
+预算耗尽时 cursor 锚定最后扫描位置，即使页面不足 `page_size` 也允许返回 `next_cursor`。
+旧 `Start/PageSize` 只对登录用户保留一次兼容读取，并以跳过的可见 Entry 数解释；其下一页
+立即切换 cursor。匿名请求由 ffweb 直接 302 到 Feed 第一页，不进入 offset 扫描。
 
 ### Entry permalink 与展开接口
 

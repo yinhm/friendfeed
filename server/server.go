@@ -626,9 +626,8 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		Description: profile.Description,
 		Entries:     entries,
 	}
-	// Legacy offset callers use NextCursor to canonicalize ?start=N in ffweb.
-	// The anchor remains useful even when it points at the final row.
-	if found >= int(req.PageSize) && len(pageCursorKey) > 0 {
+	// Logged-in legacy pages render once, then continue through this cursor.
+	if found > int(req.PageSize) && len(pageCursorKey) > 0 {
 		feed.NextCursor = encodeFeedCursor(pageCursorKey, prefix)
 	}
 	s.withPendingFollowRequest(feed, req.ViewerUuid)
@@ -808,9 +807,7 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		feed.Entries[i] = items[i].entry
 	}
 	if len(items) > 0 {
-		// Non-cursor callers are legacy offset requests used only to locate the
-		// preceding row for an HTTP redirect. Return that anchor even at EOF.
-		if hasExtra || !req.CursorPaging {
+		if hasExtra {
 			feed.NextCursor = encodeFeedCursor(items[len(items)-1].indexKey, prefix)
 		}
 	}

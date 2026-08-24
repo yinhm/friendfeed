@@ -45,7 +45,6 @@ type fakeGroupClient struct {
 
 	feedResp  *pb.Feed
 	feedErr   error
-	feedReq   *pb.FeedRequest
 	feedCalls int
 
 	groupView    *pb.GroupView
@@ -187,7 +186,6 @@ func TestUserGroupsPageIsOwnerOnly(t *testing.T) {
 
 func (f *fakeGroupClient) FetchFeed(ctx context.Context, req *pb.FeedRequest, opts ...grpc.CallOption) (*pb.Feed, error) {
 	f.feedCalls++
-	f.feedReq = req
 	return f.feedResp, f.feedErr
 }
 
