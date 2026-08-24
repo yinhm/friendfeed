@@ -178,6 +178,8 @@ func (s *ApiServer) scheduleNotificationTrim(recipient uuid.UUID) {
 		defer s.wg.Done()
 		key := "notification-trim:" + recipient.String()
 		_, err, _ := s.timelineMaintenance.Do(key, func() (any, error) {
+			s.notificationTrims.Add(1)
+			defer s.notificationTrims.Add(-1)
 			for {
 				_, remaining, err := model.TrimNotifications(s.rdb, recipient, model.NotificationTrimBatch)
 				if err != nil {

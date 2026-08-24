@@ -64,6 +64,7 @@ type ApiServer struct {
 	// Trimming never runs inside a request path.
 	publicTimelineBumps    atomic.Int64
 	publicTimelineTrimming atomic.Bool
+	notificationTrims      atomic.Int64
 
 	// background job lifecycle: done signals shutdown, wg tracks
 	// running job goroutines so Shutdown can wait for them before
