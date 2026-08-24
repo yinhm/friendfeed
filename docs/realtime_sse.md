@@ -3,12 +3,12 @@
 Home 页实时更新提示。本文定义 ffdb → gRPC stream → ffweb/httpd → SSE → 浏览器的
 最小可用链路，并明确事件语义、生命周期、关停顺序、前端刷新方式与测试边界。
 
-V1 的核心原则是：**实时事件只表示“Home 可能变脏了”，不承载业务状态。** 事件可以
+2.0 的核心原则是：**实时事件只表示“Home 可能变脏了”，不承载业务状态。** 事件可以
 丢失、重复、乱序；权威状态始终由现有 `FetchFeed` / TimelineIndex 读取路径提供。
 
 ## 目标与边界
 
-- 第一版只做登录用户 **Home 第一页** 的实时提示。
+- 2.0 只做登录用户 **Home 第一页** 的实时提示。
 - 收到事件时只显示“有新动态”一类 dirty banner，不承诺精确的“N 条新内容”。
   Like/Comment 可能只是把已有 Entry bump 到顶部，事件数不等于新 Entry 数。
 - 点击 banner 后重新拉取 **Home 最新第一页（不带 cursor）**，用服务端返回的权威
@@ -17,9 +17,9 @@ V1 的核心原则是：**实时事件只表示“Home 可能变脏了”，不�
 - 暂不做：Public/普通 feed 页推送、评论实时插入、Entry 内容流式下发、多 tab 状态
   同步、跨进程 durable queue。
 - gRPC transport 使用泛化的 realtime 命名，Home timeline 与 notification badge 复用同
-  一条流；V1 只实现 timeline dirty producer/consumer。
+  一条流；2.0 实现 timeline 与 notification dirty producer/consumer。
 
-## 现状依据
+## 实现依据与已解决约束
 
 - ffdb 与 ffweb 是两个进程。浏览器只连接 nginx/ffweb；ffweb 的普通数据请求通过
   `pb.NewApiClient` 访问 ffdb，实时事件通过独立的 `pb.NewRealtimeClient` 长流接收。
@@ -29,12 +29,8 @@ V1 的核心原则是：**实时事件只表示“Home 可能变脏了”，不�
   ffdb -> gRPC server stream -> ffweb/httpd -> SSE -> browser
   ```
 
-- `model.FanoutTimelineActivity` 已经是正确的事件源位置，但它**当前并没有保留“实际
-  moved 的 viewer 集合”**：
-  - `MoveTimelineEntry` 返回 `(moved bool, error)`；
-  - `FanoutTimelineActivity` 当前调用后丢弃 `moved`；
-  - follower 的返回计数表示 active follower，不严格等于实际 move 数量；author 也不
-    在该 follower 计数里。
+- `model.FanoutTimelineActivity` 是事件源位置。当前实现只对已经 commit 且
+  `moved == true` 的 viewer 调用 observer；返回计数表示真实 move 数并包含 author。
 - Like 的 cooldown 会导致 active viewer 被检查但 timeline 不发生 move；这种情况不
   应产生 realtime hint。
 - Home cursor 是向旧内容翻页的 **older-page cursor**：命中 cursor 后会 `Next()` 再
@@ -42,14 +38,12 @@ V1 的核心原则是：**实时事件只表示“Home 可能变脏了”，不�
 - 旧 React `Feed` 每 20s 对所有页面执行 `getJSON(url)`。SSE 落地后该全站 polling
   正式退役：Public、普通 Feed 和 Home 旧分页不再自动刷新；只有 Home 第一页保留低频
   reconciliation，并与 dirty banner 使用同一个权威刷新函数。
-- 当前 ffdb 的 `ApiServer.Shutdown()` 才会设置 `shuttingDown`、关闭 `done`、等待 `wg`
-  并关闭 Pebble；而进程入口当前先执行 `grpc.GracefulStop()` 再调用 `Shutdown()`。
-  引入永久 server-streaming RPC 后必须拆开“发出 shutdown 信号”和“等待/关库”两个
-  阶段，否则 `GracefulStop()` 可能等待一个尚未收到关闭信号的永久流。
+- 永久 server-streaming RPC 要求先发出 shutdown 信号再等待 `GracefulStop()`。当前顺序固定为
+  `BeginShutdown -> GracefulStop -> ApiServer.Shutdown`，避免长流阻塞关停。
 
 ## 总体拓扑
 
-V1 不在 ffdb 按 viewer 维护订阅。ffdb 只有一个**进程级广播总线**；每个 ffweb 实例
+2.0 不在 ffdb 按 viewer 维护订阅。ffdb 只有一个**进程级广播总线**；每个 ffweb 实例
 建立一条 gRPC 长流并收到全部 realtime hints，viewer 过滤在 ffweb 本地完成。
 
 ```text
@@ -124,9 +118,9 @@ service Realtime {
 - 允许丢失、重复、乱序。客户端只把它折叠成一个 boolean dirty 状态。
 - 不提供 event id、sequence、Last-Event-ID 或 replay。
 - `viewer_uuid` 只用于 ffweb 内部分流，不下发给浏览器。
-- `object_uuid` 为后续诊断/去重扩展保留；V1 浏览器不依赖它。
+- `object_uuid` 为后续诊断/去重扩展保留；2.0 浏览器不依赖它。
 - `activity_at_ms` 表示触发该 timeline move 的业务 activity 时间，只用于服务端诊断、
-  延迟观测和未来 telemetry；V1 不下发给浏览器，也不参与排序、去重或正确性判断。
+  延迟观测和未来 telemetry；2.0 不下发给浏览器，也不参与排序、去重或正确性判断。
 - realtime event 永远不是权限事实。最终 Home 内容仍由既有 TimelineIndex + read-time
   visibility 校验决定。
 
@@ -274,8 +268,8 @@ realtimeBus
 
 ## ffdb：关停顺序
 
-永久 streaming RPC 不能沿用当前“先 `GracefulStop`、后 `Shutdown` 才 close(done)”的
-顺序。建议把现有 `Shutdown` 拆成两个幂等阶段：
+永久 streaming RPC 不能使用“先 `GracefulStop`、后 close(done)”的顺序。当前实现将关停
+拆成两个幂等阶段：
 
 ```go
 func (s *ApiServer) BeginShutdown() {
@@ -386,7 +380,7 @@ action.GET("/events", s.EventsHandler)
 
 ### 浏览器 SSE payload
 
-V1 只需要 dirty bit，因此不下发 viewer UUID、entry UUID、activity time 或计数：
+2.0 只需要 dirty bit，因此不下发 viewer UUID、entry UUID、activity time 或计数：
 
 ```text
 event: timeline-dirty
@@ -426,7 +420,7 @@ Heartbeat 必须明显短于 `proxy_read_timeout` 与任何中间代理的 idle 
 不要在 `index.jsx` 再挂一个与 `App/Feed` 平行的独立 React root 来管理 Home banner。
 独立 root 无法自然更新 `Feed` 自己的 state，最后会被迫用全局事件或 DOM 桥接。
 
-V1 直接把 realtime 状态放进现有 `Feed`（或它调用的 hook/component）里：
+2.0 直接把 realtime 状态放进现有 `Feed`（或它调用的 hook/component）里：
 
 ```text
 Feed state
@@ -474,7 +468,7 @@ GET /                // 不带 cursor / start
 
 不要请求当前 `next_cursor`；它的语义是“从当前最后一行继续向旧内容翻页”。
 
-V1 也不需要手工计算“新增了几条”再 prepend。重新取服务端最新第一页并替换最稳妥：
+2.0 也不需要手工计算“新增了几条”再 prepend。重新取服务端最新第一页并替换最稳妥：
 排序、Like/Comment bump、visibility、删除/隐藏等都继续由现有读取路径决定，也天然避免
 Entry UUID 重复。
 
@@ -606,7 +600,7 @@ close grpc.ClientConn / process exit
 - 隐藏 B tab 一段时间后恢复，哪怕期间丢事件，也会通过 visible refresh 得到正确内容；
 - 重启 ffdb/ffweb 后页面无需手动刷新即可恢复 realtime 连接。
 
-## 实施阶段
+## 已完成的实施阶段
 
 1. **model + ffdb producer**：`TimelineMoveObserver`、moved 语义修正、runtime mutator
    variant、realtime broadcaster；此阶段不改变浏览器行为。
@@ -618,12 +612,12 @@ close grpc.ClientConn / process exit
 4. **frontend**：Feed React 维护 EventSource；Notification hint 只给 sidebar badge 加新通知
    标记，不额外请求精确计数。退役原 20s 全站 polling，仅为 Home 第一页保留 180s
    reconciliation。
-5. **观察与扩展**：记录连接数、bus/hub drop counter、gRPC reconnect 次数；稳定后再评估
-   Public/feed 页或更细粒度 realtime UI。
+后续若确有运维需求，再为连接数、bus/hub drop counter 和 gRPC reconnect 次数设计有界状态
+摘要；该决策记录在 `open_decisions.md`。Public/feed 页和更细粒度 realtime UI 不属于 2.0。
 
 ## 明确不做的复杂化
 
-V1 不需要：
+2.0 不需要：
 
 - Redis / NATS / Kafka；
 - durable realtime event table；

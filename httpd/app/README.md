@@ -21,8 +21,7 @@ pnpm test      # vitest
   while preserving the hand-written `../static/css/style.css`. The Go binary
   embeds and serves the published directory in production.
 - In Go debug mode (`httpd -d`) the templates instead serve the files under
-  `build/static/` directly. `air` (see `.air.toml`) reruns `yarn build` on
-  file changes.
+  `build/static/` directly. `pnpm dev` keeps the development build updated.
 
 Plate UI components follow the current registry structure documented in
 `../AGENTS.md`. Use `https://platejs.org/r/<name>.json` as a reference and

@@ -10,8 +10,7 @@ creator 的 Follow 边）。领域规则、权限与 mutation 契约见 `docs/gr
 ## 数据来源：ListUserGroups
 
 现有 `FetchGraph` 出于体量顾虑不返回 following（`server/helper.go` 的
-`BuildGraph` 刻意跳过 subscriptions），当前没有任何可复用的「用户已加入的
-Group 列表」读取 API。必须新增有界读取：
+`BuildGraph` 刻意跳过 subscriptions），因此使用独立的有界读取 API：
 
 ```text
 rpc ListUserGroups(ListUserGroupsRequest) returns (ListUserGroupsResponse)
@@ -79,21 +78,21 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
 
 ## Sidebar UI
 
-在 `layout.html` 的 sidebar 中，主 `.menu` 之后另有独立的 `.groups-menu` 块：
+在 `layout.html` 的 sidebar 中，主 `.menu` 之后另有独立的 `.groups-menu` 块。当前结构为：
 
 ```html
 {% if current_user %}
 <div class="menu groups-menu">
     <div class="section">
-        <h3 class="groups-heading">Groups <a href="/groups/create" title="Create a group">+</a></h3>
+        <h3 class="groups-heading">Groups</h3>
         {% if user_groups %}
         <ul>
             {% for g in user_groups %}
-            <li><a href="/feed/{{ g.Id }}" title="{{ g.Id }}">{{ g.Name }}{% if g.Private %} (private){% endif %}</a></li>
+            <li><a href="/feed/{{ g.Id }}" title="{{ g.Id }}">{{ g.Name }}</a>{% if g.Private %}<span class="private-icon"></span>{% endif %}</li>
             {% endfor %}
         </ul>
         {% endif %}
-        <div><a href="/feed/{{ current_user.Id }}/groups">All groups&hellip;</a></div>
+        <div><a href="/feed/{{ current_user.Id }}/groups">More&hellip;</a></div>
     </div>
 </div>
 {% endif %}
@@ -102,11 +101,10 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
 规则：
 
 - 仅登录用户可见该 section；未登录完全不渲染。
-- 空状态：没有任何 Group 时 section 仍渲染，仅含标题行的 "+" 创建入口与
-  "All groups…" 链接，作为功能引导；不额外显示占位文案。
-- sidebar 最多显示 10 个 Group，并始终显示 "All groups…" 指向
-  `/feed/:current-user-id/groups`。主导航在 "My feed" 下也提供该用户列表入口，并另以 `/groups`
-  进入公开发现页。完整列表页逐页消费
+- 空状态：没有任何 Group 时 section 仍渲染标题和 `More…`，不额外显示占位文案。
+- sidebar 最多显示 10 个 Group，并始终显示 `More…` 指向
+  `/feed/:current-user-id/groups`。Discover、My Groups、Create 使用 Group 列表页内的统一 nav；
+  sidebar 不再重复创建入口或 My Groups 主菜单项。完整列表页逐页消费
   `ListUserGroups.next_cursor` 直到结束，不受 sidebar 单页退化边界影响。
 - private Group 对成员正常显示（列表来自用户自己的 Follow 边，天然只含自己
   可见的内容），名称后使用现有 lock icon，不显示 `private` 文本。
@@ -126,22 +124,17 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
   - `name`：必填。
   - `description`：选填。
   - `picture`：选填，缺省由服务端沿用 wallpaper 默认头像逻辑。
-  - `private`：复选框。在 private 审批流程落地前禁用并附说明（服务端本就拒绝
-    `private=true`，见 `docs/group.md`），不允许出现「前端能勾、后端必拒」的
-    半可用状态。
+  - `private`：复选框。Private Group 创建后通过 Follow Request/批准流程接纳新成员。
 - 提交成功后重定向到 `/feed/{id}`；创建者此时已因 `CreateGroup` 的原子写入
   出现在自己的 Group 列表中，sidebar 实时读取，下次渲染即见。
 - 模板为新的 SSR 页面（如 `groups_create.html`），复用 layout 与现有表单样式，
   不引入 React 依赖。
 
-## 实施顺序与验收
+## 已完成的实施顺序与验收
 
-1. 新增 `ListUserGroups` RPC（proto + server + 有界迭代测试）。此步不依赖
-   `CreateGroup`，可先行——用户现在就能通过既有 subscribe 动作加入 Group。
-2. httpd `UserGroups` helper、缓存与失效、layout.html 的 Groups section
-   （此阶段 create 链接尚未渲染）。
-3. `CreateGroup` RPC 落地后（`docs/group.md` 实施顺序第 2 步），新增
-   `/groups/create` 页面并在 sidebar 显示 create 链接。
+1. 增加 `ListUserGroups` RPC（proto + server + 有界迭代测试）。
+2. 增加无缓存的 httpd `UserGroups` helper 和 layout Groups section。
+3. 增加 `CreateGroup` RPC、`/groups/create` 页面及统一 Group nav；sidebar 保持只读导航。
 4. `/feed/:name/groups` 完整列表页逐页读取并展示当前用户加入的全部 Group；仅本人可访问。
 
 验收至少覆盖：未登录不渲染 section 也不发起 RPC；加入/退出与互动计分在下次渲染

@@ -1,12 +1,12 @@
 # Feed 与用户互动 Timeline
 
-本文定义用户 Feed 之外的 LikeTimeline 与 CommentTimeline。第一版只允许登录用户查看自己
+本文定义用户 Feed 之外的 LikeTimeline 与 CommentTimeline。2.0 只允许登录用户查看自己
 Like 过或 Comment 过的 Entry；同一 Entry 的 Comment 折叠到该用户最后一条，权威互动明细
 不复制进 Timeline。
 
 ## 页面与语义
 
-新增两个只读页面：
+提供两个只读页面：
 
 ```text
 GET /feed/:name/likes
@@ -23,8 +23,8 @@ GET /feed/:name/comments
 /feed/old-id/comments -> /feed/new-id/comments
 ```
 
-现有 `renamedFeedLocation` 只生成裸 `/feed/:id`，实施时必须扩展为显式接收受控 suffix（空、
-`likes`、`comments`），并继续保留原 query；不得靠字符串拼接任意用户输入路径。
+`renamedFeedLocation` 显式接收受控 suffix（空、`likes`、`comments`），并继续保留原 query；
+不得靠字符串拼接任意用户输入路径。
 
 索引、RPC request 和 cursor 的身份边界始终使用解析后的 Profile UUID，rename 不重写互动索引。
 不存在、已删除、非 user 的 Profile 返回 404。
@@ -38,7 +38,7 @@ GET /feed/:name/comments
   供排序位置校验而不限制渲染内容；Like 项额外指出本条 Like。
 - 页面只展示既有数据，不产生 timeline bump，也不提供批量删除等新 mutation。
 
-只在本人 Home/Profile 导航中提供 “Likes” 与 “Comments” 链接。第一版不提供其他用户入口、
+只在本人 Home/Profile 导航中提供 “Likes” 与 “Comments” 链接。2.0 不提供其他用户入口、
 跨用户聚合、搜索、计数排行或 RSS 输出。
 
 ## 互动页授权边界
@@ -64,18 +64,17 @@ Like     (106): entry UUID | actor UUID   -> pb.Like
 Comment  (107): entry UUID | comment UUID -> pb.Comment
 ```
 
-它们不能按 actor 前缀查询。新增两个 actor-first 排序索引，以及 CommentTimeline 的定位表；
+它们不能按 actor 前缀查询，因此使用两个 actor-first 排序索引，以及 CommentTimeline 的定位表；
 三者都是可丢弃、可重建的派生数据，不得在请求时扫描 Like/Comment 全表。
 
-| 表 | 建议表号 | key | value |
+| 表 | 固定表号 | key | value |
 |---|---:|---|---|
 | `TableLikeTimeline` | 115 | `prefix(4) \| actor_uuid(16) \| reverse_ms(8) \| entry_uuid(16)` | empty |
 | `TableCommentTimeline` | 116 | `prefix(4) \| actor_uuid(16) \| reverse_ms(8) \| entry_uuid(16)` | latest comment UUID(16 raw bytes) |
 | `TableCommentTimelinePosition` | 117 | `prefix(4) \| actor_uuid(16) \| entry_uuid(16)` | `reverse_ms(8) \| latest_comment_uuid(16)` |
 
-`TableGroupAdmin = 114` 已由 `group.md` 预留，互动表不得占用。实施时必须同时在
-`model/types.go`、`docs/database_design.md` 和根 `AGENTS.md` 登记最终表号与编码；三处未同步
-不得合并。
+`TableGroupAdmin = 114` 已由 `group.md` 使用，互动表不得占用。表号与编码已经同时登记在
+`model/types.go`、`docs/database_design.md` 和根 `AGENTS.md`。
 
 `reverse_ms = ^uint64(created_at.UnixMilli())`，使 Pebble 前向扫描直接得到最新互动。运行时
 以 RFC3339Nano 保存截断到毫秒的服务端时间，使权威 Date 能精确重建排序 key；历史秒精度
@@ -154,7 +153,7 @@ rpc FetchInteractionFeed(InteractionFeedRequest)
 每项只能设置 `like` 或 `latest_comment` 之一，并且必须与请求 kind 相符。CommentTimeline
 不是 Comment 历史明细 API；需要完整历史时仍从权威 Comment 表按 Entry 查询。服务端不接受
 客户端提交 actor、索引时间或 Entry UUID 来构造结果。
-第一版 RPC 仅在 `viewer_uuid` 和 `profile_uuid` 都是有效非零 UUID 且完全相等时返回数据；
+2.0 RPC 仅在 `viewer_uuid` 和 `profile_uuid` 都是有效非零 UUID 且完全相等时返回数据；
 缺失 viewer 不能降级为匿名访问。loopback 边界取消前应把 viewer 替换为可信 principal。
 
 分页规则：
@@ -197,7 +196,7 @@ Comment UUID 不一致、派生行缺权威互动、actor/date/key 不匹配、�
 position；多条 Comment 不会线性放大派生表。不做每 viewer fanout，也不设置 Home timeline
 式 active/inactive 缓存。权威 Like/Comment 不因 Timeline 折叠或重建而改变。
 
-## 实施与验收顺序
+## 已完成的实施与验收顺序
 
 1. 固定 protobuf、表号和 key 编解码，测试 raw UUID、排序、cursor 不能跨 actor；
 2. 将 Like/Unlike、Comment create/edit/delete 改为权威行与索引原子 batch，覆盖失败回滚；

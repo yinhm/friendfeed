@@ -196,7 +196,7 @@ Index 支持按活动时间扫描，Position 支持 O(1) bump；只压缩 key �
 增长。根因是运行时 fanout 遍历全部历史 follower，而有 OAuth 身份也只表示曾经登录，不等于
 当前仍活跃。
 
-### 后续目标：活跃用户的有界 Home 缓存
+### 当前实现：活跃用户的有界 Home 缓存
 
 TimelineIndex/TimelinePosition 应继续作为可丢弃、可重建的派生数据，但其职责收窄为活跃用户
 的有界 Home 缓存，而不是永久历史索引。后续设计引入独立的 TimelineState：
@@ -324,7 +324,7 @@ same derived tables, fewer rows
   判断，因为 compact 刻意不读取 Entry；
 - 无 State 或 State 已过期：保留最近 500 条冷缓存，成对删除其余 TimelineIndex/Position；只有
   完全没有 Index 的 position-only viewer 才整段回收；
-- 当前时间窗口为 MAX，因此第一版只按活跃状态、10,000/500 条上限清理；
+- 当前时间窗口为 MAX，因此 2.0 只按活跃状态、10,000/500 条上限清理；
 - dry-run 流式统计 viewer、现有行和预计删除行，不保留全表 key；
 - apply 使用 DeleteRange 或固定 batch，可中断并安全重跑；
 - 它只保证容量和两表成对清理，不保证 Home 与 canonical source 语义一致。
@@ -343,10 +343,10 @@ same derived tables, fewer rows
 若 compact 后发现某个 active 用户内容或排序不正确，应对该用户运行 `rebuild_timeline -user`，
 而不是再次 compact。
 
-## Public Timeline 迁移设计
+## Public Timeline 设计
 
 Public feed 从内存 `FeedIndex` 缓存迁移到 TimelineIndex 体系。已确认的决策：私有 feed
-的 Entry 不进入 public；仅新建 Entry、首次 Like、新建 Comment 触发 bump；新实现落地后
+的 Entry 不进入 public；仅新建 Entry、首次 Like、新建 Comment 触发 bump；当前实现
 `FeedIndex` 整体清理；部署空窗可接受，不做双写。可能引入请求路径 O(n) 开销或写放大的
 方案在设计阶段拒绝，见"性能约束"一节。
 
@@ -484,9 +484,9 @@ CommentEntry）改为调用 public bump，调用前完成两个前置判断（�
   的精度承诺一致；
 - 流式、内存有界、支持 dry-run，先针对小 feed 上限验证。
 
-### FeedIndex 退役清单
+### 已完成的 FeedIndex 退役
 
-新实现落地后清理：
+2.0 已完成以下清理：
 
 - `server/index.go` 整体（`FeedIndex`、`rebuildFeedBuffer`、`MinQueue`、gob load/dump）；
 - `ApiServer.cached`、`cachedFeed`、`FetchFeed` 的 cached 分支、`spread()` 中的 Push；

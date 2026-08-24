@@ -1,6 +1,6 @@
 # 通用 Task 队列设计
 
-本文定义 FeedJob 的后继系统。目标不是复刻消息中间件，而是在 ffdb 现有的单机
+本文记录 FeedJob 后继系统的 2.0 当前契约。它不是复刻消息中间件，而是在 ffdb 现有的单机
 Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。Service 抓取是第一个使用方；
 调度状态仍属于 `ServiceState`，Task 只承载一次到期执行。
 
@@ -44,7 +44,7 @@ cli/tools             inspect/dead replay，经 task.Queue 改状态
 
 ## 持久化结构
 
-表号 203-207 是全局持久化契约，实施时同步 `model/types.go`、AGENTS.md、audit 和
+表号 203-207 是全局持久化契约，已经同步到 `model/types.go`、AGENTS.md、audit 和
 数据库设计文档。
 
 ```text
@@ -88,7 +88,7 @@ value = pb.TaskCompletion               // 有界完成/死信历史
 
 ## protobuf 模型
 
-字段号实施时只追加，不复用；下列名称表达目标语义，不要求照抄序号。
+字段号只允许兼容追加，不得复用；下列模型是当前语义摘要，准确字段号以 `pb/api.proto` 为准。
 
 ```proto
 enum TaskState {
@@ -309,7 +309,7 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
   重新激活来源。用户显式触发的 `feed_service.seed` 是对 dead 来源的无条件探测：成功后复活
   为 active；探测失败同样按来源生命周期落地（临时错误置 degraded 并退避），即用户发起的
   seed 探测无论成败都使来源重新进入调度评估。
-- 首版 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
+- 2.0 RSS 只由 ffdb 进程内 worker 执行，因此 per-host 锁能保证同 host 串行。开放
   多进程 RSS worker 前必须增加跨 worker 的 host 并发方案；进程内 mutex 不能冒充
   分布式互斥。
 - 同一 Service 的 ServiceState 读改写目前也依赖这条单进程、per-host 串行边界。修改
@@ -370,9 +370,9 @@ Done 由显式时间 cutoff 裁剪。list/inspect 的输出和内存有界，但
 应针对已确认的不变量新增带 dry-run、精确 task ID 和回归测试的一次性命令，验证副本后再操作
 停服目录。
 
-## 分阶段实施
+## 已完成的分阶段实施
 
-每阶段单独提交、可回退，不能把 RSS 与尚未验证的队列核心绑成一个大提交。
+以下阶段已按独立提交完成，保留作为 2.0 验收与后续扩展边界。
 
 ### M1：持久化与纯 Queue 状态机
 
@@ -397,9 +397,9 @@ Done 由显式时间 cutoff 裁剪。list/inspect 的输出和内存有界，但
 
 ### M4：运维闭环
 
-- audit、list、replay-dead 和 Done retention；首版不提供会猜测状态的自动 reconcile。
+- audit、list、replay-dead 和 Done retention；2.0 不提供会猜测状态的自动 reconcile。
 - 运维状态由 `audit_store` 与有界 `list_tasks` 查看；需要常驻 metrics 时另行设计，
-  不在首版伪造一套未消费的指标。
+  不在 2.0 伪造一套未消费的指标。
 
 ### M5：外部 worker
 

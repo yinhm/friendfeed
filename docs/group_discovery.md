@@ -17,7 +17,7 @@ sidebar Groups           当前用户 Group 的个人活跃度前十
 - 发现页只展示头像、名称、锁状态和简介，样式与现有用户 Group 列表一致。
 - 列表不计算成员数、admin、membership 或 pending request，也不提供行内 Join/Remove 操作。
   用户点击 Group 进入 `/feed/:id`，由现有 Feed 页面统一展示状态并处理 Join、申请和管理。
-- 第一版按最近活动时间排序，不做推荐、分类、全文搜索或个性化排名。Group 创建、向 Group
+- 当前按最近活动时间排序，不做推荐、分类、全文搜索或个性化排名。Group 创建、向 Group
   新建 Entry、首次 Like 和新建 Comment 会更新活动时间；编辑、Unlike、删除和成员变化不移动
   目录位置。
 - 历史 stock/system Group 暂不特殊过滤；其退役问题记录在 `docs/open_decisions.md`，不把
@@ -25,7 +25,7 @@ sidebar Groups           当前用户 Group 的个人活跃度前十
 
 ## Group directory
 
-新增可丢弃、可重建的派生表：
+使用可丢弃、可重建的派生表：
 
 ```text
 TableGroupIndex = 119
@@ -43,7 +43,7 @@ value = empty
 - `CreateGroup` 在创建 Profile 的同一 batch 写首条目录行，时间使用服务端时间。
 - 向 Group 新建 Entry、首次 Like 或新建 Comment 时，在权威 mutation 的同一 batch 移动目录位置；
   目录更新失败会中止该 mutation，避免运行时产生漂移。
-- 为定位旧 key，移动时按 `T119` 扫描最多一个完整目录并匹配 UUID。Group 数量当前较小，第一版
+- 为定位旧 key，移动时按 `T119` 扫描最多一个完整目录并匹配 UUID。Group 数量当前较小，2.0
   接受这一成本，避免为定位记录再建第二张表；实现必须关闭 iterator、检查错误且保持恒定内存。
 - soft delete 不要求请求路径扫描删除目录行；读路径跳过 deleted/missing Profile，audit/rebuild
   清理孤儿。
@@ -54,7 +54,7 @@ viewer 状态。
 
 ## gRPC 契约
 
-新增兼容 RPC，不改变 `ListUserGroups`：
+使用兼容新增的 RPC，不改变 `ListUserGroups`：
 
 ```proto
 rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
@@ -90,13 +90,13 @@ message ListGroupsResponse {
   权限。
 - 发现页与用户 Group 页复用同一列表模板/partial：`.item-list`、头像、名称、private lock、简介。
   两页只改变标题、数据源与分页链接。
-- sidebar 最多显示 10 个个人活跃 Group；`All groups…` 指向
+- sidebar 最多显示 10 个个人活跃 Group；`More…` 指向
   `/feed/{current_user.Id}/groups`。主导航另提供 `/groups` 发现入口。
 - 发现页只提供 `Next »`；点击名称进入既有 `/feed/:id` 页面，不在列表复制状态或操作按钮。
 
 ## rebuild、audit 与部署
 
-新增 `rebuild_group_index`：
+运维命令 `rebuild_group_index`：
 
 - 支持 `-group <id>` 与 `-dry-run`；全量模式流式扫描 Profile，只保留有效、未删除的 Group。
 - 每个 Group 的活动时间取其最新 direct Entry；无 Entry 的历史 Group 使用 Unix epoch，新建 Group
@@ -107,10 +107,9 @@ message ListGroupsResponse {
 缺少目录行。audit 只报告；rebuild 才修复。
 
 首次部署在停服状态执行：指定 Group dry-run/apply、全量 dry-run/apply、`audit_store`，然后启动
-服务。实现时将表号和编码同步登记到 `model/types.go`、`docs/database_design.md` 与根
-`AGENTS.md`。
+服务。表号和编码已经登记到 `model/types.go`、`docs/database_design.md` 与根 `AGENTS.md`。
 
-## 实施步骤
+## 已完成的实施步骤
 
 1. 固定 T119 编码，增加 Create/新 Entry/首次 Like/新 Comment 的目录维护及 model 测试。
 2. 实现有界 `rebuild_group_index`、audit 与迁移测试。

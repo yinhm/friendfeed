@@ -299,9 +299,8 @@ func IsGroupMember(db *store.Store, group, user uuid.UUID) (bool, error) {
 
 // StageJoinGroup stages the Follow/Follower edges that make user a member of
 // group. It is idempotent: joining an already-joined Group succeeds without
-// rewriting the edges. Private Groups are rejected outright until the
-// approval/invite flow exists, matching CreateGroup's private=true
-// rejection (docs/group.md).
+// rewriting the edges. Private Groups reject this direct path and admit new
+// members only through StageApproveFollowRequest.
 func StageJoinGroup(db *store.Store, batch *pebble.Batch, group, user uuid.UUID) error {
 	if batch == nil || group == uuid.Nil || user == uuid.Nil {
 		return errors.New("batch, group UUID, and user UUID are required")
@@ -514,8 +513,8 @@ func RemoveGroupAdmin(db *store.Store, group, target uuid.UUID) error {
 // docs/group.md, callers must check GroupActionManageGroup (admin or super)
 // before staging this write. Group ID, Type, and Private are immutable
 // through this path: renames go through the existing UserRenameMap flow, and
-// there is no private-Group flow yet (StageCreateGroup already rejects
-// private=true at creation).
+// public/private is fixed at creation. Private membership changes go through
+// the FollowRequest approval flow rather than metadata editing.
 func StageUpdateGroup(db *store.Store, batch *pebble.Batch, group uuid.UUID, name, description, picture string) (*pb.Profile, error) {
 	if batch == nil || group == uuid.Nil {
 		return nil, errors.New("batch and group UUID are required")

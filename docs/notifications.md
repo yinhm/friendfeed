@@ -73,7 +73,7 @@ GroupAdmin、Like、Comment、ServiceState 等领域表仍是事实来源；通�
 
 ## 数据模型
 
-新表从 120 开始；119 保留为空，不复用。
+Notification 表从 120 开始；119 已由 GroupIndex 使用，不复用。
 
 ```text
 120 Notification
@@ -81,7 +81,7 @@ GroupAdmin、Like、Comment、ServiceState 等领域表仍是事实来源；通�
 122 NotificationState
 ```
 
-表号上线时必须同时登记到 `model/types.go`、`docs/database_design.md` 和 `AGENTS.md`。
+表号已经同时登记到 `model/types.go`、`docs/database_design.md` 和 `AGENTS.md`。
 
 ### Notification
 

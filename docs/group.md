@@ -5,8 +5,7 @@ Entry、timeline 和 FeedService，不是能够登录的用户，也不建立第
 sidebar 的 Group 活跃度是 TableMeta 中的可重建派生视图，不参与 membership 或权限；
 评分、编码与重建契约见 `docs/group_navigation.md`。
 
-本文定义目标契约；当前实现与目标的差距列在文末。在相应服务端权限落地前，前端按钮不能
-被视为授权边界。
+本文定义 2.0 当前契约；实现状态与有意延期项列在文末。前端按钮始终不能被视为授权边界。
 
 ## 核心模型
 
@@ -42,22 +41,22 @@ Group Entry 的作者始终是真实用户；外部 Service 导入除外
 Group identity 继续存放于 Profile/UserMap。成员关系继续使用现有 Follow/Follower 两条互为
 反向的边，并在同一 Pebble batch 中写入或删除。
 
-GroupAdmin 应使用独立表：
+GroupAdmin 使用独立表：
 
 ```text
 key   = table prefix | group UUID(16) | admin user UUID(16)
 value = nil
 ```
 
-建议使用 100 段下一个空闲表号 `TableGroupAdmin = 114`（111-113 已被 Service 占用）；
-表号必须在实施变更时统一登记到 `model/types.go`、`docs/database_design.md` 和
-`AGENTS.md`，以实际登记为准。旧 `Feedinfo.Admins []*Profile` 及 `Graph.admins` 快照仅
+表号固定为 `TableGroupAdmin = 114`（111-113 已被 Service 占用），并已登记到
+`model/types.go`、`docs/database_design.md` 和 `AGENTS.md`。旧 `Feedinfo.Admins []*Profile`
+及 `Graph.admins` 快照仅
 作为迁移输入，在 GroupAdmin 上线后不再是运行时权限来源。不得按可回收的 Profile ID
 授权。
 
 ## 创建 Group
 
-新增明确的 `CreateGroup` mutation，不复用通用 `PostFeedinfo` 隐式创建：
+使用明确的 `CreateGroup` mutation，不复用通用 `PostFeedinfo` 隐式创建：
 
 ```text
 CreateGroup(actor_uuid, id, name, description, picture, private)
@@ -74,8 +73,8 @@ CreateGroup(actor_uuid, id, name, description, picture, private)
 Group ID 与 user ID 共用全局命名空间、格式校验和 UserRenameMap 保留规则。创建者自动加入并
 成为 admin，但没有独立于 GroupAdmin 的永久 owner 特权。任一步失败都不得留下半个 Group。
 
-首版若尚未实现 private Group 的审批/邀请流程，`CreateGroup(private=true)` 必须明确拒绝，
-不能创建一个成员无法正常读取或加入的半可用 Group。
+Private Group 可以创建；非成员只能通过 Follow Request 申请，由 Group admin 批准后写入
+Follow/Follower。直接调用 Join private Group 必须拒绝，不能绕过审批建立成员边。
 
 ## 加入、退出与成员管理
 
@@ -192,7 +191,7 @@ ID 冲突和 UserRenameMap soft redirect 规则，不改变 Group UUID、成员�
 
 ## API 边界
 
-目标 mutation 应明确表达领域动作：
+当前 mutation 明确表达领域动作：
 
 ```text
 CreateGroup
@@ -214,7 +213,7 @@ following，不得为此把全量订阅塞回 Graph 响应。
 当前 gRPC 只监听 loopback，可暂时在请求中携带 actor UUID；所有 mutation 仍必须在 ffdb
 重新验证 actor。若将来对外开放 gRPC，必须由认证 principal 注入 actor，不能信任客户端自报。
 
-## 当前实现差距
+## 当前实现状态
 
 实现状态追踪（✅ 为已落地项）：
 
@@ -225,7 +224,7 @@ following，不得为此把全量订阅塞回 Graph 响应。
   给系统 feed 独立 Type 或内部直写路径。
 - ✅ admin 权威已切换到 GroupAdmin 表。**迁移注意**：现有 Group 的 admin 若仅存在于
   legacy Feedinfo.Admins 快照中，需通过 super 手动执行 JoinGroup + AddGroupAdmin
-  引导，或运行一次性 backfill 命令（当前默认无生产 Group，暂未实现 backfill）；
+  引导，或运行 `backfill_group_admins` 一次性命令；
 - ✅ GraphFollow 对 Group 目标已路由进 Join/Leave 领域层（admin 退出拦截、最后 admin
   保护在所有入口一致生效）。
 - ✅ PostEntry 已在 mutation 边界验证 Group 成员资格，并用服务端读取的 Profile
@@ -254,17 +253,16 @@ following，不得为此把全量订阅塞回 Graph 响应。
 有意暂缓（规范允许的缺口）：
 
 - owner/admin 主动邀请（邀请制）；目前只实现 join request/批准方向；
-- 申请的通知机制（申请人/批准人均通过页面状态感知，无主动通知）；
 - 删除 Group 后 Follow/Follower、timeline、FeedService 的无上限清理（由 audit 报告，
   后台/运维命令有界清理）。
 
-## 实施顺序与验收
+## 已完成的实施顺序与验收
 
 1. 先增加 GroupAdmin 稳定 UUID 表、resolver 和权限矩阵测试；
 2. 实现原子 CreateGroup，并锁定 ID 冲突和失败无残留；
 3. 将 Group Join/Leave、admin 升降级和成员移除收口到同一领域层；
 4. 将投稿、metadata、FeedService 和审核授权统一下沉到 ffdb；
-5. 修复 private visibility，或在审批流程完成前拒绝创建 private Group；
+5. 统一 private visibility，并接入 Follow Request/批准流程；
 6. 接入 Join/Leave 后的异步单 Feed Home add/remove；
 7. 最后实现 Group 创建、成员、admin 和 Service 管理 UI（sidebar 导航与创建页规范
    见 `docs/group_navigation.md`，主题体系见 `docs/theme.md`）；

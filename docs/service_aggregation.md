@@ -4,8 +4,9 @@ FriendFeed 的 Service 是附着在一个 Feed 上的外部内容来源。用户
 Atom 等来源导入自己的 Feed；Group 管理员也可以把来源导入 Group。Service 不是社交
 订阅关系，不创建虚拟用户，不写 Follow/Follower。
 
-本文替代此前的 `Subscription` 设计。`TableSubscription=111` 与
-`TableSubscriptionState=112` 尚未部署，可以直接改写，不提供旧格式迁移或兼容读取。
+本文记录 2.0 当前 Service 聚合契约。早期未部署的 `Subscription` 草案已经由
+`Service(111)`、`ServiceState(112)` 和 `ServiceFeedIndex(113)` 取代；运行时不存在
+Subscription 双写或兼容读取。
 
 ## 领域模型
 
@@ -32,7 +33,7 @@ https://example.com/feed ──┬── personal-feed / blog
 
 ## 支持范围
 
-第一阶段只实现公开 Web Feed，但解析格式不写死为 RSS 2.0：
+当前实现公开 Web Feed，解析格式不写死为 RSS 2.0：
 
 - RSS 2.0；
 - Atom 1.0；
@@ -210,8 +211,8 @@ UA 是抓取器配置常量，不由用户、Service 或 Task payload 覆盖。�
 
 ## API 命名与授权
 
-`SubscribeService`/`UnsubscribeService`/`ListSubscriptions` 混淆了 Follow，且无法表达
-目标 Group。它们尚未发布，应在本分支直接替换为：
+`SubscribeService`/`UnsubscribeService`/`ListSubscriptions` 会混淆 Follow，且无法表达
+目标 Group，因此 2.0 使用：
 
 ```proto
 rpc AddFeedService(AddFeedServiceRequest) returns (FeedService);
@@ -223,7 +224,7 @@ rpc RefreshFeedService(RefreshFeedServiceRequest) returns (google.protobuf.Empty
 message AddFeedServiceRequest {
   string actor_uuid = 1;
   string target_feed_uuid = 2;
-  string kind = 3;              // 第一阶段只接受 web_feed
+  string kind = 3;              // 2.0 只接受 web_feed
   string url = 4;
 }
 ```
@@ -246,15 +247,15 @@ Service、Service UUID、抓取状态或 Task 参数。
 账户 Import 页面管理当前用户 Feed 的 Service。Group 管理页面增加同一套 Service
 组件，只有 Group admin 可见：
 
-- 列出现有 Service：名称、来源 host、最近成功时间、active/degraded/dead 状态；
-- 添加公开 Feed URL，服务端探测并返回解析后的 title/site URL 供确认；
+- 列出现有 Service：类型、解析后的 title、最近抓取结果和 active/degraded/dead 状态；
+- 添加公开 Feed URL 后立即显示 pending；异步 seed 成功后更新解析出的 title 与状态；
 - 启用/停用、删除、显式“立即刷新”；
 - 不在浏览器直接抓取 URL，不显示完整内部错误或敏感 query。
 
 前端组件以 `target_feed_uuid` 为输入复用，不能分别实现 user/group 两套 API。添加成功
 立即显示 pending 状态；`feed_service.seed` 异步完成后更新最近抓取状态。
 
-## 实施顺序
+## 已完成的实施顺序
 
 1. **纠正模型和命名**：直接替换未发布的 111/112 protobuf、表变量、model API 和
    RPC；新增 113；删除 synthetic profile、Follow/Follower 复用及 Subscription 命名。
@@ -283,13 +284,13 @@ Service、Service UUID、抓取状态或 Task 参数。
 `disable_feed_service` 是停服维护用的显式管理员修复命令，原子更新 FeedService 与反向索引，
 不对 Web 暴露，也不替代有 actor 授权的 RPC。
 
-每一步独立提交并跑 Go 门禁；涉及前端时再跑完整 pnpm 与 e2e。111/112 未部署，因此
-本轮不写数据迁移工具，也不保留旧 `Subscription` API 的双写兼容层。
+上述步骤已经落地并通过 Go/前端门禁。111/112 的 Subscription 草案从未部署，因此没有
+Subscription 数据迁移工具，也不保留旧 API 的双写兼容层。
 
 ## 非目标
 
 - 不把 RSS 来源建成 Profile，不通过 Follow 表表达导入；
 - 不让每个绑定重复抓取相同 URL；
-- 不在首版镜像 Feed 中的远程图片或执行 HTML 内脚本；
+- 不在 2.0 镜像 Feed 中的远程图片或执行 HTML 内脚本；
 - 不在本轮重构 legacy Twitter `FeedJob`、ArchiveFeed 或 OAuth Service；
 - 不引入 Redis、消息中间件或独立 scheduler 服务。
