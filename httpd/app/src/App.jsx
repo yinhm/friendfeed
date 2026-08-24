@@ -39,6 +39,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {boolean} [show_next]
  * @property {boolean} [cursor_paging]
  * @property {string} [next_cursor]
+ * @property {boolean} [realtime_enabled]
  * @property {boolean} [realtime_home]
  * @property {string} [manage_services_url]
  * @property {string} [group_settings_url]
@@ -209,6 +210,8 @@ export function Feed(props) {
   }, []);
 
   useEffect(() => {
+    if (props.realtime_enabled !== true) return undefined;
+
     /** @type {EventSource | null} */
     let source = null;
     const markTimelineDirty = () => {
@@ -257,7 +260,7 @@ export function Feed(props) {
       document.removeEventListener('visibilitychange', handleVisibility);
       closeRealtime();
     };
-  }, [props.realtime_home, refreshNewestHome]);
+  }, [props.realtime_enabled, props.realtime_home, refreshNewestHome]);
 
   /** @param {FormData} formData */
   const onPostEntry = (formData) => {
@@ -392,6 +395,7 @@ export function App() {
       show_next={appData.show_next}
       cursor_paging={appData.cursor_paging}
       next_cursor={appData.next_cursor}
+      realtime_enabled={appData.realtime_enabled}
       realtime_home={appData.realtime_home}
       manage_services_url={appData.manage_services_url}
       group_settings_url={appData.group_settings_url}

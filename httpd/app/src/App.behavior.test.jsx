@@ -62,6 +62,7 @@ const makeFeedProps = (overrides = {}) => ({
   show_share: false,
   prev_start: 0,
   next_start: 0,
+  realtime_enabled: true,
   realtime_home: false,
   query: '',
   onpage: false,
@@ -107,6 +108,17 @@ test('non-home Feed keeps realtime hints but does not retain legacy polling', as
     await vi.advanceTimersByTimeAsync(180_000);
   });
   expect(screen.queryByRole('button', {name: '有新动态，点击刷新'})).not.toBeInTheDocument();
+  expect(getJSONMock).not.toHaveBeenCalled();
+});
+
+test('anonymous Feed does not open the authenticated realtime stream', async () => {
+  vi.useFakeTimers();
+  render(<Feed {...makeFeedProps({realtime_enabled: false, realtime_home: true})} />);
+
+  expect(MockEventSource.instances).toHaveLength(0);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(180_000);
+  });
   expect(getJSONMock).not.toHaveBeenCalled();
 });
 

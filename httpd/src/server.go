@@ -195,8 +195,13 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 }
 
 func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
+	actor := CurrentUserUuid(c)
 	requestedShare, _ := data["show_share"].(bool)
-	data["show_share"] = showShareForUser(CurrentUserUuid(c), requestedShare)
+	data["show_share"] = showShareForUser(actor, requestedShare)
+	// The React feed is also rendered for anonymous readers. Tell it explicitly
+	// whether the session may open the authenticated SSE endpoint; otherwise an
+	// anonymous EventSource follows the login redirect and retries forever.
+	data["realtime_enabled"] = actor != ""
 	feed := data["feed"].(*pb.Feed)
 	sanitizeFeedEntries(feed)
 	defaultFeedPictures(feed)

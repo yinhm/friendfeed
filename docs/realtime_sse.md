@@ -350,6 +350,8 @@ action.GET("/events", s.EventsHandler)
 
 鉴权复用 `LoginRequired()` + session cookie。viewer 只能来自
 `CurrentUserUuid(c)`，请求参数不得允许客户端指定其他 viewer UUID。
+SSR 另在 `appData.realtime_enabled` 中下发登录态布尔值；匿名 Feed 不创建
+`EventSource`，避免认证重定向被浏览器自动重连放大。该字段不携带用户身份。
 
 ### EventsHandler
 
