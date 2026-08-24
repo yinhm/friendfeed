@@ -160,6 +160,9 @@ ffdb 可以在服务运行时创建 Pebble point-in-time snapshot：
 cli run --t BackupDB
 ```
 
+运行中 ffdb 的内存组成和后台状态可通过 loopback CLI 检查；使用方法和安全边界见
+[运行时诊断](docs/runtime_diagnostics.md)。
+
 备份会原子发布到 `/tmp/backup-YYYYMMDD-HHMMSS`。`/tmp` 会被系统清理，必须立即复制到其他
 磁盘或主机。恢复时停止 ffdb，保留原数据库目录，将完整备份放到配置的 `db_path` 后再启动。
 详细的 schema、迁移和 audit 操作见 [数据库迁移手册](docs/db_migration.md)。
