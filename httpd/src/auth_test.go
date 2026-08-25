@@ -28,6 +28,10 @@ func TestExtractNextPath(t *testing.T) {
 		"hw-y778egVoO5g6pkV4z4tYZhSvivZkig": "/",
 		"https://evil.example/auth/google":  "/",
 		"//evil.example/auth/google":        "/",
+		// Browsers treat backslashes as slashes in the Location header.
+		`/\\evil.example`:  "/",
+		`/%5Cevil.example`: "/",
+		`/%5c%5cevil.example`: "/",
 	}
 	for input, want := range tests {
 		if got := extractNextPath(input); got != want {

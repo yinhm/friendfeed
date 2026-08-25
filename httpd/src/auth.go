@@ -55,7 +55,10 @@ func extractNextPath(next string) string {
 		return "/"
 	}
 	path := n.Path
-	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
+	// Browsers normalize backslashes to slashes in the Location header, so
+	// "/\evil.example" would become the protocol-relative "//evil.example".
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") ||
+		strings.ContainsRune(path, '\\') {
 		return "/"
 	}
 	if n.RawQuery != "" {
