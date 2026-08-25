@@ -35,6 +35,10 @@ overrides:
   react-dom: 19.2.7
   '@types/react': 19.2.17
   '@types/react-dom': 19.2.3
+  # Security: undici is transitive-only (jsdom dev chain on 7.x, juice →
+  # cheerio runtime chain on 6.x); pin both lines past the patched releases.
+  'undici@<6.28.0': 6.28.0
+  'undici@>=7.0.0 <7.29.0': 7.29.0
 
 peerDependencyRules:
   allowedVersions:
