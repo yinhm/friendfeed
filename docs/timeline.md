@@ -133,7 +133,11 @@ entry UUID             16 B
 UUID，也不得跨 viewer 解释。匿名 HTTP 请求携带旧 Home/Public/Profile `?start=N` 时直接
 302 到对应 Feed 第一页，不执行 O(Start) 扫描；登录用户可读取一次 legacy offset 页，但该页
 只生成 cursor 形式的下一页链接，不再延续 offset 链。不回读已退役的
-`EntryIndex | TimelineUUID`。
+`EntryIndex | TimelineUUID`。这条兼容入口在当前版本明确保留，不进入普通退役清单。
+
+旧 Home 实现使用的 `TimelineUUID`、`FanoutEntry`、`DeleteFanoutEntry` 及其读取分支已经退役；
+`EntryIndex` 只保留 Profile/Group 的 direct feed 索引。登录用户的旧 `?start=N` Home 链接仍由
+`TimelineIndex` 读取一次并切换到 cursor，不依赖旧 Home 索引。
 
 当前 cursor 编解码对 TimelineIndex 和 direct EntryIndex 使用同一 24 B 位置格式
 （reverse ms 8 B + entry UUID 16 B）；同秒多帖由 UUID 后缀消歧。这是显式表格式选择，

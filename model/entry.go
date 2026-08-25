@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -106,30 +105,6 @@ func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer Tim
 	}
 
 	return key, nil
-}
-
-// FanoutEntry maintains the retired EntryIndex timeline format.
-// Deprecated: runtime Home timelines use FanoutTimelineActivity.
-func FanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
-	oldtime time.Time, entryKey store.Key) (n int, err error) {
-	started := time.Now()
-	defer func() {
-		slog.Info("entry fanout", "feed_uuid", feedUuid.String(), "followers", n,
-			"elapsed", time.Since(started), "error", err)
-	}()
-	fanOutToTimeline := TimelineUUID(userUuid)
-	// fmt.Println(hex.EncodeToString(fanOutToTimeline.Bytes()))
-	if err := EntryIndex.Index(db, fanOutToTimeline, oldtime, entryKey); err != nil {
-		return 0, fmt.Errorf("index author timeline: %w", err)
-	}
-
-	n, err = updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
-		return EntryIndex.Index(db, timelineUuid, oldtime, entryKey)
-	})
-	if err != nil {
-		return n, fmt.Errorf("index follower timeline: %w", err)
-	}
-	return n, nil
 }
 
 func GetEntry(db *store.Store, uuidStr string) (*pb.Entry, error) {
@@ -235,35 +210,6 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 
 	// delete entry from public index??
 	return nil
-}
-
-// DeleteFanoutEntry removes rows from the retired EntryIndex timeline format.
-// Deprecated: activity timeline rows are deleted lazily or by rebuild.
-func DeleteFanoutEntry(db *store.Store, userUuid, feedUuid uuid.UUID,
-	oldtime time.Time, entryKey store.Key) (n int, err error) {
-	fanOutToTimeline := TimelineUUID(userUuid)
-	if err := EntryIndex.RemoveIndex(db, fanOutToTimeline, oldtime, entryKey); err != nil {
-		return 0, fmt.Errorf("remove author timeline index: %w", err)
-	}
-
-	n, err = updateFollowerTimelines(db, feedUuid, func(timelineUuid uuid.UUID) error {
-		return EntryIndex.RemoveIndex(db, timelineUuid, oldtime, entryKey)
-	})
-	if err != nil {
-		return n, fmt.Errorf("remove follower timeline index: %w", err)
-	}
-	return n, nil
-}
-
-func updateFollowerTimelines(db *store.Store, feedUuid uuid.UUID, update func(uuid.UUID) error) (n int, err error) {
-	prefix := NewPrefixKeyFrom(TableFollower, feedUuid.Bytes())
-	// fmt.Printf("scan key, %s\n", prefix.String())
-	return db.ForwardScan(prefix, func(i int, k, v []byte) error {
-		fk := ParseFollowerKey(k)
-		timelineUuid := UniqueKeyFrom(fk.String(), "user", "timeline")
-		// fmt.Printf("fanout to: <%s, %x>", fk.String(), timelineUuid)
-		return update(timelineUuid)
-	})
 }
 
 func PutTweet(db *store.Store, tweet *pb.Tweet) error {

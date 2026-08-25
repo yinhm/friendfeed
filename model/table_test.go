@@ -155,45 +155,6 @@ func (s *TableTestSuite) TestDeleteEntryPropagatesReadError() {
 	assert.NoError(s.T(), err)
 }
 
-func (s *TableTestSuite) TestFanoutEntryAndDeleteFanoutEntry() {
-	userUUID := uuid.Must(uuid.NewV4())
-	feedUUID := uuid.Must(uuid.NewV4())
-	followerUUID := uuid.Must(uuid.NewV4())
-	followerKey := NewKeyFrom(Follower.Prefix, feedUUID.Bytes(), followerUUID.Bytes())
-	assert.NoError(s.T(), s.db.Put(followerKey, []byte("1")))
-
-	entryTime := time.Now().UTC().Truncate(time.Second)
-	entryKey := Entry.PrefixAppend(uuid.Must(uuid.NewV4()).Bytes())
-	n, err := FanoutEntry(s.db, userUUID, feedUUID, entryTime, entryKey)
-	assert.NoError(s.T(), err)
-	assert.Equal(s.T(), 1, n)
-
-	userTimeline := TimelineUUID(userUUID)
-	followerTimeline := UniqueKeyFrom(store.Key(followerUUID.Bytes()).String(), "user", "timeline")
-	assert.Equal(s.T(), 1, s.countEntryIndex(userTimeline))
-	assert.Equal(s.T(), 1, s.countEntryIndex(followerTimeline))
-
-	n, err = DeleteFanoutEntry(s.db, userUUID, feedUUID, entryTime, entryKey)
-	assert.NoError(s.T(), err)
-	assert.Equal(s.T(), 1, n)
-	assert.Equal(s.T(), 0, s.countEntryIndex(userTimeline))
-	assert.Equal(s.T(), 0, s.countEntryIndex(followerTimeline))
-}
-
-func (s *TableTestSuite) TestUpdateFollowerTimelinesPropagatesUpdateError() {
-	feedUUID := uuid.Must(uuid.NewV4())
-	followerUUID := uuid.Must(uuid.NewV4())
-	followerKey := NewKeyFrom(Follower.Prefix, feedUUID.Bytes(), followerUUID.Bytes())
-	assert.NoError(s.T(), s.db.Put(followerKey, []byte("1")))
-
-	wantErr := errors.New("timeline update failed")
-	n, err := updateFollowerTimelines(s.db, feedUUID, func(uuid.UUID) error {
-		return wantErr
-	})
-	assert.Zero(s.T(), n)
-	assert.ErrorIs(s.T(), err, wantErr)
-}
-
 func (s *TableTestSuite) TestPutDeleteEntryMaintainsAuthorTimeline() {
 	authorUUID := uuid.Must(uuid.NewV4())
 	assert.NoError(s.T(), TouchTimelineState(s.db, authorUUID, time.Now().UTC()))

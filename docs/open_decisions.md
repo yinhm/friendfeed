@@ -13,6 +13,8 @@
 
 ## 协议、数据与服务模型
 
+- **Feed legacy offset 分页**：当前版本明确保留 `?start=N` 兼容入口。匿名请求重定向到
+  Feed 第一页；登录用户允许读取一次 legacy offset 页，下一页立即切换 cursor。暂不继续退役。
 - **Twitter 写入模型**：先决定 `fetch_user` 是否继续维护 legacy Entry feed，还是迁往 Tweet/PostTweet，再考虑复用转换代码。
 
 ## 数据库性能与扩展

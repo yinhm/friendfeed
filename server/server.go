@@ -509,34 +509,22 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		req.PageSize = 50
 	}
 	slog.Debug("ForwardFetchFeed: request", "req", req)
+	if req.ProfileUuid != "" {
+		return nil, status.Error(codes.InvalidArgument, "legacy Home timeline is retired; use cursor paging")
+	}
 
-	var profile *pb.Profile
-	var err error
-	var prefix []byte
-
-	if req.ProfileUuid != "" { // user timeline
-		profileUuid, _ := uuid.FromString(req.ProfileUuid)
-		profile, err = model.GetProfileFromUuid(s.mdb, profileUuid)
+	profile, err := model.GetProfileFromUserId(s.mdb, req.Id)
+	if err != nil {
+		profile, err = model.GetProfileFromRenameId(s.mdb, req.Id)
 		if err != nil {
-			slog.Debug("ForwardFetchFeed: profile not found", "id", req.Id, "profile_uuid", req.ProfileUuid)
+			slog.Debug("ForwardFetchFeed: profile not found", "id", req.Id, "err", err)
 			return nil, status.Errorf(codes.NotFound, "profile not found")
 		}
-		fanoutUuid := model.TimelineUUID(profileUuid)
-		prefix = store.NewUUIDKey(model.TableEntryIndex, fanoutUuid).Bytes()
-	} else { // from user.id
-		profile, err = model.GetProfileFromUserId(s.mdb, req.Id)
-		if err != nil {
-			profile, err = model.GetProfileFromRenameId(s.mdb, req.Id)
-			if err != nil {
-				slog.Debug("ForwardFetchFeed: profile not found", "id", req.Id, "err", err)
-				return nil, status.Errorf(codes.NotFound, "profile not found")
-			}
-			slog.Debug("ForwardFetchFeed: resolved previous profile ID", "from", req.Id, "to", profile.Id)
-		}
-		slog.Debug("ForwardFetchFeed: profile", "profile", profile)
-		profileUuid, _ := uuid.FromString(profile.Uuid)
-		prefix = store.NewUUIDKey(model.TableEntryIndex, profileUuid).Bytes()
+		slog.Debug("ForwardFetchFeed: resolved previous profile ID", "from", req.Id, "to", profile.Id)
 	}
+	slog.Debug("ForwardFetchFeed: profile", "profile", profile)
+	profileUuid, _ := uuid.FromString(profile.Uuid)
+	prefix := store.NewUUIDKey(model.TableEntryIndex, profileUuid).Bytes()
 
 	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
 	if err != nil {

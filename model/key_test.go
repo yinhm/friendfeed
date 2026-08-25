@@ -2,11 +2,9 @@ package model
 
 import (
 	"encoding/hex"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,10 +55,4 @@ func TestUserRenameMapKeyEncoding(t *testing.T) {
 
 	assert.Equal(t, "000000076f6c646e616d65", key.String())
 	assert.Equal(t, "oldname", string(UserRenameMap.PrefixRemove(key)))
-}
-
-func TestTimelineUUIDPreservesExistingKey(t *testing.T) {
-	userUUID := uuid.Must(uuid.FromString("c6f8dca854f011ddb489003048343a40"))
-	want := UniqueKeyFrom(fmt.Sprintf("%x", userUUID), "user", "timeline")
-	assert.Equal(t, want, TimelineUUID(userUUID))
 }
