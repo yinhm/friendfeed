@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	// Thumbnail decode formats: JPEG/PNG/GIF, plus WebP via imgio's
+	// nativewebp registration. TIFF/BMP are intentionally not registered.
 	"image"
-	_ "image/gif" // register decode formats imaging.Open used to accept
+	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
@@ -18,9 +20,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	_ "golang.org/x/image/bmp"
-	_ "golang.org/x/image/tiff"
 
 	"github.com/anthonynsimon/bild/imgio"
 	"github.com/anthonynsimon/bild/transform"

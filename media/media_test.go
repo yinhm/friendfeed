@@ -17,10 +17,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/HugoSmits86/nativewebp"
 	"github.com/stretchr/testify/assert"
 	"github.com/yinhm/friendfeed/util"
-	"golang.org/x/image/bmp"
-	"golang.org/x/image/tiff"
 )
 
 func TestMedia(t *testing.T) {
@@ -69,9 +68,9 @@ func TestMedia(t *testing.T) {
 
 }
 
-// Thumbnail must keep accepting every format imaging.Open handled before the
-// switch to bild: JPEG, PNG, GIF, TIFF and BMP.
-func TestThumbnailDecodesLegacyFormats(t *testing.T) {
+// Thumbnail supports the web image formats: JPEG, PNG, GIF and WebP
+// (registered by bild imgio's nativewebp import).
+func TestThumbnailDecodesSupportedFormats(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 1000, 100))
 	encoders := map[string]func(io.Writer, image.Image) error{
 		"jpeg": func(w io.Writer, m image.Image) error {
@@ -79,8 +78,7 @@ func TestThumbnailDecodesLegacyFormats(t *testing.T) {
 		},
 		"png":  func(w io.Writer, m image.Image) error { return png.Encode(w, m) },
 		"gif":  func(w io.Writer, m image.Image) error { return gif.Encode(w, m, nil) },
-		"tiff": func(w io.Writer, m image.Image) error { return tiff.Encode(w, m, nil) },
-		"bmp":  func(w io.Writer, m image.Image) error { return bmp.Encode(w, m) },
+		"webp": func(w io.Writer, m image.Image) error { return nativewebp.Encode(w, m, nil) },
 	}
 
 	for format, encode := range encoders {
