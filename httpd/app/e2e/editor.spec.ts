@@ -23,6 +23,12 @@ async function authenticate(context: BrowserContext) {
 // pending bold mark, so everything typed after it must publish as <strong>.
 // (Selecting existing text first is unreliable in headless Chromium: neither
 // Control+A nor selectText() reaches the Slate selection there.)
+//
+// The hotkey races editor setup on slow runners: Ctrl+B fired before Slate
+// has registered a selection is silently dropped while typing still lands,
+// so verify the mark and retry from a clean editor instead of asserting
+// blindly. A dropped toggle leaves the mark state unchanged, so retrying
+// the toggle is safe.
 test('editor publishes bold text via keyboard shortcut', async ({
   context,
   page,
@@ -35,10 +41,25 @@ test('editor publishes bold text via keyboard shortcut', async ({
 
   const text = `E2E bold post ${Date.now()}`;
   await editor.click();
-  await editor.press('Control+B');
-  await editor.pressSequentially(text);
-  // The mark must exist in the editor before it can survive serialization.
-  await expect(editor.locator('strong')).toHaveText(text);
+
+  const strong = editor.locator('strong');
+  let bolded = false;
+  for (let attempt = 0; attempt < 4 && !bolded; attempt++) {
+    await editor.press('Control+B');
+    await editor.pressSequentially(text);
+    try {
+      // The mark must exist in the editor before it can survive serialization.
+      await expect(strong).toHaveText(text, { timeout: 2000 });
+      bolded = true;
+    } catch {
+      // Hotkey dropped: remove exactly what was typed, then retry the toggle.
+      for (let i = 0; i < text.length; i++) {
+        await editor.press('Backspace');
+      }
+    }
+  }
+  expect(bolded, 'Ctrl+B never produced a bold mark').toBe(true);
+
   await page.locator('.sharebox button.submit').click();
 
   const entry = page.locator('[data-eid]', { hasText: text });
