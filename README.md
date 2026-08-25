@@ -130,7 +130,7 @@ uv run --no-project fab production deploy_db
 uv run --no-project fab production deploy_web
 ```
 
-`deploy_client` remains as a compatibility Fabric task, but it still points to the retired client/Upstart path and must not be used for new deployments. See [open_decisions.md](docs/open_decisions.md). Production services are managed by systemd and write logs only to stdout/stderr:
+Production services are managed by systemd and write logs only to stdout/stderr:
 
 ```bash
 systemctl status ffdb.service ffweb.service

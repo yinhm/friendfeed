@@ -142,9 +142,7 @@ uv run --no-project fab production deploy_db
 uv run --no-project fab production deploy_web
 ```
 
-`deploy_client` 是保留的兼容 Fabric task，但仍指向已经退役的旧 client/Upstart 路径，不应在
-新部署中调用；后续决策见 [open_decisions.md](docs/open_decisions.md)。生产服务由 systemd 管理，
-日志只写 stdout/stderr：
+生产服务由 systemd 管理，日志只写 stdout/stderr：
 
 ```bash
 systemctl status ffdb.service ffweb.service

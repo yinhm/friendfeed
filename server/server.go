@@ -43,7 +43,6 @@ type ApiServer struct {
 	// profile privacy flips, follow writes/requests and approvals serialize on
 	// it so the privacy decision cannot change between authorization and write.
 	profileUpdateMu sync.Mutex
-	jobMu           sync.Mutex
 	// entryLifecycleMu lets independent interaction rows mutate concurrently,
 	// while keeping them mutually exclusive with Entry create/edit/delete.
 	entryLifecycleMu    sync.RWMutex
@@ -154,7 +153,7 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	return srv, nil
 }
 
-// StartBackgroundJobs starts periodic refetch and task queue maintenance.
+// StartBackgroundJobs starts task queue and service maintenance.
 // They are stopped by Shutdown before the database is closed.
 func (s *ApiServer) StartBackgroundJobs() {
 	s.lifecycleMu.Lock()
@@ -163,7 +162,6 @@ func (s *ApiServer) StartBackgroundJobs() {
 		return
 	}
 	s.backgroundJobsStarted = true
-	go s.RefetchJobTicker()
 	go s.TaskReapLoop()
 	go s.ServiceScheduleLoop()
 	s.startTaskWorkersLocked()

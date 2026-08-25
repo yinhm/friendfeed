@@ -83,9 +83,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 120 | Notification | `T + recipient UUID + notification UUID` | versioned JSON NotificationRecord | recipient-owned canonical 通知 |
 | 121 | NotificationInbox | `T + recipient UUID + ^UnixMillis(activity_at) + notification UUID` | 空 | newest-first 通知排序索引 |
 | 122 | NotificationState | `T + recipient UUID` | versioned JSON：read watermark + counters | O(1) unread/total 状态 |
-| 200 | JobFeed | `T + Flake ID` | job protobuf | queued job |
-| 201 | JobRunning | `T + Flake ID` | job protobuf | claimed job |
-| 202 | JobHistory | `T + target id` | `pb.FeedJob` | 历史记录 |
+| 200–202 | 已退役 Twitter FeedJob | 不再读写 | 不再读写 | 永久保留表号，禁止复用 |
 | 203 | Task | `T + raw Flake ID` | `pb.Task` | Task 权威状态 |
 | 204 | TaskReady | `T + type_len(1) + type + run time + task ID` | 空 | READY 派生索引 |
 | 205 | TaskLease | `T + lease time + task ID` | 空 | INFLIGHT 派生索引 |
@@ -228,7 +226,6 @@ fanout；它解决排序和生命周期问题，不消除写放大。
 - activity timeline 对已删除 Entry 采用读路径懒删，不在 DeleteEntry 中增加无上限 fanout。
 - Entry 创建/编辑/删除持 `entryLifecycleMu` 写锁；Like/Comment 持读锁，互动可彼此并发，
   但不能与 Entry 删除并发产生 orphan 行。
-- queued → running job claim 使用 `jobMu`，并在同一 batch 中完成。
 - Store 的同步写开关最终必须选择 Pebble `Sync` 或 `NoSync`，不能只改上层状态。
 
 ## 运维与迁移原则

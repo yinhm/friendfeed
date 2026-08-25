@@ -18,7 +18,6 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
-	"google.golang.org/protobuf/proto"
 )
 
 func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.CommandResponse, error) {
@@ -29,30 +28,6 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 		return response, err
 	}
 	switch cmd.Command {
-	case "ReportJobs":
-		s.DebugJobs()
-	case "ReportRunningJobs":
-		s.DebugRunningJobs()
-	case "PurgeJobs":
-		if err := s.PurgeJobs(); err != nil {
-			return nil, err
-		}
-	case "FixTooMuchJobs":
-		if err := s.FixTooMuchJobs(); err != nil {
-			return nil, err
-		}
-	case "RedoFailedJob":
-		if err := s.RedoFailedJob(); err != nil {
-			return nil, err
-		}
-	case "RefetchUserFeed":
-		if err := s.RefetchUserFeed(); err != nil {
-			return nil, err
-		}
-	case "TestJob":
-		if err := s.TestJob(); err != nil {
-			return nil, err
-		}
 	case "PurgePrefix":
 		if err := s.PurgePrefix(model.Feedinfo.Prefix); err != nil {
 			return nil, err
@@ -104,135 +79,6 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 	}
 
 	return new(pb.CommandResponse), nil
-}
-
-func (s *ApiServer) DebugJobs() {
-	jobs, err := s.ListJobQueue(model.TableJobFeed)
-	if err != nil {
-		log.Println("err: ", err)
-	}
-	for _, job := range jobs {
-		log.Printf("New job: %s", job)
-	}
-}
-
-func (s *ApiServer) DebugRunningJobs() {
-	jobs, err := s.ListJobQueue(model.TableJobRunning)
-	if err != nil {
-		log.Println("err: ", err)
-	}
-	for _, job := range jobs {
-		log.Printf("Previoud running job: %s", job)
-	}
-}
-
-func (s *ApiServer) PurgeJobs() error {
-	log.Println("purging all jobs...")
-
-	prefix := model.TableJobFeed
-	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
-		return s.mdb.Delete(key)
-	})
-	if err != nil {
-		return err
-	}
-
-	prefix = model.TableJobRunning
-	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, key, value []byte) error {
-		return s.mdb.Delete(key)
-	})
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *ApiServer) FixTooMuchJobs() error {
-	log.Println("too much jobs: purging peridoc jobs...")
-
-	prefix := model.TableJobFeed
-	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-		job := &pb.FeedJob{}
-		if err := proto.Unmarshal(v, job); err != nil {
-			return err
-		}
-		if int(job.MaxLimit) == 99 {
-			return s.mdb.Delete(k)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	prefix = model.TableJobRunning
-	_, err = s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-		job := &pb.FeedJob{}
-		if err := proto.Unmarshal(v, job); err != nil {
-			return err
-		}
-		if int(job.MaxLimit) == 99 {
-			return s.mdb.Delete(k)
-		}
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *ApiServer) RedoFailedJob() error {
-	log.Println("redo failed jobs...")
-
-	prefix := model.TableJobRunning
-	_, err := s.mdb.ForwardScan(prefix.Bytes(), func(i int, k, v []byte) error {
-		job := &pb.FeedJob{}
-		if err := proto.Unmarshal(v, job); err != nil {
-			return err
-		}
-
-		_, err := s.EnqueJob(context.Background(), job)
-		if err != nil {
-			// Keep the running record so the job is retried next time.
-			return err
-		}
-		return s.mdb.Delete(k)
-	})
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *ApiServer) TestJob() error {
-	profile, _ := model.GetProfileFromUserId(s.mdb, "yinhm")
-	feedinfo := model.ProfileToFeedinfo(profile)
-	// only sync twitter service
-	graph := BuildGraph(feedinfo)
-	if _, ok := graph.Services["twitter"]; !ok {
-		return nil
-	}
-
-	service := graph.Services["twitter"]
-	if service.Oauth == nil {
-		return nil
-	}
-	job := &pb.FeedJob{
-		Uuid:    feedinfo.Uuid,
-		Id:      feedinfo.Id,
-		Profile: profile,
-		Service: service,
-		Start:   0,
-		Created: time.Now().Unix(),
-		Updated: time.Now().Unix(),
-	}
-
-	_, err := s.EnqueJob(context.Background(), job)
-	return err
 }
 
 func (s *ApiServer) MarkDelete(feedId string) (bool, error) {

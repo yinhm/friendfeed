@@ -33,15 +33,6 @@ func GetFeedinfo(db *store.Store, uuidStr string) (*pb.Feedinfo, error) {
 	return info, nil
 }
 
-func GetArchiveHistory(db *store.Store, id string) (*pb.FeedJob, error) {
-	job := new(pb.FeedJob)
-	err := JobHistory.Get(db, []byte(id), job)
-	if err != nil {
-		return nil, err
-	}
-	return job, nil
-}
-
 func PutFeedService(db *store.Store, profileUuid uuid.UUID, service *pb.FeedService) error {
 	key := NewKeyFrom(profileUuid.Bytes(), []byte(service.Id))
 	_, err := FeedService.Put(db, key, service)

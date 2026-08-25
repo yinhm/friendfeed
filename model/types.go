@@ -67,14 +67,13 @@ const (
 	TableNotificationInbox store.KeyPrefix = 121
 	TableNotificationState store.KeyPrefix = 122
 
-	TableJobFeed    store.KeyPrefix = 200
-	TableJobRunning store.KeyPrefix = 201
-	TableJobHistory store.KeyPrefix = 202
-	TableTask       store.KeyPrefix = 203
-	TableTaskReady  store.KeyPrefix = 204
-	TableTaskLease  store.KeyPrefix = 205
-	TableTaskIdem   store.KeyPrefix = 206
-	TableTaskDone   store.KeyPrefix = 207
+	// Prefixes 200-202 belonged to the retired Twitter FeedJob subsystem.
+	// They remain permanently reserved and must never be reassigned.
+	TableTask      store.KeyPrefix = 203
+	TableTaskReady store.KeyPrefix = 204
+	TableTaskLease store.KeyPrefix = 205
+	TableTaskIdem  store.KeyPrefix = 206
+	TableTaskDone  store.KeyPrefix = 207
 
 	// Prefixes 300-303 belonged to the retired Stock subsystem. They remain
 	// permanently reserved and must never be assigned to another table.
@@ -120,12 +119,9 @@ var (
 	NotificationInbox = NewTable(KeyPrefixToBytes(TableNotificationInbox))
 	NotificationState = NewTable(KeyPrefixToBytes(TableNotificationState))
 
-	JobFeed    = NewTable(KeyPrefixToBytes(TableJobFeed))
-	JobRunning = NewTable(KeyPrefixToBytes(TableJobRunning))
-	JobHistory = NewTable(KeyPrefixToBytes(TableJobHistory))
-	Task       = NewTable(KeyPrefixToBytes(TableTask))
-	TaskReady  = NewTable(KeyPrefixToBytes(TableTaskReady))
-	TaskLease  = NewTable(KeyPrefixToBytes(TableTaskLease))
-	TaskIdem   = NewTable(KeyPrefixToBytes(TableTaskIdem))
-	TaskDone   = NewTable(KeyPrefixToBytes(TableTaskDone))
+	Task      = NewTable(KeyPrefixToBytes(TableTask))
+	TaskReady = NewTable(KeyPrefixToBytes(TableTaskReady))
+	TaskLease = NewTable(KeyPrefixToBytes(TableTaskLease))
+	TaskIdem  = NewTable(KeyPrefixToBytes(TableTaskIdem))
+	TaskDone  = NewTable(KeyPrefixToBytes(TableTaskDone))
 )

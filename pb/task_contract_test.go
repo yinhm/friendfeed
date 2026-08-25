@@ -6,13 +6,12 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func TestTaskQueueRPCsAreAdditive(t *testing.T) {
+func TestTaskQueueRPCsAreRegistered(t *testing.T) {
 	service := File_api_proto.Services().ByName("Api")
 	if service == nil {
 		t.Fatal("Api service descriptor is missing")
 	}
 	for _, name := range []protoreflect.Name{
-		"EnqueJob", "GetFeedJob", "FinishJob",
 		"EnqueueTask", "ClaimTasks", "CompleteTask", "FailTask", "RenewTaskLease",
 	} {
 		if service.Methods().ByName(name) == nil {

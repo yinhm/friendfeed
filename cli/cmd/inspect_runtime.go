@@ -72,7 +72,7 @@ var inspectRuntimeCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
 		defer cancel()
-		response, err := agent.client.Command(ctx, &pb.CommandRequest{Command: "RuntimeInspect"})
+		response, err := apiClient.Command(ctx, &pb.CommandRequest{Command: "RuntimeInspect"})
 		if err != nil {
 			return fmt.Errorf("inspect ffdb runtime: %w", err)
 		}
@@ -96,7 +96,7 @@ var inspectRuntimeCmd = &cobra.Command{
 		if runtimeInspectHeapProfile {
 			profileCtx, profileCancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer profileCancel()
-			profile, err := agent.client.Command(profileCtx, &pb.CommandRequest{Command: "RuntimeHeapProfile"})
+			profile, err := apiClient.Command(profileCtx, &pb.CommandRequest{Command: "RuntimeHeapProfile"})
 			if err != nil {
 				return fmt.Errorf("capture ffdb heap profile: %w", err)
 			}

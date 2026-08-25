@@ -6,7 +6,7 @@
 - 不改变 Storage、graph、protobuf 或持久化 key/schema 契约。尤其保留：
   - `media.Object.Bucket`、`Object.Url`、`Storage.Fetch/Post`。
   - `RebuildCommentsCommand` 的 graph 参数和 `NewServer` 签名。
-  - `EnqueJob`、`ArchiveFeed`、`ForceArchiveFeed` 的方法与路径；纠错只能新增兼容 RPC。
+  - `ArchiveFeed`、`ForceArchiveFeed` 的方法与路径；纠错只能新增兼容 RPC。
   - model/store 的表前缀、错误码、key 编码与迭代顺序。
   - `TableUserRenameMap = 7`，编码为 `old_id -> 16-byte user UUID`。
   - `TableTimelineIndex = 108`、`TableTimelinePosition = 109`、`TableTimelineState = 110` 及其 key/value 编码。
@@ -16,7 +16,8 @@
   - `TableGroupIndex = 119`，编码为 `reverse activity Unix ms + raw Group UUID -> 空`，是可重建的 Group 发现页排序索引；Profile 仍是 Group metadata 权威来源。
   - Notification 表固定为 `TableNotification = 120`、`TableNotificationInbox = 121`、`TableNotificationState = 122`。canonical Notification key 为 `recipient UUID + notification UUID`；Inbox key 为 `recipient UUID + ^UnixMillis(activity_at) + notification UUID`；State 记录 `last_read_at_ns/unread_count/total_count`。这些编码和 retention 规则见 `docs/notifications.md`。
   - Entry 与 EntryIndex 中的 Entry key 固定为 `4-byte table prefix + 16-byte raw UUID`，不得写 UUID/hex 字符串。
-- 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/config.py` 的 `zh_names` 和 Fabric task。
+- 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/config.py` 的 `zh_names` 和现存 Fabric task。
+- 旧 Twitter FeedAgent、FeedJob 服务端和 `deploy_client` Fabric task 已整体退役；历史表号 200–202 永久保留，不得复用。
 - Stock 子系统已整体退役；历史表号 300–303 永久保留，不得复用。
 - `model/feed.go` 的旧 Feedinfo、`UserMap` 仍用于迁移，不按运行时零引用删除。所有 iterator 必须关闭。
 - Pebble 同步写入开关必须真实控制底层写入模式。
@@ -26,12 +27,11 @@
 - `mirrorMedia` 不可删除；ArchiveFeed 在 `PutEntry` 前同步完成 Fetch、Post、URL 改写并随 entry 持久化。
 - `ArchiveFeed`/`ForceArchiveFeed` 暂不内部重构；退役需整体确认部署、抓取与迁移依赖。
 - 注释中的迁移、排障、备用 SSR 和调试代码不能仅因注释或零引用删除。
-- 暂不机械处理 job 公共抽象、key API、Twitter Entry/Tweet 模型和 Python 依赖锁定。保留现有 stdlib `log` 与 `slog`，不为形式统一迁移。
+- 暂不机械处理 key API、Twitter Entry/Tweet 模型和 Python 依赖锁定。保留现有 stdlib `log` 与 `slog`，不为形式统一迁移。
 
 ## 数据与并发不变量
 
 - ffdb 仅允许监听 loopback，不得绑定通配地址、网卡地址或对外暴露 gRPC；改变此边界前必须先设计可信 principal。
-- job claim 使用独立 `jobMu`，queued→running 在同一 Pebble batch 提交。
 - Task 使用 READY/INFLIGHT 主状态、lease epoch fencing 与同批派生索引；handler 必须幂等，payload 与日志不得保存或输出凭据、正文。
 - `PutEntry` 的 entry 与 author/group 直接索引原子提交；Home activity timeline 只 fanout 到 TimelineState 有效的 viewer，独立执行且错误必须返回。活跃 Home 最多 10,000 条，inactive 冷缓存保留 500 条，当前时间窗口为 MAX。`DeleteEntry` 不枚举 viewer，timeline 孤儿由读路径懒删及 audit/rebuild 清理。
 - public timeline 是 TimelineIndex 的保留 viewer（`model.PublicTimelineUUID`），不是真实 profile：仅新建 Entry、首次 Like、新建 Comment 触发 bump，私有/已删除/不可解析的 target feed 一律不进入；不写 TimelineState，compact 永不把它当 inactive；trim 由 bump 计数驱动在后台 goroutine 执行，不进入请求路径。

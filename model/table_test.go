@@ -139,12 +139,6 @@ func (s *TableTestSuite) TestPutEntry() {
 	flake.NewWorkerId = oldNewWorkerId
 }
 
-func (s *TableTestSuite) TestArchiveHistory() {
-	//No archive history
-	_, err := GetArchiveHistory(s.db, "not-exists")
-	assert.NotNil(s.T(), err)
-}
-
 func (s *TableTestSuite) TestDeleteEntryPropagatesReadError() {
 	entryUUID := uuid.Must(uuid.NewV4())
 	key := Entry.PrefixAppend(entryUUID.Bytes())

@@ -292,5 +292,5 @@ Subscription 数据迁移工具，也不保留旧 API 的双写兼容层。
 - 不把 RSS 来源建成 Profile，不通过 Follow 表表达导入；
 - 不让每个绑定重复抓取相同 URL；
 - 不在 2.0 镜像 Feed 中的远程图片或执行 HTML 内脚本；
-- 不在本轮重构 legacy Twitter `FeedJob`、ArchiveFeed 或 OAuth Service；
+- 不在本轮重构 ArchiveFeed 或 OAuth Service；legacy Twitter FeedJob 已在后续退役；
 - 不引入 Redis、消息中间件或独立 scheduler 服务。

@@ -256,19 +256,19 @@ func (s *DBTestSuite) TestIterationReopen() {
 	// Giving meta store, when iterator data, it should find all keys
 	// first iter
 	for range 3 {
-		key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+		key := NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 		s.rdb.Put(key.Bytes(), []byte("value1"))
 	}
 
 	for range 2 {
-		key := NewFlakeKey(TableJobRunning, s.rdb.NextId())
+		key := NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 		s.rdb.Put(key.Bytes(), []byte("value2"))
 	}
 
 	key := NewFlakeKey(TableMax, s.rdb.NextId())
 	s.rdb.Put(key.Bytes(), []byte("value3"))
 
-	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it := s.iterator()
 	it.SeekGE(key.Prefix().Bytes())
 	numFound := 0
@@ -287,7 +287,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 	s.SetupTest()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -300,7 +300,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 	it.Close()
 
 	// inconsistent occur
-	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -315,7 +315,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 	it.Close()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -329,7 +329,7 @@ func (s *DBTestSuite) TestIterationReopen() {
 	it.Close()
 
 	// inconsistent occur
-	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -349,12 +349,12 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	// First iteration: populate data
 	batch := s.rdb.rdb.NewBatch()
 	for range 1000 {
-		key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+		key := NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
 	for range 1000 {
-		key := NewFlakeKey(TableJobRunning, s.rdb.NextId())
+		key := NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
@@ -365,7 +365,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	batch.Commit(pebble.Sync)
 	batch.Close()
 
-	key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key := NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it := s.iterator()
 	it.SeekGE(key.Prefix().Bytes())
 	numFound := 0
@@ -383,7 +383,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	s.SetupTest()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -396,7 +396,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	assert.Equal(s.T(), 3000, numFound)
 	it.Close()
 
-	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -410,7 +410,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	it.Close()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -423,7 +423,7 @@ func (s *DBTestSuite) TestRockStorePrefixSeek() {
 	assert.Equal(s.T(), 2000, numFound)
 	it.Close()
 
-	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 	it = s.iterator()
 	defer it.Close()
 	numFound = 0
@@ -450,12 +450,12 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	// s.rdb.Put(maxKey, []byte(""))
 	batch := s.rdb.rdb.NewBatch()
 	for range 1000 {
-		key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+		key := NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value1"), pebble.NoSync)
 	}
 
 	for range 1000 {
-		key := NewFlakeKey(TableJobRunning, s.rdb.NextId())
+		key := NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 		batch.Set(key.Bytes(), []byte("value2"), pebble.NoSync)
 	}
 
@@ -466,7 +466,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	batch.Commit(pebble.Sync)
 	batch.Close()
 
-	key := NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key := NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it := s.iterator()
 	it.SeekGE(key.Prefix().Bytes())
 
@@ -486,7 +486,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	s.SetupTest()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -500,7 +500,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	it.Close()
 
 	// again
-	key = NewFlakeKey(TableJobFeed, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueA, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -514,7 +514,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	it.Close()
 
 	// iter to key>=prefix
-	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 	it = s.iterator()
 	numFound = 0
 	it.SeekGE(key.Prefix().Bytes())
@@ -528,7 +528,7 @@ func (s *DBTestSuite) TestPrefixSeekWithDelimiterKey() {
 	it.Close()
 
 	// again
-	key = NewFlakeKey(TableJobRunning, s.rdb.NextId())
+	key = NewFlakeKey(TableTestQueueB, s.rdb.NextId())
 	it = s.iterator()
 	defer it.Close()
 	numFound = 0

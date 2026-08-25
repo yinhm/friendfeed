@@ -13,7 +13,7 @@
   [db_migration.md](db_migration.md) 执行当前迁移、rebuild 和 audit。
 - 2.0 将 Profile/OAuth、Entry、Like/Comment、Follow/Follower 视为主要权威数据；timeline、
   interaction timeline、GroupIndex、NotificationInbox 和 Bleve 等派生结构可以重建。
-- 2.0 保留 legacy Twitter FeedJob、ArchiveFeed/ForceArchiveFeed 和受保护 API；发布不等于
+- 2.0 保留 ArchiveFeed/ForceArchiveFeed 和受保护 API；发布不等于
   未经退役方案删除兼容入口。
 
 ## 2.0 完成范围
@@ -33,7 +33,6 @@
 以下事项不是 2.0 未完成实现，决策入口统一在 [open_decisions.md](open_decisions.md)：
 
 - legacy Twitter 抓取模型与旧 Job API 的退役；
-- `deploy_client` 的去留；
 - SSR/CSR 最终边界、后台状态摘要、prefix bloom 和 durable fanout outbox；
 - Python 工具的完整传递依赖锁定。
 

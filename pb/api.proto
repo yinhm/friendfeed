@@ -10,11 +10,6 @@ import "feed.proto";
 import "google/protobuf/empty.proto";
 
 service Api {
-  rpc EnqueJob(FeedJob) returns (FeedJob) {}
-
-  rpc GetFeedJob(Worker) returns (FeedJob) {}
-  rpc FinishJob(FeedJob) returns (FeedJob) {}
-
   rpc EnqueueTask(EnqueueTaskRequest) returns (EnqueueTaskResponse) {}
   rpc ClaimTasks(ClaimTasksRequest) returns (ClaimTasksResponse) {}
   rpc CompleteTask(CompleteTaskRequest) returns (google.protobuf.Empty) {}
@@ -81,32 +76,6 @@ service Api {
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
-}
-
-message Worker {
-  string Id = 1;
-  Feed feed = 2;
-  FeedJob job = 3;
-}
-
-message FeedJob {
-  string key = 1;
-  string id = 2;
-  string target_id = 4;
-  int32 start = 5;
-  int32 page_size = 6;
-  string worker = 7;
-  int64 created = 8;
-  int64 updated = 9;
-  // uuid should always math target_id
-  string uuid = 10;
-  string status = 11;
-  int32 max_limit = 12;
-  bool force_update = 13;
-
-  // translate to new service(sync) job
-  FeedService service = 14;
-  Profile profile = 15;
 }
 
 enum TaskState {

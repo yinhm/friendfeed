@@ -31,25 +31,21 @@ import (
 )
 
 type Server struct {
-	debug       bool
-	client      pb.ApiClient
-	worker      *pb.Worker
-	secretKey   string
-	httpclient  *http.Client
-	cache       *cache.Cache
-	media       *media.LocalStorage
-	assets      embed.FS
-	jsFile      string
-	cssFile     string
-	styleCssVer string
+	debug        bool
+	client       pb.ApiClient
+	subscriberID string
+	secretKey    string
+	httpclient   *http.Client
+	cache        *cache.Cache
+	media        *media.LocalStorage
+	assets       embed.FS
+	jsFile       string
+	cssFile      string
+	styleCssVer  string
 }
 
 func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretKey string, debug bool) *Server {
 	c := pb.NewApiClient(conn)
-	worker := &pb.Worker{
-		Id: randhash(),
-	}
-
 	httpclient := &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -58,14 +54,14 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 	mfs := media.NewLocalStorage(cfg, 1024)
 
 	s := &Server{
-		debug:      debug,
-		client:     c,
-		worker:     worker,
-		secretKey:  secretKey,
-		httpclient: httpclient,
-		cache:      cacheStore,
-		media:      mfs,
-		assets:     assets,
+		debug:        debug,
+		client:       c,
+		subscriberID: randhash(),
+		secretKey:    secretKey,
+		httpclient:   httpclient,
+		cache:        cacheStore,
+		media:        mfs,
+		assets:       assets,
 	}
 	s.loadAssets()
 	return s

@@ -50,7 +50,7 @@ var inspectSystemCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(cmd.Context(), 15*time.Second)
 		defer cancel()
-		response, err := agent.client.Command(ctx, &pb.CommandRequest{Command: "SystemInspect"})
+		response, err := apiClient.Command(ctx, &pb.CommandRequest{Command: "SystemInspect"})
 		if err != nil {
 			return fmt.Errorf("inspect ffdb system: %w", err)
 		}

@@ -158,7 +158,7 @@ func (s *Server) StartRealtime(conn grpc.ClientConnInterface) {
 	state := &webRealtime{
 		hub:          newEventsHub(),
 		client:       pb.NewRealtimeClient(conn),
-		subscriberID: "ffweb-" + s.worker.Id,
+		subscriberID: "ffweb-" + s.subscriberID,
 		ctx:          ctx,
 		cancel:       cancel,
 	}

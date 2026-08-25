@@ -32,7 +32,6 @@ def production(_ctx):
     env.go_path = "/srv/gopath"
     env.code_root = f"{env.go_path}/src/github.com/yinhm/friendfeed"
     env.httpcache_path = f"{env.project_path}/httpcache"
-    env.ffclient_logfile = f"{env.deploy_root}/logs/ffclient.log"
     env.ffweb_bind_port = 8902
     env.ffweb_bind = "127.0.0.1:8902"
     env.nginx_https = True
@@ -161,37 +160,6 @@ def deploy_db(_ctx):
     conn.sudo("systemctl daemon-reload")
     conn.sudo("systemctl enable ffdb.service")
     conn.sudo("systemctl restart ffdb.service")
-
-
-@task(name="deploy_client")
-def deploy_client(_ctx):
-    conn = _conn()
-    db_path = env.httpcache_path
-
-    if not _exists(env.code_root):
-        conn.sudo(f"mkdir -p {quote(env.project_path)}")
-        conn.sudo(f"mkdir -p {quote(env.go_path + '/bin')}")
-        conn.sudo(f"mkdir -p {quote(str(Path(env.code_root).parent))}")
-        conn.sudo(f"mkdir -p {quote(str(Path(env.ffclient_logfile).parent))}")
-        conn.sudo(f"chown {env.runner_user}:{env.runner_user} {quote(env.go_path)} -R")
-
-    if not _exists(db_path):
-        conn.sudo(f"mkdir -p {quote(db_path)}")
-        conn.sudo(f"chown {env.runner_user}:{env.runner_group} {quote(db_path)}")
-
-    log_dir = str(Path(env.ffclient_logfile).parent)
-    conn.sudo(f"chown {env.runner_user} {quote(log_dir)}")
-    conn.sudo(f"chmod -R 775 {quote(log_dir)}")
-    _upload_template("conf/ffclient.conf", "/etc/init/ffclient.conf", _template_context())
-
-    _update_and_build(
-        (
-            "cd client && go get .",
-            f"cd client && go build && mv client {quote(env.go_path + '/bin/ffclient')}",
-        )
-    )
-    conn.sudo("stop ffclient", warn=True)
-    conn.sudo("start ffclient")
 
 
 @task(name="deploy_web")

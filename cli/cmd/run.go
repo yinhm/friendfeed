@@ -19,13 +19,6 @@ var runCmd = &cobra.Command{
  cli run --t MarkDelete foobar
 
 List of Jobs
-  - ReportJobs
-  - ReportRunningJobs
-  - PurgeJobs
-  - FixTooMuchJobs
-  - RedoFailedJob
-  - RefetchUserFeed
-  - TestJob
   - PurgePrefix
   - MarkDelete
   - SuperAdmin
@@ -42,7 +35,7 @@ List of Jobs
 		if len(args) > 0 && args[0] != "" {
 			cmdReq.Arg1 = args[0]
 		}
-		agent.client.Command(context.Background(), cmdReq)
+		apiClient.Command(context.Background(), cmdReq)
 	},
 }
 

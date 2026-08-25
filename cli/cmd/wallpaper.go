@@ -62,7 +62,7 @@ func downloadBingWallpaper() error {
 		Private:     false,
 		Description: "Bing Wallpaper",
 	}
-	profile, err := agent.client.PostFeedinfo(context.Background(), feedinfo)
+	profile, err := apiClient.PostFeedinfo(context.Background(), feedinfo)
 	if err != nil {
 		return err
 	}
@@ -162,10 +162,10 @@ func downloadBingWallpaper() error {
 		// To:      []*pb.Feed{from},
 		entry.ProfileUuid = profile.Uuid
 
-		agent.client.PostEntry(context.Background(), entry)
+		apiClient.PostEntry(context.Background(), entry)
 
 		feedinfo.Picture = f2.Url
-		agent.client.PostFeedinfo(context.Background(), feedinfo)
+		apiClient.PostFeedinfo(context.Background(), feedinfo)
 
 		log.Printf("同步 %s wallpaper 成功", dt.Format(time.RFC3339))
 	}

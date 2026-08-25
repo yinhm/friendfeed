@@ -19,8 +19,8 @@ const (
 
 	TableOAuthTwitter KeyPrefix = 104
 
-	TableJobFeed    KeyPrefix = 200
-	TableJobRunning KeyPrefix = 201
+	TableTestQueueA KeyPrefix = 90000001
+	TableTestQueueB KeyPrefix = 90000002
 
 	TableMax KeyPrefix = 1e8
 )

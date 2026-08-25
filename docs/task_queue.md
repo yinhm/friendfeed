@@ -1,6 +1,6 @@
 # 通用 Task 队列设计
 
-本文记录 FeedJob 后继系统的 2.0 当前契约。它不是复刻消息中间件，而是在 ffdb 现有的单机
+本文记录已取代 FeedJob 的 2.0 Task 系统契约。它不是复刻消息中间件，而是在 ffdb 现有的单机
 Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。Service 抓取是第一个使用方；
 调度状态仍属于 `ServiceState`，Task 只承载一次到期执行。
 
@@ -15,8 +15,7 @@ Pebble 架构内提供可靠、可恢复、可审计的后台执行能力。Serv
   Cookie；handler 执行时读取最新数据。
 - READY/INFLIGHT 的权威状态在 Task 主记录中；Ready/Lease/Done 均为索引或历史，
   不能反向取代主记录。
-- 旧 `EnqueJob`、`GetFeedJob`、`FinishJob` 和表 200-202 按兼容契约保留并标记
-  deprecated；新系统统一使用 Task 命名，不复用 FeedJob 符号。
+- 旧 FeedJob 客户端、RPC 和调度器已经退役；历史表号 200–202 永久保留，不复用其符号或编号。
 - Home 的访问时 stale/cold maintenance 继续使用进程内 singleflight 与并发上限；只有需要与
   Follow 边原子提交的单 Feed add/remove 关系维护进入 Task 队列。
 - `mirrorMedia` 仍是 `ArchiveFeed` 的同步契约；本设计不顺带异步化。
@@ -392,8 +391,7 @@ Done 由显式时间 cutoff 裁剪。list/inspect 的输出和内存有界，但
 
 - Service/State 调度只 enqueue 有 binding 的 due service；handler 按上述一致性规则执行。
 - 验证重复执行、状态更新后崩溃、无 binding、条件 GET、SSRF 和 host 串行。
-- legacy `RefetchJobTicker` 继续为 Twitter FeedJob 表 200-202 和 FeedAgent 服务；它与
-  Service/RSS Task 并行运行。只有 Twitter 生产链路另行迁移并验收后才能退役。
+- Service/RSS 只通过 Task 调度，不再与 legacy Twitter FeedJob 并行运行。
 
 ### M4：运维闭环
 
@@ -405,7 +403,6 @@ Done 由显式时间 cutoff 裁剪。list/inspect 的输出和内存有界，但
 
 - Python crawler 使用新 RPC 的样例和 systemd 部署方式。
 - 在开放多进程 RSS 或远程 worker 前，重新评审 principal、host 并发和 loopback 边界。
-- 单独设计旧表 200-202 的数据清理与旧 RPC 退役；不得随 Task 上线直接删除。
 
 参考 worker 为 `scripts/task_worker.py`。使用 `uv sync`/`uv pip install -r requirements.txt`
 准备环境后，可用如下形式运行本地 handler：
