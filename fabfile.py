@@ -33,7 +33,8 @@ def production(_ctx):
     env.code_root = f"{env.go_path}/src/github.com/yinhm/friendfeed"
     env.httpcache_path = f"{env.project_path}/httpcache"
     env.ffclient_logfile = f"{env.deploy_root}/logs/ffclient.log"
-    env.ffweb_bind = "127.0.0.1:8080"
+    env.ffweb_bind_port = 8902
+    env.ffweb_bind = "127.0.0.1:8902"
     env.nginx_https = True
     env.nginx_server_name = "friendfeed.me"
     env.nginx_client_max_body_size = 200
@@ -261,6 +262,12 @@ def deploy_nginx(_ctx):
     _upload_template(
         "conf/nginx_http.conf",
         nginx_conf_file,
+        _template_context(www_public_path=web_path),
+    )
+    nginx_cloudflare_conf_file = "/etc/nginx/conf.d/cloudflare.conf"
+    _upload_template(
+        "conf/nginx_cloudflare.conf",
+        nginx_cloudflare_conf_file,
         _template_context(www_public_path=web_path),
     )
 
