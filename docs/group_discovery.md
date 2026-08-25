@@ -20,8 +20,7 @@ sidebar Groups           当前用户 Group 的个人活跃度前十
 - 当前按最近活动时间排序，不做推荐、分类、全文搜索或个性化排名。Group 创建、向 Group
   新建 Entry、首次 Like 和新建 Comment 会更新活动时间；编辑、Unlike、删除和成员变化不移动
   目录位置。
-- 历史 stock/system Group 暂不特殊过滤；其退役问题记录在 `docs/open_decisions.md`，不把
-  临时兼容逻辑写入 Group 目录。
+- 历史异常 Group 不在发现页加入领域特判；必要时由离线数据修复处理。
 
 ## Group directory
 

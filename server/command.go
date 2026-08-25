@@ -99,10 +99,6 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 			return nil, err
 		}
 		return &pb.CommandResponse{Command: cmd.Command, Result: result}, nil
-	case "CreateSystemProfile":
-		if err := s.CreateSystemProfile(); err != nil {
-			return nil, err
-		}
 	default:
 		return nil, fmt.Errorf("unknown command %q", cmd.Command)
 	}
@@ -424,25 +420,5 @@ func (s *ApiServer) BackupDBTo(destPath string) error {
 		}
 		return fmt.Errorf("publish backup to %s: %w", destPath, err)
 	}
-	return nil
-}
-
-func (s *ApiServer) CreateSystemProfile() error {
-	log.Println("CreateSystemProfile...")
-
-	// for stock backtesting
-	feedinfo := &pb.Feedinfo{
-		Uuid:        fmt.Sprintf("%x", model.UniqueKeyFrom("hiqt")),
-		Id:          "hiqt",
-		Name:        "hiqt",
-		Type:        "group",
-		Private:     false,
-		Description: fmt.Sprintf("<%s>", "hiqt"),
-	}
-	_, err := s.PostFeedinfo(context.Background(), feedinfo)
-	if err != nil {
-		return err
-	}
-	slog.Debug("Profile created", "id", "hiqt", "uuid", feedinfo.Uuid)
 	return nil
 }

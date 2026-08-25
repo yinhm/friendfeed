@@ -45,27 +45,6 @@ func (s *TableTestSuite) TearDownSuite() {
 	}
 }
 
-func (s *TableTestSuite) TestTableFarm() {
-	key := store.KeyFromString(Stock.NewKey("000001"))
-	assert.Equal(s.T(), 16, len(key))
-
-	/// 000000657398ab337c5642fbbcb46f85bae90436
-	farmHash := "eab3360472a0425ab5f214afc8ed5d7a"
-	assert.Equal(s.T(), 16, len(store.KeyFromString(farmHash)))
-
-	p := &pb.Feed{
-		Name: "000001",
-	}
-
-	_, err := Stock.Put(s.db, store.KeyFromString(farmHash), p)
-	assert.Nil(s.T(), err)
-
-	farm := new(pb.Feed)
-	err = Stock.Get(s.db, store.KeyFromString(farmHash), farm)
-	assert.Nil(s.T(), err)
-	assert.Equal(s.T(), "000001", farm.Name)
-}
-
 func (s *TableTestSuite) TestPutEntry() {
 	p := &pb.Profile{
 		Uuid: "c6f8dca854f011ddb489003048343a40",

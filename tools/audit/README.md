@@ -20,6 +20,5 @@ go run ./tools/audit -data /srv/ffdb/data
 
 ## 已知噪音
 
-stock/系统 feed 也是 Type=group 且刻意没有成员/admin（见 docs/group.md
-差距清单），检查 2「无 admin Group」会报告它们。这是有意保留的现状，
-属可接受噪音，工具不加豁免逻辑。
+历史异常 Group 可能没有成员/admin，检查 2「无 admin Group」会报告它们；
+由操作者确认并清理数据，工具不加领域豁免。

@@ -32,7 +32,6 @@
 
 以下事项不是 2.0 未完成实现，决策入口统一在 [open_decisions.md](open_decisions.md)：
 
-- stock/system Feed 的最终退役和数据清理；
 - legacy Twitter 抓取模型与旧 Job API 的退役；
 - `deploy_client` 的去留；
 - SSR/CSR 最终边界、后台状态摘要、prefix bloom 和 durable fanout outbox；

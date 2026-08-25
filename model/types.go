@@ -76,10 +76,8 @@ const (
 	TableTaskIdem   store.KeyPrefix = 206
 	TableTaskDone   store.KeyPrefix = 207
 
-	TableConfig store.KeyPrefix = 300
-	TableTopic  store.KeyPrefix = 301
-	TableStock  store.KeyPrefix = 302
-	TableKLine  store.KeyPrefix = 303
+	// Prefixes 300-303 belonged to the retired Stock subsystem. They remain
+	// permanently reserved and must never be assigned to another table.
 
 	TableMax store.KeyPrefix = 1e8
 )
@@ -130,19 +128,4 @@ var (
 	TaskLease  = NewTable(KeyPrefixToBytes(TableTaskLease))
 	TaskIdem   = NewTable(KeyPrefixToBytes(TableTaskIdem))
 	TaskDone   = NewTable(KeyPrefixToBytes(TableTaskDone))
-
-	Config = NewTable(KeyPrefixToBytes(TableConfig))
-	Topic  = NewTable(KeyPrefixToBytes(TableTopic))
-	Stock  = NewTable(KeyPrefixToBytes(TableStock))
-	KLine  = NewTable(KeyPrefixToBytes(TableKLine))
 )
-
-// func InitTables(db *store.Store) {
-// 	if _tableInited {
-// 		log.Fatalf("table inited")
-// 	}
-// 	Config.InitStore(db)
-// 	Topic.InitStore(db)
-// 	Stock.InitStore(db)
-// 	_tableInited = true
-// }

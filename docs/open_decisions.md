@@ -9,14 +9,11 @@
 ## 部署与运行维护
 
 - **`deploy_client` 现代化**：兼容 task 仍指向已退役的 `client/` 与 Upstart，当前不可用于部署。需先明确 `cli/` 是否仍作为常驻同步服务运行；若保留，再迁移构建路径并提供 systemd unit，不能直接删除导出 task。
-- **Python 依赖锁定**：确定生产 Python 版本后，再统一锁定 `twikit`、`pandas`、`numpy` 及 protobuf/gRPC 兼容范围。
+- **Python 依赖锁定**：确定生产 Python 版本后，再统一锁定 `twikit` 及 protobuf/gRPC 兼容范围。
 - **CLI `--debug`**：该兼容 flag 当前没有行为。后续应选择实现明确的 verbose 日志，或经过退役周期后删除；不直接破坏外部 CLI 契约。
 
 ## 协议、数据与服务模型
 
-- **Stock 退役**：Stock 功能即将退役，不再为其设计新 schema。历史 stock/system Feed 可能以
-  `Type=group` 存在，因此 2.0 Group 发现页可能展示这些记录；退役时统一删除或改正其 Profile
-  类型和派生目录，不在 `ListGroups` 中长期维护特判。
 - **Twitter 写入模型**：先决定 `fetch_user` 是否继续维护 legacy Entry feed，还是迁往 Tweet/PostTweet，再考虑复用转换代码。
 
 ## 数据库性能与扩展

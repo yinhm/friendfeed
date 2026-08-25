@@ -7,7 +7,6 @@ package pb;
 option go_package = ".;pb";
 
 import "feed.proto";
-import "stock.proto";
 import "google/protobuf/empty.proto";
 
 service Api {
@@ -82,31 +81,6 @@ service Api {
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
-  // Stock
-  rpc ArchiveRawdata(stream Rawdata) returns (ArchiveSummary) {}
-  // Stream:ArchiveKLine
-  rpc ArchiveKLine(stream KLineRequest) returns (ArchiveSummary) {}
-  // Stream:ArchiveXRXD
-  rpc ArchiveXRXD(stream XRXD) returns (ArchiveSummary) {}
-  rpc ArchiveFundamental(stream Fundamental) returns (ArchiveSummary) {}
-  rpc ArchiveStockInfo(stream StockInfo) returns (ArchiveSummary) {}
-  rpc GetXRXD(StockRequest) returns (XRXDResponse) {}
-  rpc GetKLines(StockRequest) returns (KLineResponse) {}
-  rpc UpdateStockList(StockList) returns (Response) {}
-  rpc UpdateRawdata(Rawdata) returns (Response) {}
-  rpc GetRawdata(StockRequest) returns (Rawdata) {}
-  rpc GetStockList(StockRequest) returns (StockList) {}
-  rpc GetStock(StockRequest) returns (Stock) {}
-  rpc GetStockInfo(StockRequest) returns (StockInfo) {}
-  rpc GetFundamental(StockRequest) returns (Fundamental) {}
-  rpc DeleteRawdata(Rawdata) returns (Response) {}
-  rpc SendReport(Report) returns (Response) {}
-}
-
-message Response {
-  bool is_success = 1;
-  string status = 2;
-  string result = 3;
 }
 
 message Worker {

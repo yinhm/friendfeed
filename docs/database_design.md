@@ -91,7 +91,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 205 | TaskLease | `T + lease time + task ID` | 空 | INFLIGHT 派生索引 |
 | 206 | TaskIdem | `T + SHA-256(type,idempotency key)` | raw Flake ID | 活跃去重索引 |
 | 207 | TaskDone | `T + finish time + task ID` | `pb.TaskCompletion` | 完成/死信历史 |
-| 300–303 | Config/Topic/Stock/KLine | 表专用 key | 各领域编码 | 独立领域数据 |
+| 300–303 | 已退役 Stock 子系统 | 不再读写 | 不再读写 | 永久保留表号，禁止复用 |
 
 Follow/Follower 必须在同一个 Pebble batch 中更新：
 

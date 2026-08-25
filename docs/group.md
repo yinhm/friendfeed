@@ -218,17 +218,15 @@ following，不得为此把全量订阅塞回 Graph 响应。
 实现状态追踪（✅ 为已落地项）：
 
 - ✅ 原子 CreateGroup RPC 已落地（创建者同事务成为成员/admin，ID 冲突与失败无残留）。
-  `PostFeedinfo` 仍可隐式创建任意 Type 的 Profile——这是**有意保留**：stock/系统
-  feed（`server/stock.go`、`CreateSystemProfile`）依赖它创建无成员语义的 Type=group
-  系统 feed，用户面 Group 创建事实收口于 CreateGroup。若将来要彻底关闭此旁路，需先
-  给系统 feed 独立 Type 或内部直写路径。
+  用户面 Group 创建事实收口于 CreateGroup；legacy `PostFeedinfo` 仍为迁移和兼容入口，
+  不作为新建 Group 的公开路径。
 - ✅ admin 权威已切换到 GroupAdmin 表。**迁移注意**：现有 Group 的 admin 若仅存在于
   legacy Feedinfo.Admins 快照中，需通过 super 手动执行 JoinGroup + AddGroupAdmin
   引导，或运行 `backfill_group_admins` 一次性命令；
 - ✅ GraphFollow 对 Group 目标已路由进 Join/Leave 领域层（admin 退出拦截、最后 admin
   保护在所有入口一致生效）。
 - ✅ PostEntry 已在 mutation 边界验证 Group 成员资格，并用服务端读取的 Profile
-  重建 `Entry.From`。公开 RPC 不允许 Group 充当用户 principal；FeedService、stock 等
+  重建 `Entry.From`。公开 RPC 不允许 Group 充当用户 principal；FeedService 等
   可信进程内 producer 只能通过不导出的内部入口创建 Group/system-authored Entry；
 - ✅ private 读取已统一到 `docs/perm.md` 的请求级 resolver：legacy/cursor Feed、作者 Feed、
   FetchEntry、Home、Public、Search 与互动页均按 Entry 的真实 target 重校验；private user Feed

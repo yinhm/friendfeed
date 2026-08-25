@@ -41,10 +41,6 @@ func KeyPrefixToBytes(t store.KeyPrefix) []byte {
 	return prefix[:]
 }
 
-// func NewStockKey() store.Key {
-// 	return NewUUIDKey(TableStock)
-// }
-
 // Agent Key.
 //
 // +----------+----------+----------+
