@@ -22,7 +22,7 @@ require (
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sys v0.47.0 // direct
-	google.golang.org/grpc v1.83.0
+	google.golang.org/grpc v1.83.1
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -31,7 +31,7 @@ require (
 	github.com/anthonynsimon/bild v0.17.0
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/gin-contrib/sessions v1.1.0
-	github.com/mmcdole/gofeed v1.4.1
+	github.com/mmcdole/gofeed v1.4.2
 )
 
 require github.com/mmcdole/goxpp/v2 v2.0.0 // indirect
