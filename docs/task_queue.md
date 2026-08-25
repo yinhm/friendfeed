@@ -104,7 +104,7 @@ enum TaskCompletionStatus {
 
 message Task {
   string id = 1;                 // 32-char raw flake hex
-  string type = 2;               // service.fetch / feed_service.seed / home.rebuild / twitter.crawl
+  string type = 2;               // service.fetch / feed_service.seed / home.rebuild
   bytes payload = 3;             // 该 type 的 protobuf，只有引用和小参数
   uint32 payload_version = 4;
   string idempotency_key = 5;
@@ -399,22 +399,11 @@ Done 由显式时间 cutoff 裁剪。list/inspect 的输出和内存有界，但
 - 运维状态由 `audit_store` 与有界 `list_tasks` 查看；需要常驻 metrics 时另行设计，
   不在 2.0 伪造一套未消费的指标。
 
-### M5：外部 worker
+### 外部 worker 边界
 
-- Python crawler 使用新 RPC 的样例和 systemd 部署方式。
-- 在开放多进程 RSS 或远程 worker 前，重新评审 principal、host 并发和 loopback 边界。
-
-参考 worker 为 `scripts/task_worker.py`。使用 `uv sync`/`uv pip install -r requirements.txt`
-准备环境后，可用如下形式运行本地 handler：
-
-```bash
-uv run python scripts/task_worker.py --worker-id crawler-1 --type twitter.crawl -- ./handler
-```
-
-handler 从 stdin 读取 protobuf payload，退出 0 表示 Complete，非零表示 Fail；wrapper
-在执行期间 Renew，并在空队列时 1-30 秒指数退避。示例强制 gRPC target 为 loopback，
-不提供 systemd unit：仓库目前没有已注册的外部 task type，部署一个空转 unit 没有价值。
-新增真实外部使用方时再以专用系统用户配置 unit，且不得记录 stdin/payload。
+当前没有已注册的外部 task type，也不提供通用外部 worker 或 systemd unit。所有生产 Task
+由 ffdb 进程内 worker 消费。未来引入真实外部使用方时，必须针对具体 task type 重新评审
+principal、进程边界、host 并发、protobuf 生成物和部署方式；现有 Task RPC 继续保留。
 
 ## 非目标
 

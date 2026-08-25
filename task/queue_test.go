@@ -92,19 +92,19 @@ func TestEnqueueActiveIdemAndAtomicBusinessWrite(t *testing.T) {
 }
 
 func TestClaimMergesTypesByDueTime(t *testing.T) {
-	definitions := map[string]Definition{"rss.fetch": validDefinition(), "twitter.crawl": validDefinition()}
+	definitions := map[string]Definition{"rss.fetch": validDefinition(), "media.fetch": validDefinition()}
 	queue, _, clock := newTestQueue(t, definitions)
 	base := clock.Now().UnixMilli()
 	for _, spec := range []Spec{
 		{Type: "rss.fetch", Payload: []byte("later"), RunAtMS: base + 20},
-		{Type: "twitter.crawl", Payload: []byte("first"), RunAtMS: base + 10},
+		{Type: "media.fetch", Payload: []byte("first"), RunAtMS: base + 10},
 		{Type: "rss.fetch", Payload: []byte("future"), RunAtMS: base + 1000},
 	} {
 		_, err := queue.Enqueue(context.Background(), spec)
 		require.NoError(t, err)
 	}
 	clock.Set(clock.Now().Add(100 * time.Millisecond))
-	claimed, err := queue.Claim(context.Background(), "worker", []string{"rss.fetch", "twitter.crawl"}, 3)
+	claimed, err := queue.Claim(context.Background(), "worker", []string{"rss.fetch", "media.fetch"}, 3)
 	require.NoError(t, err)
 	require.Len(t, claimed, 2)
 	require.Equal(t, []byte("first"), claimed[0].Payload)

@@ -84,9 +84,9 @@ func TestTaskQueueKeyValidation(t *testing.T) {
 func TestIdemKeyIncludesTaskType(t *testing.T) {
 	rss, err := IdemKey("rss.fetch", "same")
 	require.NoError(t, err)
-	twitter, err := IdemKey("twitter.crawl", "same")
+	media, err := IdemKey("media.fetch", "same")
 	require.NoError(t, err)
-	require.NotEqual(t, rss, twitter)
+	require.NotEqual(t, rss, media)
 	digest, err := ParseIdemKey(rss)
 	require.NoError(t, err)
 	require.NotEqual(t, [32]byte{}, digest)
