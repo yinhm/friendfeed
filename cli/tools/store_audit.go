@@ -41,7 +41,10 @@ type storeAuditStats struct {
 	followerEdges                int
 	missingFollowerEdges         int
 	missingFollowEdges           int
+	orphanMemberships            int
 	maxFollowers                 int
+	followRequests               int
+	invalidFollowRequests        int
 	services                     int
 	serviceStates                int
 	feedServices                 int
@@ -168,8 +171,12 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 	}
 	var followerFeed uuid.UUID
 	followerCount := 0
+	followerTargetOrphan := false
 	finishFollowerFeed := func() {
 		stats.maxFollowers = max(stats.maxFollowers, followerCount)
+		if followerTargetOrphan {
+			stats.orphanMemberships += followerCount
+		}
 	}
 	if err := model.Follower.Iter(db, func(key, _ []byte) error {
 		if len(key) != 4+2*uuid.Size {
@@ -179,6 +186,16 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		if followerCount > 0 && feed != followerFeed {
 			finishFollowerFeed()
 			followerCount = 0
+		}
+		if followerCount == 0 {
+			target := new(pb.Profile)
+			if err := model.Profile.Get(db, feed.Bytes(), target); errors.Is(err, model.ErrNotFound) {
+				followerTargetOrphan = true
+			} else if err != nil {
+				return err
+			} else {
+				followerTargetOrphan = target.Type == "group" && target.Deleted
+			}
 		}
 		followerFeed = feed
 		followerCount++
@@ -451,10 +468,57 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		err = auditGroups(db, &stats)
 	}
 	if err == nil {
+		err = auditFollowRequests(db, &stats)
+	}
+	if err == nil {
 		err = auditNotifications(db, &stats)
 	}
 	stats.tasks = taskStats
 	return stats, err
+}
+
+func auditFollowRequests(db *store.Store, stats *storeAuditStats) error {
+	return model.FollowRequest.Iter(db, func(key, _ []byte) error {
+		stats.followRequests++
+		if len(key) != model.FollowRequest.Prefix.Len()+2*uuid.Size {
+			stats.invalidFollowRequests++
+			return nil
+		}
+		suffix := key[model.FollowRequest.Prefix.Len():]
+		target, targetErr := uuid.FromBytes(suffix[:uuid.Size])
+		requester, requesterErr := uuid.FromBytes(suffix[uuid.Size:])
+		if targetErr != nil || requesterErr != nil || target == uuid.Nil || requester == uuid.Nil {
+			stats.invalidFollowRequests++
+			return nil
+		}
+
+		targetProfile := new(pb.Profile)
+		if err := model.Profile.Get(db, target.Bytes(), targetProfile); errors.Is(err, model.ErrNotFound) {
+			stats.invalidFollowRequests++
+		} else if err != nil {
+			return err
+		} else if targetProfile.Deleted || !targetProfile.Private {
+			stats.invalidFollowRequests++
+		}
+
+		requesterProfile := new(pb.Profile)
+		if err := model.Profile.Get(db, requester.Bytes(), requesterProfile); errors.Is(err, model.ErrNotFound) {
+			stats.invalidFollowRequests++
+		} else if err != nil {
+			return err
+		} else if requesterProfile.Deleted {
+			stats.invalidFollowRequests++
+		}
+
+		following, err := model.IsFollower(db, target, requester)
+		if err != nil {
+			return err
+		}
+		if following {
+			stats.invalidFollowRequests++
+		}
+		return nil
+	})
 }
 
 func auditNotifications(db *store.Store, stats *storeAuditStats) error {
@@ -892,8 +956,9 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "timeline_viewers=%d inactive_rows=%d over_limit_viewers=%d\n",
 		stats.timelineViewers, stats.timelineInactiveRows, stats.timelineOverLimit)
 	fmt.Fprintf(out, "same_second_groups=%d same_second_entries=%d\n", stats.sameSecondGroups, stats.sameSecondEntries)
-	fmt.Fprintf(out, "follow=%d follower=%d missing_follower=%d missing_follow=%d max_followers=%d\n",
-		stats.followEdges, stats.followerEdges, stats.missingFollowerEdges, stats.missingFollowEdges, stats.maxFollowers)
+	fmt.Fprintf(out, "follow=%d follower=%d missing_follower=%d missing_follow=%d orphan_memberships=%d max_followers=%d follow_requests=%d invalid_follow_requests=%d\n",
+		stats.followEdges, stats.followerEdges, stats.missingFollowerEdges, stats.missingFollowEdges,
+		stats.orphanMemberships, stats.maxFollowers, stats.followRequests, stats.invalidFollowRequests)
 	fmt.Fprintf(out, "services=%d states=%d feed_services=%d service_feed_indexes=%d dormant=%d state_missing_service=%d binding_missing_service=%d binding_missing_index=%d disabled_with_index=%d orphan_service_indexes=%d\n",
 		stats.services, stats.serviceStates, stats.feedServices, stats.serviceFeedIndexes, stats.dormantServices,
 		stats.stateMissingService, stats.bindingMissingSource, stats.bindingMissingIndex,

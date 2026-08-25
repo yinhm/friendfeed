@@ -186,6 +186,47 @@ func TestAuditStoreChecksGroupInvariants(t *testing.T) {
 	require.Equal(t, 1, stats.invalidGroupAdmins)
 }
 
+func TestAuditStoreFindsOrphanMembershipAndFollowRequests(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	requester := uuid.Must(uuid.NewV4())
+	publicTarget := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: requester.String(), Id: "requester", Type: "user",
+	}))
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: publicTarget.String(), Id: "public-target", Type: "user",
+	}))
+
+	missingTarget := uuid.Must(uuid.NewV4())
+	require.NoError(t, db.Set(model.NewKeyFrom(model.Follow.Prefix, requester.Bytes(), missingTarget.Bytes()), []byte("1")))
+	require.NoError(t, db.Set(model.NewKeyFrom(model.Follower.Prefix, missingTarget.Bytes(), requester.Bytes()), []byte("1")))
+	deletedGroup := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: deletedGroup.String(), Id: "deleted-group", Type: "group", Deleted: true,
+	}))
+	require.NoError(t, db.Set(model.NewKeyFrom(model.Follow.Prefix, requester.Bytes(), deletedGroup.Bytes()), []byte("1")))
+	require.NoError(t, db.Set(model.NewKeyFrom(model.Follower.Prefix, deletedGroup.Bytes(), requester.Bytes()), []byte("1")))
+
+	publicRequest, err := model.FollowRequestKey(publicTarget, requester)
+	require.NoError(t, err)
+	require.NoError(t, db.Set(publicRequest, []byte(time.Now().UTC().Format(time.RFC3339Nano))))
+	missingRequestTarget := uuid.Must(uuid.NewV4())
+	missingRequest, err := model.FollowRequestKey(missingRequestTarget, requester)
+	require.NoError(t, err)
+	require.NoError(t, db.Set(missingRequest, []byte(time.Now().UTC().Format(time.RFC3339Nano))))
+
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Zero(t, stats.missingFollowerEdges)
+	require.Zero(t, stats.missingFollowEdges)
+	require.Equal(t, 2, stats.orphanMemberships)
+	require.Equal(t, 2, stats.followRequests)
+	require.Equal(t, 2, stats.invalidFollowRequests)
+}
+
 func TestAuditStoreReportsLegacyEntryIndexKey(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
