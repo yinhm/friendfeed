@@ -47,6 +47,10 @@ export function ProfileForm(props) {
   const idError = validateProfileId(normalizedId);
   const nameError = name.trim() === '' ? 'Name cannot be empty' : null;
   const renaming = !idError && normalizedId !== savedId;
+  // The preview src is free-text input: only http(s) URLs may reach the
+  // <img>, exotic schemes like javascript: or data: fall back to the
+  // placeholder.
+  const previewUrl = /^https?:\/\//i.test(picture) ? picture : '';
 
   /** @param {React.FormEvent<HTMLFormElement>} event */
   const handleSubmit = (event) => {
@@ -105,8 +109,8 @@ export function ProfileForm(props) {
 
       <div className="mb-4 flex items-start gap-4">
         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-          {picture && !avatarBroken
-            ? <img src={picture} alt="avatar preview" className="h-full w-full object-cover"
+          {previewUrl && !avatarBroken
+            ? <img src={previewUrl} alt="avatar preview" className="h-full w-full object-cover"
                    onError={() => setAvatarBroken(true)} />
             : <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">no image</div>}
         </div>

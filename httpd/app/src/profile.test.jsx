@@ -51,6 +51,20 @@ describe('ProfileForm', () => {
     expect(screen.getByText('c6f8dca854f011ddb489003048343a40')).toBeInTheDocument();
   });
 
+  it('only renders the avatar preview for http(s) URLs', () => {
+    render(<ProfileForm profile={{ ...profile, picture: '' }} />);
+    const input = screen.getByLabelText(/Picture URL/);
+
+    fireEvent.change(input, { target: { value: 'javascript:alert(1)' } });
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: 'data:image/svg+xml,x' } });
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: 'https://example.com/a.png' } });
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/a.png');
+  });
+
   it('blocks submit on an invalid id without calling the server', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
