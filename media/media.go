@@ -6,6 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif" // register decode formats imaging.Open used to accept
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net"
 	"net/http"
@@ -15,7 +19,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/disintegration/imaging"
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/tiff"
+
+	"github.com/anthonynsimon/bild/imgio"
+	"github.com/anthonynsimon/bild/transform"
 	"github.com/yinhm/friendfeed/util"
 )
 
@@ -384,7 +392,12 @@ func (c *LocalStorage) Thumbnail(obj *Object) (*Object, error) {
 	thumbSuffix := fmt.Sprintf("-%d.jpg", c.maxWidth)
 
 	fullpath := filepath.Join(c.path, obj.Path)
-	fromImage, err := imaging.Open(fullpath)
+	f, err := os.Open(fullpath)
+	if err != nil {
+		return nil, fmt.Errorf("error while open image: %w", err)
+	}
+	defer f.Close()
+	fromImage, _, err := image.Decode(f)
 	if err != nil {
 		return nil, fmt.Errorf("error while open image: %w", err)
 	}
@@ -397,10 +410,16 @@ func (c *LocalStorage) Thumbnail(obj *Object) (*Object, error) {
 		return obj, nil
 	}
 
-	dst := imaging.Resize(fromImage, c.maxWidth, 0, imaging.Lanczos)
+	// bild treats a zero dimension as an empty image instead of preserving
+	// the aspect ratio, so compute the target height explicitly.
+	srcW, srcH := fromImage.Bounds().Dx(), fromImage.Bounds().Dy()
+	height := int(float64(srcH) * float64(c.maxWidth) / float64(srcW))
+	if height < 1 {
+		height = 1
+	}
+	dst := transform.Resize(fromImage, c.maxWidth, height, transform.Lanczos)
 	dstFilepath := fullpath + thumbSuffix
-	// imaging.Save guest image format from extension
-	if err := imaging.Save(dst, dstFilepath); err != nil {
+	if err := imgio.Save(dstFilepath, dst, imgio.JPEGEncoder(95)); err != nil {
 		return nil, fmt.Errorf("error while saving image: %w", err)
 	}
 

@@ -5,7 +5,10 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/gif"
+	"image/jpeg"
 	"image/png"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/yinhm/friendfeed/util"
+	"golang.org/x/image/bmp"
+	"golang.org/x/image/tiff"
 )
 
 func TestMedia(t *testing.T) {
@@ -62,6 +67,44 @@ func TestMedia(t *testing.T) {
 	assert.Equal(t, wantPath+"-640.jpg", tObj.Path)
 	assert.Equal(t, int32(640), tObj.Width)
 
+}
+
+// Thumbnail must keep accepting every format imaging.Open handled before the
+// switch to bild: JPEG, PNG, GIF, TIFF and BMP.
+func TestThumbnailDecodesLegacyFormats(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 1000, 100))
+	encoders := map[string]func(io.Writer, image.Image) error{
+		"jpeg": func(w io.Writer, m image.Image) error {
+			return jpeg.Encode(w, m, nil)
+		},
+		"png":  func(w io.Writer, m image.Image) error { return png.Encode(w, m) },
+		"gif":  func(w io.Writer, m image.Image) error { return gif.Encode(w, m, nil) },
+		"tiff": func(w io.Writer, m image.Image) error { return tiff.Encode(w, m, nil) },
+		"bmp":  func(w io.Writer, m image.Image) error { return bmp.Encode(w, m) },
+	}
+
+	for format, encode := range encoders {
+		t.Run(format, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := encode(&buf, src); err != nil {
+				t.Fatal(err)
+			}
+
+			ms := NewLocalStorage(&util.Config{MediaPath: t.TempDir()}, 640)
+			obj := &Object{Filename: "upload." + format, Content: buf.Bytes()}
+			if _, err := ms.Post(obj); err != nil {
+				t.Fatal(err)
+			}
+
+			tObj, err := ms.Thumbnail(obj)
+			if err != nil {
+				t.Fatalf("Thumbnail(%s): %v", format, err)
+			}
+			assert.Equal(t, int32(640), tObj.Width)
+			assert.Equal(t, int32(64), tObj.Height)
+			assert.Equal(t, "image/jpeg", tObj.MimeType)
+		})
+	}
 }
 
 func TestPostWritesNonExecutableFile(t *testing.T) {

@@ -7,7 +7,6 @@ require (
 	github.com/blevesearch/bleve_index_api v1.3.11 // indirect
 	github.com/dghubble/go-twitter v0.0.0-20221104224141-912508c3888b // direct
 	github.com/dghubble/oauth1 v0.7.3 // direct
-	github.com/disintegration/imaging v1.6.2
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-ego/gse v1.0.2
@@ -28,12 +27,16 @@ require (
 )
 
 require (
+	github.com/anthonynsimon/bild v0.17.0
 	github.com/cockroachdb/pebble/v2 v2.1.6
 	github.com/gin-contrib/sessions v1.1.0
 	github.com/mmcdole/gofeed v1.4.1
 )
 
-require github.com/mmcdole/goxpp/v2 v2.0.0 // indirect
+require (
+	github.com/HugoSmits86/nativewebp v1.3.0 // indirect
+	github.com/mmcdole/goxpp/v2 v2.0.0 // indirect
+)
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
@@ -128,7 +131,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/image v0.41.0 // indirect
+	golang.org/x/image v0.44.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
