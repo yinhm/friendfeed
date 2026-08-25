@@ -21,7 +21,7 @@ def production(_ctx):
     env.hostname = "ff1"
     env.user = "root"
     env.project = "ffdb"
-    env.repository = "git@github.com:yinhm/ffdb.git"
+    env.repository = "git@github.com:yinhm/friendfeed.git"
     env.repository_type = "git"
     env.hosts = ["linode"]
     env.additional_packages = []
@@ -153,7 +153,7 @@ def deploy_db(_ctx):
     _upload_template(
         "conf/ffdb.service", "/etc/systemd/system/ffdb.service", _template_context()
     )
-    _update_and_build(("go install",))
+    _update_and_build((f"go build -o {quote(env.go_path + '/bin/ffdb')} .",))
     conn.sudo(
         f"chown {env.runner_user}:{env.runner_group} {quote(env.go_path + '/bin/ffdb')}"
     )
