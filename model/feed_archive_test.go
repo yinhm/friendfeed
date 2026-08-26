@@ -31,7 +31,8 @@ func TestBuildFeedArchiveCountsYearsAndBuildsBoundaryCursors(t *testing.T) {
 	t.Cleanup(func() { db.Close() })
 	feed := uuid.Must(uuid.NewV4())
 	_, newest := addFeedArchiveEntry(t, db, feed, time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
-	_, last2026 := addFeedArchiveEntry(t, db, feed, time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC))
+	addFeedArchiveEntry(t, db, feed, time.Date(2025, 12, 3, 0, 0, 0, 0, time.UTC))
+	addFeedArchiveEntry(t, db, feed, time.Date(2025, 6, 3, 0, 0, 0, 0, time.UTC))
 	_, last2025 := addFeedArchiveEntry(t, db, feed, time.Date(2025, 3, 4, 0, 0, 0, 0, time.UTC))
 	addFeedArchiveEntry(t, db, feed, time.Date(2023, 5, 6, 0, 0, 0, 0, time.UTC))
 
@@ -43,9 +44,9 @@ func TestBuildFeedArchiveCountsYearsAndBuildsBoundaryCursors(t *testing.T) {
 
 	stats, err := BuildFeedArchive(db, feed)
 	require.NoError(t, err)
-	require.Equal(t, int64(4), stats.EntryCount)
+	require.Equal(t, int64(5), stats.EntryCount)
 	require.Equal(t, []int32{2026, 2025, 2023}, []int32{stats.Years[0].Year, stats.Years[1].Year, stats.Years[2].Year})
-	require.Equal(t, []int64{2, 1, 1}, []int64{stats.Years[0].EntryCount, stats.Years[1].EntryCount, stats.Years[2].EntryCount})
+	require.Equal(t, []int64{1, 3, 1}, []int64{stats.Years[0].EntryCount, stats.Years[1].EntryCount, stats.Years[2].EntryCount})
 
 	prefix := NewUUIDKey(TableEntryIndex, feed)
 	decodeBoundary := func(cursor string) store.Key {
@@ -53,10 +54,14 @@ func TestBuildFeedArchiveCountsYearsAndBuildsBoundaryCursors(t *testing.T) {
 		require.NoError(t, err)
 		return NewKeyFrom(prefix, position)
 	}
-	require.Equal(t, newest, decodeBoundary(stats.Years[0].Cursor))
-	require.Equal(t, last2026, decodeBoundary(stats.Years[1].Cursor))
+	// The newest year has no newer boundary: no cursor, the link is the
+	// Feed's first page.
+	require.Empty(t, stats.Years[0].Cursor)
+	// Each older year anchors on the last row of the previous (newer) year,
+	// so skipping the anchor lands on the target year's newest Entry. A
+	// multi-entry year must anchor on its final row, never on a mid-year row.
+	require.Equal(t, newest, decodeBoundary(stats.Years[1].Cursor))
 	require.Equal(t, last2025, decodeBoundary(stats.Years[2].Cursor))
-	require.NotEqual(t, newest, last2026)
 }
 
 func TestFeedArchiveRoundTripAndInvalidation(t *testing.T) {
@@ -76,4 +81,12 @@ func TestFeedArchiveRoundTripAndInvalidation(t *testing.T) {
 	}))
 	_, err = GetFeedArchive(db, feed)
 	require.ErrorIs(t, err, store.ErrNotFound)
+
+	// A snapshot written by an older payload version is rejected so the read
+	// path stages a rebuild instead of serving stale cursors.
+	raw, err := proto.Marshal(&pb.FeedArchiveStats{Version: FeedArchiveVersion - 1, EntryCount: 9})
+	require.NoError(t, err)
+	require.NoError(t, db.Set(FeedArchiveMetaKey(feed), raw))
+	_, err = GetFeedArchive(db, feed)
+	require.Error(t, err)
 }

@@ -12,7 +12,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const FeedArchiveVersion int32 = 1
+// FeedArchiveVersion is bumped whenever the snapshot contents change meaning;
+// older snapshots fail the version check and are rebuilt on the next
+// authenticated read or offline rebuild.
+const FeedArchiveVersion int32 = 2
 
 var feedArchiveMetaPrefix = []byte("feed-archive/v1/")
 
@@ -64,9 +67,12 @@ func StageInvalidateFeedArchive(batch *pebble.Batch, feed uuid.UUID) error {
 }
 
 // BuildFeedArchive streams one direct EntryIndex from newest to oldest. The
-// cursor for each year is the row immediately before that year's oldest row,
-// so the existing cursor contract skips the anchor and lands on the year's
-// last Entry. This is independent of the caller's page size.
+// cursor for each year is recorded once, when iteration first enters the
+// year: it is the position of the last row of the previous (newer) year, so
+// the existing cursor contract skips that anchor and lands on the target
+// year's newest Entry. The newest year has no newer boundary and gets no
+// cursor; its link is simply the Feed's first page. This is independent of
+// the caller's page size.
 func BuildFeedArchive(db *store.Store, feed uuid.UUID) (*pb.FeedArchiveStats, error) {
 	if feed == uuid.Nil {
 		return nil, errors.New("feed UUID is required")
@@ -94,10 +100,14 @@ func BuildFeedArchive(db *store.Store, feed uuid.UUID) (*pb.FeedArchiveStats, er
 
 		year := int32(published.Year())
 		if len(stats.Years) == 0 || stats.Years[len(stats.Years)-1].Year != year {
-			stats.Years = append(stats.Years, &pb.FeedArchiveYear{Year: year})
-		}
-		if len(previous) > 0 {
-			stats.Years[len(stats.Years)-1].Cursor = util.Base58Encode(previous[len(prefix):])
+			y := &pb.FeedArchiveYear{Year: year}
+			if len(previous) > 0 {
+				// Anchor on the last row of the previous (newer) year; the
+				// read path skips the anchor and starts at this year's
+				// newest Entry.
+				y.Cursor = util.Base58Encode(previous[len(prefix):])
+			}
+			stats.Years = append(stats.Years, y)
 		}
 		stats.EntryCount++
 		stats.Years[len(stats.Years)-1].EntryCount++

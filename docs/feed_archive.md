@@ -12,16 +12,19 @@ key   = TableMeta | "feed-archive/v1/" | raw feed UUID (16 B)
 value = pb.FeedArchiveStats
 ```
 
+key 前缀保持 `v1` 不变；快照语义的演进只提升 `FeedArchiveStats.version`。旧版本快照读取即
+失败，由登录访问或离线重建自动覆盖，不遗留第二套 key。
+
 `FeedArchiveStats` 包含版本、Feed 总 Entry 数和按年份倒序排列的 `FeedArchiveYear`。每年记录：
 
 - `year`：由 EntryIndex 中的 publish time 计算；
 - `entry_count`：该年可解析、且 canonical Entry 仍存在的索引行数；
-- `cursor`：该年最旧（最后）Entry 之前那条较新索引行的 24 B position，经 Base58 编码；若该条
-  Entry 本身就是全 Feed 第一条则为空。
+- `cursor`：上一年（更近年份）最后一行的 24 B position，经 Base58 编码；最新年份没有更新
+  的边界，cursor 为空。
 
 cursor 仍是位置而非 Entry UUID。请求 `/feed/:id?cursor=...` 时，既有分页逻辑跳过锚点，
-因此把目标年份的最后一条 Entry 放在页面第一行；该语义不依赖页面大小。年份之间没有 Entry
-的年份不会生成空行。
+因此把目标年份的最新一条 Entry 放在页面第一行；该语义不依赖页面大小。最新年份的链接
+不带 cursor，即 Feed 首页。年份之间没有 Entry 的年份不会生成空行。
 
 ## 生命周期
 

@@ -31,14 +31,20 @@ func TestAuthenticatedFeedReadStagesAndConsumesArchiveRebuild(t *testing.T) {
 	profile := &pb.Profile{Uuid: viewer.String(), Id: "archive-user", Name: "Archive User", Type: "user"}
 	require.NoError(t, model.UpdateProfile(srv.rdb, profile))
 	oldestID := uuid.Must(uuid.NewV4()).String()
+	newest2025ID := uuid.Must(uuid.NewV4()).String()
 	_, err := srv.PostEntry(context.Background(), &pb.Entry{
 		Id: oldestID, Date: time.Date(2025, 4, 3, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		ProfileUuid: viewer.String(), FeedUuid: viewer.String(), Body: "old",
 	})
 	require.NoError(t, err)
 	_, err = srv.PostEntry(context.Background(), &pb.Entry{
-		Id: uuid.Must(uuid.NewV4()).String(), Date: time.Date(2025, 12, 3, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		Id: newest2025ID, Date: time.Date(2025, 12, 3, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		ProfileUuid: viewer.String(), FeedUuid: viewer.String(), Body: "newer",
+	})
+	require.NoError(t, err)
+	_, err = srv.PostEntry(context.Background(), &pb.Entry{
+		Id: uuid.Must(uuid.NewV4()).String(), Date: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		ProfileUuid: viewer.String(), FeedUuid: viewer.String(), Body: "newest",
 	})
 	require.NoError(t, err)
 
@@ -58,22 +64,27 @@ func TestAuthenticatedFeedReadStagesAndConsumesArchiveRebuild(t *testing.T) {
 	feed, err = srv.FetchFeed(context.Background(), request)
 	require.NoError(t, err)
 	require.NotNil(t, feed.Archive)
-	require.Equal(t, int64(2), feed.Archive.EntryCount)
-	require.Equal(t, int32(2025), feed.Archive.Years[0].Year)
-	require.NotEmpty(t, feed.Archive.Years[0].Cursor)
+	require.Equal(t, int64(3), feed.Archive.EntryCount)
+	require.Len(t, feed.Archive.Years, 2)
+	require.Equal(t, int32(2026), feed.Archive.Years[0].Year)
+	// The newest year has no boundary; its link is the Feed's first page.
+	require.Empty(t, feed.Archive.Years[0].Cursor)
+	require.Equal(t, int32(2025), feed.Archive.Years[1].Year)
+	require.NotEmpty(t, feed.Archive.Years[1].Cursor)
 
-	lastOfYear, err := srv.FetchFeed(context.Background(), &pb.FeedRequest{
+	// Following a year cursor opens the year at its newest Entry.
+	yearPage, err := srv.FetchFeed(context.Background(), &pb.FeedRequest{
 		Id: profile.Id, ViewerUuid: viewer.String(), CursorPaging: true,
-		Cursor: feed.Archive.Years[0].Cursor, PageSize: 30,
+		Cursor: feed.Archive.Years[1].Cursor, PageSize: 30,
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, lastOfYear.Entries)
-	require.Equal(t, oldestID, lastOfYear.Entries[0].Id)
+	require.NotEmpty(t, yearPage.Entries)
+	require.Equal(t, newest2025ID, yearPage.Entries[0].Id)
 
 	// A real Entry creation invalidates the snapshot atomically. Re-archiving
 	// the same Entry would leave it intact because the direct Feed did not move.
 	_, err = srv.PostEntry(context.Background(), &pb.Entry{
-		Id: uuid.Must(uuid.NewV4()).String(), Date: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		Id: uuid.Must(uuid.NewV4()).String(), Date: time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		ProfileUuid: viewer.String(), FeedUuid: viewer.String(), Body: "new",
 	})
 	require.NoError(t, err)
