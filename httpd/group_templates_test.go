@@ -160,15 +160,16 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	// group_create.html extends layout.html, which exercises the sidebar.
 	createCtx := func() pongo2.Context {
 		return pongo2.Context{
-			"title":        "Create Group",
-			"form_action":  "/groups/create",
-			"submit_label": "Create Group",
-			"cancel_url":   "/",
-			"show_id":      true,
-			"show_private": true,
-			"group_page":   "create",
-			"group":        &pb.Profile{},
-			"current_user": &pb.Profile{Uuid: "u", Id: "me"},
+			"title":               "Create Group",
+			"form_action":         "/groups/create",
+			"submit_label":        "Create Group",
+			"cancel_url":          "/",
+			"show_id":             true,
+			"show_private":        true,
+			"group_page":          "create",
+			"group":               &pb.Profile{},
+			"current_user":        &pb.Profile{Uuid: "u", Id: "me"},
+			"show_groups_sidebar": true,
 			"user_groups": []*pb.Profile{
 				{Id: "alpha", Name: "Alpha"},
 				{Id: "secret-club", Name: "Secret Club", Private: true},
@@ -198,6 +199,15 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	// The Groups block lives outside (below) the navigation <details>.
 	if strings.Index(body, "</details>") > strings.Index(body, "groups-menu") {
 		t.Fatal("Groups block must render below the navigation menu, not inside it")
+	}
+
+	// Ordinary pages omit the Home-only Groups sidebar even when group data is
+	// accidentally present in their render context.
+	nonHome := createCtx()
+	delete(nonHome, "show_groups_sidebar")
+	nonHomeBody := renderEmbeddedTemplate(t, "group_create.html", nonHome)
+	if strings.Contains(nonHomeBody, "groups-menu") {
+		t.Fatal("non-Home page must not render the Groups block")
 	}
 
 	// Logged in with no Groups: the block still links to the full list.

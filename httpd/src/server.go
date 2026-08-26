@@ -130,22 +130,22 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 	if profile.Uuid != "" {
 		data["current_user"] = profile
 
-		// Load user's groups for sidebar. Always inject the key for a
-		// logged-in user (possibly empty) so templates can tell "logged in
-		// with no Groups" apart from "anonymous"; anonymous renders get no
-		// key and no RPC. Sidebar shows at most 10 Groups
-		// (docs/group_navigation.md).
-		ctx, cancel := DefaultTimeoutContext()
-		groups, groupErr := s.UserGroups(ctx, profile.Uuid)
-		cancel()
-		if groupErr == nil {
-			data["user_groups"] = groups
+		// Groups are Home navigation, not global navigation. Avoid both the
+		// sidebar and its RPC on every other page.
+		showGroupsSidebar, _ := data["show_groups_sidebar"].(bool)
+		if showGroupsSidebar {
+			ctx, cancel := DefaultTimeoutContext()
+			groups, groupErr := s.UserGroups(ctx, profile.Uuid)
+			cancel()
+			if groupErr == nil {
+				data["user_groups"] = groups
+			}
 		}
 
 		// Notification summary is deliberately best effort. Navigation is
 		// useful without a badge, so a timeout/adapter failure must never turn
 		// an unrelated SSR page into a 500.
-		ctx, cancel = DefaultTimeoutContext()
+		ctx, cancel := DefaultTimeoutContext()
 		summary, summaryErr := s.notificationSummary(ctx, profile.Uuid)
 		cancel()
 		if summaryErr == nil && summary.UnreadCount > 0 {
