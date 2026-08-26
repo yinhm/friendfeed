@@ -77,6 +77,16 @@ func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer Tim
 				return fmt.Errorf("index entry for feed: %w", err)
 			}
 		}
+		if created {
+			if err := StageInvalidateFeedArchive(batch, userUuid); err != nil {
+				return fmt.Errorf("invalidate author Feed archive: %w", err)
+			}
+			if feedUuid != userUuid {
+				if err := StageInvalidateFeedArchive(batch, feedUuid); err != nil {
+					return fmt.Errorf("invalidate target Feed archive: %w", err)
+				}
+			}
+		}
 		if err := writeEntryInteractionsBatch(batch, entryUuid, entry.Comments, entry.Likes); err != nil {
 			return fmt.Errorf("write entry interactions: %w", err)
 		}
@@ -169,6 +179,14 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 		if feedUuid != profileUuid {
 			if err := EntryIndex.removeIndexBatch(batch, feedUuid, oldtime, entryKey); err != nil {
 				return fmt.Errorf("remove feed entry index: %w", err)
+			}
+		}
+		if err := StageInvalidateFeedArchive(batch, profileUuid); err != nil {
+			return fmt.Errorf("invalidate author Feed archive: %w", err)
+		}
+		if feedUuid != profileUuid {
+			if err := StageInvalidateFeedArchive(batch, feedUuid); err != nil {
+				return fmt.Errorf("invalidate target Feed archive: %w", err)
 			}
 		}
 		if err := batch.Delete(entryKey, nil); err != nil {

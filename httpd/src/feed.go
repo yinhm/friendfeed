@@ -313,7 +313,12 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		data = legacyFeedCursorContext(feed, req.PageSize)
 	}
 	data["show_header"] = true
-	if actor := CurrentUserUuid(c); actor != "" && feed.Type == "group" {
+	actor := CurrentUserUuid(c)
+	if actor != "" && feed.Archive != nil {
+		data["feed_archive"] = feed.Archive
+		data["feed_archive_id"] = feed.Id
+	}
+	if actor != "" && feed.Type == "group" {
 		data["feed_management_id"] = feed.Id
 		data["feed_management_page"] = "feed"
 		ctx, cancel := DefaultTimeoutContext()

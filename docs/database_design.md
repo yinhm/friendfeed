@@ -52,7 +52,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 
 | Prefix | 表 | Key（省略 value 中的 protobuf 细节） | Value | 性质 |
 | ---: | --- | --- | --- | --- |
-| 0 | Meta | 领域固定字符串 + UUID | raw UUID 或 JSON | 小型 metadata 与可重建物化视图；含 Group owner/activity |
+| 0 | Meta | 领域固定字符串 + UUID | raw UUID、JSON 或 protobuf | 小型 metadata 与可重建物化视图；含 Group owner/activity 与 `feed-archive/v1` |
 | 1 | Feed | 保留，当前无运行时表实例 | — | 历史前缀 |
 | 2 | Feedinfo | `T + feed UUID` | `pb.Feedinfo` | 历史/迁移 metadata |
 | 3 | Entry | `T + entry UUID` | `pb.Entry`，不再内嵌 canonical Like/Comment | 源数据 |
@@ -207,6 +207,9 @@ FetchFeed(cursor mode)
   ├── 两次 interaction prefix scan / Entry
   └── profile hydration + formatting
 ```
+
+Profile/Group direct Feed 的年度计数与导航边界是 Meta 中的可重建快照，完整编码与失效规则见
+[feed_archive.md](feed_archive.md)。它不改变 EntryIndex 排序或 cursor 契约。
 
 profile/timeline/public 使用 cursor；这些 Feed 的匿名旧 `?start=N` URL 由 ffweb 直接 302
 到第一页，登录用户仅可读取一次 legacy offset 页，随后通过响应的 `NextCursor` 继续。

@@ -104,7 +104,7 @@ enum TaskCompletionStatus {
 
 message Task {
   string id = 1;                 // 32-char raw flake hex
-  string type = 2;               // service.fetch / feed_service.seed / home.rebuild
+  string type = 2;               // service.fetch / feed_service.seed / home.rebuild / feed.archive.rebuild
   bytes payload = 3;             // 该 type 的 protobuf，只有引用和小参数
   uint32 payload_version = 4;
   string idempotency_key = 5;
@@ -330,6 +330,10 @@ Idem 命中时仍执行并提交业务 callback，只是不重复创建 Task；r
   直接 no-op。这样快速 Follow→Unfollow 或任务重试不会用旧 task 覆盖新关系。
 - 不带 idempotency key；handler 幂等收敛。失败按定义重试（3 次、分钟级退避）。仅升级前已经入队、
   只有 `viewer_uuid` 的 legacy payload 执行一次原有 full rebuild。
+
+`feed.archive.rebuild` 使用 raw Feed UUID payload 和 active-only Feed UUID idempotency key。登录用户读取
+缺失统计的 direct Feed 时入队；handler 流式重建 `feed-archive/v1` Meta 快照。它不抓取网络、不读取
+正文，也不影响当前 Feed 响应。完整契约见 [feed_archive.md](feed_archive.md)。
 
 ## Reaper、关停与重启
 

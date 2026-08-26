@@ -88,6 +88,20 @@
                 </div>
             </div>
             {% endif %}
+
+            {% if current_user and feed_archive %}
+            <div class="menu feed-archive-menu">
+                <div class="section">
+                    <h3>Archive</h3>
+                    <ul>
+                        <li><a href="/feed/{{ feed_archive_id }}">All</a> ({{ feed_archive.EntryCount }})</li>
+                        {% for y in feed_archive.Years %}
+                        <li><a href="/feed/{{ feed_archive_id }}{% if y.Cursor %}?cursor={{ y.Cursor }}{% endif %}">{{ y.Year }}</a> ({{ y.EntryCount }})</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
 

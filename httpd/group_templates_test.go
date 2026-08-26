@@ -121,6 +121,39 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 	}
 }
 
+func TestFeedArchiveSidebarRendersOnlyWhenSnapshotExists(t *testing.T) {
+	currentUser := &pb.Profile{Uuid: "11111111-1111-1111-1111-111111111111", Id: "me"}
+	feed := &pb.Feed{Uuid: "22222222-2222-2222-2222-222222222222", Id: "archive", Name: "Archive"}
+	base := pongo2.Context{
+		"title": "Archive", "current_user": currentUser, "feed": feed,
+		"show_header": true, "feed_archive_id": feed.Id,
+	}
+
+	without := renderEmbeddedTemplate(t, "feed.html", base)
+	if strings.Contains(without, "feed-archive-menu") {
+		t.Fatal("missing archive snapshot must not render navigation")
+	}
+
+	base["feed_archive"] = &pb.FeedArchiveStats{
+		EntryCount: 75,
+		Years: []*pb.FeedArchiveYear{
+			{Year: 2026, EntryCount: 25},
+			{Year: 2025, EntryCount: 50, Cursor: "year-boundary"},
+		},
+	}
+	with := renderEmbeddedTemplate(t, "feed.html", base)
+	for _, want := range []string{
+		`class="menu feed-archive-menu"`,
+		`href="/feed/archive">All</a> (75)`,
+		`href="/feed/archive">2026</a> (25)`,
+		`href="/feed/archive?cursor=year-boundary">2025</a> (50)`,
+	} {
+		if !strings.Contains(with, want) {
+			t.Fatalf("Feed archive sidebar missing %q", want)
+		}
+	}
+}
+
 func TestLayoutSidebarGroupsSection(t *testing.T) {
 	// group_create.html extends layout.html, which exercises the sidebar.
 	createCtx := func() pongo2.Context {

@@ -27,6 +27,13 @@
 默认模式只重建持有 OAuth 登录身份的活跃用户（去重后逐个 Profile 处理，每次只保留
 一个用户的 Group score，内存有界）；无 Group 成员关系的用户直接跳过，不写空排行。
 
+Feed 年度统计同样先按用户验证，再全量重建；它逐个处理全部未删除 user/group Profile：
+
+    ./tools -to /srv/ffdb/db -c rebuild_feed_archive -user yinhm -dry-run
+    ./tools -to /srv/ffdb/db -c rebuild_feed_archive -user yinhm
+    ./tools -to /srv/ffdb/db -c rebuild_feed_archive -dry-run
+    ./tools -to /srv/ffdb/db -c rebuild_feed_archive
+
 把 Profile 上残留的 FriendFeed 旧默认头像（`friendfeed.com/static/images/group-large.png`，
 任意 scheme 与 `?v=` 变体）改写为本地默认图 `/static/images/ff-default.jpg`（先
 -dry-run 看计数再实跑，可重复执行，`-user` 可限定单个 profile ID 或 UUID）：

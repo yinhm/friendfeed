@@ -148,6 +148,10 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		rdb.Close()
 		return nil, fmt.Errorf("initialize task queue: %w", err)
 	}
+	if err := srv.tasks.RegisterDefinition(feedArchiveRebuildTaskType, feedArchiveTaskDefinition(srv.handleFeedArchiveTask)); err != nil {
+		rdb.Close()
+		return nil, fmt.Errorf("register Feed archive task: %w", err)
+	}
 
 	srv.fs = media.NewStorage(cfg, 1024)
 	return srv, nil
@@ -618,6 +622,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 		feed.NextCursor = encodeFeedCursor(pageCursorKey, prefix)
 	}
 	s.withPendingFollowRequest(feed, req.ViewerUuid)
+	s.attachFeedArchive(ctx, req.ViewerUuid, profileUuid, feed)
 	return feed, nil
 }
 
@@ -802,6 +807,12 @@ func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.Feed
 		feed.NextCursor = encodeFeedCursor(lastScanned, prefix)
 	}
 	s.withPendingFollowRequest(feed, req.ViewerUuid)
+	if !activityTimeline {
+		profileUUID, parseErr := uuid.FromString(profile.Uuid)
+		if parseErr == nil {
+			s.attachFeedArchive(ctx, req.ViewerUuid, profileUUID, feed)
+		}
+	}
 	return feed, nil
 }
 

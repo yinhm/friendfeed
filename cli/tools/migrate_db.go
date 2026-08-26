@@ -1267,6 +1267,7 @@ func main() {
 		(command == "rebuild_interaction_timelines" && dryRun) ||
 		(command == "rebuild_group_activity" && dryRun) ||
 		(command == "rebuild_group_index" && dryRun) ||
+		(command == "rebuild_feed_archive" && dryRun) ||
 		(command == "fix_default_picture" && dryRun) ||
 		(command == "purge_public_cache" && dryRun)
 	if command == "compact_timelines" && dryRun {
@@ -1333,6 +1334,13 @@ func main() {
 		}
 		log.Printf("Group index rebuild: profiles=%d indexed=%d changed=%d stale=%d dry-run=%t",
 			stats.profiles, stats.indexed, stats.changed, stats.stale, dryRun)
+	case "rebuild_feed_archive":
+		stats, err := rebuildFeedArchives(ndb, timelineUser, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Feed archive rebuild: feeds=%d entries=%d changed=%d dry-run=%t",
+			stats.feeds, stats.entries, stats.changed, dryRun)
 	case "fix_default_picture":
 		stats, err := fixDefaultPictures(ndb, timelineUser, dryRun)
 		if err != nil {

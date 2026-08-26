@@ -171,6 +171,23 @@ message Feed {
   string next_cursor = 10;
   // true when the viewer has a pending follow request against this feed.
   bool has_pending_follow_request = 11;
+  // Rebuildable direct-feed archive statistics. Omitted until the background
+  // rebuild has produced a snapshot.
+  FeedArchiveStats archive = 12;
+}
+
+message FeedArchiveYear {
+  int32 year = 1;
+  int64 entry_count = 2;
+  // Opaque direct EntryIndex position immediately before this year's oldest
+  // (last) entry, so following the cursor lands on that entry.
+  string cursor = 3;
+}
+
+message FeedArchiveStats {
+  int32 version = 1;
+  int64 entry_count = 2;
+  repeated FeedArchiveYear years = 3;
 }
 
 // /feedinfo - Feed information
