@@ -144,13 +144,15 @@ func TestFeedArchiveSidebarRendersOnlyWhenSnapshotExists(t *testing.T) {
 	with := renderEmbeddedTemplate(t, "feed.html", base)
 	for _, want := range []string{
 		`class="menu feed-archive-menu"`,
-		`href="/feed/archive">All</a> (75)`,
-		`href="/feed/archive">2026</a> (25)`,
-		`href="/feed/archive?cursor=year-boundary">2025</a> (50)`,
+		`href="/feed/archive">2026</a> <span class="feed-archive-count">25</span>`,
+		`href="/feed/archive?cursor=year-boundary">2025</a> <span class="feed-archive-count">50</span>`,
 	} {
 		if !strings.Contains(with, want) {
 			t.Fatalf("Feed archive sidebar missing %q", want)
 		}
+	}
+	if strings.Contains(with, ">All</a>") {
+		t.Fatal("Feed archive sidebar must not render an All navigation item")
 	}
 }
 

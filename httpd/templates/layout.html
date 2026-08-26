@@ -94,9 +94,8 @@
                 <div class="section">
                     <h3>Archive</h3>
                     <ul>
-                        <li><a href="/feed/{{ feed_archive_id }}">All</a> ({{ feed_archive.EntryCount }})</li>
                         {% for y in feed_archive.Years %}
-                        <li><a href="/feed/{{ feed_archive_id }}{% if y.Cursor %}?cursor={{ y.Cursor }}{% endif %}">{{ y.Year }}</a> ({{ y.EntryCount }})</li>
+                        <li><a href="/feed/{{ feed_archive_id }}{% if y.Cursor %}?cursor={{ y.Cursor }}{% endif %}">{{ y.Year }}</a> <span class="feed-archive-count">{{ y.EntryCount }}</span></li>
                         {% endfor %}
                     </ul>
                 </div>

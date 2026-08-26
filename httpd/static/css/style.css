@@ -874,6 +874,21 @@ div.content pre {
     margin-top: 24px;
 }
 
+.feed-archive-menu {
+    margin-top: 24px;
+}
+
+.feed-archive-count {
+    color: var(--ff-muted);
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.feed-archive-menu li:hover .feed-archive-count,
+.feed-archive-menu li:focus-within .feed-archive-count {
+    opacity: 1;
+}
+
 @media (max-width: 600px) {
     .groups-menu {
         display: none;
