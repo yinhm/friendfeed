@@ -172,6 +172,10 @@ const OnPageEditor = (params) => {
             if (other.length) insertAttachmentFiles(other);
             return;
         }
+        // Plate owns its internal fragment format. Let its default paste
+        // handler preserve existing canonical image nodes without uploading
+        // them again through the HTML clipboard fallback.
+        if (event.clipboardData.getData('application/x-slate-fragment')) return;
         const html = event.clipboardData.getData('text/html');
         if (!html || !/<img\b/i.test(html)) return;
         event.preventDefault();

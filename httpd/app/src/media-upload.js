@@ -62,32 +62,41 @@ export async function mapWithConcurrency(items, limit, worker) {
  * @param {(url: string) => Promise<UploadedImage>} mirror
  */
 export async function mirrorPastedHTML(html, upload = uploadImage, mirror = mirrorImage) {
-  const document = new DOMParser().parseFromString(html, 'text/html');
-  const images = Array.from(document.querySelectorAll('img'));
+  const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
+  const images = Array.from(parsedDocument.querySelectorAll('img'));
   if (images.length > MAX_PASTED_IMAGES) {
     throw new Error(`A paste may contain at most ${MAX_PASTED_IMAGES} images`);
   }
-  const metadata = await mapWithConcurrency(images, MEDIA_UPLOAD_CONCURRENCY, async (image) => {
-    const source = image.getAttribute('src') ?? '';
-    /** @type {UploadedImage} */
-    let result;
-    if (source.startsWith('data:')) {
-      result = await upload(dataURLToBlob(source), 'clipboard-image');
-    } else if (source.startsWith('blob:')) {
-      const response = await fetch(source);
-      if (!response.ok) throw new Error('Unable to read pasted image');
-      result = await upload(await response.blob(), 'clipboard-image');
-    } else {
-      const parsed = new URL(source);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('Unsupported pasted image URL');
+  const results = await mapWithConcurrency(images, MEDIA_UPLOAD_CONCURRENCY, async (image) => {
+    try {
+      const source = image.getAttribute('src') ?? '';
+      /** @type {UploadedImage} */
+      let result;
+      if (source.startsWith('data:')) {
+        result = await upload(dataURLToBlob(source), 'clipboard-image');
+      } else if (source.startsWith('blob:')) {
+        const response = await fetch(source);
+        if (!response.ok) throw new Error('Unable to read pasted image');
+        result = await upload(await response.blob(), 'clipboard-image');
+      } else {
+        const absolute = source.startsWith('//') ? `${window.location.protocol}${source}` : source;
+        const parsed = new URL(absolute);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          throw new Error('Unsupported pasted image URL');
+        }
+        result = await mirror(parsed.toString());
       }
-      result = await mirror(parsed.toString());
+      image.setAttribute('src', result.url);
+      return result;
+    } catch {
+      // One malformed or unavailable image must not discard the surrounding
+      // pasted text and other successfully mirrored images.
+      image.remove();
+      return null;
     }
-    image.setAttribute('src', result.url);
-    return result;
   });
-  return { html: document.body.innerHTML, metadata };
+  const metadata = results.filter((/** @type {UploadedImage|null} */ result) => result !== null);
+  return { html: parsedDocument.body.innerHTML, metadata };
 }
 
 /** @param {any[]} nodes @param {UploadedImage[]} metadata */

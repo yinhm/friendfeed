@@ -101,6 +101,9 @@ func (s *Server) promoteEntryImages(oldRawBody, rawBody, body string, old []*pb.
 				usedCanonical[urlValue] = true
 				usedCanonical[originalValue] = true
 			} else {
+				if urlValue == "" || originalValue == "" {
+					return errors.New("uploaded image is missing its staging URLs")
+				}
 				asset := assets[token]
 				if asset == nil || asset.Kind != "image" {
 					return errors.New("invalid image asset token")

@@ -40,3 +40,10 @@ func TestPromoteEntryImagesPreservesNonPlateSourceThumbnails(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, old, thumbnails)
 }
+
+func TestPromoteEntryImagesRejectsTokenWithoutStagingURLs(t *testing.T) {
+	server := &Server{}
+	raw := `[{"type":"img","assetToken":"token","children":[{"text":""}]}]`
+	_, _, _, err := server.promoteEntryImages("", raw, "<p>safe</p>", nil, map[string]*assetTokenPayload{"token": {Kind: "image"}})
+	require.ErrorContains(t, err, "missing its staging URLs")
+}

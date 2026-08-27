@@ -232,7 +232,8 @@ func Serve(s *server.Server, config *util.Config) error {
 	r.GET("/search", s.SearchHandler)
 	r.GET("/tag/:name", s.TagHandler)
 
-	r.Static("/file", config.MediaPath)
+	r.GET("/file/*filepath", localMediaHandler(config.MediaPath))
+	r.HEAD("/file/*filepath", localMediaHandler(config.MediaPath))
 
 	r.NoRoute(NotFoundHandler)
 

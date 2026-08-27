@@ -803,9 +803,10 @@ namespace：
 ~~~
 
 新上传 canonical media 的目标 serving path 是独立 `media_url`，production 由 nginx 直接从
-`media_path` serve；dev/local 可以由 ffweb Gin local-media route serve。当前 ffweb 仍无条件注册
-`/file -> media_path`，本项目是否移除该 production fallback 不属于本 spec；本版本也不处理历史
-`/file/*` URL 的迁移。
+`media_path` serve；dev/local 可以由 ffweb Gin local-media route serve。ffweb 仍保留 `/file ->
+media_path` 作为历史 URL 的 fallback，但只对光栅图片 inline serve；staging 内的非图片与所有
+已知附件扩展名一律强制 `Content-Disposition: attachment` + `nosniff`，主动内容不得在主域
+inline 执行。历史 `/file/*` URL 的迁移不属于本 spec。
 
 实现必须满足：
 

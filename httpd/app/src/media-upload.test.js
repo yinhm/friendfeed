@@ -48,3 +48,17 @@ test('limits concurrent media operations', async () => {
   });
   expect(maximum).toBe(2);
 });
+
+test('skips malformed pasted images without discarding surrounding content', async () => {
+  const result = await mirrorPastedHTML('<p>before<img src="relative.png">after</p>', vi.fn(), vi.fn());
+  expect(result.html).toContain('before');
+  expect(result.html).toContain('after');
+  expect(result.html).not.toContain('<img');
+  expect(result.metadata).toEqual([]);
+});
+
+test('resolves protocol-relative pasted images without failing the paste', async () => {
+  const mirror = vi.fn().mockResolvedValue({assetToken: 'token', url: 'https://media/thumb', originalUrl: 'https://media/original', width: 1, height: 1, mimeType: 'image/png', size: 1});
+  await mirrorPastedHTML('<img src="//cdn.example/image.png">', vi.fn(), mirror);
+  expect(mirror).toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\/cdn\.example\/image\.png$/));
+});
