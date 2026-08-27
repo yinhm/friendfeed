@@ -45,7 +45,7 @@ LocalStorage；R2 是异步副本，不进入用户发布成功的同步关键�
 用户主动上传属于 Web/BFF transport 能力，由 ffweb 负责：
 
 - `POST /a/upload`：正文图片；
-- `POST /a/upload/mirror`：用户新粘贴的 remote HTTP/HTTPS 图片；
+- `POST /a/upload`：用户新粘贴的 remote HTTP/HTTPS 图片；
 - `POST /a/upload_file`：文件附件；
 - multipart/request limit；
 - 实际字节类型识别；
@@ -193,10 +193,9 @@ multipart 声明的 MIME 只能作提示，最终类型必须由实际字节识�
 - 同一用户同时上传请求：最多 2；
 - ffweb 全进程同时执行 image decode/resize：最多 2；
 - ffweb 全进程同时处理 upload request：最多 8；
-- 每个用户尚未过期的 staged data：最多 256 MiB；
 - staging TTL：24 小时。
 
-超过 request/file 大小返回 `413`；命中并发或 staging quota 返回 `429`。
+超过 request/file 大小返回 `413`；命中并发限制返回 `429`。
 
 图片先用 decode-config/等价轻量方式读取尺寸，在进入完整像素 decode 前执行 side/pixel limit。不能先分配
 完整超大像素缓冲后再判断限制。
@@ -221,7 +220,8 @@ Thumbnail 由 ffweb 在 upload/staging 阶段生成；ffdb 不负责 resize/deco
 - 原图宽度 ≤ 1024 px：不生成第二份，`thumb == original`；
 - 原图宽度 > 1024 px：按比例缩到 1024 px；
 - 不放大小图；
-- GIF/WebP 动图的 thumbnail 可以是静态首帧；
+- GIF 动图 thumbnail 可以使用静态首帧；
+- WebP V1 只支持静态 WebP；animated WebP 拒绝；
 - JPEG thumbnail 使用固定 quality；
 - 透明 PNG 优先生成 PNG thumbnail，避免透明背景在 JPEG 中产生不确定结果。
 
@@ -343,14 +343,16 @@ image/webp -> .webp
 
 ## 4.3 staging state / asset token
 
-上传成功后，ffweb 必须保存足够的 staging state，使发布时可以验证该对象属于当前用户且未被篡改。
-可以继续使用 HMAC asset token 作为无数据库的简化实现。
+上传成功后，ffweb 使用无状态 HMAC asset token 保存发布所需 staging state，使 `/a/share` 能确认
+该对象确实由当前用户通过 upload endpoint 创建，而不是客户端任意拼接 staging path。
 
 token 至少绑定：
 
 - upload user UUID；
 - upload ID；
 - kind：`image` / `file`；
+- original staging object ID；
+- thumbnail staging object ID（image，若与 original 相同可复用）；
 - SHA-256 digest；
 - server-derived extension；
 - verified MIME/type；
@@ -361,7 +363,26 @@ token 至少绑定：
 
 默认 24 小时过期。
 
-token/staging state 不作为下载权限，不持久化进 Entry，不记录日志。
+### HMAC key
+
+asset token 直接复用 ffweb 已有的 `SecretKey`（启动参数 `-s`）作为 HMAC secret，不新增新的配置项。
+当前该 secret 已用于 ffweb session/OAuth cookie store；asset token 只是新增一个签名用途。
+
+V1 要求：
+
+- token 使用 HMAC-SHA256；
+- payload 使用稳定版本号，例如 `v=1`；
+- non-debug deployment 必须显式配置 `-s`，不能依赖源码里的默认示例 secret；
+- token 比较使用 constant-time compare；
+- token/staging state 不作为下载权限；
+- token 不持久化进 Entry；
+- token 不写日志。
+
+asset token 的职责只是：
+
+> 允许当前用户把一个已经通过 ffweb 验证过的 staging object promote 成 canonical Entry media。
+
+它不是媒体读取权限；staging URL 仍采用当前 URL capability 语义。
 
 ## 4.4 cleanup
 
@@ -496,7 +517,7 @@ V1 不新增本地 sidecar metadata 数据库。
 1. Clipboard `items/files` 有图片 binary 时优先，只消费一次；
 2. 没 binary、HTML 中有 `data:image/*` 时，浏览器转 Blob 后走 `POST /a/upload`；
 3. `blob:` 只能转 Blob 后上传，不能持久化；
-4. HTML 中 `http/https` 图片通过 `POST /a/upload/mirror` mirror 到 staging；
+4. HTML 中 `http/https` 图片通过 `POST /a/upload` 的 `sourceUrl` 分支拉取到 staging；
 5. 其他 scheme、非法 URL、URL > 2048 bytes 不创建新图片节点。
 
 一个 paste：
@@ -524,50 +545,80 @@ staging URL 和 asset token 都不是最终 Entry 格式。
 - `data:`；
 - `blob:`；
 - temporary staging path；
-- remote mirror source URL。
+- remote upload source URL。
 
 历史 Entry 中已经存在的外部 image URL 继续兼容读取，不在 read path 自动 mirror。
 
 ---
 
-# 7. Remote image mirror
+# 7. Remote image upload
 
-`POST /a/upload/mirror` 只处理用户新粘贴/插入的 remote image。
+remote image 不使用单独的 `/a/upload` 的 `sourceUrl` 分支 endpoint。与本地图片统一使用：
 
-网络边界复用 `media` safe fetch primitive：
+~~~text
+POST /a/upload
+~~~
+
+请求必须二选一：
+
+~~~text
+file      = multipart binary
+sourceUrl = http/https URL
+~~~
+
+即 `file XOR sourceUrl`：必须且只能提供一个。
+
+两种输入最终进入同一个 image staging pipeline：
+
+~~~text
+local file -----------┐
+                      ├-> sniff -> decode config -> limits -> decode -> thumbnail -> staging
+remote sourceUrl -----┘
+~~~
+
+## 7.1 remote fetch 边界
+
+`sourceUrl` 分支复用现有 media safe-fetch 的网络安全能力，但**不直接原样复用当前
+`LocalStorage.Fetch()` 的全部行为**。
+
+必须复用/保持：
 
 - 仅 HTTP/HTTPS；
 - DNS 解析后拒绝 loopback/private/link-local/CGNAT；
 - redirect 每跳重新验证；
 - redirect 数有界；
 - 总 timeout 有界；
-- response body 有界；
 - 不发送用户 Cookie；
 - 不发送 Authorization；
 - 不发送 Referer；
 - remote Content-Type 不可信。
 
-下载后进入与本地 upload 相同的：
+用户 remote upload 的 response body 上限固定为：
 
 ~~~text
-sniff -> decode config -> size/pixel limit -> full decode -> thumbnail -> staging
+20 MiB
 ~~~
 
-## 7.1 sourceUrl
+与本地图片单文件上限一致。读取时应使用 `20 MiB + 1` 的 bounded reader，超过立即拒绝，不沿用 archive
+路径当前的 32 MiB `maxFetchBytes`。
 
-`sourceUrl` 只存在于当前 mirror request 的内存上下文。
+## 7.2 sourceUrl 生命周期
 
-mirror 成功后立即丢弃：
+`sourceUrl` 只存在于当前 `/a/upload` request 的内存上下文。
+
+成功进入 staging 后立即丢弃：
 
 - 不写 `rawBody`；
 - 不写 `Entry.body`；
 - 不写 protobuf；
 - 不写 staging metadata；
+- 不写 asset token；
 - 不作为 renderer fallback。
 
-## 7.2 URL 与日志脱敏
+## 7.3 URL 与错误脱敏
 
-remote fetch error 不得包含完整 URL。
+当前 `media.LocalStorage.Fetch()` 的部分错误文本会包含完整 URL，因此用户 `sourceUrl` 分支不能把
+其 raw error 直接返回浏览器或写入日志。
 
 尤其 query / fragment 可能携带 signed token。日志和浏览器错误中不得出现：
 
@@ -578,18 +629,17 @@ remote fetch error 不得包含完整 URL。
 #...
 ~~~
 
-运行日志最多记录安全化 hostname、结果类别、bytes、耗时；若 hostname 也没有诊断价值，可以只记录错误类别。
+实现可以继续复用 safe HTTP client / DialContext，但必须在 upload handler/adapter 层把 fetch 错误映射为
+安全错误类别。运行日志最多记录安全化 hostname、结果类别、bytes、耗时。
 
 错误映射：
 
 - URL 解析/协议错误：`400`；
-- remote 非 2xx、响应超限、内容非允许图片：`422`；
+- remote 非 2xx、响应超 20 MiB、内容非允许图片：`422`；
 - timeout：`504`；
 - 本地 staging/encode 失败：`500`。
 
 内部 DNS/IP 拒绝细节不返回浏览器。
-
----
 
 # 8. 文件附件
 
@@ -653,7 +703,7 @@ HTML 即使允许上传，也只作为附件下载，不作为正文 HTML 执行
 - display name 取 basename、去控制字符、限制 255 UTF-8 bytes；
 - 原始名称不进入 object key。
 
-上传和 staging 使用第 3/4 节相同并发、quota 和 TTL。
+上传和 staging 使用第 3/4 节相同的并发限制和 TTL。
 
 ## 8.4 Entry.files
 
@@ -680,7 +730,53 @@ HTML 即使允许上传，也只作为附件下载，不作为正文 HTML 执行
 
 ffdb 只持久化这些 Entry 数据，不重新实现用户 upload/token protocol。
 
-## 8.5 下载 URL
+## 8.5 /a/share 的 asset 提交契约
+
+现有 `/a/share` multipart form 保留：
+
+~~~text
+id
+feedUuid
+body
+rawBody
+~~~
+
+并新增一个可选字段：
+
+~~~text
+assets
+~~~
+
+`assets` 是 JSON array，只包含本次编辑器当前仍持有的 asset tokens，例如：
+
+~~~json
+[
+  {"token": "<image-asset-token>"},
+  {"token": "<file-asset-token>"}
+]
+~~~
+
+upload ID、digest、MIME、original/thumbnail staging object ID 等都已经由 token 签名，不在 form 中重复
+提交为可信字段。
+
+ffweb 处理顺序：
+
+1. parse `assets`；
+2. verify 每个 token HMAC、版本、当前 user、expiry；
+3. 得到 `uploadID -> verified asset` map；
+4. 由 ffweb 自己解析当前 Plate/附件编辑状态，找出**最终仍被引用**的 staging assets；
+5. 每一个最终被引用的 staging URL/object 都必须能对应到一个 verified asset；
+6. `assets` 中已不再被当前 Entry 引用的 token 忽略，不 promote；
+7. promote 被引用的 original/thumbnail/files；
+8. 将 staging URL 改写为 canonical URL；
+9. 构造 `Entry.thumbnails[]` / `Entry.files[]`；
+10. 最后调用现有 `PostEntry(Entry)`。
+
+编辑旧 Entry 时，已有 canonical media 不需要 token；只有本次新增的 staging media 需要 token。
+
+asset token 列表只是 ffweb 的 publish/staging protocol，不进入 ffdb RPC，也不持久化进 Entry。
+
+## 8.6 下载 URL
 
 当前不做授权下载。
 
@@ -692,9 +788,10 @@ namespace：
 <media_url>/c/d/<remaining-sha256>.xlsx
 ~~~
 
-生产环境 `media_url` 指向独立 media origin，由 nginx 直接从 `media_path` serve。开发环境可以把
-`media_url` 配到 ffweb 的 Gin local-media route，例如 `http://localhost:8080/file`；Gin 只是 dev fallback，
-不是 production serving path。
+新上传 canonical media 的目标 serving path 是独立 `media_url`，production 由 nginx 直接从
+`media_path` serve；dev/local 可以由 ffweb Gin local-media route serve。当前 ffweb 仍无条件注册
+`/file -> media_path`，本项目是否移除该 production fallback 不属于本 spec；本版本也不处理历史
+`/file/*` URL 的迁移。
 
 实现必须满足：
 
@@ -895,32 +992,68 @@ canonical object 是 content-addressed 且可共享，所以 request path 不直
 
 ## `POST /a/upload`
 
-单图片 multipart `file`。
+图片 staging endpoint。multipart request 必须二选一：
+
+### 本地图片
+
+~~~text
+file=<binary>
+~~~
+
+### remote 图片
+
+~~~text
+sourceUrl=https://example.com/image.jpg
+~~~
+
+`file XOR sourceUrl`，不能同时提供，也不能都为空。
+
+成功返回统一结构：
+
+~~~json
+{
+  "assetToken": "...",
+  "url": "https://m.friendfeed.me/upload-staging/<thumb-or-original-id>.jpg",
+  "originalUrl": "https://m.friendfeed.me/upload-staging/<original-id>.jpg",
+  "width": 1024,
+  "height": 683,
+  "mimeType": "image/jpeg",
+  "size": 123456
+}
+~~~
+
+其中：
+
+- `url`：Plate 默认显示的 staging thumbnail URL；
+- `originalUrl`：staging original URL；
+- 若无需 thumbnail，`url == originalUrl`；
+- canonical URL 只在用户发布时由 ffweb promote 后生成。
+
+## `POST /a/upload_file`
+
+单个非图片附件 multipart `file`。
 
 成功：
 
 ~~~json
 {
   "assetToken": "...",
-  "url": "https://m.friendfeed.me/upload-staging/<upload-id>.jpg",
-  "thumbUrl": "https://m.friendfeed.me/upload-staging/<thumb-upload-id>.jpg",
-  "width": 1600,
-  "height": 900,
-  "mimeType": "image/jpeg",
+  "name": "report.xlsx",
+  "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "size": 123456
 }
 ~~~
 
-返回 staging URL，上传成功后即可直接在 Plate 中显示。canonical URL 只在用户发布时由 ffweb promote 后
-生成，并在调用 `PostEntry` 前写入最终 `rawBody/body`。
+## `POST /a/share`
 
-## `POST /a/upload/mirror`
+沿用现有 multipart form，并新增：
 
-请求一个 `sourceUrl`，返回与 `/a/upload` 相同结构。
+~~~text
+assets=<JSON array of asset tokens>
+~~~
 
-## `POST /a/upload_file`
-
-返回 `assetToken/name/mimeType/size`。
+`assets` 可为空。旧 Entry 中已有 canonical media 不需要 token；新 staging media 必须由对应 token 证明后
+才可 promote。
 
 ## 通用状态码
 
@@ -928,13 +1061,11 @@ canonical object 是 content-addressed 且可共享，所以 request path 不直
 - `401`：未登录；
 - `413`：request/file 超限；
 - `422`：remote/type 内容不符合约束；
-- `429`：并发或 staging quota；
+- `429`：并发限制；
 - `500`：本地处理/持久化错误；
-- `504`：remote mirror timeout。
+- `504`：remote source fetch timeout。
 
-R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请求不等待 R2。
-
----
+R2 不是同步 upload response 的 `502/503` 来源，因为用户上传请求不等待 R2。
 
 # 12. 实施顺序
 
@@ -947,9 +1078,9 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
    - `<media_path>/upload-staging`；
    - production nginx / dev Gin 均可 serve staging URL；
    - server-derived extension；
-   - asset token；
+   - asset token + existing ffweb SecretKey HMAC；
+   - `/a/share assets` contract；
    - TTL cleanup；
-   - per-user 256 MiB staged quota；
    - concurrent limits。
 
 3. **图片 validation**
@@ -964,13 +1095,12 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
    - digest key + extension；
    - atomic stream/copy publish；
    - staging re-hash；
-   - `u/i` / `u/f` namespaces。
 
 5. **编辑器恢复**
    - file picker；
    - paste binary；
    - data URI/blob；
-   - remote mirror；
+   - remote `sourceUrl` upload；
    - pending/error；
    - canonical URL serialization；
    - sourceUrl 丢弃。
@@ -979,8 +1109,7 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
    - V1 allowlist；
    - asset token；
    - `Entry.files`；
-   - SSR/React 文件列表；
-   - public forced-download route。
+   - public forced-download semantics。
 
 7. **R2 task**
    - 保持现有 `PostEntry(Entry)` RPC；
@@ -993,7 +1122,7 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
    - failure/retry tests。
 
 8. **部署**
-   - production media 由 `nginx_media.conf` 类配置直接 serve canonical `media_path`，ffweb 不代理；
+   - 新 canonical `media_url` production 由 `nginx_media.conf` 类配置直接 serve `media_path`；
    - nginx 允许 `/upload-staging/` 临时访问，禁止 directory listing；
    - nginx 按 server-derived extension 正确 serve 图片/thumbnail；
    - 文件下载通过显式 download 语义返回 attachment/nosniff，不依赖 storage path namespace；
@@ -1015,7 +1144,6 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - 超过 20 MiB file / 21 MiB request 被拒绝；
 - per-user concurrent > 2 被限制；
 - process image decode slots 有界；
-- user staged bytes > 256 MiB 被限制；
 - 24h staging 可自动清理；
 - 取消编辑不产生 canonical object。
 
@@ -1025,9 +1153,12 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - 非图片不进入 canonical storage；
 - corrupt image 拒绝；
 - >50MP 或 side >16384 在完整 decode 前拒绝；
-- JPEG/PNG/GIF/WebP 正常；
+- JPEG/PNG/GIF/静态 WebP 正常；
+- animated WebP 拒绝；
 - 同 bytes 得到相同 canonical key；
 - sourceUrl/query/token 不持久化、不出日志；
+- remote source body > 20 MiB 被拒绝；
+- remote fetch raw error 不直接返回/记录完整 URL；
 - data/blob/staging URL 不进入最终 Entry；
 - historical external image URL 仍能读；
 - ffdb media mirror 不解析 `body/rawBody`；
@@ -1040,11 +1171,14 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 
 - allowlist 外格式拒绝；
 - DOC/DOCX/XLS/XLSX/MP3/HTML 正常；
+- token 使用现有 ffweb SecretKey 做 HMAC-SHA256；
 - token 不能跨 user、不能篡改、会过期；
+- /a/share 中每个被实际引用的 staging object 必须有对应有效 token；
+- 提交但未被最终 Entry 引用的 asset token 不触发 promote；
 - client 不能用 arbitrary URL 冒充新的 upload token；
 - max 10 files / 100 MiB per Entry；
 - display name 不影响 filesystem path；
-- `Entry.files` 正确持久化和渲染；
+- `Entry.files` 正确持久化；
 - URL 无额外 Feed/Entry auth，已知 URL 可直接下载；
 - HTML attachment 强制 attachment/octet-stream/nosniff，不能 inline 执行。
 
@@ -1069,7 +1203,9 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - 大于 20 MiB 的音视频；
 - 视频附件；
 - R2 作为发布同步条件；
-- 将历史 media key 全部改成带扩展名的新格式。
+- 将历史 media key 全部改成带扩展名的新格式；
 - UI 如何展示 `Entry.thumbnails[]` / `Entry.files[]`；
+- 历史 `/file/*` URL 的兼容或迁移；
+- per-user staging byte quota；
 
 这些项只有出现真实产品需求后再单独设计。
