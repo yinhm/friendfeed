@@ -61,7 +61,7 @@ ffdb 继续负责：
 - Entry mutation 的现有 author/feed/group authorization；
 - 保持现有 `PostEntry(Entry)` RPC；
 - 在 Entry 成功持久化后，从最终 Entry 中识别本站 canonical user-upload media refs；
-- R2 已启用时，由 ffdb 自己 enqueue 并执行 `media.mirror_r2` Task；
+- `media_mirror` 开启且 R2 完整配置时，由 ffdb 自己 enqueue 并执行 `media.mirror_r2` Task；
 - archive / RSS / Service 等服务器侧来源需要抓取远程媒体时，继续使用现有受控 `media.Storage`；
 - 已有 `mirrorMedia` 兼容契约保持不变，本项不顺带重写 ArchiveFeed。
 
@@ -896,7 +896,7 @@ oldRefs = empty
 addedRefs = all new canonical refs
 ~~~
 
-R2 开启时，对 `addedRefs` enqueue `media.mirror_r2`。
+`media_mirror` 开启且 R2 完整配置时，对 `addedRefs` enqueue `media.mirror_r2`。
 
 ### Edit
 
@@ -966,7 +966,8 @@ Thumbnail.url == Thumbnail.link
 
 Thumbnail 本身不依赖 original mirror 成功；两个 task 都按 canonical key 独立幂等、独立重试。
 
-R2 未配置时不 enqueue；完整配置时 enqueue；partial config fail loud。
+`media_mirror` 关闭（默认）时 R2 配置被完全忽略、不 enqueue；开启后 R2 未配置不 enqueue，完整配置时
+enqueue，partial config fail loud。archive 路径的 `media.Storage` dual-write 由同一开关控制。
 
 # 10. 生命周期与回收
 

@@ -18,6 +18,9 @@ type R2Replica struct {
 }
 
 func NewR2Replica(cfg *util.Config) (*R2Replica, error) {
+	if !cfg.MediaMirror {
+		return nil, nil
+	}
 	switch r2ConfigCount(cfg) {
 	case 0:
 		return nil, nil

@@ -38,13 +38,18 @@ type MirrorStorage struct {
 	r2Err error
 }
 
-// NewStorage builds the Storage used on the archive path. With full R2
-// credentials it dual-writes local + R2; with no R2 fields set at all it
-// logs once and runs in explicit local-only mode so development and tests
-// keep working; with a partial R2 config it returns a storage whose
-// Mirror/Post fail (keeping original URLs) instead of silently degrading.
+// NewStorage builds the Storage used on the archive path. R2 dual-write
+// requires both the media_mirror switch and full R2 credentials; otherwise
+// it logs once and runs in explicit local-only mode so development and tests
+// keep working. A partial R2 config with media_mirror on returns a storage
+// whose Mirror/Post fail (keeping original URLs) instead of silently
+// degrading.
 func NewStorage(cfg *util.Config, maxWidth int) Storage {
 	local := NewLocalStorage(cfg, maxWidth)
+	if !cfg.MediaMirror {
+		log.Println("media: media_mirror disabled, mirroring to local storage only")
+		return &MirrorStorage{local: local}
+	}
 	switch n := r2ConfigCount(cfg); n {
 	case 0:
 		log.Println("media: R2 not configured, mirroring to local storage only")

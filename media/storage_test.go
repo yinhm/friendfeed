@@ -167,9 +167,9 @@ func TestNewStorageLocalOnlyWithoutR2(t *testing.T) {
 // of persisting public-domain URLs for objects never uploaded to R2.
 func TestNewStoragePartialR2ConfigFails(t *testing.T) {
 	partials := []*util.Config{
-		{MediaPath: t.TempDir(), R2AccountID: "acct"},
-		{MediaPath: t.TempDir(), R2AccessKeyID: "ak", R2SecretAccessKey: "sk"},
-		{MediaPath: t.TempDir(), R2AccountID: "acct", R2AccessKeyID: "ak", R2SecretAccessKey: "sk"},
+		{MediaPath: t.TempDir(), MediaMirror: true, R2AccountID: "acct"},
+		{MediaPath: t.TempDir(), MediaMirror: true, R2AccessKeyID: "ak", R2SecretAccessKey: "sk"},
+		{MediaPath: t.TempDir(), MediaMirror: true, R2AccountID: "acct", R2AccessKeyID: "ak", R2SecretAccessKey: "sk"},
 	}
 	for _, cfg := range partials {
 		s := NewStorage(cfg, 640)
@@ -196,10 +196,11 @@ func TestNewStoragePartialR2ConfigFails(t *testing.T) {
 	}
 }
 
-// With full credentials NewStorage wires the R2 client.
+// With full credentials and media_mirror on, NewStorage wires the R2 client.
 func TestNewStorageWithR2Credentials(t *testing.T) {
 	s := NewStorage(&util.Config{
 		MediaPath:         t.TempDir(),
+		MediaMirror:       true,
 		R2AccountID:       "acct",
 		R2AccessKeyID:     "ak",
 		R2SecretAccessKey: "sk",
@@ -211,4 +212,37 @@ func TestNewStorageWithR2Credentials(t *testing.T) {
 		assert.Equal(t, "media", ms.r2.bucket)
 		assert.Equal(t, "https://acct.r2.cloudflarestorage.com", ms.r2.endpoint)
 	}
+}
+
+// media_mirror defaults to off: R2 credentials alone never enable mirroring,
+// not even to fail on a partial configuration.
+func TestNewStorageIgnoresR2WhenMirrorDisabled(t *testing.T) {
+	for _, cfg := range []*util.Config{
+		{MediaPath: t.TempDir(), R2AccountID: "acct", R2AccessKeyID: "ak", R2SecretAccessKey: "sk", R2Bucket: "media"},
+		{MediaPath: t.TempDir(), R2AccountID: "acct"},
+	} {
+		ms, ok := NewStorage(cfg, 640).(*MirrorStorage)
+		assert.True(t, ok)
+		assert.Nil(t, ms.r2)
+		assert.NoError(t, ms.r2Err)
+	}
+}
+
+// The async replica is gated by the same media_mirror switch.
+func TestNewR2ReplicaRequiresMirrorSwitch(t *testing.T) {
+	cfg := &util.Config{
+		MediaPath:         t.TempDir(),
+		R2AccountID:       "acct",
+		R2AccessKeyID:     "ak",
+		R2SecretAccessKey: "sk",
+		R2Bucket:          "media",
+	}
+	replica, err := NewR2Replica(cfg)
+	assert.NoError(t, err)
+	assert.Nil(t, replica)
+
+	cfg.MediaMirror = true
+	replica, err = NewR2Replica(cfg)
+	assert.NoError(t, err)
+	assert.NotNil(t, replica)
 }
