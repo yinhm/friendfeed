@@ -114,9 +114,11 @@ func thumbnailsNotInBody(body string, thumbnails []*pb.Thumbnail) []*pb.Thumbnai
 // collapseThumbnailImages removes body images that the entry thumbnails
 // already represent, so list pages show each image once, in the media box.
 // An <a> wrapper pointing at the same thumbnail's original is removed
-// together with the image it wraps. Unmatched (e.g. unmigrated remote)
-// images stay inline. Bodies are sanitized fragments, so a parse failure
-// conservatively keeps the body unchanged.
+// together with the image it wraps, and paragraphs left visually empty —
+// by the collapse or by the editor's zero-width image spacers — are dropped
+// as well. Unmatched (e.g. unmigrated remote) images stay inline. Bodies
+// are sanitized fragments, so a parse failure conservatively keeps the body
+// unchanged.
 func collapseThumbnailImages(body string, thumbnails []*pb.Thumbnail) string {
 	if len(thumbnails) == 0 || !strings.Contains(body, "<img") {
 		return body
@@ -138,6 +140,12 @@ func collapseThumbnailImages(body string, thumbnails []*pb.Thumbnail) string {
 	if err != nil {
 		return body
 	}
+	// Reparent under a synthetic root so the collapse rules apply to
+	// top-level nodes as well.
+	root := &html.Node{Type: html.ElementNode, Data: "div", DataAtom: atom.Div}
+	for _, node := range nodes {
+		root.AppendChild(node)
+	}
 	var collapse func(node *html.Node)
 	collapse = func(node *html.Node) {
 		for child := node.FirstChild; child != nil; {
@@ -151,16 +159,17 @@ func collapseThumbnailImages(body string, thumbnails []*pb.Thumbnail) string {
 				urls[htmlAttr(child, "href")] && emptyContent(child):
 				// An anchor whose only content was a collapsed image.
 				node.RemoveChild(child)
+			case child.Type == html.ElementNode && child.Data == "p" &&
+				visuallyEmpty(child):
+				node.RemoveChild(child)
 			}
 			child = next
 		}
 	}
-	for _, node := range nodes {
-		collapse(node)
-	}
+	collapse(root)
 	var out strings.Builder
-	for _, node := range nodes {
-		if err := html.Render(&out, node); err != nil {
+	for child := root.FirstChild; child != nil; child = child.NextSibling {
+		if err := html.Render(&out, child); err != nil {
 			return body
 		}
 	}
@@ -174,6 +183,32 @@ func emptyContent(node *html.Node) bool {
 			continue
 		}
 		return false
+	}
+	return true
+}
+
+// visuallyEmptyMediaTags are elements that render meaningful content even
+// without any text.
+var visuallyEmptyMediaTags = map[string]bool{
+	"img": true, "video": true, "iframe": true, "embed": true,
+	"audio": true, "object": true, "svg": true,
+}
+
+// visuallyEmpty reports whether a subtree renders nothing: no media elements
+// and no text beyond whitespace and the zero-width characters (\u200b,
+// \ufeff) the editor uses as empty-paragraph placeholders.
+func visuallyEmpty(node *html.Node) bool {
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		switch child.Type {
+		case html.TextNode:
+			if strings.Trim(child.Data, " \t\r\n\u00a0\u200b\ufeff") != "" {
+				return false
+			}
+		case html.ElementNode:
+			if visuallyEmptyMediaTags[child.Data] || !visuallyEmpty(child) {
+				return false
+			}
+		}
 	}
 	return true
 }

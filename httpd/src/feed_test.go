@@ -238,6 +238,21 @@ func TestCollapseThumbnailImages(t *testing.T) {
 		t.Fatalf("unmatched image must stay inline, got %q", got)
 	}
 
+	// Paragraphs left visually empty — by the collapse or by the editor's
+	// zero-width image spacers — are dropped from list bodies.
+	body = `<p>text</p>` +
+		`<p><a href="https://media.example/a/b/original.jpg"><img src="https://media.example/a/b/thumb.jpg"/></a></p>` +
+		"<p><span><span>\ufeff</span></span></p>" +
+		`<p> </p>` +
+		`<p>tail</p>`
+	got = collapseThumbnailImages(body, thumbs)
+	if strings.Contains(got, "<img") {
+		t.Fatalf("collapsed image must be gone, got %q", got)
+	}
+	if strings.Count(got, "<p>") != 2 || !strings.Contains(got, "text") || !strings.Contains(got, "tail") {
+		t.Fatalf("empty paragraphs must be dropped, got %q", got)
+	}
+
 	// No thumbnails: the body is untouched.
 	if got := collapseThumbnailImages(body, nil); got != body {
 		t.Fatal("body without thumbnails must stay unchanged")
