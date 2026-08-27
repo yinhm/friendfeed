@@ -5,12 +5,15 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/flosch/pongo2"
 	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -74,8 +77,89 @@ func prepareFeedEntry(entry *pb.Entry, profile *pb.Profile, graph *pb.Graph, for
 		entry.FormatLikes(0)
 		ellipsis := fmt.Sprintf("<a href=\"/e/%s\" style=\"padding-left: 30px;\">Read more...</a>", entry.Id)
 		entry.Body = util.Truncate(entry.Body, 300, ellipsis)
+		entry.Body = collapseThumbnailImages(entry.Body, entry.Thumbnails)
+	} else {
+		// The permalink page renders the full body, which may carry deliberate
+		// layout; the thumbnail media box would only duplicate inline images.
+		entry.Thumbnails = nil
 	}
 	entry.RebuildCommentsCommand(profile, graph)
+}
+
+// collapseThumbnailImages removes body images that the entry thumbnails
+// already represent, so list pages show each image once, in the media box.
+// An <a> wrapper pointing at the same thumbnail's original is removed
+// together with the image it wraps. Unmatched (e.g. unmigrated remote)
+// images stay inline. Bodies are sanitized fragments, so a parse failure
+// conservatively keeps the body unchanged.
+func collapseThumbnailImages(body string, thumbnails []*pb.Thumbnail) string {
+	if len(thumbnails) == 0 || !strings.Contains(body, "<img") {
+		return body
+	}
+	urls := make(map[string]bool, 2*len(thumbnails))
+	for _, thumbnail := range thumbnails {
+		if thumbnail == nil {
+			continue
+		}
+		if thumbnail.Url != "" {
+			urls[thumbnail.Url] = true
+		}
+		if thumbnail.Link != "" {
+			urls[thumbnail.Link] = true
+		}
+	}
+	context := &html.Node{Type: html.ElementNode, Data: "div", DataAtom: atom.Div}
+	nodes, err := html.ParseFragment(strings.NewReader(body), context)
+	if err != nil {
+		return body
+	}
+	var collapse func(node *html.Node)
+	collapse = func(node *html.Node) {
+		for child := node.FirstChild; child != nil; {
+			next := child.NextSibling
+			collapse(child)
+			switch {
+			case child.Type == html.ElementNode && child.Data == "img" &&
+				urls[htmlAttr(child, "src")]:
+				node.RemoveChild(child)
+			case child.Type == html.ElementNode && child.Data == "a" &&
+				urls[htmlAttr(child, "href")] && emptyContent(child):
+				// An anchor whose only content was a collapsed image.
+				node.RemoveChild(child)
+			}
+			child = next
+		}
+	}
+	for _, node := range nodes {
+		collapse(node)
+	}
+	var out strings.Builder
+	for _, node := range nodes {
+		if err := html.Render(&out, node); err != nil {
+			return body
+		}
+	}
+	return out.String()
+}
+
+// emptyContent reports whether a node holds nothing but whitespace text.
+func emptyContent(node *html.Node) bool {
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type == html.TextNode && strings.TrimSpace(child.Data) == "" {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func htmlAttr(node *html.Node, key string) string {
+	for _, attr := range node.Attr {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return ""
 }
 
 func feedContext(feed *pb.Feed, start, pageSize int32) pongo2.Context {

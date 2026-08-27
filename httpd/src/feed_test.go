@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -211,5 +212,63 @@ func TestInteractionFeedPassesOwnerIdentityToPrivateFeedLookup(t *testing.T) {
 	}
 	if client.interactionRequest.ViewerUuid != testGroupUserUUID {
 		t.Fatalf("interaction feed viewer_uuid = %q; want %q", client.interactionRequest.ViewerUuid, testGroupUserUUID)
+	}
+}
+
+func TestCollapseThumbnailImages(t *testing.T) {
+	thumbs := []*pb.Thumbnail{
+		{Url: "https://media.example/a/b/thumb.jpg", Link: "https://media.example/a/b/original.jpg"},
+	}
+
+	// Uploaded image: the anchor wrapping the thumbnail is removed entirely.
+	body := `<p>before</p><p><a href="https://media.example/a/b/original.jpg"><img src="https://media.example/a/b/thumb.jpg" alt=""/></a></p><p>after</p>`
+	got := collapseThumbnailImages(body, thumbs)
+	if strings.Contains(got, "<img") || strings.Contains(got, "<a") {
+		t.Fatalf("expected thumbnail image and its anchor removed, got %q", got)
+	}
+	for _, kept := range []string{"before", "after"} {
+		if !strings.Contains(got, kept) {
+			t.Fatalf("expected %q preserved, got %q", kept, got)
+		}
+	}
+
+	// An unmatched remote image stays inline.
+	body = `<p>text</p><p><img src="https://remote.example/pic.png"/></p>`
+	if got := collapseThumbnailImages(body, thumbs); !strings.Contains(got, `https://remote.example/pic.png`) {
+		t.Fatalf("unmatched image must stay inline, got %q", got)
+	}
+
+	// No thumbnails: the body is untouched.
+	if got := collapseThumbnailImages(body, nil); got != body {
+		t.Fatal("body without thumbnails must stay unchanged")
+	}
+}
+
+func TestPrepareFeedEntryPermalinkHidesThumbnailMediaBox(t *testing.T) {
+	newEntry := func() *pb.Entry {
+		return &pb.Entry{
+			Id:         "entry-id",
+			Date:       "2026-08-27T00:00:00Z",
+			Body:       `<p><a href="https://media.example/o.jpg"><img src="https://media.example/t.jpg"/></a></p>`,
+			Thumbnails: []*pb.Thumbnail{{Url: "https://media.example/t.jpg", Link: "https://media.example/o.jpg"}},
+		}
+	}
+
+	permalink := newEntry()
+	prepareFeedEntry(permalink, nil, nil, false)
+	if permalink.Thumbnails != nil {
+		t.Fatal("permalink must not render the thumbnail media box")
+	}
+	if !strings.Contains(permalink.Body, "<img") {
+		t.Fatalf("permalink keeps the full body, got %q", permalink.Body)
+	}
+
+	list := newEntry()
+	prepareFeedEntry(list, nil, nil, true)
+	if list.Thumbnails == nil {
+		t.Fatal("list pages keep the thumbnails for the media box")
+	}
+	if strings.Contains(list.Body, "<img") {
+		t.Fatalf("list body must drop the thumbnail-backed image, got %q", list.Body)
 	}
 }
