@@ -303,10 +303,11 @@ ffweb：
 4. 校验 staging file 仍存在；
 5. 重新确认 size + SHA-256，防止 staging 被替换；
 6. 按 token 中的 verified type 计算 canonical key；
-7. 使用 atomic local publish primitive 写入 `media_path`；
-8. 构造最终 Entry 数据；
-9. 调用 ffdb `PostEntry`；
-10. 成功后删除对应 staging file。
+7. 使用同一 `media_path` filesystem 内的 atomic rename/publish primitive 写入 canonical path；
+8. 若相同 digest + verified type 的 canonical object 已存在，则幂等复用该对象并删除 staging，不创建第二份；
+9. 构造最终 Entry 数据；
+10. 调用 ffdb Web Entry mutation；
+11. 成功后删除仍存在的对应 staging file。
 
 如果第 7 步完成但 ffdb `PostEntry` 最终失败，可能留下 canonical local orphan。这个 residual orphan
 只发生在“用户已经尝试发布”的路径；取消编辑仍只产生会自动过期的 staging object。canonical orphan
