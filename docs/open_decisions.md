@@ -5,6 +5,11 @@
 ## 前端与 Web
 
 - **SSR/CSR 边界**：entry 当前保留 SSR 首屏，React 挂载后再替换内容。迁为纯 CSR 或 hydration 前，需一起评估首屏、SEO、模板与错误回退。
+- **媒体/附件 URL 权限模型**：当前 V1 明确采用 capability URL 语义，正文图片和文件附件都不按
+  Feed/Entry visibility 再做鉴权；拿到正确 canonical URL 即可访问，包括 private Feed/Group 内容。
+  内容 hash 不被视为密码学授权凭据，这只是当前规模下的主动简化。未来如需要 signed URL、
+  Entry-aware download route 或 private media ACL，必须一起评估历史 Entry URL、media origin/CDN 缓存、
+  R2/local serving 与迁移兼容，不能只在单个下载 handler 上局部加权限。
 
 ## 部署与运行维护
 
