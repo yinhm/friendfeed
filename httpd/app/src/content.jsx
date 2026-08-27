@@ -14,6 +14,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {string} [rawBody]
  * @property {string} body
  * @property {string} [type]
+ * @property {{url: string, name: string, type?: string, size?: number}[]} [files]
  * @property {boolean} [onpageEdit]
  * @property {(formData: FormData) => Promise<any>} onPostEntry
  */
@@ -35,6 +36,7 @@ export function EntryContent(props) {
                     id={props.id}
                     feedUuid={feedCfg.feed_uuid}
                     content={props.rawBody}
+                    files={props.files}
                     postEntry={onPostEntry} />
             </Suspense>
         );

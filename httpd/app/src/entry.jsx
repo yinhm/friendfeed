@@ -3,6 +3,7 @@
 import React, {useState} from 'react';
 import { EntryContent } from './content'
 import {EntryLike} from './entry-like';
+import {EntryFiles} from './entry-files';
 import {getJSON, postJSON, postForm, intersperse} from './utils';
 
 /**
@@ -28,6 +29,7 @@ import {getJSON, postJSON, postForm, intersperse} from './utils';
  * @property {ViaData} [via]
  * @property {string[]} commands
  * @property {Thumbnail[]} [thumbnails]
+ * @property {{url: string, name: string, type?: string, size?: number}[]} [files]
  * @property {CommentData[]} [comments]
  * @property {LikeData[]} [likes]
  *
@@ -335,9 +337,11 @@ export function Entry(props) {
             title={entry.title}
             body={entry.body}
             rawBody={entry.rawBody}
+            files={entry.files}
             type={entry.type}
             onpageEdit={edit_mode}
             onPostEntry={onPostEntry} />
+          {!edit_mode && <EntryFiles files={entry.files} />}
           {medias}
           <EntryInfo entry={entry}
                      onNewComment={handleNewComment}

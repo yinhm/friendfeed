@@ -95,7 +95,18 @@ export function postForm(url, formData) {
         mode: 'cors', // no-cors, cors, *same-origin
         redirect: 'follow', // manual, *follow, error
         referrer: 'no-referrer', // *client, no-referrer
-    }).then(response => response.json()) // parses response to JSON
+    }).then(async response => {
+        if (response.ok) return response.json();
+        const text = await response.text();
+        let message = text || `Request failed (${response.status})`;
+        try {
+            const body = JSON.parse(text);
+            if (body && body.error) message = body.error;
+        } catch {
+            // Keep a plain-text response as the error message.
+        }
+        throw new Error(message);
+    })
 }
 
 /** intersperse: Return an array with the separator interspersed between

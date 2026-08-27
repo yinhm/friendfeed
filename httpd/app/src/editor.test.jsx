@@ -88,6 +88,26 @@ test('legacy rawBody content loads and is submitted as JSON and HTML', async () 
   );
 });
 
+test('editing submits retained attachments through the authenticated binding fields', async () => {
+  const postEntry = vi.fn().mockResolvedValue(undefined);
+  render(
+    <OnPageEditor
+      id="entry-with-file"
+      feedUuid="feed"
+      content={JSON.stringify([{type: 'p', children: [{text: 'Entry with attachment'}]}])}
+      files={[{name: 'manual.pdf', url: '/e/entry-with-file/files/hash/manual.pdf', size: 2048}]}
+      postEntry={postEntry}
+    />
+  );
+
+  expect(screen.getByText('manual.pdf')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '发布'}));
+  await waitFor(() => expect(postEntry).toHaveBeenCalledOnce());
+  const formData = postEntry.mock.calls[0][0];
+  expect(formData.get('filesPresent')).toBe('1');
+  expect(formData.getAll('existingFile')).toEqual(['/e/entry-with-file/files/hash/manual.pdf']);
+});
+
 test('legacy HTML fallback still deserializes into editable content', () => {
   const {container} = render(
     <OnPageEditor

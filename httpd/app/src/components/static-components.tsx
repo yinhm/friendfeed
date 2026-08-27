@@ -77,7 +77,10 @@ const LinkStatic = ({ children, element: node }: any) => {
 
 const ImageStatic = ({ element: node }: any) => {
   const src = safeUrl(node.url, ['http:', 'https:']);
-  return src ? <img src={src} alt={node.caption?.[0]?.text ?? ''} /> : null;
+  if (!src) return null;
+  const image = <img src={src} alt={node.caption?.[0]?.text ?? ''} />;
+  const original = safeUrl(node.originalUrl, ['http:', 'https:']);
+  return original ? <a href={original}>{image}</a> : image;
 };
 
 const MediaEmbedStatic = ({ element: node }: any) => {

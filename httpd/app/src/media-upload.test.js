@@ -1,0 +1,50 @@
+import {dataURLToBlob, enrichImageNodes, mapWithConcurrency, mirrorPastedHTML} from './media-upload';
+
+test('converts pasted base64 images to binary blobs', async () => {
+  const blob = dataURLToBlob('data:image/png;base64,aGVsbG8=');
+  expect(blob.type).toBe('image/png');
+  expect(await blob.text()).toBe('hello');
+});
+
+test('mirrors remote and embedded images before inserting pasted HTML', async () => {
+  const upload = vi.fn().mockResolvedValue({
+    url: 'https://media.example/original-a', thumbUrl: 'https://media.example/thumb-a',
+    width: 10, height: 20, mimeType: 'image/png', size: 5,
+  });
+  const mirror = vi.fn().mockResolvedValue({
+    url: 'https://media.example/original-b', thumbUrl: 'https://media.example/thumb-b',
+    width: 30, height: 40, mimeType: 'image/jpeg', size: 6,
+  });
+
+  const result = await mirrorPastedHTML(
+    '<p><img src="data:image/png;base64,aGVsbG8="><img src="https://remote.example/b.jpg"></p>',
+    upload,
+    mirror
+  );
+
+  expect(upload).toHaveBeenCalledOnce();
+  expect(mirror).toHaveBeenCalledWith('https://remote.example/b.jpg');
+  expect(result.html).toContain('https://media.example/thumb-a');
+  expect(result.html).toContain('https://media.example/thumb-b');
+  const nodes = [{type: 'p', children: [
+    {type: 'img', url: 'old-a', children: [{text: ''}]},
+    {type: 'img', url: 'old-b', children: [{text: ''}]},
+  ]}];
+  enrichImageNodes(nodes, result.metadata);
+  expect(nodes[0].children[1]).toMatchObject({
+    originalUrl: 'https://media.example/original-b', width: 30, height: 40,
+  });
+});
+
+test('limits concurrent media operations', async () => {
+  let active = 0;
+  let maximum = 0;
+  await mapWithConcurrency([1, 2, 3, 4, 5], 2, async value => {
+    active += 1;
+    maximum = Math.max(maximum, active);
+    await new Promise(resolve => setTimeout(resolve, 1));
+    active -= 1;
+    return value;
+  });
+  expect(maximum).toBe(2);
+});

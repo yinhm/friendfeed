@@ -43,6 +43,17 @@
             {% endfor %}
           </div>
         {% endif %}
+        {% if entry.Files %}
+          <div class="entry-files">
+            {% for file in entry.Files %}
+              <a class="entry-file" href="{{ file.Url|escape }}">
+                <span class="entry-file-icon" aria-hidden="true"></span>
+                <span class="entry-file-name">{{ file.Name|escape }}</span>
+                {% if file.Size %}<span class="entry-file-size">{{ file.Size }} bytes</span>{% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
         <div class="info">
           <a href="/e/{{ entry.Id }}" class="permalink">{{ entry.Date }}</a>
           {% if entry.Via %}
