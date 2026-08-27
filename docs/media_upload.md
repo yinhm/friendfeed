@@ -346,20 +346,29 @@ image/webp -> .webp
 上传成功后，ffweb 使用无状态 HMAC asset token 保存发布所需 staging state，使 `/a/share` 能确认
 该对象确实由当前用户通过 upload endpoint 创建，而不是客户端任意拼接 staging path。
 
-token 至少绑定：
+token 表示一次逻辑 upload asset，至少绑定：
 
 - upload user UUID；
 - upload ID；
 - kind：`image` / `file`；
-- original staging object ID；
-- thumbnail staging object ID（image，若与 original 相同可复用）；
-- SHA-256 digest；
-- server-derived extension；
-- verified MIME/type；
-- bytes；
-- 图片 width/height（image）；
+- issued-at / expires-at；
 - sanitized display name（file）；
-- issued-at / expires-at。
+- image width/height（image）；
+- 一个或多个 staging objects。
+
+每个 staging object 至少绑定：
+
+~~~text
+object_id
+sha256
+server_derived_extension
+verified_mime
+bytes
+role: original | thumbnail | file
+~~~
+
+image asset 通常包含 original + thumbnail 两个 object；若无需单独 thumbnail，可以只包含一个 object，
+同时承担 original/thumbnail 两个角色。file asset 只包含一个 file object。
 
 默认 24 小时过期。
 
@@ -747,12 +756,12 @@ rawBody
 assets
 ~~~
 
-`assets` 是 JSON array，只包含本次编辑器当前仍持有的 asset tokens，例如：
+`assets` 是 JSON string array，只包含本次编辑器当前仍持有的 asset tokens，例如：
 
 ~~~json
 [
-  {"token": "<image-asset-token>"},
-  {"token": "<file-asset-token>"}
+  "<image-asset-token>",
+  "<file-asset-token>"
 ]
 ~~~
 
@@ -1088,7 +1097,7 @@ R2 不是同步 upload response 的 `502/503` 来源，因为用户上传请求�
    - decode-config；
    - 16,384 side；
    - 50MP limit；
-   - JPEG/PNG/GIF/WebP；
+   - JPEG/PNG/GIF/静态 WebP；
    - thumbnail staging。
 
 4. **canonical promotion**
