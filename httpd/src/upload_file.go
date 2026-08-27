@@ -90,6 +90,12 @@ func verifyAssetToken(secret, token, actor string, now time.Time) (*assetTokenPa
 
 func (s *Server) UploadFileHandler(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
+	done, ok := s.beginUpload(CurrentUserUuid(c), false)
+	if !ok {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many uploads"})
+		return
+	}
+	defer done()
 	file, err := c.FormFile("file")
 	if err != nil {
 		var maxBytesError *http.MaxBytesError

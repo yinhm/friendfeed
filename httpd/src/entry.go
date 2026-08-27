@@ -1,10 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -226,13 +226,12 @@ func (s *Server) EntryDeleteHandler(c *gin.Context) {
 
 func (s *Server) UploadHandler(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
-	select {
-	case s.uploadRequests <- struct{}{}:
-		defer func() { <-s.uploadRequests }()
-	default:
+	done, ok := s.beginUpload(CurrentUserUuid(c), true)
+	if !ok {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many uploads"})
 		return
 	}
+	defer done()
 	file, fileErr := c.FormFile("file")
 	sourceURL := strings.TrimSpace(c.PostForm("sourceUrl"))
 	if fileErr == nil && sourceURL != "" || fileErr != nil && sourceURL == "" {
@@ -258,8 +257,7 @@ func (s *Server) UploadHandler(c *gin.Context) {
 		content, err = s.fetchUploadedImage(sourceURL)
 	}
 	if err != nil {
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
+		if errors.Is(err, media.ErrUploadFetchTimeout) {
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "source image timed out"})
 		} else {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "image could not be read"})
@@ -268,13 +266,6 @@ func (s *Server) UploadHandler(c *gin.Context) {
 	}
 	if len(content) > media.MaxUploadFileBytes {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "uploaded file is too large"})
-		return
-	}
-	select {
-	case s.imageOperations <- struct{}{}:
-		defer func() { <-s.imageOperations }()
-	default:
-		c.JSON(http.StatusTooManyRequests, gin.H{"error": "image processor is busy"})
 		return
 	}
 	prepared, err := media.PrepareUploadedImage(content, 1024)
@@ -293,14 +284,10 @@ func (s *Server) fetchUploadedImage(source string) ([]byte, error) {
 	if err != nil || parsed.User != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return nil, errors.New("invalid source URL")
 	}
-	obj := &media.Object{Url: parsed.String()}
-	if _, err := s.media.Fetch(obj); err != nil {
-		return nil, err
+	if s.uploadFetch == nil {
+		s.uploadFetch = media.FetchUploadedImage
 	}
-	if len(obj.Content) > media.MaxUploadFileBytes {
-		return nil, errors.New("source image is too large")
-	}
-	return obj.Content, nil
+	return s.uploadFetch(parsed.String())
 }
 
 func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.PreparedImage) {
@@ -313,10 +300,9 @@ func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.PreparedImag
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage image"})
 		return
 	}
-	thumbName, thumbDigest, thumbExt := originalName, originalDigest, prepared.Extension
-	thumbMime := prepared.MimeType
-	if string(prepared.Original) != string(prepared.Thumbnail) {
-		thumbExt, thumbMime = "jpg", "image/jpeg"
+	thumbName, thumbDigest, thumbExt := originalName, originalDigest, prepared.ThumbnailExtension
+	thumbMime := prepared.ThumbnailMimeType
+	if !bytes.Equal(prepared.Original, prepared.Thumbnail) {
 		thumbName, thumbDigest, err = s.staging.Put(prepared.Thumbnail, thumbExt)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage image thumbnail"})

@@ -44,6 +44,9 @@ type Server struct {
 	mediaBaseURL              string
 	uploadRequests            chan struct{}
 	imageOperations           chan struct{}
+	uploadUsersMu             sync.Mutex
+	uploadUsers               map[string]int
+	uploadFetch               func(string) ([]byte, error)
 	uploadMaintenanceOnce     sync.Once
 	uploadMaintenanceStopOnce sync.Once
 	uploadMaintenanceStop     chan struct{}
@@ -76,6 +79,8 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 		mediaBaseURL:    strings.TrimSuffix(media.PublicURL(cfg, ""), "/"),
 		uploadRequests:  make(chan struct{}, 8),
 		imageOperations: make(chan struct{}, 2),
+		uploadUsers:     make(map[string]int),
+		uploadFetch:     media.FetchUploadedImage,
 		assets:          assets,
 	}
 	s.loadAssets()

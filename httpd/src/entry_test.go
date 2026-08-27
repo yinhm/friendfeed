@@ -98,6 +98,7 @@ func TestUploadHandlerValidatesBeforeStorageAndReturnsStagingURLs(t *testing.T) 
 	storage := &uploadTestStorage{}
 	cfg := &util.Config{MediaPath: t.TempDir()}
 	server := &Server{media: storage, staging: media.NewStagingStore(cfg), secretKey: "secret", mediaBaseURL: "https://media.example", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
+	server.uploadFetch = func(string) ([]byte, error) { return storage.fetched, nil }
 	router := gin.New()
 	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
 	router.POST("/upload", server.UploadHandler)
@@ -127,6 +128,7 @@ func TestUploadHandlerRemoteSourceUsesControlledFetchAndImagePipeline(t *testing
 	storage := &uploadTestStorage{fetched: uploadJPEG(t, 20, 10)}
 	cfg := &util.Config{MediaPath: t.TempDir()}
 	server := &Server{media: storage, staging: media.NewStagingStore(cfg), secretKey: "secret", mediaBaseURL: "https://media.example", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
+	server.uploadFetch = func(string) ([]byte, error) { return storage.fetched, nil }
 	router := gin.New()
 	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
 	router.POST("/upload", server.UploadHandler)

@@ -22,14 +22,16 @@ const (
 )
 
 type PreparedImage struct {
-	Original        []byte
-	Thumbnail       []byte
-	MimeType        string
-	Extension       string
-	Width           int
-	Height          int
-	ThumbnailWidth  int
-	ThumbnailHeight int
+	Original           []byte
+	Thumbnail          []byte
+	MimeType           string
+	Extension          string
+	ThumbnailMimeType  string
+	ThumbnailExtension string
+	Width              int
+	Height             int
+	ThumbnailWidth     int
+	ThumbnailHeight    int
 }
 
 // PrepareUploadedImage validates image bytes before anything is persisted and
@@ -52,15 +54,18 @@ func PrepareUploadedImage(content []byte, maxWidth int) (*PreparedImage, error) 
 	if !ok {
 		return nil, fmt.Errorf("unsupported image format %q", format)
 	}
+	if format == "webp" && (bytes.Contains(content, []byte("ANIM")) || bytes.Contains(content, []byte("ANMF"))) {
+		return nil, errors.New("animated WebP is not supported")
+	}
 	if config.Width <= 0 || config.Height <= 0 || config.Width > MaxImageSide || config.Height > MaxImageSide ||
 		int64(config.Width)*int64(config.Height) > MaxImagePixels {
 		return nil, fmt.Errorf("invalid image dimensions %dx%d", config.Width, config.Height)
 	}
 	prepared := &PreparedImage{
-		Original: content, MimeType: mimeType, Extension: map[string]string{"jpeg": "jpg", "png": "png", "gif": "gif", "webp": "webp"}[format], Width: config.Width, Height: config.Height,
+		Original: content, MimeType: mimeType, Extension: map[string]string{"jpeg": "jpg", "png": "png", "gif": "gif", "webp": "webp"}[format], ThumbnailMimeType: mimeType, ThumbnailExtension: map[string]string{"jpeg": "jpg", "png": "png", "gif": "gif", "webp": "webp"}[format], Width: config.Width, Height: config.Height,
 		ThumbnailWidth: config.Width, ThumbnailHeight: config.Height,
 	}
-	if maxWidth <= 0 || config.Width <= int(float64(maxWidth)*1.3) {
+	if maxWidth <= 0 || config.Width <= maxWidth {
 		prepared.Thumbnail = content
 		return prepared, nil
 	}
@@ -74,7 +79,16 @@ func PrepareUploadedImage(content []byte, maxWidth int) (*PreparedImage, error) 
 	}
 	thumb := transform.Resize(source, maxWidth, height, transform.Lanczos)
 	var encoded bytes.Buffer
-	if err := imgio.JPEGEncoder(95)(&encoded, thumb); err != nil {
+	encoder := imgio.JPEGEncoder(95)
+	if format == "png" {
+		encoder = imgio.PNGEncoder()
+		prepared.ThumbnailMimeType = "image/png"
+		prepared.ThumbnailExtension = "png"
+	} else {
+		prepared.ThumbnailMimeType = "image/jpeg"
+		prepared.ThumbnailExtension = "jpg"
+	}
+	if err := encoder(&encoded, thumb); err != nil {
 		return nil, fmt.Errorf("encode image thumbnail: %w", err)
 	}
 	prepared.Thumbnail = encoded.Bytes()
