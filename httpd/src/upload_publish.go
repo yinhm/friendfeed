@@ -39,7 +39,38 @@ func partitionAssetTokens(secret, actor string, tokens []string, now time.Time) 
 	return images, files, nil
 }
 
-func (s *Server) promoteEntryImages(rawBody, body string, old []*pb.Thumbnail, assets map[string]*assetTokenPayload) (string, string, []*pb.Thumbnail, error) {
+func plateImageURLs(rawBody string) map[string]bool {
+	urls := make(map[string]bool)
+	var nodes []any
+	if json.Unmarshal([]byte(rawBody), &nodes) != nil {
+		return urls
+	}
+	var visit func(any)
+	visit = func(value any) {
+		node, ok := value.(map[string]any)
+		if !ok {
+			return
+		}
+		if node["type"] == "img" {
+			for _, field := range []string{"url", "originalUrl"} {
+				if raw, ok := node[field].(string); ok {
+					urls[raw] = true
+				}
+			}
+		}
+		if children, ok := node["children"].([]any); ok {
+			for _, child := range children {
+				visit(child)
+			}
+		}
+	}
+	for _, node := range nodes {
+		visit(node)
+	}
+	return urls
+}
+
+func (s *Server) promoteEntryImages(oldRawBody, rawBody, body string, old []*pb.Thumbnail, assets map[string]*assetTokenPayload) (string, string, []*pb.Thumbnail, error) {
 	if rawBody == "" {
 		return rawBody, body, old, nil
 	}
@@ -51,6 +82,7 @@ func (s *Server) promoteEntryImages(rawBody, body string, old []*pb.Thumbnail, a
 		return rawBody, body, old, nil
 	}
 	usedCanonical := make(map[string]bool)
+	previousPlateURLs := plateImageURLs(oldRawBody)
 	created := make([]*pb.Thumbnail, 0, len(assets))
 	var visit func(any) error
 	visit = func(value any) error {
@@ -122,7 +154,11 @@ func (s *Server) promoteEntryImages(rawBody, body string, old []*pb.Thumbnail, a
 	}
 	thumbnails := make([]*pb.Thumbnail, 0, len(old)+len(created))
 	for _, thumbnail := range old {
-		if thumbnail != nil && (usedCanonical[thumbnail.Url] || usedCanonical[thumbnail.Link]) {
+		if thumbnail == nil {
+			continue
+		}
+		wasPlateManaged := previousPlateURLs[thumbnail.Url] || previousPlateURLs[thumbnail.Link]
+		if !wasPlateManaged || usedCanonical[thumbnail.Url] || usedCanonical[thumbnail.Link] {
 			thumbnails = append(thumbnails, thumbnail)
 		}
 	}

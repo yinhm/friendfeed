@@ -153,7 +153,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		rawBody = form.Body
 	}
 	body := util.EntityToLink(util.DefaultSanitize(form.Body))
-	rawBody, body, thumbnails, err := s.promoteEntryImages(rawBody, body, entry.Thumbnails, images)
+	rawBody, body, thumbnails, err := s.promoteEntryImages(entry.RawBody, rawBody, body, entry.Thumbnails, images)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
