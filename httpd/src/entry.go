@@ -22,6 +22,8 @@ import (
 
 const maxUploadRequestBytes = media.MaxUploadFileBytes + 64<<10
 
+var errInvalidUploadSourceURL = errors.New("invalid upload source URL")
+
 func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
 	req := &pb.EntryRequest{
 		Uuid:       uuid,
@@ -257,7 +259,9 @@ func (s *Server) UploadHandler(c *gin.Context) {
 		content, err = s.fetchUploadedImage(sourceURL)
 	}
 	if err != nil {
-		if errors.Is(err, media.ErrUploadFetchTimeout) {
+		if errors.Is(err, errInvalidUploadSourceURL) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid source URL"})
+		} else if errors.Is(err, media.ErrUploadFetchTimeout) {
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "source image timed out"})
 		} else {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "image could not be read"})
@@ -278,11 +282,11 @@ func (s *Server) UploadHandler(c *gin.Context) {
 
 func (s *Server) fetchUploadedImage(source string) ([]byte, error) {
 	if len(source) == 0 || len(source) > 2048 {
-		return nil, errors.New("invalid source URL")
+		return nil, errInvalidUploadSourceURL
 	}
 	parsed, err := url.Parse(source)
 	if err != nil || parsed.User != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil, errors.New("invalid source URL")
+		return nil, errInvalidUploadSourceURL
 	}
 	if s.uploadFetch == nil {
 		s.uploadFetch = media.FetchUploadedImage

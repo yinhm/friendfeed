@@ -141,3 +141,20 @@ func TestUploadHandlerRemoteSourceUsesControlledFetchAndImagePipeline(t *testing
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Empty(t, storage.posts)
 }
+
+func TestUploadHandlerRejectsInvalidRemoteURLBeforeFetch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{staging: media.NewStagingStore(&util.Config{MediaPath: t.TempDir()}), secretKey: "secret", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
+	called := false
+	server.uploadFetch = func(string) ([]byte, error) { called = true; return nil, nil }
+	router := gin.New()
+	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
+	router.POST("/upload", server.UploadHandler)
+	form := url.Values{"sourceUrl": {"file:///etc/passwd"}}
+	request := httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.False(t, called)
+}
