@@ -636,8 +636,8 @@ location ^~ /u/f/ {
 }
 ~~~
 
-开发环境 Gin local-media handler 对 `u/f/` 提供同样的 attachment/octet-stream/nosniff 语义，并对
-`upload-staging/` 返回 404。当前 production serving source 是 nginx + local `media_path`；R2 是异步
+开发环境 Gin local-media handler 对 `u/f/` 提供同样的 attachment/octet-stream/nosniff 语义，并允许
+`upload-staging/` 临时媒体访问。当前 production serving source 是 nginx + local `media_path`；R2 是异步
 replica/恢复副本，不要求浏览器在 V1 直接从 R2 object endpoint 下载。
 
 ---
