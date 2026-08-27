@@ -128,13 +128,13 @@ LocalStorage 是发布成功时必须已经存在的运行时副本；R2 是异�
 当前 `m.friendfeed.me` nginx 本来就以 `media_path` 为 root，并与 `media_url` 使用同一公开 URL
 语义，因此 canonical local object 发布后无需等待 R2 Task，页面即可正常读取。
 
-ffdb 不理解 Plate `rawBody`。user-upload refs 的提取只基于最终 canonical Entry：
+ffdb 不解析 Plate `rawBody`，也不解析 `Entry.body`。任何需要理解正文/Plate 的工作都由调用方在
+`PostEntry` 前完成。用户上传媒体以结构化字段交给 ffdb：
 
-- `Entry.files[].url`：识别 `media_url/u/f/`；
-- `Entry.body`：用 HTML parser 提取 `img[src]`，只识别 `media_url/u/i/`；
-- staging URL、外部 URL、历史非 canonical media URL 一律忽略。
+- 图片：`Entry.thumbnails[]`；
+- 文件附件：`Entry.files[]`。
 
-这样不需要额外的 PostEntry RPC，也不需要 ffdb 理解编辑器内部状态。
+这样保持现有 `PostEntry(Entry)` RPC，同时 ffdb 只处理自己已有的 protobuf 结构，不理解编辑器内容。
 
 # 2. 当前访问模型：不做媒体权限控制
 
@@ -203,19 +203,85 @@ multipart 声明的 MIME 只能作提示，最终类型必须由实际字节识�
 
 ## 3.3 thumbnail
 
-原图和 thumbnail 都先生成在 staging。
+Thumbnail 由 ffweb 在 upload/staging 阶段生成；ffdb 不负责 resize/decode。
 
-目标宽度继续使用当前 1024 px 配置。对于无需缩放的小图：
+V1 固定：
+
+- 目标最大宽度：1024 px；
+- 原图宽度 ≤ 1024 px：不生成第二份，`thumb == original`；
+- 原图宽度 > 1024 px：按比例缩到 1024 px；
+- 不放大小图；
+- GIF/WebP 动图的 thumbnail 可以是静态首帧；
+- JPEG thumbnail 使用明确的 JPEG quality；
+- 有透明通道的图片不能隐式得到随机/黑色背景：实现要么保留 PNG thumbnail，要么在转 JPEG 前明确铺固定背景，并用测试锁定。V1 优先保留透明 PNG。
+
+upload 成功后 staging 同时存在 original 与 thumbnail（若无需 resize，两者是同一个对象），例如：
 
 ~~~text
-thumb == original
+<media_url>/upload-staging/<original-id>.png
+<media_url>/upload-staging/<thumb-id>.jpg
 ~~~
 
-允许 `thumbUrl == url`，不强制制造第二个对象。
+Plate 编辑态：
 
-需要 resize 时，thumbnail 是独立的 content-addressed JPEG object；GIF/WebP 动图的 thumbnail 可以是
-静态首帧。透明 PNG 的 thumbnail 若编码 JPEG，必须明确使用统一背景处理；实现测试锁定行为，不能产生
-未初始化/随机背景。
+- `url` 使用 staging thumbnail URL，避免编辑器加载超大原图；
+- 节点额外保存 staging original URL，例如 `originalUrl`；
+- 点击/放大可打开 original；
+- 这些字段在发布时全部由 ffweb 改写为 canonical URL。
+
+### 3.3.1 Entry.Thumbnails 作为结构化图片引用
+
+发布时 ffweb 根据最终 Plate 图片节点构造 `Entry.thumbnails[]`，不让 ffdb 解析 body。
+
+现有 protobuf 字段语义正好可以表达一对 original/thumbnail：
+
+~~~text
+Thumbnail.url    = thumbnail URL
+Thumbnail.link   = original URL
+Thumbnail.width  = thumbnail width
+Thumbnail.height = thumbnail height
+~~~
+
+如果无需单独 thumbnail：
+
+~~~text
+Thumbnail.url  = original URL
+Thumbnail.link = original URL
+~~~
+
+为了避免正文内联图再次被现有 `EntryMediaBox` / Pongo2 media block 重复渲染，给 `Thumbnail` 增加一个
+向后兼容字段：
+
+~~~protobuf
+bool inline = 6;
+~~~
+
+语义：
+
+- legacy/RSS/Archive thumbnail：`inline=false`（protobuf 默认值），继续按现有 media box 渲染；
+- 用户 Plate 内联图片：`inline=true`，正文已经渲染，React/Pongo2 的独立 thumbnail media box 必须跳过；
+- ffdb 的 media mirror 不关心展示位置，仍处理两类结构化 Thumbnail。
+
+这比让 renderer 反向解析 `body` 判断重复更简单，也不会改变旧数据默认行为。
+
+### 3.3.2 canonical key
+
+建议区分 original 与 generated thumbnail：
+
+~~~text
+u/i/a/b/<original-sha256>.<ext>
+u/t/a/b/<thumbnail-sha256>.<ext>
+~~~
+
+其中：
+
+- `u/i`：用户上传 original image；
+- `u/t`：服务端生成 thumbnail；
+- key 都按各自真实 bytes 做完整 SHA-256；
+- thumbnail 不是“原图 hash + suffix”，而是自己的 content-addressed object。
+
+若 `thumb == original`，只使用 `u/i` 对象，不产生 `u/t`。
+
 
 ---
 
@@ -349,11 +415,12 @@ V1 主动接受这个窗口。canonical object 是 content-addressed，后续可
 6. 按 verified type 计算 canonical key；
 7. 使用同一 `media_path` filesystem 内的 atomic rename/publish primitive 写入 canonical path；
 8. 若相同 digest + verified type 的 canonical object 已存在，则幂等复用并删除 staging；
-9. 把 Plate 节点中的 staging `url/thumbUrl` 改写成 canonical URL；
-10. 构造最终 `Entry.files`；
-11. 重新序列化最终 `rawBody/body`；
-12. 调用现有 ffdb `PostEntry(Entry)`；
-13. 成功返回 Entry。
+9. 把 Plate 节点中的 staging thumbnail/original URL 改写成 canonical URL；
+10. 从最终 Plate 图片节点构造 `Entry.thumbnails[]`（用户内联图片设 `inline=true`）；
+11. 构造最终 `Entry.files[]`；
+12. 重新序列化最终 `rawBody/body`；
+13. 调用现有 ffdb `PostEntry(Entry)`；
+14. 成功返回 Entry。
 
 最终传给 ffdb 的 Entry **不得包含** `upload-staging/` URL。
 
@@ -367,13 +434,16 @@ V1 主动接受这个窗口。canonical object 是 content-addressed，后续可
 ~~~text
 u/i/a/b/<remaining-sha256>.jpg
 u/i/a/b/<remaining-sha256>.png
+u/t/a/b/<remaining-sha256>.jpg
+u/t/a/b/<remaining-sha256>.png
 u/f/a/b/<remaining-sha256>.pdf
 u/f/a/b/<remaining-sha256>.docx
 ~~~
 
 其中：
 
-- `u/i`：user inline image；
+- `u/i`：user original image；
+- `u/t`：generated thumbnail；
 - `u/f`：user file attachment；
 - `a/b/...`：完整 digest 的分片；
 - extension 不是用户输入，而是服务端类型识别结果。
@@ -657,10 +727,8 @@ payload：
 ~~~text
 canonical_key
 verified_mime
-kind: image|file
+kind: image|thumbnail|file
 ~~~
-
-不得包含文件内容、asset token、session、sourceUrl 或 credential。
 
 idempotency key：
 
@@ -668,37 +736,72 @@ idempotency key：
 media-r2:<canonical-key>
 ~~~
 
-## 9.1 ffdb 如何识别需要 mirror 的对象
+## 9.1 ffdb 只处理结构化媒体字段
 
-不新增 `PostEntryWithMedia`，保持现有：
+不新增 `PostEntryWithMedia`，保持：
 
 ~~~protobuf
 rpc PostEntry(Entry) returns (Entry)
 ~~~
 
-ffdb 在 Entry 成功 canonical persistence 后，从最终 Entry 提取 refs：
+ffdb **不解析 `Entry.body` / `Entry.rawBody`**。需要理解 Plate 的逻辑全部由 ffweb 在调用前完成。
 
-1. 遍历 `Entry.files[].url`，只接受当前 `media_url` 下 `/u/f/` canonical path；
-2. 用标准 HTML parser 解析 `Entry.body`，提取 `img[src]`，只接受当前 `media_url` 下
-   `/u/i/` canonical path；
-3. 不解析 Plate `rawBody`；
-4. 不 mirror `upload-staging/`；
-5. 不处理外部 URL；
-6. key 去重。
+PostEntry 成功持久化后，ffdb 只从结构化字段获得 media refs：
 
-这个提取只用于 replica scheduling，不改变 Entry 的业务语义。
+### Entry.thumbnails[]
+
+对每个 Thumbnail：
+
+- `url`：thumbnail object；
+- `link`：当 `inline=true` 且 link 是本站 canonical `u/i/` URL 时，它是 original image object；
+- 若 `url == link`，只 enqueue 一次；
+- `url` 只接受本站 canonical `u/t/` 或 `u/i/`；
+- legacy `inline=false` 的 `link` 仍按历史语义视为 navigation target，不主动 mirror。
+
+因此 user-upload inline image：
+
+~~~text
+Thumbnail{
+  url:    <media_url>/u/t/...jpg,
+  link:   <media_url>/u/i/...png,
+  inline: true
+}
+~~~
+
+会产生两个独立、幂等的 mirror refs：thumbnail + original。
+
+小图：
+
+~~~text
+Thumbnail{
+  url:    <media_url>/u/i/...png,
+  link:   <media_url>/u/i/...png,
+  inline: true
+}
+~~~
+
+只产生一个 mirror ref。
+
+### Entry.files[]
+
+对每个 File：
+
+- 只识别本站 canonical `u/f/` URL；
+- MIME 使用 ffweb 已验证并写入的 `File.type`；
+- 不处理 arbitrary external URL。
 
 ## 9.2 enqueue 时序
 
 ~~~text
 ffweb
-  -> promote + rewrite
+  -> promote original + thumbnail + files
+  -> construct Entry.thumbnails[] + Entry.files[]
   -> PostEntry(Entry)
 
 ffdb PostEntry
   -> authorize
   -> persist canonical Entry
-  -> derive canonical user-upload refs
+  -> inspect Entry.thumbnails[] + Entry.files[]
   -> if R2 enabled: enqueue media.mirror_r2
   -> return Entry
 
@@ -710,32 +813,27 @@ ffdb background worker
 R2 是 replica，因此 V1 不为了 enqueue 去重构当前 `PutEntry` Pebble batch，也不要求 Entry + mirror task
 同事务。
 
-如果 Entry 已经持久化，但 enqueue 失败：
+如果 Entry 已经持久化但 enqueue 失败：
 
 - 记录 `mirror_enqueue_failed`；
 - `PostEntry` 仍成功；
-- local canonical object 继续正常 serving；
+- local canonical object 正常 serving；
 - 后续可通过 retry/reconcile 补 R2。
-
-这和现有“派生状态允许异步收敛”的项目原则一致，也避免为了 replica 增加新的 RPC 或 transaction staging
-primitive。
 
 R2 未配置时不 enqueue；完整配置时 enqueue；partial config 继续 fail loud。
 
-## 9.3 worker
+## 9.3 R2 metadata
 
-handler：
+worker 从 task payload/canonical path 得到 object kind：
 
-1. 从 canonical LocalStorage 打开对象；
-2. image 使用 verified image MIME；
-3. file 在 R2 serving metadata 上使用 `application/octet-stream` / attachment 语义；
-4. PUT 到 R2 同 key；
-5. retry 走现有 Task lease/backoff；
-6. 成功后完成 task。
+- original image：真实、服务端确认的 image MIME；
+- thumbnail：生成时确定的 image MIME；
+- file：R2 serving 使用 attachment/octet-stream 语义。
 
-R2 失败不回滚 Entry，也不删除 local object。
+R2 object key 与 LocalStorage canonical key 完全一致。
 
-现有 Archive/Service `mirrorMedia` 的同步兼容路径不在本项改造范围。
+现有 Archive/Service `mirrorMedia` 同步兼容路径保持不变；legacy Thumbnail 的 `link` 仍然只是导航目标，
+不能因为本项被批量抓取。
 
 # 10. 生命周期与回收
 
@@ -865,8 +963,8 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 
 7. **R2 task**
    - 保持现有 `PostEntry(Entry)` RPC；
-   - 先补 sanitizer 回归测试，锁定 canonical `<img src>` 在最终 `Entry.body` 中保留；
-   - ffdb 从最终 `Entry.files` + `Entry.body img[src]` 提取本站 canonical refs；
+   - ffweb 从最终 Plate 图片节点构造 `Entry.thumbnails[]`；
+   - ffdb 只从 `Entry.thumbnails[] + Entry.files[]` 取得 canonical refs；
    - idempotent `media.mirror_r2`；
    - local -> R2；
    - image/file headers；
@@ -910,8 +1008,9 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - sourceUrl/query/token 不持久化、不出日志；
 - data/blob/staging URL 不进入最终 Entry；
 - historical external image URL 仍能读；
-- `DefaultSanitize` 对允许的 canonical `<img src>` 有明确回归测试；
-- ffdb media-ref extractor 只识别 `media_url/u/i/`，不会把外部图片或 staging URL enqueue 到 R2；
+- ffdb media mirror 不解析 `body/rawBody`；
+- inline Thumbnail 的 original + thumbnail 均被 enqueue，且相同 URL 去重；
+- legacy `Thumbnail.link` 不会被误当作待 mirror 图片；
 - 新上传图片在 Entry 发布成功时 canonical local URL 已可读取；
 - R2 尚未完成时页面仍正常。
 
@@ -924,6 +1023,8 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - max 10 files / 100 MiB per Entry；
 - display name 不影响 filesystem path；
 - `Entry.files` 正确持久化和渲染；
+- `Thumbnail.inline=true` 不在独立 media box 重复渲染；
+- legacy `inline=false` thumbnail 渲染行为不变；
 - URL 无额外 Feed/Entry auth，已知 URL 可直接下载；
 - HTML attachment 强制 attachment/octet-stream/nosniff，不能 inline 执行。
 
