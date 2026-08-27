@@ -38,6 +38,7 @@ type Server struct {
 	httpclient   *http.Client
 	cache        *cache.Cache
 	media        media.Storage
+	localMedia   *media.LocalStorage
 	mediaBaseURL string
 	assets       embed.FS
 	jsFile       string
@@ -62,6 +63,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 		httpclient:   httpclient,
 		cache:        cacheStore,
 		media:        mfs,
+		localMedia:   media.NewLocalStorage(cfg, 1024),
 		mediaBaseURL: strings.TrimSuffix(media.PublicURL(cfg, ""), "/"),
 		assets:       assets,
 	}

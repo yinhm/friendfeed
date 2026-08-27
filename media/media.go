@@ -231,6 +231,24 @@ func (c *LocalStorage) Exists(name string) (bool, error) {
 	return true, nil
 }
 
+// OpenObject opens one already-stored object for bounded streaming by an
+// authorized application download handler. The key is validated with the
+// same containment rules as writes.
+func (c *LocalStorage) OpenObject(name string) (*os.File, error) {
+	clean, err := sanitizeObjectKey(name)
+	if err != nil || clean == "" {
+		if err == nil {
+			err = errors.New("media: object key is required")
+		}
+		return nil, err
+	}
+	_, fullPath := c.shardFilepath(clean)
+	if err := c.contained(fullPath); err != nil {
+		return nil, err
+	}
+	return os.Open(fullPath)
+}
+
 // Mirror fetches the remote object and stores it locally, then rewrites
 // obj.Url to the mirrored address (<mediaBaseURL>/<sharded path>) and keeps
 // Path/Filename/MimeType in sync with the stored copy. obj.Bucket is left

@@ -89,10 +89,13 @@ func (s *Server) EntryHandler(c *gin.Context) {
 // TODO: allow cross post to multiply feeds
 func (s *Server) EntryPostHandler(c *gin.Context) {
 	var form struct {
-		Id       string `form:"id"`
-		FeedUuid string `form:"feedUuid"`
-		Body     string `form:"body" binding:"required"`
-		RawBody  string `form:"rawBody"`
+		Id            string   `form:"id"`
+		FeedUuid      string   `form:"feedUuid"`
+		Body          string   `form:"body" binding:"required"`
+		RawBody       string   `form:"rawBody"`
+		FilesPresent  string   `form:"filesPresent"`
+		ExistingFiles []string `form:"existingFile"`
+		FileTokens    []string `form:"fileToken"`
 	}
 	if err := c.MustBindWith(&form, binding.FormMultipart); err != nil {
 		return
@@ -127,6 +130,12 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		c.AbortWithStatus(401)
 		return
 	}
+	files, err := s.filesForEntryPost(profile.Uuid, entry, form.FilesPresent != "", form.ExistingFiles, form.FileTokens, dt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	entry.Files = files
 
 	if form.RawBody != "" {
 		entry.RawBody = form.RawBody
@@ -149,7 +158,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
-	entry, err := s.client.PostEntry(ctx, entry)
+	entry, err = s.client.PostEntry(ctx, entry)
 	if RequestError(c, err) {
 		fmt.Println(err)
 		return
