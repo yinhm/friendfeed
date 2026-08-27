@@ -258,8 +258,8 @@ Thumbnail.link = original URL
 
 `Thumbnail.width/height` 是生成后图片的 intrinsic size，不是 Plate 中用户拖拽得到的展示宽度。
 
-正文是否已经显示图片、是否需要额外 media box 展示，属于 ffweb/React renderer 的职责；如果需要避免
-重复展示，由调用方解析自己掌握的 Plate/body 状态完成，不向 protobuf 增加 `inline` 一类展示字段。
+本文只定义媒体数据、持久化和 mirror contract；`Entry.thumbnails[]` / `Entry.files[]` 的具体 UI
+展示方式不属于本文档范围，也不为展示需求增加额外 protobuf 字段。
 
 ### 3.3.2 canonical object key
 
@@ -1070,5 +1070,6 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - 视频附件；
 - R2 作为发布同步条件；
 - 将历史 media key 全部改成带扩展名的新格式。
+- UI 如何展示 `Entry.thumbnails[]` / `Entry.files[]`；
 
 这些项只有出现真实产品需求后再单独设计。
