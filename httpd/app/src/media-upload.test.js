@@ -8,11 +8,11 @@ test('converts pasted base64 images to binary blobs', async () => {
 
 test('mirrors remote and embedded images before inserting pasted HTML', async () => {
   const upload = vi.fn().mockResolvedValue({
-    url: 'https://media.example/original-a', thumbUrl: 'https://media.example/thumb-a',
+    assetToken: 'token-a', originalUrl: 'https://media.example/original-a', url: 'https://media.example/thumb-a',
     width: 10, height: 20, mimeType: 'image/png', size: 5,
   });
   const mirror = vi.fn().mockResolvedValue({
-    url: 'https://media.example/original-b', thumbUrl: 'https://media.example/thumb-b',
+    assetToken: 'token-b', originalUrl: 'https://media.example/original-b', url: 'https://media.example/thumb-b',
     width: 30, height: 40, mimeType: 'image/jpeg', size: 6,
   });
 

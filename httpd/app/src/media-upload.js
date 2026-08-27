@@ -1,11 +1,11 @@
 // @ts-check
 
-import { postForm, postJSON } from './utils';
+import { postForm } from './utils';
 
 export const MAX_PASTED_IMAGES = 20;
 export const MEDIA_UPLOAD_CONCURRENCY = 2;
 
-/** @typedef {{url: string, thumbUrl: string, width: number, height: number, mimeType: string, size: number}} UploadedImage */
+/** @typedef {{assetToken: string, url: string, originalUrl: string, width: number, height: number, mimeType: string, size: number}} UploadedImage */
 /** @typedef {{assetToken: string, name: string, mimeType: string, size: number}} UploadedAttachment */
 
 /** @param {File|Blob} file @param {string=} filename */
@@ -17,7 +17,9 @@ export function uploadImage(file, filename) {
 
 /** @param {string} sourceUrl */
 export function mirrorImage(sourceUrl) {
-  return postJSON('/a/upload/mirror', { sourceUrl });
+  const form = new FormData();
+  form.append('sourceUrl', sourceUrl);
+  return postForm('/a/upload', form);
 }
 
 /** @param {File} file */
@@ -82,7 +84,7 @@ export async function mirrorPastedHTML(html, upload = uploadImage, mirror = mirr
       }
       result = await mirror(parsed.toString());
     }
-    image.setAttribute('src', result.thumbUrl);
+    image.setAttribute('src', result.url);
     return result;
   });
   return { html: document.body.innerHTML, metadata };
@@ -94,8 +96,9 @@ export function enrichImageNodes(nodes, metadata) {
   const visit = (/** @type {any} */ node) => {
     if (node?.type === 'img' && metadata[index]) {
       const image = metadata[index];
-      node.url = image.thumbUrl;
-      node.originalUrl = image.url;
+      node.url = image.url;
+      node.originalUrl = image.originalUrl;
+      node.assetToken = image.assetToken;
       node.width = image.width;
       node.height = image.height;
       index += 1;

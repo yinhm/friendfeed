@@ -47,6 +47,12 @@ const serializePlainText = nodes => nodes.map(n => Node.string(n)).join('\n')
 /** @param {any} node */
 const containsImage = node => node?.type === ELEMENT_IMAGE || (node?.children ?? []).some(containsImage);
 
+/** @param {any} node @param {string[]} tokens */
+const collectImageAssetTokens = (node, tokens) => {
+    if (node?.type === ELEMENT_IMAGE && typeof node.assetToken === 'string') tokens.push(node.assetToken);
+    for (const child of node?.children ?? []) collectImageAssetTokens(child, tokens);
+};
+
 /** @type {Value} */
 const initialValueEmpty = [
     {
@@ -137,8 +143,9 @@ const OnPageEditor = (params) => {
         for (const image of results) {
             editor.tf.insertNodes({
                 type: ELEMENT_IMAGE,
-                url: image.thumbUrl,
-                originalUrl: image.url,
+                url: image.url,
+                originalUrl: image.originalUrl,
+                assetToken: image.assetToken,
                 width: image.width,
                 height: image.height,
                 children: [{text: ''}],
@@ -197,10 +204,13 @@ const OnPageEditor = (params) => {
         formData.set("body", htmlBody);
         formData.set("rawBody", rawBody);
         formData.set("filesPresent", "1");
+        const assets = /** @type {string[]} */ ([]);
+        for (const node of editor.children) collectImageAssetTokens(node, assets);
         for (const file of attachments) {
             if (file.existing && file.url) formData.append("existingFile", file.url);
-            else if (file.assetToken) formData.append("fileToken", file.assetToken);
+            else if (file.assetToken) assets.push(file.assetToken);
         }
+        formData.set("assets", JSON.stringify(assets));
         params.postEntry(formData)
             .then(() => {
                 editor.tf.reset();

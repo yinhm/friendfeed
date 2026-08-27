@@ -106,6 +106,7 @@ test('editing submits retained attachments through the authenticated binding fie
   const formData = postEntry.mock.calls[0][0];
   expect(formData.get('filesPresent')).toBe('1');
   expect(formData.getAll('existingFile')).toEqual(['/e/entry-with-file/files/hash/manual.pdf']);
+  expect(formData.get('assets')).toBe('[]');
 });
 
 test('legacy HTML fallback still deserializes into editable content', () => {
