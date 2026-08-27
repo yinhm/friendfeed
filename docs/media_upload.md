@@ -66,7 +66,7 @@ ffdb 继续负责：
 
 - `Entry` / `Entry.files` 的领域持久化；
 - Entry mutation 的现有 author/feed/group authorization；
-- Entry 创建后安排 user-upload canonical object 的 R2 mirror Task；
+- 持有并执行 user-upload canonical object 的 R2 mirror Task definition/handler；
 - archive / RSS / Service 等服务器侧来源需要抓取远程媒体时，继续使用现有受控 `media.Storage`；
 - 已有 `mirrorMedia` 兼容契约保持不变，本项不顺带重写 ArchiveFeed。
 
@@ -110,7 +110,8 @@ LocalStorage 是发布成功时必须已经存在的运行时副本；R2 是异�
 当前 `m.friendfeed.me` nginx 本来就以 `media_path` 为 root，并与 `media_url` 使用同一公开 URL
 语义，因此 canonical local object 发布后无需等待 R2 Task，页面即可正常读取。
 
-R2 成功与否不决定 Entry 是否已经发布。Task 可重试，且以 canonical object key 幂等。
+R2 成功与否不决定 Entry 是否已经发布。Task 可重试，且以 canonical object key 幂等。刚刚 promote
+了哪些 user-upload key 由 ffweb 已知，不要求 ffdb 解析 Plate `rawBody` 或 HTML 来反向发现对象。
 
 ---
 
@@ -597,9 +598,34 @@ handler：
 
 R2 失败不回滚 Entry，也不删除 local object。
 
-任务安排属于 ffdb 后端职责。由于 R2 是 replica，不是 Entry correctness 条件，本版本不要求把 Entry write
-和 mirror-task enqueue 做成跨文件系统/数据库的伪事务。task 必须幂等；如后续发现漏 enqueue，需要增加
-离线 reconcile，而不是让用户发布同步等待 R2。
+Task 的 **definition、持久化、worker 与 R2 PUT 都属于 ffdb**；但“这次发布刚刚 promote 了哪些 key”
+由 ffweb 掌握。首版不让 ffdb 解析 Plate `rawBody` / HTML 找媒体，也不为此增加 media reference 表。
+
+具体顺序：
+
+~~~text
+ffweb /a/share
+  -> verify asset tokens
+  -> promote staging -> canonical LocalStorage
+  -> ffdb PostEntry
+  -> PostEntry success
+  -> ffweb request ffdb enqueue media.mirror_r2 for promoted keys
+  -> return success
+~~~
+
+首版可以复用现有 loopback-only `EnqueueTask` RPC，由 ffweb 的内部 helper 构造固定
+`media.mirror_r2` payload；这不是 Public API contract。
+
+如果 Entry 已提交但随后 task enqueue 失败：
+
+- **不得把已经成功的 PostEntry 对浏览器改报失败**，否则客户端重试会把“Entry 已存在”和“请求失败”
+  混在一起；
+- 记录不含 secret/content 的 `mirror_enqueue_failed`；
+- local canonical object 继续正常 serving；
+- R2 仅少一个 replica，不影响当前 Entry correctness。
+
+当前 V1 接受“PostEntry 成功后、enqueue 前进程崩溃”造成极少量漏 mirror，因为 local 是 runtime source。
+只有实际观察到该问题后再增加 reconcile；不要为 replica 提前建立跨文件系统/数据库事务。
 
 现有 Archive/Service `mirrorMedia` 的同步兼容路径不在本项改造范围。
 
