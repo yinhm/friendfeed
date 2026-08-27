@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"path/filepath"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,13 +16,12 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/media"
-	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/exp/utf8string"
 )
 
-const maxUploadRequestBytes = 20 << 20
+const maxUploadRequestBytes = media.MaxUploadFileBytes + 64<<10
 
 func (s *Server) FetchEntry(c *gin.Context, uuid string) (*pb.Feed, error) {
 	req := &pb.EntryRequest{
@@ -199,7 +200,6 @@ func (s *Server) EntryDeleteHandler(c *gin.Context) {
 func (s *Server) UploadHandler(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
 
-	// eid := c.PostForm("eid")
 	file, err := c.FormFile("file")
 	if err != nil {
 		var maxBytesError *http.MaxBytesError
@@ -218,34 +218,85 @@ func (s *Server) UploadHandler(c *gin.Context) {
 	}
 	defer src.Close()
 
-	content, err := io.ReadAll(src)
+	content, err := io.ReadAll(io.LimitReader(src, media.MaxUploadFileBytes+1))
 	if err != nil {
 		c.String(http.StatusBadRequest, fmt.Sprintf("can not read file: %s", err.Error()))
 		return
 	}
-
-	fileUUID := model.UniqueKeyFrom("web", "upload", file.Filename, randhash())
-	filename := fmt.Sprintf("%x", fileUUID)
-
-	obj := &media.Object{
-		Filename: filename,
-		MimeType: file.Header.Get("Content-Type"),
-		Content:  content,
-	}
-
-	if _, err = s.media.Post(obj); err != nil {
-		c.String(http.StatusInternalServerError, "can not write file")
+	if len(content) > media.MaxUploadFileBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "uploaded file is too large"})
 		return
 	}
-	thumbObj, err := s.media.Thumbnail(obj)
+	prepared, err := media.PrepareUploadedImage(content, 1024)
 	if err != nil {
-		c.String(http.StatusInternalServerError, "can not write file")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported or invalid image"})
 		return
 	}
+	s.writeUploadedImage(c, prepared)
+}
 
-	ret := gin.H{
-		"url":      filepath.Join("/file", obj.Path),
-		"thumbUrl": filepath.Join("/file", thumbObj.Path),
+func (s *Server) UploadMirrorHandler(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	if err := c.Request.ParseForm(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
 	}
-	c.JSON(200, ret)
+	source := strings.TrimSpace(c.Request.Form.Get("sourceUrl"))
+	if len(source) == 0 || len(source) > 2048 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid source URL"})
+		return
+	}
+	parsed, err := url.Parse(source)
+	if err != nil || parsed.User != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid source URL"})
+		return
+	}
+	obj := &media.Object{Url: parsed.String()}
+	if _, err := s.media.Fetch(obj); err != nil {
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "source image timed out"})
+			return
+		}
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "source image could not be fetched"})
+		return
+	}
+	prepared, err := media.PrepareUploadedImage(obj.Content, 1024)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "source is not a supported image"})
+		return
+	}
+	s.writeUploadedImage(c, prepared)
+}
+
+func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.PreparedImage) {
+	if prepared == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not process image"})
+		return
+	}
+	original := &media.Object{Content: prepared.Original, MimeType: prepared.MimeType}
+	if _, err := s.media.Post(original); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "can not store image"})
+		return
+	}
+	thumbnail := original
+	if !bytes.Equal(prepared.Original, prepared.Thumbnail) {
+		thumbnail = &media.Object{Content: prepared.Thumbnail, MimeType: "image/jpeg"}
+		if _, err := s.media.Post(thumbnail); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "can not store image thumbnail"})
+			return
+		}
+	}
+	base := strings.TrimRight(s.mediaBaseURL, "/")
+	if base == "" {
+		base = "https://m.friendfeed.me"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"url":      base + "/" + original.Path,
+		"thumbUrl": base + "/" + thumbnail.Path,
+		"width":    prepared.Width,
+		"height":   prepared.Height,
+		"mimeType": prepared.MimeType,
+		"size":     len(prepared.Original),
+	})
 }

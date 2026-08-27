@@ -203,6 +203,7 @@ func Serve(s *server.Server, config *util.Config) error {
 		action.GET("/events", s.EventsHandler)
 		action.POST("/share", s.EntryPostHandler)
 		action.POST("/upload", s.UploadHandler)
+		action.POST("/upload/mirror", s.UploadMirrorHandler)
 		action.POST("/follow", s.FollowHandler)
 		action.POST("/feed-request", s.FeedRequestHandler)
 		action.POST("/feed-request/cancel", s.FeedRequestCancelHandler)

@@ -4,9 +4,19 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/yinhm/friendfeed/util"
 )
+
+// PublicURL returns the canonical public URL for a stored object path.
+func PublicURL(cfg *util.Config, objectPath string) string {
+	base := defaultMediaBaseURL
+	if cfg != nil && cfg.MediaURL != "" {
+		base = strings.TrimRight(cfg.MediaURL, "/")
+	}
+	return base + "/" + strings.TrimLeft(objectPath, "/")
+}
 
 // MirrorStorage is the production media storage: Post writes the object to
 // the local media directory (sharded paths) and, when R2 credentials are

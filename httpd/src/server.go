@@ -37,7 +37,8 @@ type Server struct {
 	secretKey    string
 	httpclient   *http.Client
 	cache        *cache.Cache
-	media        *media.LocalStorage
+	media        media.Storage
+	mediaBaseURL string
 	assets       embed.FS
 	jsFile       string
 	cssFile      string
@@ -51,7 +52,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 	}
 
 	cacheStore := cache.New(5*time.Minute, 10*time.Minute)
-	mfs := media.NewLocalStorage(cfg, 1024)
+	mfs := media.NewStorage(cfg, 1024)
 
 	s := &Server{
 		debug:        debug,
@@ -61,6 +62,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 		httpclient:   httpclient,
 		cache:        cacheStore,
 		media:        mfs,
+		mediaBaseURL: strings.TrimSuffix(media.PublicURL(cfg, ""), "/"),
 		assets:       assets,
 	}
 	s.loadAssets()
