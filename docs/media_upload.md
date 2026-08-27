@@ -1,7 +1,12 @@
 # 图片上传与文件附件
 
-本文固定用户上传、历史媒体和服务聚合媒体的边界。目标是恢复安全、可维护的正文图片与文件附件，
-但不把内部 Storage 暴露成通用对象存储 API。
+本文固定用户上传、历史媒体和服务聚合媒体的边界。目标是恢复正文图片与文件附件能力，同时保持当前项目
+简单的单机/本地媒体架构：用户上传先进入 temporary staging，只有实际发布 Entry 时才进入 canonical
+LocalStorage；R2 是异步副本，不进入用户发布成功的同步关键路径。
+
+本版本明确采用 **URL capability** 模型：媒体和附件 URL 本身不做 Feed/Entry 权限校验。拿到正确 URL
+即可访问对应对象。private Feed/Group 的媒体不额外鉴权；这一选择已记录到 `docs/open_decisions.md`，
+未来如需 signed URL 或 Entry-aware download route 再单独设计。
 
 ## 现状
 
@@ -13,243 +18,793 @@
 | `Entry.thumbnails` | Entry protobuf | RSS/Twitter/Archive 等来源附带的预览图 | 可镜像、可渲染；不作为用户上传格式 |
 | `Entry.files` | Entry protobuf | FriendFeed 历史文件附件 | 迁移和镜像仍保留；Web 页面没有上传或展示入口 |
 
-`POST /a/upload` 是 2021 年 Plate 剪贴板图片上传的残留后端。对应前端在 2026 年删除旧 editor
-options 时一并消失；当前生产前端没有调用方。该 handler 目前：
+`POST /a/upload` 是旧 Plate 图片上传的残留后端。当前 handler：
 
-1. 仅要求登录，接收单个 multipart `file`，请求上限 20 MiB；
-2. 把文件完整读进内存，以内容 SHA-256 写入 ffweb 本地 `media_path`；
-3. 无条件按图片解码并尝试生成 1024 px 缩略图；
-4. 返回同站 `/file/<path>` 与 `/file/<thumbnail-path>`；
-5. 不修改 Entry，也不产生 `Entry.thumbnails` 或 `Entry.files`。
+1. 登录后接收单个 multipart `file`；
+2. 使用 20 MiB request 上限并把文件完整读入内存；
+3. 先写本地 `media_path`，再尝试按图片解码/生成缩略图；
+4. 返回同站 `/file/<path>`；
+5. 不修改 Entry。
 
-这条残留链路不能直接恢复前端使用：
+现状缺口：
 
-- 它信任 multipart 声明的 Content-Type，未按文件字节做 allowlist 校验；
-- 任意非图片会先写入原件，再因缩略图解码失败返回 500，留下孤儿对象；
-- 20 MiB 压缩图片可能解码为远大于请求体的像素缓冲，只有请求体上限，没有像素上限；
-- ffweb 使用 `LocalStorage`，绕过 `media.NewStorage` 的 local + R2 写入契约；
-- 返回 `/file` 同站 URL，绕过 `media_url` 的独立媒体 origin；
-- thumbnail 直接写磁盘，未原子发布、未写 R2，也不是完整的内容寻址对象；
-- 上传与发帖不在一个事务中，取消编辑会留下无引用对象；
-- `Entry.files` 没有 Web renderer，把任意文件接进当前接口不会形成完整功能。
+- 信任 multipart Content-Type，没有以实际字节 + decode 结果确定类型；
+- 非图片可能先落盘再因为 thumbnail 失败留下对象；
+- 没有像素上限；
+- ffweb 直接写 canonical LocalStorage，取消编辑会形成长期 orphan；
+- 用户上传路径和 archive/RSS mirror 的职责混在一起；
+- thumbnail 写最终路径的方式不适合作为新的上传 primitive；
+- `Entry.files` 没有新的 Web upload/bind/render 流程。
 
-## 目标边界
+---
 
-### 用户内联图片
+# 1. 权责边界
 
-本版本支持用户选择文件和直接粘贴正文图片；剪贴板上传是核心行为，不是后续增强。上传结果写成
-Plate `img` 节点；`rawBody` 是可编辑权威结构，`body` 是服务端消毒后的 HTML。它不转换成
-`Entry.thumbnails`。
+## 1.1 ffweb：用户上传入口与 staging owner
 
-支持 JPEG、PNG、GIF 和 WebP。根据实际字节识别类型并完成图片解码后才允许持久化：
+用户主动上传属于 Web/BFF transport 能力，由 ffweb 负责：
 
-- SVG 不进入第一阶段。它可以包含脚本、外链和复杂解析行为，不能仅按 `image/svg+xml` 当普通图片；
-- TIFF、BMP、PDF、视频和未知格式拒绝；
-- multipart 声明只作提示，不能覆盖字节检测结果；
-- 继续保留 20 MiB HTTP 请求硬上限，同时增加图片像素上限，防止小压缩包展开为巨大内存；
-- 一次请求只接受一张图片，不在 handler 内实现批量上传。
+- `POST /a/upload`：正文图片；
+- `POST /a/upload/mirror`：用户新粘贴的 remote HTTP/HTTPS 图片；
+- `POST /a/upload_file`：文件附件；
+- multipart/request limit；
+- 实际字节类型识别；
+- 图片 decode、像素检查、thumbnail；
+- 文件 allowlist；
+- temporary staging；
+- asset token；
+- 上传并发和 staging quota；
+- 发布时把 staging object promote 到 canonical LocalStorage；
+- 构造最终图片 URL 和 `Entry.files`；
+- 删除/过期 temporary objects。
 
-编辑器展示使用缩略图，点击可打开原图。新 `img` 节点允许增量保存 `url`、`originalUrl`、尺寸和
-caption；读取历史仅含 `url` 的节点必须保持兼容。静态 renderer、编辑器 renderer 和 HTML serializer
-必须同时覆盖该结构，不能只修其中一层。
+ffweb 不把 temporary object 暴露为长期媒体 URL，也不在 staging 阶段写 R2。
 
-### 剪贴板与粘贴 HTML
+## 1.2 ffdb：Entry 与后端媒体职责
 
-一次 paste 可能同时携带图片二进制、`text/html` 和 `text/plain`。处理顺序固定为：
+ffdb 继续负责：
 
-1. Clipboard `items/files` 中存在图片二进制时，优先上传二进制，只处理一次，不再重复消费 HTML 中
-   对应的 `<img>`；截图、复制本机图片和浏览器提供 image blob 都走这条路径；
-2. 没有图片二进制但 HTML 含 `data:image/*` 时，把 data URI 在浏览器端转成 Blob，再走相同上传 API；
-   `blob:` URL 也必须先读取为 Blob，不能保存进 Entry；
-3. HTML 中的 `http/https` `<img src>` 默认由服务端 mirror，成功后把节点 URL 换成 canonical
-   `media_url`；不把新粘贴内容继续保存成外站热链；
-4. 其他 scheme、无效 URL 和超过 2048 字节的 URL 不创建图片节点；普通文字和其他安全 HTML 仍按
-   Plate 的既有 paste/消毒规则处理。
+- `Entry` / `Entry.files` 的领域持久化；
+- Entry mutation 的现有 author/feed/group authorization；
+- Entry 创建后安排 user-upload canonical object 的 R2 mirror Task；
+- archive / RSS / Service 等服务器侧来源需要抓取远程媒体时，继续使用现有受控 `media.Storage`；
+- 已有 `mirrorMedia` 兼容契约保持不变，本项不顺带重写 ArchiveFeed。
 
-HTML 必须使用 DOM/Plate 节点解析，不能用正则改写整段 markup。一个 paste 中多张图片按原顺序插入，
-以小并发上传；总数和并发数必须有明确上限，避免一次粘贴触发无界内存、网络请求和 R2 PUT。第一版
-固定为每次最多 20 张、并发 2；超出部分不上传并向用户显示错误，不能静默生成外链。
+ffdb **不负责浏览器 upload validation，也不解析 asset token**。asset token 只属于 ffweb 的 staging
+协议。ffdb 收到的是已经由 ffweb 形成的 canonical Entry 数据。
 
-远程图片 mirror 使用与 `media.LocalStorage.Fetch` 相同的受控网络边界：只允许公网 HTTP/HTTPS，DNS
-解析后拒绝 loopback/private/link-local/CGNAT，每次 redirect 重新验证，限制跳转、总耗时和响应体，
-不携带用户 Cookie、Authorization 或 Referer。下载完成后仍须执行与本地图片完全相同的字节类型、解码、
-像素和缩略图校验；远端 `Content-Type` 不可信。
+`pb.Entry.Files` 在 ffdb 仍按 Entry 数据持久化；本版本不为用户上传再建立第二套 asset metadata 表。
 
-编辑器为每个上传保留 pending/error 状态。存在 pending 或失败图片时禁止发布；失败项必须允许重试或
-删除，不能把 `data:`、`blob:`、临时 URL 或未完成的外链序列化进 `rawBody/body`。mirror 成功后节点的
-`url`/`originalUrl` 指向本地缩略图/原图，来源 URL 可作为非权威 `sourceUrl` 快照保留，但渲染不得再次
-依赖它。
+## 1.3 media package
 
-兼容边界是“新写入收口、历史读取不破坏”：打开或展示历史 Entry 时绝不因为看到外部 `<img>` 就触发
-网络 mirror；历史外链继续按现状渲染。只有用户明确新粘贴/插入的图片进入 mirror 管线，避免普通 Feed
-读取产生写入、SSRF 面或大规模后台抓取。
+`media` 包提供可复用 primitive：
 
-### 聚合来源缩略图
+- safe remote fetch；
+- content digest；
+- canonical key；
+- atomic local publish；
+- image decode/thumbnail helper；
+- R2 PUT primitive。
 
-`Entry.thumbnails` 继续表示外部 Service/Archive 提供的媒体预览。`mirrorMedia` 在 `PutEntry` 前同步
-完成 Fetch、Post、URL 改写并随 Entry 持久化的既有契约不变。用户图片上传不得伪造为 thumbnail，
-否则编辑器结构、镜像生命周期和来源 metadata 会再次混在一起。
+新的用户上传路径应复用 primitive，但不能直接调用当前“同步 local + R2 dual-write”的
+`MirrorStorage.Post` 作为用户请求关键路径。
 
-### 文件附件
+## 1.4 LocalStorage 与 R2
 
-`Entry.files` 是文件附件的持久化权威，本版本一并恢复上传和展示。它与正文图片是两条入口：图片写
-Plate `img`，附件写 `Entry.files`，两者不能根据扩展名在发帖后互相转换。
+对用户上传：
 
-附件上传使用 `POST /a/upload_file`，每次一个 multipart `file`。由于新帖上传时最终 Entry UUID 尚未
-产生，成功响应返回一个有时效的签名 asset token，而不是让客户端自行构造 `pb.File`。token 绑定：
+~~~text
+temporary staging
+        |
+        | publish Entry
+        v
+canonical LocalStorage  ----> page immediately readable
+        |
+        | background Task
+        v
+       R2 replica
+~~~
 
-- 上传用户 UUID；
-- 内容 digest/object key；
-- 安全化后的展示名、服务端检测类型和字节数；
-- 签发与过期时间。
+LocalStorage 是发布成功时必须已经存在的运行时副本；R2 是异步 replica。
 
-token 使用服务端 HMAC 防篡改，不包含凭据；默认 24 小时过期。`POST /a/share` 增加附件 token 列表，
-在当前用户、签名、期限、数量和总大小全部通过后才生成 `Entry.files`。同一 token 可安全重试发帖，
-同一 Entry 内按 digest 去重。编辑 Entry 时，服务端只允许保留该 Entry 已有文件、移除已有文件，或增加
-当前用户的新 token；客户端不能提交任意外部 `File.url`。
+当前 `m.friendfeed.me` nginx 本来就以 `media_path` 为 root，并与 `media_url` 使用同一公开 URL
+语义，因此 canonical local object 发布后无需等待 R2 Task，页面即可正常读取。
 
-第一版每个 Entry 最多 10 个附件、合计不超过 100 MiB，每个文件最多 20 MiB；multipart request 上限
-应给 framing 留出固定余量，而不是让“20 MiB 请求上限”实际拒绝略小于 20 MiB 的文件。空文件拒绝。
-展示名只取客户端 basename，去掉控制字符和路径，限制为 255 UTF-8 字节；原始名称永不进入 object key。
+R2 成功与否不决定 Entry 是否已经发布。Task 可重试，且以 canonical object key 幂等。
 
-附件允许 HTML、SVG、音频和视频；“允许上传”只表示可以经强制下载路由取回，不表示浏览器可以 inline
-执行或播放。首版只接受以下七类 allowlist，不能归入清单的文件一律拒绝：
+---
 
-- 图片：JPEG、PNG、GIF、WebP、SVG；
-- 文档与文本：PDF、TXT、Markdown、CSV、JSON、XML、HTML、RTF；
-- Office/OpenDocument：DOC/DOCX、XLS/XLSX、PPT/PPTX、ODT/ODS/ODP；
-- 归档：ZIP、7z、RAR、TAR、GZIP、BZIP2、XZ；
-- 音频：MP3、M4A/AAC、OGG/Opus、FLAC、WAV、WMA；
-- 视频：MP4/M4V、WebM、MOV、OGV、MPEG、MKV、AVI、WMV、3GP；
-- 电子书：EPUB、MOBI/AZW。
+# 2. 当前访问模型：不做媒体权限控制
 
-HTML/SVG 等主动内容即使 MIME 合法也只能作为附件下载；正文图片接口仍拒绝 SVG。文件下载
-始终使用 `application/octet-stream`，不能因 allowlist 类型改成 inline。明确拒绝原生可执行程序、动态
-库、脚本安装包、系统安装镜像及无法归类的二进制，例如 EXE/DLL/MSI、Mach-O、ELF、APK、DMG、ISO。
-源码、脚本、日志、字幕、日历、联系人、字体、磁盘镜像及其他未明确列出的格式均拒绝；不能因为内容
-可按文本读取就自动归入“文档”。压缩包内部不做递归解包或病毒扫描，UI 必须把附件标为用户提供的
-下载内容，不能暗示文件安全。
+本版本明确不实现：
 
-类型判断以 magic/sniffed MIME 为主，安全化扩展名为辅助；容器格式（OOXML/ODF/EPUB）需要验证 ZIP
-结构中的格式标识，不能仅凭 `.docx`/`.epub` 后缀放行。纯文本类需验证不是带 NUL 的未知二进制。以后
-扩大 allowlist 必须补类型探测和下载测试，不能退化为相信 multipart MIME 或扩展名。
+- private Feed 图片鉴权；
+- private Group 图片鉴权；
+- private Entry 附件鉴权；
+- signed media URL；
+- attachment URL 与 Entry visibility 的二次检查。
 
-当前单文件 20 MiB 上限同样适用于音视频，因此首版只支持短音频和小视频附件。扩大上限前必须先把
-上传/R2 PUT 从完整 `[]byte` 内存模型改为有界流式或临时文件模型，不能直接把 20 MiB 常量放大。
+规则固定为：
 
-Feed、permalink、SSR 和 React 使用同一附件列表语义：在正文下方显示文件图标、安全名称、格式和
-大小，不做 inline preview。普通粘贴的 `<a href>` 仍是链接，不自动下载或 mirror；剪贴板/拖放中的
-非图片 File 才进入附件上传。图片 File 默认进入正文图片，用户通过“附件”按钮选择图片时才作为附件。
+> 能拿到正确 canonical media/file URL 的调用方，即被视为有权读取该对象。
 
-附件 URL 固定为应用下载路由：
+这包括 private Feed/Group 的正文图片和附件。
 
-```text
-/e/:entry_uuid/files/:sha256/:escaped_name
-```
+该 URL **不是密码学授权凭据**；内容 SHA-256 也不被视为 secret。这里是当前产品/架构主动接受的简化，
+而不是依靠“hash 猜不到”实现访问控制。
 
-handler 必须先用当前 viewer 读取 Entry 并执行与 permalink 相同的可见性检查，再确认 digest/name 确实
-出现在该 Entry 的 `files` 中。未授权返回 403，不存在返回 404。响应支持 HEAD、Range、Content-Length，
-并强制：
+未来如修改这一点，需要整体评估 media origin、缓存、历史 Entry URL、R2、附件下载和 private Feed
+兼容性，不能在单个 handler 中局部加鉴权。
 
-```text
-Content-Disposition: attachment; filename*=UTF-8''<encoded-name>
-Content-Type: application/octet-stream
-X-Content-Type-Options: nosniff
-```
+---
 
-即使文件声明为 PDF/图片也不在下载路由 inline 展示。对象内容从本地镜像流式读取，不把整文件再次载入
-内存；local 是运行时读取副本，R2 是同 key 的远端副本/恢复来源。`Entry.files[].url` 保存上述稳定应用
-URL，`type/name/size` 保存服务端确认的 metadata，`icon` 保持历史兼容但新写入为空。
+# 3. 用户正文图片
 
-历史 `Entry.files` 的外部 URL 继续兼容显示为外部下载链接，不在读路径自动 mirror；新写入只允许应用
-下载 URL。删除 Entry 或移除附件不直接删除内容寻址对象，统一遵循下文的延迟回收规则。
+## 3.1 支持格式
 
-Profile/Group picture 当前仍是 HTTPS URL 字段。以后可以复用图片上传结果填入该 URL，但不能另外复制
-一套 avatar 上传和存储实现。
+正文图片 V1：
 
-## 存储与 URL 契约
+- JPEG；
+- PNG；
+- GIF；
+- WebP。
 
-- 新上传图片、文件与 archive mirror 一样使用 `media.NewStorage`；完整 R2 配置时 local + R2 双写，零 R2
-  配置时明确 local-only，部分配置继续 fail loud。
-- 对象仍按完整内容 SHA-256 确定性寻址并分片，不能重新引入原始文件名目录。相同内容幂等复用。
-- 原图和缩略图都是独立的完整内容寻址对象。缩略图必须先在内存或临时文件中完成编码，再通过
-  Storage 发布；不能在最终路径原地写。
-- 图片 API 返回 `media_url` 下的绝对公开 URL，不返回 ffweb 的 `/file` 路径。附件保存带 Entry 权限
-  检查的应用下载 URL。两者都不保存 R2 API endpoint 或本地路径。
-- `media.Object.Bucket`、`Object.Url` 和 `Storage.Fetch/Post` 契约保持不变。
-- media origin 必须返回准确的图片 Content-Type、长期 immutable cache header 和
-  `X-Content-Type-Options: nosniff`。在无扩展名内容 key 下不能依赖 nginx 按文件名猜类型；部署方案必须
-  在启用新上传前证明 local 与 R2 两条 serving 路径行为一致。
+明确拒绝：
 
-## API 与失败语义
+- SVG；
+- TIFF；
+- BMP；
+- PDF；
+- 视频；
+- 未知格式。
 
-保留现有认证路由 `POST /a/upload`，但把它明确收窄为单图片 multipart API，字段名仍为 `file`，避免
-制造第二条上传路径。剪贴板二进制、data URI 和文件选择最终都调用它。远程 HTML 图片使用同一图片
-处理 primitive，但通过单独的 `POST /a/upload/mirror` 接收一个 `sourceUrl`，避免让 multipart API
-出现互斥参数和含混语义。两个入口返回相同结构。成功响应至少包含：
+multipart 声明的 MIME 只能作提示，最终类型必须由实际字节识别并完成图片 decode 后确认。
 
-```json
+## 3.2 图片资源限制
+
+固定限制：
+
+- 单文件最大：20 MiB；
+- HTTP multipart request 最大：21 MiB，为 framing 留约 1 MiB 余量；
+- 最大单边：16,384 px；
+- 最大总像素：50,000,000；
+- 同一用户同时上传请求：最多 2；
+- ffweb 全进程同时执行 image decode/resize：最多 2；
+- ffweb 全进程同时处理 upload request：最多 8；
+- 每个用户尚未过期的 staged data：最多 256 MiB；
+- staging TTL：24 小时。
+
+超过 request/file 大小返回 `413`；命中并发或 staging quota 返回 `429`。
+
+图片先用 decode-config/等价轻量方式读取尺寸，在进入完整像素 decode 前执行 side/pixel limit。不能先分配
+完整超大像素缓冲后再判断限制。
+
+## 3.3 thumbnail
+
+原图和 thumbnail 都先生成在 staging。
+
+目标宽度继续使用当前 1024 px 配置。对于无需缩放的小图：
+
+~~~text
+thumb == original
+~~~
+
+允许 `thumbUrl == url`，不强制制造第二个对象。
+
+需要 resize 时，thumbnail 是独立的 content-addressed JPEG object；GIF/WebP 动图的 thumbnail 可以是
+静态首帧。透明 PNG 的 thumbnail 若编码 JPEG，必须明确使用统一背景处理；实现测试锁定行为，不能产生
+未初始化/随机背景。
+
+---
+
+# 4. Temporary staging
+
+## 4.1 路径
+
+staging **不得位于 `media_path` 之下**，否则当前 nginx media root 可能把尚未发布对象直接暴露。
+
+默认目录：
+
+~~~text
+<db_path>/upload-staging/
+~~~
+
+文件名只使用随机 upload ID + server-derived extension，例如：
+
+~~~text
+<upload-id>.jpg
+<upload-id>.png
+<upload-id>.pdf
+~~~
+
+原始客户端 filename 永不成为 staging 或 canonical filesystem path。
+
+## 4.2 server-derived extension
+
+extension 只由服务端确认后的真实类型产生。
+
+正文图片：
+
+~~~text
+image/jpeg -> .jpg
+image/png  -> .png
+image/gif  -> .gif
+image/webp -> .webp
+~~~
+
+附件按 V1 allowlist 使用对应的 canonical extension。
+
+## 4.3 asset token
+
+upload 成功返回有时效 HMAC asset token。token 至少绑定：
+
+- upload user UUID；
+- upload ID；
+- kind：`image` / `file`；
+- SHA-256 digest；
+- server-derived extension；
+- verified MIME/type；
+- bytes；
+- 图片 width/height（image）；
+- sanitized display name（file）；
+- issued-at / expires-at。
+
+默认 24 小时过期。
+
+token 不作为下载凭据，不持久化进 Entry，不记录日志。
+
+## 4.4 cleanup
+
+ffweb：
+
+- 启动时清理超期 staging；
+- 运行中每小时扫描一次；
+- 删除 mtime/metadata 已超过 24 小时的对象；
+- 清理失败只记录安全错误类别，不终止服务。
+
+取消编辑、关闭页面、上传后不发布，都只留下有 TTL 的 staging object，不进入 canonical storage。
+
+---
+
+# 5. Canonical LocalStorage
+
+## 5.1 发布时 promote
+
+`POST /a/share` 提交前，ffweb 对所有 image/file asset token：
+
+1. 校验 HMAC；
+2. 校验当前 session user；
+3. 校验 expiry；
+4. 校验 staging file 仍存在；
+5. 重新确认 size + SHA-256，防止 staging 被替换；
+6. 按 token 中的 verified type 计算 canonical key；
+7. 使用 atomic local publish primitive 写入 `media_path`；
+8. 构造最终 Entry 数据；
+9. 调用 ffdb `PostEntry`；
+10. 成功后删除对应 staging file。
+
+如果第 7 步完成但 ffdb `PostEntry` 最终失败，可能留下 canonical local orphan。这个 residual orphan
+只发生在“用户已经尝试发布”的路径；取消编辑仍只产生会自动过期的 staging object。canonical orphan
+以后仍由离线 mark-and-sweep 处理，不在 request path 回滚/删除共享 content-addressed object。
+
+## 5.2 canonical key
+
+新的 user-upload object 使用完整 SHA-256 + server-derived extension，并继续分片：
+
+~~~text
+u/i/a/b/<remaining-sha256>.jpg
+u/i/a/b/<remaining-sha256>.png
+u/f/a/b/<remaining-sha256>.pdf
+u/f/a/b/<remaining-sha256>.docx
+~~~
+
+其中：
+
+- `u/i`：user inline image；
+- `u/f`：user file attachment；
+- `a/b/...`：完整 digest 的分片；
+- extension 不是用户输入，而是服务端类型识别结果。
+
+同一内容 + 同一 verified type 得到确定、幂等的 key。
+
+现有 archive/mirror object key 保持兼容，不做批量改名。
+
+## 5.3 Content-Type metadata
+
+V1 **不新增本地 sidecar metadata 数据库**。
+
+使用：
+
+- canonical server-derived extension 让本地 nginx 对 inline image 返回正确 image Content-Type；
+- `Entry.files[].type` 保存服务端确认的附件 MIME；
+- R2 mirror Task payload 携带/重建服务端确认的 MIME；
+- R2 object metadata 写入可信 Content-Type；
+- file attachment 对外下载按下文强制 attachment 规则处理。
+
+如果未来出现“无扩展名 object + 多种 serving metadata”的真实需求，再设计独立 metadata，不在 V1
+提前增加。
+
+---
+
+# 6. 编辑器与剪贴板
+
+一次 paste 可能同时有 image binary、`text/html` 和 `text/plain`。顺序：
+
+1. Clipboard `items/files` 有图片 binary 时优先，只消费一次；
+2. 没 binary、HTML 中有 `data:image/*` 时，浏览器转 Blob 后走 `POST /a/upload`；
+3. `blob:` 只能转 Blob 后上传，不能持久化；
+4. HTML 中 `http/https` 图片通过 `POST /a/upload/mirror` mirror 到 staging；
+5. 其他 scheme、非法 URL、URL > 2048 bytes 不创建新图片节点。
+
+一个 paste：
+
+- 最多 20 张图；
+- browser upload concurrency = 2；
+- server 仍执行第 3.2 节自己的并发/容量限制。
+
+HTML 必须经 DOM/Plate node 解析，不能用 regex 改写整段 HTML。
+
+React editor 可在未提交阶段保留：
+
+- `assetToken`；
+- 本地 `blob:` preview；
+- transient remote preview；
+- pending/error state。
+
+这些字段都不是持久化格式。
+
+发布前必须保证所有用户新增图片已经 upload 成功；pending/error 时禁止提交。最终写入
+`rawBody/body` 的只能是 canonical media URL，不得包含：
+
+- `assetToken`；
+- `data:`；
+- `blob:`；
+- temporary staging path；
+- remote mirror source URL。
+
+历史 Entry 中已经存在的外部 image URL 继续兼容读取，不在 read path 自动 mirror。
+
+---
+
+# 7. Remote image mirror
+
+`POST /a/upload/mirror` 只处理用户新粘贴/插入的 remote image。
+
+网络边界复用 `media` safe fetch primitive：
+
+- 仅 HTTP/HTTPS；
+- DNS 解析后拒绝 loopback/private/link-local/CGNAT；
+- redirect 每跳重新验证；
+- redirect 数有界；
+- 总 timeout 有界；
+- response body 有界；
+- 不发送用户 Cookie；
+- 不发送 Authorization；
+- 不发送 Referer；
+- remote Content-Type 不可信。
+
+下载后进入与本地 upload 相同的：
+
+~~~text
+sniff -> decode config -> size/pixel limit -> full decode -> thumbnail -> staging
+~~~
+
+## 7.1 sourceUrl
+
+`sourceUrl` 只存在于当前 mirror request 的内存上下文。
+
+mirror 成功后立即丢弃：
+
+- 不写 `rawBody`；
+- 不写 `Entry.body`；
+- 不写 protobuf；
+- 不写 staging metadata；
+- 不作为 renderer fallback。
+
+## 7.2 URL 与日志脱敏
+
+remote fetch error 不得包含完整 URL。
+
+尤其 query / fragment 可能携带 signed token。日志和浏览器错误中不得出现：
+
+~~~text
+?token=...
+?signature=...
+?X-Amz-...
+#...
+~~~
+
+运行日志最多记录安全化 hostname、结果类别、bytes、耗时；若 hostname 也没有诊断价值，可以只记录错误类别。
+
+错误映射：
+
+- URL 解析/协议错误：`400`；
+- remote 非 2xx、响应超限、内容非允许图片：`422`；
+- timeout：`504`；
+- 本地 staging/encode 失败：`500`。
+
+内部 DNS/IP 拒绝细节不返回浏览器。
+
+---
+
+# 8. 文件附件
+
+## 8.1 V1 allowlist
+
+第一版收紧为：
+
+### 图片文件
+
+- JPEG；
+- PNG；
+- GIF；
+- WebP。
+
+### 文档与文本
+
+- PDF；
+- TXT；
+- Markdown；
+- CSV；
+- JSON；
+- HTML。
+
+### Office
+
+- DOC；
+- DOCX；
+- XLS；
+- XLSX。
+
+### 归档
+
+- ZIP。
+
+### 音频
+
+- MP3。
+
+其他格式默认拒绝，包括 SVG、XML、RTF、PPT/PPTX、OpenDocument、7z/RAR、视频、可执行程序、
+安装包、磁盘镜像、字体等。以后按真实需求逐项增加并补类型检测测试。
+
+HTML 即使允许上传，也只作为附件下载，不作为正文 HTML 执行。
+
+## 8.2 类型判断
+
+不能只信 multipart MIME 或 extension。
+
+至少要求：
+
+- PDF：magic；
+- JPEG/PNG/GIF/WebP：真实 image decode；
+- DOC/XLS legacy：OLE Compound File magic + extension/type 一致；
+- DOCX/XLSX：ZIP container + Office 内容标识；
+- ZIP：ZIP container；
+- MP3：ID3 或有效 MPEG audio frame；
+- TXT/Markdown/CSV/JSON/HTML：文本校验，无 NUL；JSON 额外可 parse；
+- HTML 只作为 attachment type，不进入正文 sanitizer bypass。
+
+客户端 extension 仅用于帮助区分本来共享容器格式的类型，最终 canonical extension 由 server 生成。
+
+## 8.3 文件限制
+
+- 单文件 ≤ 20 MiB；
+- 单 Entry ≤ 10 个附件；
+- 单 Entry 附件总大小 ≤ 100 MiB；
+- 空文件拒绝；
+- display name 取 basename、去控制字符、限制 255 UTF-8 bytes；
+- 原始名称不进入 object key。
+
+上传和 staging 使用第 3/4 节相同并发、quota 和 TTL。
+
+## 8.4 Entry.files
+
+`POST /a/upload_file` 返回：
+
+~~~json
 {
-  "url": "https://media.example/<original-key>",
-  "thumbUrl": "https://media.example/<thumbnail-key>",
+  "assetToken": "...",
+  "name": "report.xlsx",
+  "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "size": 123456
+}
+~~~
+
+不允许客户端直接提交 arbitrary `pb.File.url` 作为“新上传附件”。
+
+`/a/share` 验证 token 并 promote 后构造：
+
+- `File.url`：公开、稳定的下载 URL；
+- `File.type`：服务端确认 MIME；
+- `File.name`：sanitized display name；
+- `File.size`：服务端确认 size；
+- `File.icon`：新写入为空，保留历史 wire compatibility。
+
+ffdb 只持久化这些 Entry 数据，不重新实现用户 upload/token protocol。
+
+## 8.5 下载 URL
+
+当前不做授权下载。
+
+建议新用户附件 URL 使用：
+
+~~~text
+/file/u/f/<sharded-sha256>.<ext>?name=<escaped-display-name>
+~~~
+
+或等价稳定 URL；实现可以保持 path/query 细节简单，但必须满足：
+
+- URL 不含 staging ID/token；
+- URL 可由 canonical key 确定；
+- 不检查 Feed/Entry visibility；
+- HTML 等主动内容不能以 inline 页面执行。
+
+附件 response 强制：
+
+~~~text
+Content-Type: application/octet-stream
+Content-Disposition: attachment
+X-Content-Type-Options: nosniff
+~~~
+
+display filename 可以从 `Entry.files.name` / URL 参数提供，但不能参与真实 filesystem object lookup。
+
+若直接通过 R2/media origin 暴露 file object，同样必须给 `u/f/` 对象设置 attachment/octet-stream 语义；
+不能因为文件扩展名是 `.html` 就作为页面 inline 执行。
+
+---
+
+# 9. R2 后台 mirror
+
+对 user-upload canonical object，R2 不同步写。
+
+新增/复用 Task 类型，概念上：
+
+~~~text
+media.mirror_r2
+~~~
+
+payload 只包含安全、可重建字段，例如：
+
+~~~text
+canonical_key
+verified_mime
+kind: image|file
+~~~
+
+不得包含：
+
+- 文件内容；
+- asset token；
+- session；
+- sourceUrl；
+- credential。
+
+idempotency key：
+
+~~~text
+media-r2:<canonical-key>
+~~~
+
+handler：
+
+1. 从 canonical LocalStorage 打开对象；
+2. 对 image 使用 verified image MIME；
+3. 对 file 的 R2 response metadata 使用 `application/octet-stream` + attachment；
+4. PUT 到 R2 同 key；
+5. retry 走现有 Task lease/backoff；
+6. 成功后完成 task。
+
+R2 失败不回滚 Entry，也不删除 local object。
+
+任务安排属于 ffdb 后端职责。由于 R2 是 replica，不是 Entry correctness 条件，本版本不要求把 Entry write
+和 mirror-task enqueue 做成跨文件系统/数据库的伪事务。task 必须幂等；如后续发现漏 enqueue，需要增加
+离线 reconcile，而不是让用户发布同步等待 R2。
+
+现有 Archive/Service `mirrorMedia` 的同步兼容路径不在本项改造范围。
+
+---
+
+# 10. 生命周期与回收
+
+## 10.1 staging
+
+- 24h TTL；
+- ffweb 自动清；
+- 不进入 `media_path`；
+- 不进入 R2；
+- 不进入 Entry。
+
+## 10.2 canonical local orphan
+
+可能来源：
+
+- promote 已成功但 `PostEntry` 失败；
+- Entry 后续删除；
+- 编辑时移除附件/图片；
+- 多个 Entry 共享同 digest 后只删除其中一个。
+
+canonical object 是 content-addressed 且可共享，所以 request path 不直接删除。
+
+未来只允许离线 mark-and-sweep：
+
+1. 流式扫描 Entry `body/rawBody/thumbnails/files` 与 Profile/Group picture；
+2. 收集 canonical keys；
+3. 对 local/R2 object 清单做差集；
+4. 应用安全期；
+5. dry-run；
+6. 再删除。
+
+首版只要求 staging 自动 cleanup；canonical GC 不作为上线 blocker。
+
+---
+
+# 11. API 与状态码
+
+## `POST /a/upload`
+
+单图片 multipart `file`。
+
+成功：
+
+~~~json
+{
+  "assetToken": "...",
+  "canonicalUrl": "https://m.friendfeed.me/u/i/a/b/hash.jpg",
+  "canonicalThumbUrl": "https://m.friendfeed.me/u/i/a/b/thumbhash.jpg",
   "width": 1600,
   "height": 900,
   "mimeType": "image/jpeg",
   "size": 123456
 }
-```
+~~~
 
-状态码固定为：
+`canonicalUrl` 表示发布后稳定 URL；staging 阶段不承诺该 URL 已经存在。编辑器预览使用本地 blob 或 transient
+preview，不依赖 canonical URL 在发布前可读。
 
-- `400`：multipart 缺失、格式不支持、图片损坏或尺寸非法；
+## `POST /a/upload/mirror`
+
+请求一个 `sourceUrl`，返回与 `/a/upload` 相同结构。
+
+## `POST /a/upload_file`
+
+返回 `assetToken/name/mimeType/size`。
+
+## 通用状态码
+
+- `400`：请求/格式错误；
 - `401`：未登录；
-- `413`：请求体或文件超过上限；
-- `429`：命中上传并发/速率保护；
-- `500`：本地编码或持久化错误；
-- `502/503`：配置完整但 R2 写入失败或暂不可用。
+- `413`：request/file 超限；
+- `422`：remote/type 内容不符合约束；
+- `429`：并发或 staging quota；
+- `500`：本地处理/持久化错误；
+- `504`：remote mirror timeout。
 
-错误响应不回显路径、凭据或完整上游响应。只有原图和缩略图都发布成功后才返回 200。由于上传先于
-Entry 提交，上传成功、发帖失败仍可能产生孤儿对象；这不是 Entry 事务的一部分。
+R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请求不等待 R2。
 
-`/a/upload/mirror` 还必须把 URL 解析/协议错误映射为 `400`，受控下载超时映射为 `504`，远端拒绝、
-非 2xx、响应超限或内容无效映射为 `422`；不能把内部 DNS/IP 判定细节返回给浏览器。
+---
 
-`POST /a/upload_file` 使用同一认证、容量、并发和存储错误规则，但成功响应返回 `{assetToken, name,
-mimeType, size}`，不返回可绕过 Entry 权限的 media URL。token 仅用于 `/a/share`，不能作为下载凭据。
+# 12. 实施顺序
 
-## 生命周期与回收
+1. **锁定残留行为**
+   - `/a/upload` 登录边界；
+   - 当前 20 MiB 行为；
+   - 非图片先写后失败的缺陷测试。
 
-内容寻址对象可能被多个 Entry、Profile、Group 或历史迁移记录共享，因此删除 Entry 时不得直接删
-media object。第一版接受未引用上传继续保留；回收只能做离线 mark-and-sweep：
+2. **staging primitive**
+   - `<db_path>/upload-staging`；
+   - server-derived extension；
+   - asset token；
+   - TTL cleanup；
+   - per-user 256 MiB staged quota；
+   - concurrent limits。
 
-1. 流式扫描 Profile picture、Entry body/rawBody、thumbnails 和 files，收集 canonical media key；
-2. 与对象清单对比并设置足够长的安全期；
-3. dry-run 输出计数与样本；
-4. 确认 local/R2 一致后才删除。
+3. **图片 validation**
+   - bytes sniff；
+   - decode-config；
+   - 16,384 side；
+   - 50MP limit；
+   - JPEG/PNG/GIF/WebP；
+   - thumbnail staging。
 
-在已有可验证工具前，不添加请求路径上的自动删除，也不把 R2 List 引入 ffdb 运行时。
+4. **canonical promotion**
+   - digest key + extension；
+   - atomic stream/copy publish；
+   - staging re-hash；
+   - `u/i` / `u/f` namespaces。
 
-## 实施顺序与验收
+5. **编辑器恢复**
+   - file picker；
+   - paste binary；
+   - data URI/blob；
+   - remote mirror；
+   - pending/error；
+   - canonical URL serialization；
+   - sourceUrl 丢弃。
 
-1. **锁定残留行为**：测试 `/a/upload` 登录边界、20 MiB 限制，并证明非图片会留下原件的现有缺陷；
-   不把错误行为固化为目标契约。
-2. **统一图片处理 primitive**：字节识别、decode config、像素上限、缩略图编码；覆盖损坏图片、伪造
-   MIME、超大尺寸、透明 PNG、GIF/WebP。
-3. **统一存储**：ffweb 改用 `media.NewStorage`，原图/缩略图都走 Storage，返回 canonical media URL；
-   验证 local-only、完整 R2 和部分 R2 配置。
-4. **恢复编辑器入口**：实现剪贴板优先级，覆盖图片 Blob、data URI、HTML 单图/多图和文件选择；远程
-   HTML 图片默认 mirror。pending/失败阻止发布，成功后插入 `img` 节点。同步静态渲染、HTML 序列化、
-   编辑回读和 URL 安全测试。
-5. **实现文件附件**：上传生成签名 token，发帖/编辑绑定到 `Entry.files`，SSR/React 渲染一致；下载
-   handler 覆盖 public/private、403/404、HEAD/Range、文件名编码和强制 attachment。历史外部 File 保持
-   可读，新写入不能伪造 URL。
-6. **部署验证**：nginx/R2 对同一图片对象返回正确 Content-Type、`nosniff` 和 immutable cache；检查 CSP、
-   CDN 与最大请求体限制一致。
-7. **运维观测**：只记录结果、字节数、尺寸、耗时和错误类别，不记录图片/文件内容、session、原始本地路径
-   或凭据。
+6. **附件**
+   - V1 allowlist；
+   - asset token；
+   - `Entry.files`；
+   - SSR/React 文件列表；
+   - public forced-download route。
 
-验收时必须证明：未登录不能上传；非图片在任何存储都不落对象；相同图片字节得到确定且幂等的 URL；R2 失败不
-返回成功 URL；剪贴板 binary 优先且不会与 HTML 重复上传；data/blob URL 不进入 Entry；粘贴远程 HTML
-图片后只保存 canonical media URL；失败和未完成上传不能发布；粘贴、选择、发帖、编辑和 SSR/React
-展示一致；附件 token 不能跨用户使用或篡改；私有 Feed 附件不能绕过 403；附件始终下载而不 inline；
-取消编辑只产生可识别的延迟回收对象；历史 `img`、`thumbnails` 和 `files` 仍可读取。
+7. **R2 task**
+   - idempotent `media.mirror_r2`；
+   - local -> R2；
+   - image/file headers；
+   - failure/retry tests。
+
+8. **部署**
+   - `media_url` 继续从 local `media_path` 立即可读；
+   - nginx 对新 server-derived image extension 返回正确 MIME；
+   - file download 强制 octet-stream/attachment/nosniff；
+   - R2 mirror 后 key/header 一致。
+
+---
+
+# 13. 验收
+
+必须证明：
+
+### 上传与 staging
+
+- 未登录不能上传；
+- staging 不在 `media_path` 下，不能通过 media origin 访问；
+- 超过 20 MiB file / 21 MiB request 被拒绝；
+- per-user concurrent > 2 被限制；
+- process image decode slots 有界；
+- user staged bytes > 256 MiB 被限制；
+- 24h staging 可自动清理；
+- 取消编辑不产生 canonical object。
+
+### 图片
+
+- multipart MIME 伪造无效；
+- 非图片不进入 canonical storage；
+- corrupt image 拒绝；
+- >50MP 或 side >16384 在完整 decode 前拒绝；
+- JPEG/PNG/GIF/WebP 正常；
+- 同 bytes 得到相同 canonical key；
+- sourceUrl/query/token 不持久化、不出日志；
+- data/blob/temp URL 不进入 Entry；
+- historical external image URL 仍能读；
+- 新上传图片在 Entry 发布成功时 canonical local URL 已可读取；
+- R2 尚未完成时页面仍正常。
+
+### 附件
+
+- allowlist 外格式拒绝；
+- DOC/DOCX/XLS/XLSX/MP3/HTML 正常；
+- token 不能跨 user、不能篡改、会过期；
+- client 不能用 arbitrary URL 冒充新的 upload token；
+- max 10 files / 100 MiB per Entry；
+- display name 不影响 filesystem path；
+- `Entry.files` 正确持久化和渲染；
+- URL 无额外 Feed/Entry auth，已知 URL 可直接下载；
+- HTML attachment 强制 attachment/octet-stream/nosniff，不能 inline 执行。
+
+### R2
+
+- Entry 发布不等待 R2；
+- mirror task 幂等；
+- R2 failure 可 retry；
+- task/log 不含 token/source URL/file content；
+- existing Archive/Service mirror contract 不回归。
+
+---
+
+# 14. 本版本明确不解决
+
+- media/file URL authorization；
+- private Feed media protection；
+- signed URL；
+- 一个媒体对象的引用计数；
+- canonical object 在线删除；
+- 全量病毒扫描；
+- 大于 20 MiB 的音视频；
+- 视频附件；
+- R2 作为发布同步条件；
+- 将历史 media key 全部改成带扩展名的新格式。
+
+这些项只有出现真实产品需求后再单独设计。
