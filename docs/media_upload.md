@@ -995,8 +995,8 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 8. **部署**
    - production media 由 `nginx_media.conf` 类配置直接 serve canonical `media_path`，ffweb 不代理；
    - nginx 允许 `/upload-staging/` 临时访问，禁止 directory listing；
-   - nginx `/u/i/` 按 server-derived extension 返回正确图片 MIME；
-   - nginx `/u/f/` 强制 attachment/octet-stream/nosniff；
+   - nginx 按 server-derived extension 正确 serve 图片/thumbnail；
+   - 文件下载通过显式 download 语义返回 attachment/nosniff，不依赖 storage path namespace；
    - dev/local 允许由 Gin serve `media_path`，包括 staging preview，并保持 attachment headers；
    - `media_url` 从 local canonical object 立即可读，不依赖 R2；
    - R2 mirror 后 key/content metadata 一致。
