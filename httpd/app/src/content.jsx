@@ -59,7 +59,6 @@ export function EntryContent(props) {
     //     );
     // }
     return (
-        <EntryBody rawBody={props.rawBody} body={props.body}
-                   truncate={!feedCfg.onpage} entryId={props.id} />
+        <EntryBody body={props.body} />
     );
 }
