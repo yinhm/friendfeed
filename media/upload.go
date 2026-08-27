@@ -17,13 +17,15 @@ import (
 
 const (
 	MaxUploadFileBytes = 20 << 20
-	MaxImagePixels     = 40_000_000
+	MaxImagePixels     = 50_000_000
+	MaxImageSide       = 16_384
 )
 
 type PreparedImage struct {
 	Original        []byte
 	Thumbnail       []byte
 	MimeType        string
+	Extension       string
 	Width           int
 	Height          int
 	ThumbnailWidth  int
@@ -50,11 +52,12 @@ func PrepareUploadedImage(content []byte, maxWidth int) (*PreparedImage, error) 
 	if !ok {
 		return nil, fmt.Errorf("unsupported image format %q", format)
 	}
-	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > MaxImagePixels {
+	if config.Width <= 0 || config.Height <= 0 || config.Width > MaxImageSide || config.Height > MaxImageSide ||
+		int64(config.Width)*int64(config.Height) > MaxImagePixels {
 		return nil, fmt.Errorf("invalid image dimensions %dx%d", config.Width, config.Height)
 	}
 	prepared := &PreparedImage{
-		Original: content, MimeType: mimeType, Width: config.Width, Height: config.Height,
+		Original: content, MimeType: mimeType, Extension: map[string]string{"jpeg": "jpg", "png": "png", "gif": "gif", "webp": "webp"}[format], Width: config.Width, Height: config.Height,
 		ThumbnailWidth: config.Width, ThumbnailHeight: config.Height,
 	}
 	if maxWidth <= 0 || config.Width <= int(float64(maxWidth)*1.3) {
@@ -81,9 +84,10 @@ func PrepareUploadedImage(content []byte, maxWidth int) (*PreparedImage, error) 
 }
 
 type AttachmentInfo struct {
-	Name     string
-	MimeType string
-	Size     int
+	Name      string
+	MimeType  string
+	Extension string
+	Size      int
 }
 
 // InspectAttachment applies the product allowlist from docs/media_upload.md.
@@ -102,7 +106,7 @@ func InspectAttachment(name string, content []byte) (*AttachmentInfo, error) {
 	if !ok {
 		return nil, fmt.Errorf("unsupported attachment type %q", ext)
 	}
-	return &AttachmentInfo{Name: name, MimeType: mimeType, Size: len(content)}, nil
+	return &AttachmentInfo{Name: name, MimeType: mimeType, Extension: strings.TrimPrefix(ext, "."), Size: len(content)}, nil
 }
 
 func sanitizeDisplayFilename(name string) string {

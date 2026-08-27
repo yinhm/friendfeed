@@ -45,11 +45,13 @@ var options struct {
 	ConfigFile string
 }
 
+const defaultSecretKey = "randombitsreplacedlkjsa"
+
 func init() {
 	flag.BoolVar(&options.Debug, "d", false, "Enable debug")
 	flag.StringVar(&options.Rpc, "rpc", "localhost:8901", "Rpc Server Address")
 	flag.UintVar(&options.Port, "p", 8080, "HTTP server listen port")
-	flag.StringVar(&options.SecretKey, "s", "randombitsreplacedlkjsa", "Key used to encryption cookies")
+	flag.StringVar(&options.SecretKey, "s", defaultSecretKey, "Key used to encryption cookies")
 	flag.StringVar(&options.ConfigFile, "c", "/srv/ffdb/config.json", "Config file")
 
 	// babel.Init(runtime.NumCPU())
@@ -195,8 +197,6 @@ func Serve(s *server.Server, config *util.Config) error {
 	r.GET("/feed/:name/likes", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_LIKE, "likes"))
 	r.GET("/feed/:name/comments", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_COMMENT, "comments"))
 	r.GET("/e/:uuid", s.EntryHandler)
-	r.GET("/e/:uuid/files/:digest/:name", s.DownloadFileHandler)
-	r.HEAD("/e/:uuid/files/:digest/:name", s.DownloadFileHandler)
 
 	r.GET("/a/entry/:uuid", s.ExpandCommentHandler)
 	r.GET("/a/expandlikes/:uuid", s.ExpandLikeHandler)
@@ -205,7 +205,6 @@ func Serve(s *server.Server, config *util.Config) error {
 		action.GET("/events", s.EventsHandler)
 		action.POST("/share", s.EntryPostHandler)
 		action.POST("/upload", s.UploadHandler)
-		action.POST("/upload/mirror", s.UploadMirrorHandler)
 		action.POST("/upload_file", s.UploadFileHandler)
 		action.POST("/follow", s.FollowHandler)
 		action.POST("/feed-request", s.FeedRequestHandler)
@@ -264,6 +263,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	// Long-lived SSE handlers must be signalled before HTTP graceful shutdown;
 	// otherwise every deployment can wait for the full 10 second timeout.
 	s.ShutdownRealtime()
+	s.ShutdownUploadMaintenance()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
@@ -277,6 +277,9 @@ func Serve(s *server.Server, config *util.Config) error {
 
 func main() {
 	flag.Parse()
+	if !options.Debug && options.SecretKey == defaultSecretKey {
+		log.Fatal("production requires an explicit non-default -s secret")
+	}
 
 	cfg, err := util.NewConfigFromJSON(options.ConfigFile)
 	if err != nil {
@@ -301,7 +304,9 @@ func main() {
 
 	s := server.NewServer(rpcConn, assetsFS, cfg, options.SecretKey, options.Debug)
 	s.StartRealtime(rpcConn)
+	s.StartUploadMaintenance()
 	defer s.ShutdownRealtime()
+	defer s.ShutdownUploadMaintenance()
 	if err := Serve(s, cfg); err != nil {
 		log.Fatalf("webserver: %v", err)
 	}

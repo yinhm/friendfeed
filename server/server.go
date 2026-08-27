@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,7 +57,9 @@ type ApiServer struct {
 	// block database
 	rdb *store.Store
 	// file system
-	fs media.Storage
+	fs           media.Storage
+	mediaReplica *media.R2Replica
+	mediaBaseURL string
 
 	// Public timeline trim state: bumps accumulates events since the last
 	// trim, trimming guarantees at most one background trim at a time.
@@ -154,6 +157,16 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	}
 
 	srv.fs = media.NewStorage(cfg, 1024)
+	srv.mediaReplica, err = media.NewR2Replica(cfg)
+	if err != nil {
+		rdb.Close()
+		return nil, fmt.Errorf("initialize R2 replica: %w", err)
+	}
+	srv.mediaBaseURL = strings.TrimRight(media.PublicURL(cfg, ""), "/")
+	if err := srv.registerMediaReplicaTask(); err != nil {
+		rdb.Close()
+		return nil, fmt.Errorf("register media replica task: %w", err)
+	}
 	return srv, nil
 }
 
@@ -1103,6 +1116,13 @@ func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemF
 	if err != nil {
 		return nil, err
 	}
+	var oldEntry *pb.Entry
+	if !created {
+		oldEntry, err = model.GetEntry(s.rdb, entry.Id)
+		if err != nil {
+			return nil, err
+		}
+	}
 	_, err = model.PutEntryWithTimelineObserver(s.rdb, entry, s.realtimeObserverExcluding(profileUuid))
 	if err != nil {
 		return nil, err
@@ -1111,6 +1131,9 @@ func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemF
 		if err := s.bumpPublicTimeline(entry, nil); err != nil {
 			return nil, err
 		}
+	}
+	if err := s.enqueueAddedMediaRefs(ctx, oldEntry, entry); err != nil {
+		slog.Error("mirror_enqueue_failed", "entry_uuid", entry.Id, "error", err)
 	}
 	return entry, nil
 }

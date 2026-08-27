@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"context"
@@ -31,19 +32,26 @@ import (
 )
 
 type Server struct {
-	debug        bool
-	client       pb.ApiClient
-	subscriberID string
-	secretKey    string
-	httpclient   *http.Client
-	cache        *cache.Cache
-	media        media.Storage
-	localMedia   *media.LocalStorage
-	mediaBaseURL string
-	assets       embed.FS
-	jsFile       string
-	cssFile      string
-	styleCssVer  string
+	debug                     bool
+	client                    pb.ApiClient
+	subscriberID              string
+	secretKey                 string
+	httpclient                *http.Client
+	cache                     *cache.Cache
+	media                     media.Storage
+	localMedia                *media.LocalStorage
+	staging                   *media.StagingStore
+	mediaBaseURL              string
+	uploadRequests            chan struct{}
+	imageOperations           chan struct{}
+	uploadMaintenanceOnce     sync.Once
+	uploadMaintenanceStopOnce sync.Once
+	uploadMaintenanceStop     chan struct{}
+	uploadMaintenanceWG       sync.WaitGroup
+	assets                    embed.FS
+	jsFile                    string
+	cssFile                   string
+	styleCssVer               string
 }
 
 func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretKey string, debug bool) *Server {
@@ -56,16 +64,19 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 	mfs := media.NewStorage(cfg, 1024)
 
 	s := &Server{
-		debug:        debug,
-		client:       c,
-		subscriberID: randhash(),
-		secretKey:    secretKey,
-		httpclient:   httpclient,
-		cache:        cacheStore,
-		media:        mfs,
-		localMedia:   media.NewLocalStorage(cfg, 1024),
-		mediaBaseURL: strings.TrimSuffix(media.PublicURL(cfg, ""), "/"),
-		assets:       assets,
+		debug:           debug,
+		client:          c,
+		subscriberID:    randhash(),
+		secretKey:       secretKey,
+		httpclient:      httpclient,
+		cache:           cacheStore,
+		media:           mfs,
+		localMedia:      media.NewLocalStorage(cfg, 1024),
+		staging:         media.NewStagingStore(cfg),
+		mediaBaseURL:    strings.TrimSuffix(media.PublicURL(cfg, ""), "/"),
+		uploadRequests:  make(chan struct{}, 8),
+		imageOperations: make(chan struct{}, 2),
+		assets:          assets,
 	}
 	s.loadAssets()
 	return s

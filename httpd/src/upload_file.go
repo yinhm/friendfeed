@@ -4,15 +4,11 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -22,23 +18,34 @@ import (
 )
 
 const (
-	attachmentTokenLifetime = 24 * time.Hour
+	assetTokenLifetime      = 24 * time.Hour
 	maxEntryAttachments     = 10
 	maxEntryAttachmentBytes = 100 << 20
 )
 
-type attachmentTokenPayload struct {
-	Actor    string `json:"actor"`
-	Key      string `json:"key"`
-	Name     string `json:"name"`
-	MimeType string `json:"mime_type"`
-	Size     int    `json:"size"`
-	Expires  int64  `json:"expires"`
+type stagedObject struct {
+	Name      string `json:"name"`
+	Digest    string `json:"digest"`
+	Extension string `json:"extension"`
+	MimeType  string `json:"mime_type"`
+	Size      int    `json:"size"`
+	Role      string `json:"role"`
 }
 
-func signAttachmentToken(secret string, payload attachmentTokenPayload) (string, error) {
+type assetTokenPayload struct {
+	Version int            `json:"v"`
+	Actor   string         `json:"actor"`
+	Kind    string         `json:"kind"`
+	Name    string         `json:"display_name,omitempty"`
+	Width   int            `json:"width,omitempty"`
+	Height  int            `json:"height,omitempty"`
+	Expires int64          `json:"expires"`
+	Objects []stagedObject `json:"objects"`
+}
+
+func signAssetToken(secret string, payload assetTokenPayload) (string, error) {
 	if secret == "" {
-		return "", errors.New("attachment token secret is not configured")
+		return "", errors.New("asset token secret is not configured")
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -50,66 +57,39 @@ func signAttachmentToken(secret string, payload attachmentTokenPayload) (string,
 	return body + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 
-func verifyAttachmentToken(secret, token, actor string, now time.Time) (*attachmentTokenPayload, error) {
+func verifyAssetToken(secret, token, actor string, now time.Time) (*assetTokenPayload, error) {
 	body, signature, ok := strings.Cut(token, ".")
 	if !ok || secret == "" {
-		return nil, errors.New("invalid attachment token")
+		return nil, errors.New("invalid asset token")
 	}
 	want, err := base64.RawURLEncoding.DecodeString(signature)
 	if err != nil {
-		return nil, errors.New("invalid attachment token")
+		return nil, errors.New("invalid asset token")
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(body))
 	if !hmac.Equal(want, mac.Sum(nil)) {
-		return nil, errors.New("invalid attachment token")
+		return nil, errors.New("invalid asset token")
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(body)
 	if err != nil {
-		return nil, errors.New("invalid attachment token")
+		return nil, errors.New("invalid asset token")
 	}
-	var payload attachmentTokenPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, errors.New("invalid attachment token")
+	var payload assetTokenPayload
+	if json.Unmarshal(raw, &payload) != nil || payload.Version != 1 || payload.Actor != actor ||
+		(payload.Kind != "image" && payload.Kind != "file") || len(payload.Objects) == 0 || now.Unix() > payload.Expires {
+		return nil, errors.New("invalid or expired asset token")
 	}
-	if payload.Actor == "" || payload.Actor != actor || payload.Key == "" || payload.Name == "" ||
-		payload.Size <= 0 || payload.Size > media.MaxUploadFileBytes || now.Unix() > payload.Expires {
-		return nil, errors.New("invalid or expired attachment token")
-	}
-	if _, err := digestFromObjectKey(payload.Key); err != nil {
-		return nil, errors.New("invalid attachment token")
+	for _, object := range payload.Objects {
+		if object.Name == "" || object.Digest == "" || object.Extension == "" || object.Size <= 0 || object.Size > media.MaxUploadFileBytes {
+			return nil, errors.New("invalid asset token")
+		}
 	}
 	return &payload, nil
 }
 
-func digestFromObjectKey(key string) (string, error) {
-	digest := strings.ReplaceAll(key, "/", "")
-	if len(digest) != sha256.Size*2 {
-		return "", errors.New("invalid attachment object key")
-	}
-	if _, err := hex.DecodeString(digest); err != nil || key != digest[:1]+"/"+digest[1:2]+"/"+digest[2:] {
-		return "", errors.New("invalid attachment object key")
-	}
-	return digest, nil
-}
-
-func attachmentObjectKey(digest string) (string, error) {
-	if len(digest) != sha256.Size*2 {
-		return "", errors.New("invalid attachment digest")
-	}
-	if _, err := hex.DecodeString(digest); err != nil {
-		return "", errors.New("invalid attachment digest")
-	}
-	return digest[:1] + "/" + digest[1:2] + "/" + digest[2:], nil
-}
-
-func attachmentDownloadURL(entryID, digest, name string) string {
-	return "/e/" + url.PathEscape(entryID) + "/files/" + digest + "/" + url.PathEscape(name)
-}
-
 func (s *Server) UploadFileHandler(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
-	actor := CurrentUserUuid(c)
 	file, err := c.FormFile("file")
 	if err != nil {
 		var maxBytesError *http.MaxBytesError
@@ -136,26 +116,25 @@ func (s *Server) UploadFileHandler(c *gin.Context) {
 		return
 	}
 	info, err := media.InspectAttachment(file.Filename, content)
-	if err != nil {
+	if err != nil || strings.HasPrefix(info.MimeType, "image/") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported or invalid attachment"})
 		return
 	}
-	obj := &media.Object{Content: content, MimeType: info.MimeType}
-	if _, err := s.media.Post(obj); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "can not store attachment"})
+	name, digest, err := s.staging.Put(content, info.Extension)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage attachment"})
 		return
 	}
-	token, err := signAttachmentToken(s.secretKey, attachmentTokenPayload{
-		Actor: actor, Key: obj.Path, Name: info.Name, MimeType: info.MimeType,
-		Size: info.Size, Expires: time.Now().UTC().Add(attachmentTokenLifetime).Unix(),
+	token, err := signAssetToken(s.secretKey, assetTokenPayload{
+		Version: 1, Actor: CurrentUserUuid(c), Kind: "file", Name: info.Name,
+		Expires: time.Now().UTC().Add(assetTokenLifetime).Unix(),
+		Objects: []stagedObject{{Name: name, Digest: digest, Extension: info.Extension, MimeType: info.MimeType, Size: info.Size, Role: "file"}},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not create attachment token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not create asset token"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"assetToken": token, "name": info.Name, "mimeType": info.MimeType, "size": info.Size,
-	})
+	c.JSON(http.StatusOK, gin.H{"assetToken": token, "name": info.Name, "mimeType": info.MimeType, "size": info.Size})
 }
 
 func (s *Server) filesForEntryPost(actor string, entry *pb.Entry, aware bool, keepURLs, tokens []string, now time.Time) ([]*pb.File, error) {
@@ -180,19 +159,20 @@ func (s *Server) filesForEntryPost(actor string, entry *pb.Entry, aware bool, ke
 		}
 	}
 	for _, token := range tokens {
-		payload, err := verifyAttachmentToken(s.secretKey, token, actor, now)
+		payload, err := verifyAssetToken(s.secretKey, token, actor, now)
+		if err != nil || payload.Kind != "file" || len(payload.Objects) != 1 {
+			return nil, errors.New("invalid file asset token")
+		}
+		object := payload.Objects[0]
+		key, err := s.staging.Promote(object.Name, object.Digest, object.Extension, object.Size)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("promote attachment: %w", err)
 		}
-		digest, _ := digestFromObjectKey(payload.Key)
-		fileURL := attachmentDownloadURL(entry.Id, digest, payload.Name)
-		if seen[fileURL] {
-			continue
+		fileURL := strings.TrimRight(s.mediaBaseURL, "/") + "/" + key + "?download=" + base64.RawURLEncoding.EncodeToString([]byte(payload.Name))
+		if !seen[fileURL] {
+			seen[fileURL] = true
+			files = append(files, &pb.File{Url: fileURL, Type: object.MimeType, Name: payload.Name, Size: int32(object.Size)})
 		}
-		seen[fileURL] = true
-		files = append(files, &pb.File{
-			Url: fileURL, Type: payload.MimeType, Name: payload.Name, Size: int32(payload.Size),
-		})
 	}
 	if len(files) > maxEntryAttachments {
 		return nil, fmt.Errorf("an entry may contain at most %d attachments", maxEntryAttachments)
@@ -207,52 +187,4 @@ func (s *Server) filesForEntryPost(actor string, entry *pb.Entry, aware bool, ke
 		return nil, fmt.Errorf("entry attachments exceed %d byte limit", maxEntryAttachmentBytes)
 	}
 	return files, nil
-}
-
-func (s *Server) DownloadFileHandler(c *gin.Context) {
-	entryID := c.Param("uuid")
-	digest := strings.ToLower(c.Param("digest"))
-	name := path.Base(c.Param("name"))
-	key, err := attachmentObjectKey(digest)
-	if err != nil || name == "." || name == "" {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-	feed, err := s.FetchEntry(c, entryID)
-	if err != nil {
-		return
-	}
-	entry, err := firstEntry(feed)
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-	wantURL := attachmentDownloadURL(entryID, digest, name)
-	found := false
-	for _, file := range entry.Files {
-		if file != nil && file.Url == wantURL && file.Name == name {
-			found = true
-			break
-		}
-	}
-	if !found || s.localMedia == nil {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-	object, err := s.localMedia.OpenObject(key)
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-	defer object.Close()
-	info, err := object.Stat()
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("X-Content-Type-Options", "nosniff")
-	c.Header("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(name))
-	c.Header("Content-Length", strconv.FormatInt(info.Size(), 10))
-	http.ServeContent(c.Writer, c.Request, name, info.ModTime(), object)
 }

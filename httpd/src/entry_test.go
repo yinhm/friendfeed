@@ -11,9 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/media"
+	"github.com/yinhm/friendfeed/util"
 )
 
 type uploadTestStorage struct {
@@ -76,7 +79,8 @@ func TestUploadHandlerRejectsOversizedRequest(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	server := &Server{}
+	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
+	server := &Server{uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
 	router.POST("/upload", server.UploadHandler)
 
 	request := httptest.NewRequest(http.MethodPost, "/upload", &body)
@@ -89,11 +93,13 @@ func TestUploadHandlerRejectsOversizedRequest(t *testing.T) {
 	}
 }
 
-func TestUploadHandlerValidatesBeforeStorageAndReturnsCanonicalURLs(t *testing.T) {
+func TestUploadHandlerValidatesBeforeStorageAndReturnsStagingURLs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	storage := &uploadTestStorage{}
-	server := &Server{media: storage, mediaBaseURL: "https://media.example"}
+	cfg := &util.Config{MediaPath: t.TempDir()}
+	server := &Server{media: storage, staging: media.NewStagingStore(cfg), secretKey: "secret", mediaBaseURL: "https://media.example", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
 	router := gin.New()
+	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
 	router.POST("/upload", server.UploadHandler)
 
 	badBody, badType := multipartUpload(t, []byte("not an image"), "fake.jpg")
@@ -101,7 +107,7 @@ func TestUploadHandlerValidatesBeforeStorageAndReturnsCanonicalURLs(t *testing.T
 	badRequest.Header.Set("Content-Type", badType)
 	badResponse := httptest.NewRecorder()
 	router.ServeHTTP(badResponse, badRequest)
-	require.Equal(t, http.StatusBadRequest, badResponse.Code)
+	require.Equal(t, http.StatusUnprocessableEntity, badResponse.Code)
 	require.Empty(t, storage.posts, "invalid bytes must not reach storage")
 
 	goodBody, goodType := multipartUpload(t, uploadJPEG(t, 1400, 700), "photo.jpg")
@@ -110,23 +116,26 @@ func TestUploadHandlerValidatesBeforeStorageAndReturnsCanonicalURLs(t *testing.T
 	goodResponse := httptest.NewRecorder()
 	router.ServeHTTP(goodResponse, goodRequest)
 	require.Equal(t, http.StatusOK, goodResponse.Code, goodResponse.Body.String())
-	require.Len(t, storage.posts, 2, "large image stores original and thumbnail")
-	require.Contains(t, goodResponse.Body.String(), `"url":"https://media.example/a/b/object-0"`)
-	require.Contains(t, goodResponse.Body.String(), `"thumbUrl":"https://media.example/a/b/object-1"`)
+	require.Empty(t, storage.posts, "browser uploads stay local until publish")
+	require.Contains(t, goodResponse.Body.String(), `"url":"https://media.example/upload-staging/`)
+	require.Contains(t, goodResponse.Body.String(), `"originalUrl":"https://media.example/upload-staging/`)
+	require.Contains(t, goodResponse.Body.String(), `"assetToken":`)
 }
 
-func TestUploadMirrorHandlerUsesControlledFetchAndImagePipeline(t *testing.T) {
+func TestUploadHandlerRemoteSourceUsesControlledFetchAndImagePipeline(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	storage := &uploadTestStorage{fetched: uploadJPEG(t, 20, 10)}
-	server := &Server{media: storage, mediaBaseURL: "https://media.example"}
+	cfg := &util.Config{MediaPath: t.TempDir()}
+	server := &Server{media: storage, staging: media.NewStagingStore(cfg), secretKey: "secret", mediaBaseURL: "https://media.example", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
 	router := gin.New()
-	router.POST("/upload/mirror", server.UploadMirrorHandler)
+	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
+	router.POST("/upload", server.UploadHandler)
 
 	form := url.Values{"sourceUrl": {"https://images.example/photo.jpg"}}
-	request := httptest.NewRequest(http.MethodPost, "/upload/mirror", strings.NewReader(form.Encode()))
+	request := httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(form.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.Len(t, storage.posts, 1)
+	require.Empty(t, storage.posts)
 }

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -96,6 +95,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		FilesPresent  string   `form:"filesPresent"`
 		ExistingFiles []string `form:"existingFile"`
 		FileTokens    []string `form:"fileToken"`
+		Assets        string   `form:"assets"`
 	}
 	if err := c.MustBindWith(&form, binding.FormMultipart); err != nil {
 		return
@@ -130,19 +130,37 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		c.AbortWithStatus(401)
 		return
 	}
-	files, err := s.filesForEntryPost(profile.Uuid, entry, form.FilesPresent != "", form.ExistingFiles, form.FileTokens, dt)
+	assetTokens, err := decodeAssetTokens(form.Assets)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	images, filesFromAssets, err := partitionAssetTokens(s.secretKey, profile.Uuid, assetTokens, dt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired asset token"})
+		return
+	}
+	filesFromAssets = append(filesFromAssets, form.FileTokens...)
+	files, err := s.filesForEntryPost(profile.Uuid, entry, form.FilesPresent != "", form.ExistingFiles, filesFromAssets, dt)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	entry.Files = files
 
-	if form.RawBody != "" {
-		entry.RawBody = form.RawBody
-	} else {
-		entry.RawBody = form.Body
+	rawBody := form.RawBody
+	if rawBody == "" {
+		rawBody = form.Body
 	}
-	entry.Body = util.EntityToLink(util.DefaultSanitize(form.Body))
+	body := util.EntityToLink(util.DefaultSanitize(form.Body))
+	rawBody, body, thumbnails, err := s.promoteEntryImages(rawBody, body, entry.Thumbnails, images)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	entry.RawBody = rawBody
+	entry.Body = body
+	entry.Thumbnails = thumbnails
 
 	from := &pb.Feed{
 		Id:      profile.Id,
@@ -208,74 +226,81 @@ func (s *Server) EntryDeleteHandler(c *gin.Context) {
 
 func (s *Server) UploadHandler(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequestBytes)
-
-	file, err := c.FormFile("file")
-	if err != nil {
+	select {
+	case s.uploadRequests <- struct{}{}:
+		defer func() { <-s.uploadRequests }()
+	default:
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many uploads"})
+		return
+	}
+	file, fileErr := c.FormFile("file")
+	sourceURL := strings.TrimSpace(c.PostForm("sourceUrl"))
+	if fileErr == nil && sourceURL != "" || fileErr != nil && sourceURL == "" {
 		var maxBytesError *http.MaxBytesError
-		if errors.As(err, &maxBytesError) {
-			c.String(http.StatusRequestEntityTooLarge, "uploaded file is too large")
+		if errors.As(fileErr, &maxBytesError) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "uploaded file is too large"})
 			return
 		}
-		c.String(http.StatusBadRequest, fmt.Sprintf("error on formdata: %s", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "provide exactly one of file or sourceUrl"})
 		return
 	}
-
-	src, err := file.Open()
-	if err != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("can not read file: %s", err.Error()))
-		return
+	var content []byte
+	var err error
+	if fileErr == nil {
+		src, openErr := file.Open()
+		if openErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "can not read file"})
+			return
+		}
+		defer src.Close()
+		content, err = io.ReadAll(io.LimitReader(src, media.MaxUploadFileBytes+1))
+	} else {
+		content, err = s.fetchUploadedImage(sourceURL)
 	}
-	defer src.Close()
-
-	content, err := io.ReadAll(io.LimitReader(src, media.MaxUploadFileBytes+1))
 	if err != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("can not read file: %s", err.Error()))
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "source image timed out"})
+		} else {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "image could not be read"})
+		}
 		return
 	}
 	if len(content) > media.MaxUploadFileBytes {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "uploaded file is too large"})
 		return
 	}
+	select {
+	case s.imageOperations <- struct{}{}:
+		defer func() { <-s.imageOperations }()
+	default:
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "image processor is busy"})
+		return
+	}
 	prepared, err := media.PrepareUploadedImage(content, 1024)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported or invalid image"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "unsupported or invalid image"})
 		return
 	}
 	s.writeUploadedImage(c, prepared)
 }
 
-func (s *Server) UploadMirrorHandler(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
-	if err := c.Request.ParseForm(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
-		return
-	}
-	source := strings.TrimSpace(c.Request.Form.Get("sourceUrl"))
+func (s *Server) fetchUploadedImage(source string) ([]byte, error) {
 	if len(source) == 0 || len(source) > 2048 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid source URL"})
-		return
+		return nil, errors.New("invalid source URL")
 	}
 	parsed, err := url.Parse(source)
 	if err != nil || parsed.User != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid source URL"})
-		return
+		return nil, errors.New("invalid source URL")
 	}
 	obj := &media.Object{Url: parsed.String()}
 	if _, err := s.media.Fetch(obj); err != nil {
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
-			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "source image timed out"})
-			return
-		}
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "source image could not be fetched"})
-		return
+		return nil, err
 	}
-	prepared, err := media.PrepareUploadedImage(obj.Content, 1024)
-	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "source is not a supported image"})
-		return
+	if len(obj.Content) > media.MaxUploadFileBytes {
+		return nil, errors.New("source image is too large")
 	}
-	s.writeUploadedImage(c, prepared)
+	return obj.Content, nil
 }
 
 func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.PreparedImage) {
@@ -283,29 +308,38 @@ func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.PreparedImag
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not process image"})
 		return
 	}
-	original := &media.Object{Content: prepared.Original, MimeType: prepared.MimeType}
-	if _, err := s.media.Post(original); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "can not store image"})
+	originalName, originalDigest, err := s.staging.Put(prepared.Original, prepared.Extension)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage image"})
 		return
 	}
-	thumbnail := original
-	if !bytes.Equal(prepared.Original, prepared.Thumbnail) {
-		thumbnail = &media.Object{Content: prepared.Thumbnail, MimeType: "image/jpeg"}
-		if _, err := s.media.Post(thumbnail); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "can not store image thumbnail"})
+	thumbName, thumbDigest, thumbExt := originalName, originalDigest, prepared.Extension
+	thumbMime := prepared.MimeType
+	if string(prepared.Original) != string(prepared.Thumbnail) {
+		thumbExt, thumbMime = "jpg", "image/jpeg"
+		thumbName, thumbDigest, err = s.staging.Put(prepared.Thumbnail, thumbExt)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage image thumbnail"})
 			return
 		}
 	}
-	base := strings.TrimRight(s.mediaBaseURL, "/")
-	if base == "" {
-		base = "https://m.friendfeed.me"
+	objects := []stagedObject{{Name: originalName, Digest: originalDigest, Extension: prepared.Extension, MimeType: prepared.MimeType, Size: len(prepared.Original), Role: "original"}}
+	if thumbName != originalName {
+		objects = append(objects, stagedObject{Name: thumbName, Digest: thumbDigest, Extension: thumbExt, MimeType: thumbMime, Size: len(prepared.Thumbnail), Role: "thumbnail"})
 	}
+	token, err := signAssetToken(s.secretKey, assetTokenPayload{Version: 1, Actor: CurrentUserUuid(c), Kind: "image", Width: prepared.ThumbnailWidth, Height: prepared.ThumbnailHeight, Expires: time.Now().UTC().Add(assetTokenLifetime).Unix(), Objects: objects})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not create asset token"})
+		return
+	}
+	base := strings.TrimRight(s.mediaBaseURL, "/") + "/" + media.StagingDirectory + "/"
 	c.JSON(http.StatusOK, gin.H{
-		"url":      base + "/" + original.Path,
-		"thumbUrl": base + "/" + thumbnail.Path,
-		"width":    prepared.Width,
-		"height":   prepared.Height,
-		"mimeType": prepared.MimeType,
-		"size":     len(prepared.Original),
+		"assetToken":  token,
+		"url":         base + thumbName,
+		"originalUrl": base + originalName,
+		"width":       prepared.ThumbnailWidth,
+		"height":      prepared.ThumbnailHeight,
+		"mimeType":    prepared.MimeType,
+		"size":        len(prepared.Original),
 	})
 }
