@@ -44,8 +44,7 @@ LocalStorage；R2 是异步副本，不进入用户发布成功的同步关键�
 
 用户主动上传属于 Web/BFF transport 能力，由 ffweb 负责：
 
-- `POST /a/upload`：正文图片；
-- `POST /a/upload`：用户新粘贴的 remote HTTP/HTTPS 图片；
+- `POST /a/upload`：正文图片（本地 `file` 或 remote `sourceUrl`）；
 - `POST /a/upload_file`：文件附件；
 - multipart/request limit；
 - 实际字节类型识别；
@@ -53,7 +52,7 @@ LocalStorage；R2 是异步副本，不进入用户发布成功的同步关键�
 - 文件 allowlist；
 - temporary staging；
 - staging 状态 / asset token；
-- 上传并发和 staging quota；
+- 上传并发限制；
 - 发布时把 staging object promote 到 canonical LocalStorage；
 - 把 Plate 中 staging URL 改写为 canonical URL；
 - 构造最终 `Entry.files`；
@@ -382,6 +381,7 @@ V1 要求：
 - token 使用 HMAC-SHA256；
 - payload 使用稳定版本号，例如 `v=1`；
 - non-debug deployment 必须显式配置 `-s`，不能依赖源码里的默认示例 secret；
+- non-debug 启动时如果检测到仍使用默认示例 secret，ffweb 必须 fail loud 并拒绝启动；
 - token 比较使用 constant-time compare；
 - token/staging state 不作为下载权限；
 - token 不持久化进 Entry；
@@ -562,7 +562,7 @@ staging URL 和 asset token 都不是最终 Entry 格式。
 
 # 7. Remote image upload
 
-remote image 不使用单独的 `/a/upload` 的 `sourceUrl` 分支 endpoint。与本地图片统一使用：
+remote image 不设独立 endpoint，统一走 `/a/upload` 的 `sourceUrl` 分支：
 
 ~~~text
 POST /a/upload
@@ -773,13 +773,14 @@ ffweb 处理顺序：
 1. parse `assets`；
 2. verify 每个 token HMAC、版本、当前 user、expiry；
 3. 得到 `uploadID -> verified asset` map；
-4. 由 ffweb 自己解析当前 Plate/附件编辑状态，找出**最终仍被引用**的 staging assets；
-5. 每一个最终被引用的 staging URL/object 都必须能对应到一个 verified asset；
-6. `assets` 中已不再被当前 Entry 引用的 token 忽略，不 promote；
-7. promote 被引用的 original/thumbnail/files；
-8. 将 staging URL 改写为 canonical URL；
-9. 构造 `Entry.thumbnails[]` / `Entry.files[]`；
-10. 最后调用现有 `PostEntry(Entry)`。
+4. 对 image asset，由 ffweb 解析当前 Plate，只有最终仍出现对应 staging URL 的 token 才视为被引用；
+5. 对 file asset，`assets` 数组本身就是本次保存的附件引用声明，不从 `rawBody/body` 反向寻找文件引用；
+6. 每一个最终被引用的 staging object 都必须能对应到一个 verified asset；
+7. image token 若已不再被最终 Plate 引用则忽略，不 promote；
+8. promote 被引用的 original/thumbnail/files；
+9. 将 image staging URL 改写为 canonical URL；
+10. 构造 `Entry.thumbnails[]` / `Entry.files[]`；
+11. 最后调用现有 `PostEntry(Entry)`。
 
 编辑旧 Entry 时，已有 canonical media 不需要 token；只有本次新增的 staging media 需要 token。
 
@@ -1035,6 +1036,7 @@ sourceUrl=https://example.com/image.jpg
 
 - `url`：Plate 默认显示的 staging thumbnail URL；
 - `originalUrl`：staging original URL；
+- `width/height`：`url` 对应图片对象的 intrinsic size，也就是 thumbnail 的实际像素尺寸；若无需单独 thumbnail，则是 original 的 intrinsic size；
 - 若无需 thumbnail，`url == originalUrl`；
 - canonical URL 只在用户发布时由 ffweb promote 后生成。
 
@@ -1183,7 +1185,8 @@ R2 不是同步 upload response 的 `502/503` 来源，因为用户上传请求�
 - token 使用现有 ffweb SecretKey 做 HMAC-SHA256；
 - token 不能跨 user、不能篡改、会过期；
 - /a/share 中每个被实际引用的 staging object 必须有对应有效 token；
-- 提交但未被最终 Entry 引用的 asset token 不触发 promote；
+- image token 未被最终 Plate 引用时不触发 promote；
+- file token 以 assets 数组中的存在本身作为附件引用声明；
 - client 不能用 arbitrary URL 冒充新的 upload token；
 - max 10 files / 100 MiB per Entry；
 - display name 不影响 filesystem path；
