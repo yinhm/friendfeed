@@ -40,7 +40,7 @@ LocalStorage；R2 是异步副本，不进入用户发布成功的同步关键�
 
 # 1. 权责边界
 
-## 1.1 ffweb：用户上传入口与 staging owner
+## 1.1 ffweb：用户上传、staging 与 publish owner
 
 用户主动上传属于 Web/BFF transport 能力，由 ffweb 负责：
 
@@ -52,15 +52,16 @@ LocalStorage；R2 是异步副本，不进入用户发布成功的同步关键�
 - 图片 decode、像素检查、thumbnail；
 - 文件 allowlist；
 - temporary staging；
-- asset token；
+- staging 状态 / asset token；
 - 上传并发和 staging quota；
 - 发布时把 staging object promote 到 canonical LocalStorage；
-- 构造最终图片 URL 和 `Entry.files`；
+- 把 Plate 中 staging URL 改写为 canonical URL；
+- 构造最终 `Entry.files`；
 - 删除/过期 temporary objects。
 
-ffweb 不把 temporary object 暴露为长期媒体 URL，也不在 staging 阶段写 R2。staging 位于
-`media_path/upload-staging/`；production nginx 和开发环境 Gin media handler 都必须显式拒绝这个
-子目录。
+staging 位于 `media_path/upload-staging/`，并通过当前 media serving 路径提供临时可访问 URL。
+Plate 在编辑状态直接使用 staging 图片 URL 展示预览；staging URL 是 temporary capability URL，
+24 小时后可以失效。staging 阶段不写 R2。
 
 ## 1.2 ffdb：Entry 与后端媒体职责
 
@@ -68,17 +69,16 @@ ffdb 继续负责：
 
 - `Entry` / `Entry.files` 的领域持久化；
 - Entry mutation 的现有 author/feed/group authorization；
-- 在 Entry mutation 成功时，根据该请求显式携带的 canonical media refs 决定是否原子入队
-  `media.mirror_r2` Task；
-- 持有并执行 `media.mirror_r2` Task definition/handler；
+- 保持现有 `PostEntry(Entry)` RPC；
+- 在 Entry 成功持久化后，从最终 Entry 中识别本站 canonical user-upload media refs；
+- R2 已启用时，由 ffdb 自己 enqueue 并执行 `media.mirror_r2` Task；
 - archive / RSS / Service 等服务器侧来源需要抓取远程媒体时，继续使用现有受控 `media.Storage`；
 - 已有 `mirrorMedia` 兼容契约保持不变，本项不顺带重写 ArchiveFeed。
 
-ffdb **不负责浏览器 upload validation，也不解析 asset token**。asset token 只属于 ffweb 的 staging
-协议。ffdb 收到的是已经由 ffweb 形成的 canonical Entry 数据，以及本次 Entry mutation 对应的
-canonical media refs。media refs 是内部 RPC transport metadata，不是 Entry 持久化字段。
+ffdb **不负责浏览器 upload validation，也不解析 asset token/staging state**。这些状态只属于 ffweb。
+ffdb 收到的是已经由 ffweb 完成 promote、URL rewrite、`Entry.files` 构造后的 canonical Entry。
 
-`pb.Entry.Files` 在 ffdb 仍按 Entry 数据持久化；本版本不为用户上传再建立第二套 asset metadata 表。
+`pb.Entry.Files` 在 ffdb 仍按 Entry 数据持久化；本版本不为用户上传建立第二套持久化 asset metadata 表。
 
 ## 1.3 media package
 
@@ -89,6 +89,7 @@ canonical media refs。media refs 是内部 RPC transport metadata，不是 Entr
 - canonical key；
 - atomic local publish；
 - image decode/thumbnail helper；
+- 从 canonical media URL 还原 local object key；
 - R2 PUT primitive。
 
 新的用户上传路径应复用 primitive，但不能直接调用当前“同步 local + R2 dual-write”的
@@ -99,15 +100,27 @@ canonical media refs。media refs 是内部 RPC transport metadata，不是 Entr
 对用户上传：
 
 ~~~text
-temporary staging
-        |
-        | publish Entry
-        v
-canonical LocalStorage  ----> page immediately readable
-        |
-        | background Task
-        v
-       R2 replica
+upload
+  |
+  v
+staging (public temporary URL)
+  |
+  | user publishes
+  v
+ffweb promote + rewrite
+  |
+  v
+canonical LocalStorage
+  |
+  v
+ffdb PostEntry(Entry)
+  |
+  | after Entry persistence, if R2 enabled
+  v
+media.mirror_r2 Task
+  |
+  v
+R2 replica
 ~~~
 
 LocalStorage 是发布成功时必须已经存在的运行时副本；R2 是异步 replica。
@@ -115,11 +128,13 @@ LocalStorage 是发布成功时必须已经存在的运行时副本；R2 是异�
 当前 `m.friendfeed.me` nginx 本来就以 `media_path` 为 root，并与 `media_url` 使用同一公开 URL
 语义，因此 canonical local object 发布后无需等待 R2 Task，页面即可正常读取。
 
-R2 成功与否不决定 Entry 是否已经发布。Task 可重试，且以 canonical object key 幂等。刚刚 promote
-了哪些 user-upload key 由 ffweb 在调用 Entry mutation 时显式传给 ffdb；ffdb 不解析 Plate
-`rawBody`、HTML 或 `Entry.files[].url` 来反向发现对象。
+ffdb 不理解 Plate `rawBody`。user-upload refs 的提取只基于最终 canonical Entry：
 
----
+- `Entry.files[].url`：识别 `media_url/u/f/`；
+- `Entry.body`：用 HTML parser 提取 `img[src]`，只识别 `media_url/u/i/`；
+- staging URL、外部 URL、历史非 canonical media URL 一律忽略。
+
+这样不需要额外的 PostEntry RPC，也不需要 ffdb 理解编辑器内部状态。
 
 # 2. 当前访问模型：不做媒体权限控制
 
@@ -206,7 +221,7 @@ thumb == original
 
 # 4. Temporary staging
 
-## 4.1 路径
+## 4.1 路径与 serving
 
 staging 属于媒体文件体系，不属于数据库文件体系。默认目录固定为：
 
@@ -219,20 +234,21 @@ staging 属于媒体文件体系，不属于数据库文件体系。默认目录
 - `db_path`：Pebble / ffdb 数据；
 - `media_path`：本地媒体对象与 upload staging。
 
-upload staging 的路径只能从 resolved `media_path` 派生，不从 `db_path` 派生。现有
-`media.NewLocalStorage` 在 `media_path` 为空时可继续保留兼容 fallback，但上传 spec 不再把
-`db_path` 当作 staging root。
+upload staging 的路径只能从 resolved `media_path` 派生，不从 `db_path` 派生。
 
-因为 production media nginx 以 `media_path` 为 root，必须显式阻止 staging 被静态 serving：
+staging 是可访问的临时媒体区：
 
-~~~nginx
-location ^~ /upload-staging/ {
-    return 404;
-}
+~~~text
+<media_url>/upload-staging/<upload-id>.jpg
 ~~~
 
-该规则必须位于通用 media `location /` 之前。开发环境如果由 Gin serve `media_path`，同样必须在
-media handler 中拒绝 `upload-staging/`；不能直接用一个会暴露整个目录树的无条件 static handler。
+- production 由 nginx 直接从 `media_path` serve；
+- dev/local 可由 Gin local-media route serve；
+- Plate 图片上传成功后直接使用 staging URL 展示；
+- 不要求 staging URL 长期稳定；
+- 不开启 directory listing；
+- 文件名使用高熵随机 upload ID；
+- 当前仍采用 URL capability 语义，不增加 staging 鉴权层。
 
 文件名只使用随机 upload ID + server-derived extension，例如：
 
@@ -259,9 +275,12 @@ image/webp -> .webp
 
 附件按 V1 allowlist 使用对应的 canonical extension。
 
-## 4.3 asset token
+## 4.3 staging state / asset token
 
-upload 成功返回有时效 HMAC asset token。token 至少绑定：
+上传成功后，ffweb 必须保存足够的 staging state，使发布时可以验证该对象属于当前用户且未被篡改。
+可以继续使用 HMAC asset token 作为无数据库的简化实现。
+
+token 至少绑定：
 
 - upload user UUID；
 - upload ID；
@@ -276,7 +295,7 @@ upload 成功返回有时效 HMAC asset token。token 至少绑定：
 
 默认 24 小时过期。
 
-token 不作为下载凭据，不持久化进 Entry，不记录日志。
+token/staging state 不作为下载权限，不持久化进 Entry，不记录日志。
 
 ## 4.4 cleanup
 
@@ -284,36 +303,64 @@ ffweb：
 
 - 启动时清理超期 staging；
 - 运行中每小时扫描一次；
-- 删除 mtime/metadata 已超过 24 小时的对象；
+- 删除已超过 24 小时的 staging object；
 - 清理失败只记录安全错误类别，不终止服务。
 
 取消编辑、关闭页面、上传后不发布，都只留下有 TTL 的 staging object，不进入 canonical storage。
 
----
-
 # 5. Canonical LocalStorage
 
-## 5.1 发布时 promote
+## 5.1 为什么 promote 放在 ffweb
 
-`POST /a/share` 提交前，ffweb 对所有 image/file asset token：
+本版本固定：
 
-1. 校验 HMAC；
+> staging -> canonical LocalStorage 的 promote 由 ffweb 在调用 `PostEntry` **之前**完成。
+
+原因：
+
+1. ffweb 已经掌握 staging state / asset token；
+2. ffweb 已经理解 Plate 节点、附件选择和用户当前编辑状态；
+3. ffdb 不需要知道 upload ID、asset token 或 staging URL；
+4. 保持现有 `PostEntry(Entry)` RPC，不为媒体上传新增 transport contract；
+5. 如果把 promote 放进 ffdb，就必须额外传 staging refs，或让 ffdb 解析 Plate/rawBody；两者都增加不必要耦合。
+
+代价是存在一个很小窗口：
+
+~~~text
+promote success
+  ->
+PostEntry fails
+  ->
+canonical local orphan
+~~~
+
+V1 主动接受这个窗口。canonical object 是 content-addressed，后续可以离线 mark-and-sweep；不为了消灭
+少量 orphan 建立 filesystem + Pebble 跨系统事务，也不把 staging 生命周期搬进 ffdb。
+
+## 5.2 发布时 promote
+
+`POST /a/share` 提交时，ffweb：
+
+1. 从 Plate/附件编辑态取得本次仍被引用的 staging state / asset token；
 2. 校验当前 session user；
 3. 校验 expiry；
 4. 校验 staging file 仍存在；
-5. 重新确认 size + SHA-256，防止 staging 被替换；
-6. 按 token 中的 verified type 计算 canonical key；
+5. 重新确认 size + SHA-256；
+6. 按 verified type 计算 canonical key；
 7. 使用同一 `media_path` filesystem 内的 atomic rename/publish primitive 写入 canonical path；
-8. 若相同 digest + verified type 的 canonical object 已存在，则幂等复用该对象并删除 staging，不创建第二份；
-9. 构造最终 Entry 数据；
-10. 调用 ffdb Web Entry mutation；
-11. 成功后删除仍存在的对应 staging file。
+8. 若相同 digest + verified type 的 canonical object 已存在，则幂等复用并删除 staging；
+9. 把 Plate 节点中的 staging `url/thumbUrl` 改写成 canonical URL；
+10. 构造最终 `Entry.files`；
+11. 重新序列化最终 `rawBody/body`；
+12. 调用现有 ffdb `PostEntry(Entry)`；
+13. 成功返回 Entry。
 
-如果第 7 步完成但 ffdb `PostEntry` 最终失败，可能留下 canonical local orphan。这个 residual orphan
-只发生在“用户已经尝试发布”的路径；取消编辑仍只产生会自动过期的 staging object。canonical orphan
-以后仍由离线 mark-and-sweep 处理，不在 request path 回滚/删除共享 content-addressed object。
+最终传给 ffdb 的 Entry **不得包含** `upload-staging/` URL。
 
-## 5.2 canonical key
+如果 promote 后 `PostEntry` 失败，保留 canonical object，后续由离线 GC 处理；不要在失败路径立即删除，
+因为同 digest canonical object 可能已经被其他 Entry 引用。
+
+## 5.3 canonical key
 
 新的 user-upload object 使用完整 SHA-256 + server-derived extension，并继续分片：
 
@@ -335,7 +382,7 @@ u/f/a/b/<remaining-sha256>.docx
 
 现有 archive/mirror object key 保持兼容，不做批量改名。
 
-## 5.3 Content-Type metadata
+## 5.4 Content-Type metadata
 
 V1 **不新增本地 sidecar metadata 数据库**。
 
@@ -343,14 +390,11 @@ V1 **不新增本地 sidecar metadata 数据库**。
 
 - canonical server-derived extension 让本地 nginx 对 inline image 返回正确 image Content-Type；
 - `Entry.files[].type` 保存服务端确认的附件 MIME；
-- R2 mirror Task payload 携带/重建服务端确认的 MIME；
+- ffdb 从 canonical URL + `Entry.files[].type` / image extension 恢复 R2 PUT 所需 metadata；
 - R2 object metadata 写入可信 Content-Type；
-- file attachment 对外下载按下文强制 attachment 规则处理。
+- file attachment serving 强制 attachment/octet-stream。
 
-如果未来出现“无扩展名 object + 多种 serving metadata”的真实需求，再设计独立 metadata，不在 V1
-提前增加。
-
----
+如果未来出现“无扩展名 object + 多种 serving metadata”的真实需求，再设计独立 metadata。
 
 # 6. 编辑器与剪贴板
 
@@ -372,15 +416,16 @@ HTML 必须经 DOM/Plate node 解析，不能用 regex 改写整段 HTML。
 
 React editor 可在未提交阶段保留：
 
-- `assetToken`；
-- 本地 `blob:` preview；
-- transient remote preview；
+- staging URL；
+- asset token / upload handle；
 - pending/error state。
 
-这些字段都不是持久化格式。
+图片上传成功后直接显示 staging URL。发布时 ffweb promote 并把 staging URL 改写成 canonical URL；
+staging URL 和 asset token 都不是最终 Entry 格式。
 
-发布前必须保证所有用户新增图片已经 upload 成功；pending/error 时禁止提交。最终写入
-`rawBody/body` 的只能是 canonical media URL，不得包含：
+发布前必须保证所有用户新增图片已经 upload 成功；pending/error 时禁止提交。ffweb 在调用
+`PostEntry` 之前完成 promote + rewrite。最终写入 `rawBody/body` 的只能是 canonical media URL，
+不得包含：
 
 - `assetToken`；
 - `data:`；
@@ -601,13 +646,13 @@ replica/恢复副本，不要求浏览器在 V1 直接从 R2 object endpoint 下
 
 对 user-upload canonical object，R2 不同步写。
 
-新增/复用 Task 类型，概念上：
+新增/复用 Task 类型：
 
 ~~~text
 media.mirror_r2
 ~~~
 
-payload 只包含安全、可重建字段，例如：
+payload：
 
 ~~~text
 canonical_key
@@ -615,13 +660,7 @@ verified_mime
 kind: image|file
 ~~~
 
-不得包含：
-
-- 文件内容；
-- asset token；
-- session；
-- sourceUrl；
-- credential。
+不得包含文件内容、asset token、session、sourceUrl 或 credential。
 
 idempotency key：
 
@@ -629,111 +668,85 @@ idempotency key：
 media-r2:<canonical-key>
 ~~~
 
+## 9.1 ffdb 如何识别需要 mirror 的对象
+
+不新增 `PostEntryWithMedia`，保持现有：
+
+~~~protobuf
+rpc PostEntry(Entry) returns (Entry)
+~~~
+
+ffdb 在 Entry 成功 canonical persistence 后，从最终 Entry 提取 refs：
+
+1. 遍历 `Entry.files[].url`，只接受当前 `media_url` 下 `/u/f/` canonical path；
+2. 用标准 HTML parser 解析 `Entry.body`，提取 `img[src]`，只接受当前 `media_url` 下
+   `/u/i/` canonical path；
+3. 不解析 Plate `rawBody`；
+4. 不 mirror `upload-staging/`；
+5. 不处理外部 URL；
+6. key 去重。
+
+这个提取只用于 replica scheduling，不改变 Entry 的业务语义。
+
+## 9.2 enqueue 时序
+
+~~~text
+ffweb
+  -> promote + rewrite
+  -> PostEntry(Entry)
+
+ffdb PostEntry
+  -> authorize
+  -> persist canonical Entry
+  -> derive canonical user-upload refs
+  -> if R2 enabled: enqueue media.mirror_r2
+  -> return Entry
+
+ffdb background worker
+  -> LocalStorage
+  -> R2
+~~~
+
+R2 是 replica，因此 V1 不为了 enqueue 去重构当前 `PutEntry` Pebble batch，也不要求 Entry + mirror task
+同事务。
+
+如果 Entry 已经持久化，但 enqueue 失败：
+
+- 记录 `mirror_enqueue_failed`；
+- `PostEntry` 仍成功；
+- local canonical object 继续正常 serving；
+- 后续可通过 retry/reconcile 补 R2。
+
+这和现有“派生状态允许异步收敛”的项目原则一致，也避免为了 replica 增加新的 RPC 或 transaction staging
+primitive。
+
+R2 未配置时不 enqueue；完整配置时 enqueue；partial config 继续 fail loud。
+
+## 9.3 worker
+
 handler：
 
 1. 从 canonical LocalStorage 打开对象；
-2. 对 image 使用 verified image MIME；
-3. 对 file 的 R2 response metadata 使用 `application/octet-stream` + attachment；
+2. image 使用 verified image MIME；
+3. file 在 R2 serving metadata 上使用 `application/octet-stream` / attachment 语义；
 4. PUT 到 R2 同 key；
 5. retry 走现有 Task lease/backoff；
 6. 成功后完成 task。
 
 R2 失败不回滚 Entry，也不删除 local object。
 
-Task 的 **决定、持久化、worker 与 R2 PUT 都属于 ffdb**。ffweb 不在 `PostEntry` 成功后再调用
-`EnqueueTask`。
-
-为了避免 ffdb 解析 Plate `rawBody` / HTML，也避免从 URL 猜 object key，Browser Entry mutation
-使用一个内部 request envelope，概念上：
-
-~~~protobuf
-message MediaObjectRef {
-  string key = 1;        // canonical relative object key
-  string mime_type = 2;  // ffweb verified type
-  string kind = 3;       // image | file
-}
-
-message PostEntryRequest {
-  Entry entry = 1;
-  repeated MediaObjectRef media_objects = 2;
-}
-~~~
-
-这里的 `media_objects`：
-
-- 只描述本次用户发布刚刚 promote 的 canonical objects；
-- 不写进 Entry；
-- 不作为 Public API contract；
-- 不代替 `Entry.files`；
-- ffdb 只接受 canonical `u/i/`、`u/f/` key，且本地对象必须存在；
-- old/edit Entry 中已有、这次未新增的媒体不必重复传。
-
-现有 `PostEntry(Entry)` 保留兼容入口。Browser/Web 新上传路径新增
-`PostEntryWithMedia(PostEntryRequest)`；两条 RPC 都进入同一个内部 Entry mutation primitive，不能复制
-authorization/persistence 逻辑。这样不需要为了媒体上传破坏 Archive/Twitter/旧调用方当前的
-`PostEntry(Entry)` wire contract。
-
-正确时序：
-
-~~~text
-ffweb /a/share
-  -> verify asset tokens
-  -> promote staging -> canonical LocalStorage
-  -> ffdb PostEntryWithMedia(entry, promoted media refs)
-       -> authorize / persist Entry
-       -> if R2 enabled:
-            stage media.mirror_r2 tasks in the same Pebble batch
-       -> commit canonical Entry + direct indexes + mirror tasks
-       -> fanout/search/other existing post-commit work
-  -> return success
-~~~
-
-当前实现的 `model.PutEntryWithTimelineObserver()` 自己创建 Pebble batch，而
-`task.Queue.EnqueueWith()` 也自己创建 batch，因此实现这一契约时必须先把 canonical Entry/direct-index
-写入抽成可组合的 stage primitive，例如：
-
-~~~go
-func StagePutEntry(batch *pebble.Batch, db *store.Store, entry *pb.Entry, ...) (...) 
-~~~
-
-然后 ffdb 的 Web Entry mutation 使用：
-
-~~~text
-tasks.EnqueueWith(mediaTaskSpecs, func(batch) {
-    StagePutEntry(batch, ...)
-})
-~~~
-
-来提交 Entry/direct indexes 和 mirror tasks。现有无媒体的 `PostEntry` 仍可复用同一个 stage primitive，
-只是 task specs 为空时走普通 ApplyBatch。Home fanout、search index 等当前已经位于 canonical Entry batch
-之后的派生工作继续保持 post-commit，不因为本项塞进同一 Pebble batch。
-
-因此：
-
-- Entry commit 成功且 R2 开启时，对应 mirror task 也已 durable；
-- Entry commit 失败时，不会留下只对应失败 Entry 的新 mirror task；
-- ffweb 不需要也不允许在 success 之后补 enqueue；
-- R2 worker 仍完全异步，Entry response 不等待 R2 PUT；
-- R2 未配置时不产生 mirror task；
-- R2 partial/misconfigured 必须按配置启动/健康检查规则 fail loud，不能默默把“要求 mirror”变成永久 local-only。
-
-filesystem promote 仍发生在 Pebble transaction 之前，因此 promote 成功、Entry commit 失败时可能留下
-canonical local orphan；这是 §10§ 定义的离线 GC 场景。不要为了消除这一小窗口建立 filesystem + Pebble
-跨系统事务。
-
 现有 Archive/Service `mirrorMedia` 的同步兼容路径不在本项改造范围。
-
----
 
 # 10. 生命周期与回收
 
 ## 10.1 staging
 
+- 位于 `media_path/upload-staging/`；
+- 通过 media URL 临时可访问，供 Plate 编辑态预览；
 - 24h TTL；
 - ffweb 自动清；
-- 不进入 `media_path`；
 - 不进入 R2；
-- 不进入 Entry。
+- staging URL 不进入最终 Entry；发布时必须重写成 canonical URL。
 
 ## 10.2 canonical local orphan
 
@@ -770,8 +783,8 @@ canonical object 是 content-addressed 且可共享，所以 request path 不直
 ~~~json
 {
   "assetToken": "...",
-  "canonicalUrl": "https://m.friendfeed.me/u/i/a/b/hash.jpg",
-  "canonicalThumbUrl": "https://m.friendfeed.me/u/i/a/b/thumbhash.jpg",
+  "url": "https://m.friendfeed.me/upload-staging/<upload-id>.jpg",
+  "thumbUrl": "https://m.friendfeed.me/upload-staging/<thumb-upload-id>.jpg",
   "width": 1600,
   "height": 900,
   "mimeType": "image/jpeg",
@@ -779,8 +792,8 @@ canonical object 是 content-addressed 且可共享，所以 request path 不直
 }
 ~~~
 
-`canonicalUrl` 表示发布后稳定 URL；staging 阶段不承诺该 URL 已经存在。编辑器预览使用本地 blob 或 transient
-preview，不依赖 canonical URL 在发布前可读。
+返回 staging URL，上传成功后即可直接在 Plate 中显示。canonical URL 只在用户发布时由 ffweb promote 后
+生成，并在调用 `PostEntry` 前写入最终 `rawBody/body`。
 
 ## `POST /a/upload/mirror`
 
@@ -812,7 +825,8 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
    - 非图片先写后失败的缺陷测试。
 
 2. **staging primitive**
-   - `<db_path>/upload-staging`；
+   - `<media_path>/upload-staging`；
+   - production nginx / dev Gin 均可 serve staging URL；
    - server-derived extension；
    - asset token；
    - TTL cleanup；
@@ -850,6 +864,8 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
    - public forced-download route。
 
 7. **R2 task**
+   - 保持现有 `PostEntry(Entry)` RPC；
+   - ffdb 从最终 `Entry.files` + `Entry.body img[src]` 提取本站 canonical refs；
    - idempotent `media.mirror_r2`；
    - local -> R2；
    - image/file headers；
@@ -857,10 +873,10 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 
 8. **部署**
    - production media 由 `nginx_media.conf` 类配置直接 serve canonical `media_path`，ffweb 不代理；
-   - nginx 必须对 `/upload-staging/` 返回 404，不能落入通用 static location；
+   - nginx 允许 `/upload-staging/` 临时访问，禁止 directory listing；
    - nginx `/u/i/` 按 server-derived extension 返回正确图片 MIME；
    - nginx `/u/f/` 强制 attachment/octet-stream/nosniff；
-   - dev/local 允许由 Gin serve canonical `media_path`，但必须实现同样的 staging deny 与 file headers；
+   - dev/local 允许由 Gin serve `media_path`，包括 staging preview，并保持 attachment headers；
    - `media_url` 从 local canonical object 立即可读，不依赖 R2；
    - R2 mirror 后 key/content metadata 一致。
 
@@ -873,7 +889,8 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 ### 上传与 staging
 
 - 未登录不能上传；
-- staging 位于 `media_path/upload-staging/`，但 production nginx 与 dev Gin 都无法通过 media URL 访问；
+- staging 位于 `media_path/upload-staging/`，production nginx 与 dev Gin 都可通过高熵 staging URL 读取；
+- staging 不允许目录索引，24h 后可失效；
 - 超过 20 MiB file / 21 MiB request 被拒绝；
 - per-user concurrent > 2 被限制；
 - process image decode slots 有界；
@@ -890,7 +907,7 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - JPEG/PNG/GIF/WebP 正常；
 - 同 bytes 得到相同 canonical key；
 - sourceUrl/query/token 不持久化、不出日志；
-- data/blob/temp URL 不进入 Entry；
+- data/blob/staging URL 不进入最终 Entry；
 - historical external image URL 仍能读；
 - 新上传图片在 Entry 发布成功时 canonical local URL 已可读取；
 - R2 尚未完成时页面仍正常。
