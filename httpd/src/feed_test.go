@@ -257,10 +257,27 @@ func TestPrepareFeedEntryPermalinkHidesThumbnailMediaBox(t *testing.T) {
 	permalink := newEntry()
 	prepareFeedEntry(permalink, nil, nil, false)
 	if permalink.Thumbnails != nil {
-		t.Fatal("permalink must not render the thumbnail media box")
+		t.Fatal("permalink must not render thumbnails already inline in the body")
 	}
 	if !strings.Contains(permalink.Body, "<img") {
 		t.Fatalf("permalink keeps the full body, got %q", permalink.Body)
+	}
+
+	// Legacy entries keep their images in thumbnails alone; the body has no
+	// inline image, so the media box must stay.
+	legacy := newEntry()
+	legacy.Body = `<p>archived text without images</p>`
+	prepareFeedEntry(legacy, nil, nil, false)
+	if len(legacy.Thumbnails) != 1 {
+		t.Fatalf("permalink keeps thumbnails not present in the body, got %v", legacy.Thumbnails)
+	}
+
+	// A mixed entry keeps only the thumbnails missing from the body.
+	mixed := newEntry()
+	mixed.Thumbnails = append(mixed.Thumbnails, &pb.Thumbnail{Url: "https://media.example/other.jpg"})
+	prepareFeedEntry(mixed, nil, nil, false)
+	if len(mixed.Thumbnails) != 1 || mixed.Thumbnails[0].Url != "https://media.example/other.jpg" {
+		t.Fatalf("permalink keeps only the non-inline thumbnail, got %v", mixed.Thumbnails)
 	}
 
 	list := newEntry()

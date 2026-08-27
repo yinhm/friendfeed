@@ -80,10 +80,35 @@ func prepareFeedEntry(entry *pb.Entry, profile *pb.Profile, graph *pb.Graph, for
 		entry.Body = collapseThumbnailImages(entry.Body, entry.Thumbnails)
 	} else {
 		// The permalink page renders the full body, which may carry deliberate
-		// layout; the thumbnail media box would only duplicate inline images.
-		entry.Thumbnails = nil
+		// layout. Thumbnails already inline in the body would only duplicate,
+		// but legacy entries (RSS/archive imports) keep their images in
+		// thumbnails alone, so only the redundant ones are dropped.
+		entry.Thumbnails = thumbnailsNotInBody(entry.Body, entry.Thumbnails)
 	}
 	entry.RebuildCommentsCommand(profile, graph)
+}
+
+// thumbnailsNotInBody keeps the thumbnails the body does not already render
+// inline, matched by exact canonical URL.
+func thumbnailsNotInBody(body string, thumbnails []*pb.Thumbnail) []*pb.Thumbnail {
+	if !strings.Contains(body, "<img") && !strings.Contains(body, "<a") {
+		return thumbnails
+	}
+	kept := thumbnails[:0]
+	for _, thumbnail := range thumbnails {
+		if thumbnail == nil {
+			continue
+		}
+		inline := thumbnail.Url != "" && strings.Contains(body, thumbnail.Url)
+		inline = inline || thumbnail.Link != "" && strings.Contains(body, thumbnail.Link)
+		if !inline {
+			kept = append(kept, thumbnail)
+		}
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
 }
 
 // collapseThumbnailImages removes body images that the entry thumbnails
