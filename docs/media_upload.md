@@ -865,6 +865,7 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 
 7. **R2 task**
    - 保持现有 `PostEntry(Entry)` RPC；
+   - 先补 sanitizer 回归测试，锁定 canonical `<img src>` 在最终 `Entry.body` 中保留；
    - ffdb 从最终 `Entry.files` + `Entry.body img[src]` 提取本站 canonical refs；
    - idempotent `media.mirror_r2`；
    - local -> R2；
@@ -909,6 +910,8 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
 - sourceUrl/query/token 不持久化、不出日志；
 - data/blob/staging URL 不进入最终 Entry；
 - historical external image URL 仍能读；
+- `DefaultSanitize` 对允许的 canonical `<img src>` 有明确回归测试；
+- ffdb media-ref extractor 只识别 `media_url/u/i/`，不会把外部图片或 staging URL enqueue 到 R2；
 - 新上传图片在 Entry 发布成功时 canonical local URL 已可读取；
 - R2 尚未完成时页面仍正常。
 
