@@ -46,7 +46,7 @@
         {% if entry.Files %}
           <div class="entry-files">
             {% for file in entry.Files %}
-              <a class="entry-file" href="{{ file.Url|escape }}">
+              <a class="entry-file" href="{{ file.Url|escape }}" download="{{ file.Name|escape }}">
                 <span class="entry-file-icon" aria-hidden="true"></span>
                 <span class="entry-file-name">{{ file.Name|escape }}</span>
                 {% if file.Size %}<span class="entry-file-size">{{ file.Size }} bytes</span>{% endif %}

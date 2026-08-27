@@ -122,7 +122,7 @@ func (s *Server) UploadFileHandler(c *gin.Context) {
 		return
 	}
 	info, err := media.InspectAttachment(file.Filename, content)
-	if err != nil || strings.HasPrefix(info.MimeType, "image/") {
+	if err != nil || info.MimeType == "image/jpeg" || info.MimeType == "image/png" || info.MimeType == "image/gif" || info.MimeType == "image/webp" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported or invalid attachment"})
 		return
 	}

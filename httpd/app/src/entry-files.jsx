@@ -18,7 +18,7 @@ export function EntryFiles({ files }) {
   return (
     <div className="entry-files" aria-label="Attachments">
       {files.map((file, index) => (
-        <a className="entry-file" href={file.url} key={`${file.url}-${index}`}>
+        <a className="entry-file" href={file.url} download={file.name} key={`${file.url}-${index}`}>
           <span className="entry-file-icon" aria-hidden="true" />
           <span>{file.name}</span>
           {file.size ? <span className="entry-file-size">{formatFileSize(file.size)}</span> : null}

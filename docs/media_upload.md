@@ -8,33 +8,24 @@ LocalStorage；R2 是异步副本，不进入用户发布成功的同步关键�
 即可访问对应对象。private Feed/Group 的媒体不额外鉴权；这一选择已记录到 `docs/open_decisions.md`，
 未来如需 signed URL 或 Entry-aware download route 再单独设计。
 
-## 现状
+## 实现状态
 
 仓库同时存在三种媒体表达：
 
 | 表达 | 权威位置 | 当前用途 | 运行时状态 |
 | --- | --- | --- | --- |
-| Plate `img` 节点 | `Entry.rawBody`，并序列化进 `Entry.body` | 用户正文内联图片 | 可读取、可编辑，但没有插入/上传入口 |
-| `Entry.thumbnails` | Entry protobuf | RSS/Twitter/Archive 等来源附带的预览图 | 可镜像、可渲染；不作为用户上传格式 |
-| `Entry.files` | Entry protobuf | FriendFeed 历史文件附件 | 迁移和镜像仍保留；Web 页面没有上传或展示入口 |
+| Plate `img` 节点 | `Entry.rawBody`，并序列化进 `Entry.body` | 用户正文内联图片 | 支持选择、剪贴板 binary/data/blob 和 remote HTML 图片上传 |
+| `Entry.thumbnails` | Entry protobuf | 来源预览图及用户正文图片 original/thumbnail 结构化引用 | 可渲染、可重建 R2 mirror task |
+| `Entry.files` | Entry protobuf | 历史及新上传文件附件 | 支持上传、编辑保留/删除与 Web/SSR 展示 |
 
-`POST /a/upload` 是旧 Plate 图片上传的残留后端。当前 handler：
+当前 `POST /a/upload`：
 
 1. 登录后接收单个 multipart `file`；
-2. 使用 20 MiB request 上限并把文件完整读入内存；
-3. 先写本地 `media_path`，再尝试按图片解码/生成缩略图；
-4. 返回同站 `/file/<path>`；
-5. 不修改 Entry。
-
-现状缺口：
-
-- 信任 multipart Content-Type，没有以实际字节 + decode 结果确定类型；
-- 非图片可能先落盘再因为 thumbnail 失败留下对象；
-- 没有像素上限；
-- ffweb 直接写 canonical LocalStorage，取消编辑会形成长期 orphan；
-- 用户上传路径和 archive/RSS mirror 的职责混在一起；
-- thumbnail 写最终路径的方式不适合作为新的上传 primitive；
-- `Entry.files` 没有新的 Web upload/bind/render 流程。
+2. `file` / `sourceUrl` 二选一，按字节识别并 decode 图片；
+3. 执行 20 MiB、16,384 单边、50MP 和并发限制；
+4. 原图与 thumbnail 只进入 `upload-staging/`，返回 actor-bound 24h HMAC token；
+5. `/a/share` 仅 promote 最终仍被引用的 asset，重写 Plate URL 并构造 `Entry.thumbnails/files`；
+6. ffdb 按 Entry 新增的结构化引用异步执行 `media.mirror_r2`。
 
 ---
 
@@ -658,6 +649,10 @@ remote sourceUrl -----┘
 
 图片不进入 `Entry.files[]`。JPEG/PNG/GIF/WebP 必须走图片上传并进入 `Entry.thumbnails[]`。
 
+### 图片
+
+JPEG、PNG、GIF、WebP 不进入 `Entry.files[]`，必须走图片上传；SVG 作为主动内容只允许作为强制下载附件。
+
 ### 文档与文本
 
 - PDF；
@@ -665,25 +660,34 @@ remote sourceUrl -----┘
 - Markdown；
 - CSV；
 - JSON；
-- HTML。
+- HTML、XML、RTF。
 
 ### Office
 
 - DOC；
 - DOCX；
 - XLS；
-- XLSX。
+- XLSX；
+- PPT、PPTX；
+- ODT、ODS、ODP。
 
 ### 归档
 
-- ZIP。
+- ZIP、7z、RAR、TAR、GZip、BZip2、XZ。
 
 ### 音频
 
-- MP3。
+- MP3、M4A、AAC、Ogg、Opus、FLAC、WAV、WMA。
 
-其他格式默认拒绝，包括 SVG、XML、RTF、PPT/PPTX、OpenDocument、7z/RAR、视频、可执行程序、
-安装包、磁盘镜像、字体等。以后按真实需求逐项增加并补类型检测测试。
+### 视频
+
+- MP4、M4V、WebM、MOV、Ogg Video、MPEG、MKV、AVI、WMV、3GP。
+
+### 电子书
+
+- EPUB、MOBI、AZW。
+
+其他格式默认拒绝，包括可执行程序、脚本、安装包、磁盘镜像、字体和无法可靠识别的容器。
 
 HTML 即使允许上传，也只作为附件下载，不作为正文 HTML 执行。
 

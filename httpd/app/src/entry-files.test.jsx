@@ -9,6 +9,7 @@ test('renders attachment names, sizes, and application download URLs', () => {
   }]} />);
   const link = screen.getByRole('link', {name: /report\.pdf/});
   expect(link).toHaveAttribute('href', '/e/entry/files/digest/report.pdf');
+  expect(link).toHaveAttribute('download', 'report.pdf');
   expect(link).toHaveTextContent('1.5 KB');
 });
 

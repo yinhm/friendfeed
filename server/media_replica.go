@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/yinhm/friendfeed/media"
@@ -55,7 +57,7 @@ func collectCanonicalMediaRefs(entry *pb.Entry, mediaBaseURL string) map[string]
 		}
 		for _, raw := range []string{thumbnail.Url, thumbnail.Link} {
 			if key, ok := media.CanonicalKeyFromURL(mediaBaseURL, raw); ok {
-				refs[key] = "image/*"
+				refs[key] = canonicalImageMime(key)
 			}
 		}
 	}
@@ -67,6 +69,21 @@ func collectCanonicalMediaRefs(entry *pb.Entry, mediaBaseURL string) map[string]
 		}
 	}
 	return refs
+}
+
+func canonicalImageMime(key string) string {
+	switch strings.ToLower(filepath.Ext(key)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 func (s *ApiServer) enqueueAddedMediaRefs(ctx context.Context, oldEntry, newEntry *pb.Entry) error {
