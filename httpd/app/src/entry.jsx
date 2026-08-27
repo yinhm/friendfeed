@@ -1,6 +1,6 @@
 // @ts-check
 
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import { EntryContent } from './content'
 import {EntryLike} from './entry-like';
 import {EntryFiles} from './entry-files';
@@ -415,40 +415,60 @@ function EntryAuthor(props) {
   );
 }
 
-/** @param {{thumb: Thumbnail}} props */
+/** @param {{thumb: Thumbnail, onEnlarge: (thumb: Thumbnail) => void}} props */
 function EntryMedia(props) {
   var thumb = props.thumb;
-  if (thumb.width && thumb.height) {
-    var attrs = {
-      width: thumb.width+"px",
-      height: thumb.height+"px"
-    }
-    return (
-      <a href={thumb.link} aria-label="Open media">
-        <img src={thumb.url} style={attrs} alt="" />
-      </a>
-    );
-  } else {
-    return (
-      <a href={thumb.link} aria-label="Open media">
-        <img src={thumb.url} alt="" />
-      </a>
-    );
-  }
+  /** @param {React.SyntheticEvent} event */
+  var enlarge = (event) => {
+    event.preventDefault();
+    props.onEnlarge(thumb);
+  };
+  return (
+    <a href={thumb.link} aria-label="Open media" onClick={enlarge}>
+      <img src={thumb.url} width={thumb.width} height={thumb.height} alt="" />
+    </a>
+  );
+}
+
+/** @param {{thumb: Thumbnail, onClose: () => void}} props */
+function MediaLightbox(props) {
+  const {onClose} = props;
+  useEffect(() => {
+    /** @param {KeyboardEvent} event */
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+  return (
+    <div className="media-lightbox" role="dialog" aria-modal="true" aria-label="Enlarged media"
+         onClick={onClose}>
+      <img src={props.thumb.link} alt="" />
+    </div>
+  );
 }
 
 /** @param {{thumbs: Thumbnail[]}} props */
-function EntryMediaBox(props) {
+export function EntryMediaBox(props) {
+  const [enlarged, setEnlarged] = useState(/** @type {Thumbnail | null} */ (null));
   var medias = props.thumbs.map(function(thumb, index) {
     return (
-      <EntryMedia thumb={thumb} key={index} />
+      <EntryMedia thumb={thumb} key={index} onEnlarge={setEnlarged} />
     );
   });
 
   return (
-    <div className="media">
-      {medias}
-    </div>
+    <>
+      <div className="media">
+        {medias}
+      </div>
+      {enlarged && <MediaLightbox thumb={enlarged} onClose={() => setEnlarged(null)} />}
+    </>
   );
 }
 

@@ -38,7 +38,7 @@
           <div class="media">
             {% for thumbnail in entry.Thumbnails %}
               <a href="{{ thumbnail.Link|escape }}">
-                <img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} style="width:{{ thumbnail.Width }}px;height:{{ thumbnail.Height }}px"{% endif %} alt="" />
+                <img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} width="{{ thumbnail.Width }}" height="{{ thumbnail.Height }}"{% endif %} alt="" />
               </a>
             {% endfor %}
           </div>
