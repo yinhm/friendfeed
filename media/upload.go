@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -19,6 +20,10 @@ const (
 	MaxUploadFileBytes = 20 << 20
 	MaxImagePixels     = 50_000_000
 	MaxImageSide       = 16_384
+
+	// maxMimeMarkerBytes bounds the ODF "mimetype" marker inside a zip
+	// container. Real markers are a short ASCII MIME string.
+	maxMimeMarkerBytes = 256
 )
 
 type PreparedImage struct {
@@ -238,13 +243,15 @@ func zipMetadata(content []byte) (map[string]bool, string, error) {
 	mimeMarker := ""
 	for _, file := range r.File {
 		entries[file.Name] = true
-		if file.Name == "mimetype" && file.UncompressedSize64 <= 256 {
+		if file.Name == "mimetype" && file.UncompressedSize64 <= maxMimeMarkerBytes {
 			reader, openErr := file.Open()
 			if openErr != nil {
 				return nil, "", openErr
 			}
 			var marker bytes.Buffer
-			_, copyErr := marker.ReadFrom(reader)
+			// UncompressedSize64 is reported by the archive itself and cannot
+			// be trusted, so the actual decompression is bounded as well.
+			_, copyErr := marker.ReadFrom(io.LimitReader(reader, maxMimeMarkerBytes+1))
 			closeErr := reader.Close()
 			if copyErr != nil {
 				return nil, "", copyErr
@@ -252,7 +259,9 @@ func zipMetadata(content []byte) (map[string]bool, string, error) {
 			if closeErr != nil {
 				return nil, "", closeErr
 			}
-			mimeMarker = marker.String()
+			if marker.Len() <= maxMimeMarkerBytes {
+				mimeMarker = marker.String()
+			}
 		}
 	}
 	return entries, mimeMarker, nil

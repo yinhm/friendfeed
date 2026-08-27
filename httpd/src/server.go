@@ -38,8 +38,6 @@ type Server struct {
 	secretKey                 string
 	httpclient                *http.Client
 	cache                     *cache.Cache
-	media                     media.Storage
-	localMedia                *media.LocalStorage
 	staging                   *media.StagingStore
 	mediaBaseURL              string
 	uploadRequests            chan struct{}
@@ -64,7 +62,6 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 	}
 
 	cacheStore := cache.New(5*time.Minute, 10*time.Minute)
-	mfs := media.NewStorage(cfg, 1024)
 
 	s := &Server{
 		debug:           debug,
@@ -73,8 +70,6 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 		secretKey:       secretKey,
 		httpclient:      httpclient,
 		cache:           cacheStore,
-		media:           mfs,
-		localMedia:      media.NewLocalStorage(cfg, 1024),
 		staging:         media.NewStagingStore(cfg),
 		mediaBaseURL:    strings.TrimSuffix(media.PublicURL(cfg, ""), "/"),
 		uploadRequests:  make(chan struct{}, 8),

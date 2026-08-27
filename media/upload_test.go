@@ -76,3 +76,34 @@ func TestInspectAttachmentRecognizesOfficeContainer(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, info.MimeType, "wordprocessingml")
 }
+
+func TestZipMetadataIgnoresForgedMarkerSize(t *testing.T) {
+	var out bytes.Buffer
+	w := zip.NewWriter(&out)
+	part, err := w.Create("mimetype")
+	require.NoError(t, err)
+	_, err = part.Write(bytes.Repeat([]byte("a"), maxMimeMarkerBytes+100))
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	// Lie about the uncompressed size in both the local file header and the
+	// central directory. The declared size must neither relax the read bound
+	// nor let an oversized marker through; the archive is rejected.
+	forged := out.Bytes()
+	patched := 0
+	for i := 0; i+30 < len(forged); i++ {
+		switch binary.LittleEndian.Uint32(forged[i : i+4]) {
+		case 0x04034b50: // local file header
+			binary.LittleEndian.PutUint32(forged[i+22:i+26], 100)
+			patched++
+		case 0x02014b50: // central directory header
+			binary.LittleEndian.PutUint32(forged[i+24:i+28], 100)
+			patched++
+		}
+	}
+	require.Equal(t, 2, patched)
+
+	_, marker, err := zipMetadata(forged)
+	require.Error(t, err)
+	require.Empty(t, marker)
+}
