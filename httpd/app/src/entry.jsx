@@ -415,13 +415,13 @@ function EntryAuthor(props) {
   );
 }
 
-/** @param {{thumb: Thumbnail, onEnlarge: (thumb: Thumbnail) => void}} props */
+/** @param {{thumb: Thumbnail, onEnlarge: () => void}} props */
 function EntryMedia(props) {
   var thumb = props.thumb;
   /** @param {React.SyntheticEvent} event */
   var enlarge = (event) => {
     event.preventDefault();
-    props.onEnlarge(thumb);
+    props.onEnlarge();
   };
   return (
     <a href={thumb.link} aria-label="Open media" onClick={enlarge}>
@@ -430,13 +430,15 @@ function EntryMedia(props) {
   );
 }
 
-/** @param {{thumb: Thumbnail, onClose: () => void}} props */
+/** @param {{thumbs: Thumbnail[], index: number, onClose: () => void, onNavigate: (index: number) => void}} props */
 function MediaLightbox(props) {
-  const {onClose} = props;
+  const {thumbs, index, onClose, onNavigate} = props;
   useEffect(() => {
     /** @param {KeyboardEvent} event */
     const onKey = (event) => {
       if (event.key === 'Escape') onClose();
+      if (event.key === 'ArrowLeft') onNavigate((index - 1 + thumbs.length) % thumbs.length);
+      if (event.key === 'ArrowRight') onNavigate((index + 1) % thumbs.length);
     };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -444,30 +446,46 @@ function MediaLightbox(props) {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, [thumbs.length, index, onClose, onNavigate]);
+  const thumb = thumbs[index];
   return (
     <div className="media-lightbox" role="dialog" aria-modal="true" aria-label="Enlarged media"
          onClick={onClose}>
-      <img src={props.thumb.link} alt="" />
+      <img src={thumb.link} alt="" />
+      {thumbs.length > 1 && (
+        <>
+          <button type="button" className="media-lightbox-nav media-lightbox-prev" aria-label="Previous media"
+                  onClick={(event) => { event.stopPropagation(); onNavigate((index - 1 + thumbs.length) % thumbs.length); }}>
+            &lsaquo;
+          </button>
+          <button type="button" className="media-lightbox-nav media-lightbox-next" aria-label="Next media"
+                  onClick={(event) => { event.stopPropagation(); onNavigate((index + 1) % thumbs.length); }}>
+            &rsaquo;
+          </button>
+        </>
+      )}
     </div>
   );
 }
 
 /** @param {{thumbs: Thumbnail[]}} props */
 export function EntryMediaBox(props) {
-  const [enlarged, setEnlarged] = useState(/** @type {Thumbnail | null} */ (null));
+  const [enlarged, setEnlarged] = useState(/** @type {number | null} */ (null));
   var medias = props.thumbs.map(function(thumb, index) {
     return (
-      <EntryMedia thumb={thumb} key={index} onEnlarge={setEnlarged} />
+      <EntryMedia thumb={thumb} key={index} onEnlarge={() => setEnlarged(index)} />
     );
   });
 
   return (
     <>
-      <div className="media">
+      <div className="media" data-count={props.thumbs.length}>
         {medias}
       </div>
-      {enlarged && <MediaLightbox thumb={enlarged} onClose={() => setEnlarged(null)} />}
+      {enlarged !== null && (
+        <MediaLightbox thumbs={props.thumbs} index={enlarged}
+                       onClose={() => setEnlarged(null)} onNavigate={setEnlarged} />
+      )}
     </>
   );
 }

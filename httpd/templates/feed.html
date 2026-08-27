@@ -35,7 +35,7 @@
         </div>
         <div class="content">{{ entry.Body|safe }}</div>
         {% if entry.Thumbnails %}
-          <div class="media">
+          <div class="media" data-count="{{ entry.Thumbnails|length }}">
             {% for thumbnail in entry.Thumbnails %}
               <a href="{{ thumbnail.Link|escape }}">
                 <img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} width="{{ thumbnail.Width }}" height="{{ thumbnail.Height }}"{% endif %} alt="" />

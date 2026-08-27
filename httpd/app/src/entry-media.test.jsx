@@ -14,6 +14,7 @@ test('media box keeps intrinsic dimensions as attributes for proportional scalin
   expect(imgs).toHaveLength(2);
   expect(imgs[0]).toHaveAttribute('width', '1024');
   expect(imgs[0]).toHaveAttribute('height', '683');
+  expect(container.querySelector('.media')).toHaveAttribute('data-count', '2');
 });
 
 test('clicking a media image opens an in-page lightbox with the original', () => {
@@ -37,4 +38,37 @@ test('lightbox closes on click and on Escape', () => {
   fireEvent.click(screen.getAllByRole('link', {name: 'Open media'})[0]);
   fireEvent.keyDown(document, {key: 'Escape'});
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('lightbox navigates with arrow keys and buttons, wrapping around', () => {
+  render(<EntryMediaBox thumbs={thumbs} />);
+
+  fireEvent.click(screen.getAllByRole('link', {name: 'Open media'})[0]);
+  const dialog = screen.getByRole('dialog', {name: 'Enlarged media'});
+  expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o1.jpg');
+
+  fireEvent.keyDown(document, {key: 'ArrowRight'});
+  expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o2.jpg');
+
+  // Wraps past the last image back to the first.
+  fireEvent.keyDown(document, {key: 'ArrowRight'});
+  expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o1.jpg');
+
+  fireEvent.keyDown(document, {key: 'ArrowLeft'});
+  expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o2.jpg');
+
+  // Nav buttons navigate without closing the lightbox.
+  fireEvent.click(screen.getByRole('button', {name: 'Previous media'}));
+  expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o1.jpg');
+  fireEvent.click(screen.getByRole('button', {name: 'Next media'}));
+  expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o2.jpg');
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+});
+
+test('a single media image shows no navigation buttons', () => {
+  render(<EntryMediaBox thumbs={[thumbs[0]]} />);
+
+  fireEvent.click(screen.getByRole('link', {name: 'Open media'}));
+  expect(screen.getByRole('dialog', {name: 'Enlarged media'})).toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: 'Next media'})).not.toBeInTheDocument();
 });
