@@ -551,13 +551,18 @@ ffdb 只持久化这些 Entry 数据，不重新实现用户 upload/token protoc
 
 当前不做授权下载。
 
-建议新用户附件 URL 使用：
+新用户图片和附件的 canonical URL 都统一由 `media_url + canonical key` 形成：
 
 ~~~text
-/file/u/f/<sharded-sha256>.<ext>?name=<escaped-display-name>
+<media_url>/u/i/<sharded-sha256>.jpg
+<media_url>/u/f/<sharded-sha256>.xlsx
 ~~~
 
-或等价稳定 URL；实现可以保持 path/query 细节简单，但必须满足：
+生产环境 `media_url` 指向独立 media origin，由 nginx 直接从 `media_path` serve。开发环境可以把
+`media_url` 配到 ffweb 的 Gin local-media route，例如 `http://localhost:8080/file`；Gin 只是 dev fallback，
+不是 production serving path。
+
+实现必须满足：
 
 - URL 不含 staging ID/token；
 - URL 可由 canonical key 确定；
@@ -574,8 +579,20 @@ X-Content-Type-Options: nosniff
 
 display filename 可以从 `Entry.files.name` / URL 参数提供，但不能参与真实 filesystem object lookup。
 
-若直接通过 R2/media origin 暴露 file object，同样必须给 `u/f/` 对象设置 attachment/octet-stream 语义；
-不能因为文件扩展名是 `.html` 就作为页面 inline 执行。
+production nginx 对 `/u/f/` 必须按路径强制 attachment，而不是根据扩展名 inline：
+
+~~~nginx
+location ^~ /u/f/ {
+    add_header X-Content-Type-Options nosniff always;
+    default_type application/octet-stream;
+    # implementation must emit Content-Disposition: attachment
+    try_files $uri =404;
+}
+~~~
+
+开发环境 Gin local-media handler 对 `u/f/` 提供同样的 attachment/octet-stream/nosniff 语义，并对
+`upload-staging/` 返回 404。当前 production serving source 是 nginx + local `media_path`；R2 是异步
+replica/恢复副本，不要求浏览器在 V1 直接从 R2 object endpoint 下载。
 
 ---
 
@@ -650,9 +667,10 @@ message PostEntryRequest {
 - ffdb 只接受 canonical `u/i/`、`u/f/` key，且本地对象必须存在；
 - old/edit Entry 中已有、这次未新增的媒体不必重复传。
 
-现有 `PostEntry(Entry)` 可以保留兼容入口；实现时可新增 `PostEntryWithMedia(PostEntryRequest)`，
-或在一次明确的 protobuf contract migration 中把 browser mutation 切到 request envelope。两条入口都必须
-进入同一个内部 Entry mutation primitive，不能复制 authorization/persistence 逻辑。
+现有 `PostEntry(Entry)` 保留兼容入口。Browser/Web 新上传路径新增
+`PostEntryWithMedia(PostEntryRequest)`；两条 RPC 都进入同一个内部 Entry mutation primitive，不能复制
+authorization/persistence 逻辑。这样不需要为了媒体上传破坏 Archive/Twitter/旧调用方当前的
+`PostEntry(Entry)` wire contract。
 
 正确时序：
 
@@ -664,9 +682,30 @@ ffweb /a/share
        -> authorize / persist Entry
        -> if R2 enabled:
             stage media.mirror_r2 tasks in the same Pebble batch
-       -> commit
+       -> commit canonical Entry + direct indexes + mirror tasks
+       -> fanout/search/other existing post-commit work
   -> return success
 ~~~
+
+当前实现的 `model.PutEntryWithTimelineObserver()` 自己创建 Pebble batch，而
+`task.Queue.EnqueueWith()` 也自己创建 batch，因此实现这一契约时必须先把 canonical Entry/direct-index
+写入抽成可组合的 stage primitive，例如：
+
+~~~go
+func StagePutEntry(batch *pebble.Batch, db *store.Store, entry *pb.Entry, ...) (...) 
+~~~
+
+然后 ffdb 的 Web Entry mutation 使用：
+
+~~~text
+tasks.EnqueueWith(mediaTaskSpecs, func(batch) {
+    StagePutEntry(batch, ...)
+})
+~~~
+
+来提交 Entry/direct indexes 和 mirror tasks。现有无媒体的 `PostEntry` 仍可复用同一个 stage primitive，
+只是 task specs 为空时走普通 ApplyBatch。Home fanout、search index 等当前已经位于 canonical Entry batch
+之后的派生工作继续保持 post-commit，不因为本项塞进同一 Pebble batch。
 
 因此：
 
@@ -816,13 +855,13 @@ R2 不再是同步 upload response 的 `502/503` 来源，因为用户上传请�
    - failure/retry tests。
 
 8. **部署**
-   - production 由 nginx 直接 serve canonical `media_path`；
+   - production media 由 `nginx_media.conf` 类配置直接 serve canonical `media_path`，ffweb 不代理；
    - nginx 必须对 `/upload-staging/` 返回 404，不能落入通用 static location；
-   - dev/local 可由 Gin serve canonical `media_path`，但同样拒绝 `upload-staging/`；
+   - nginx `/u/i/` 按 server-derived extension 返回正确图片 MIME；
+   - nginx `/u/f/` 强制 attachment/octet-stream/nosniff；
+   - dev/local 允许由 Gin serve canonical `media_path`，但必须实现同样的 staging deny 与 file headers；
    - `media_url` 从 local canonical object 立即可读，不依赖 R2；
-   - nginx 对新 server-derived image extension 返回正确 MIME；
-   - file download 强制 octet-stream/attachment/nosniff；
-   - R2 mirror 后 key/header 一致。
+   - R2 mirror 后 key/content metadata 一致。
 
 ---
 
