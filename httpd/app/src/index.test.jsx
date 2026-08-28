@@ -4,7 +4,7 @@ import { act, waitFor } from '@testing-library/react';
 // there is no #search element; createRoot(null) threw, which marked the
 // entry module as errored and then broke lazy chunks importing it.
 function setAppData() {
-  window.appData = {
+  window.pageBootstrap = {version: 1, page: 'feed', data: {
     feed: {entries: []},
     show_header: false,
     show_paging: false,
@@ -14,17 +14,17 @@ function setAppData() {
     query: '',
     onpage: true,
     onpage_edit: false,
-  };
+  }};
 }
 
 test('entry module mounts only existing roots', async () => {
-  document.body.innerHTML = '<div id="root"></div>'; // no #search, like /e/* pages
+  document.body.innerHTML = '<div id="app-root"></div>'; // no #search, like /e/* pages
   setAppData();
 
   await act(async () => {
     await import('./index'); // must not throw despite missing #search
   });
   await waitFor(() => {
-    expect(document.querySelector('#root #feed')).toBeInTheDocument();
+    expect(document.querySelector('#app-root #feed')).toBeInTheDocument();
   });
 });

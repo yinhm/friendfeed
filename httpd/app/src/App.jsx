@@ -353,7 +353,8 @@ export function Feed(props) {
   );
 }
 
-export function App() {
+/** @param {{data?: AppData}} props */
+export function App({data}) {
   // NOT WORK??
   // componentDidMount() {
   //   console.log("app, componentDidMount")
@@ -366,7 +367,7 @@ export function App() {
   // }
 
   var url = window.location.pathname + window.location.search;
-  const appData = /** @type {Window & {appData: AppData}} */ (
+  const appData = data ?? /** @type {Window & {appData: AppData}} */ (
     /** @type {unknown} */ (window)
   ).appData;
   var feedData = appData.feed;

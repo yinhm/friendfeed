@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
@@ -22,7 +21,7 @@ func (s *Server) AccountProfileHandler(c *gin.Context) {
 	s.renderAccountPage(c, "profile", CurrentUserUuid(c))
 }
 
-// renderAccountPage serves the unified React account app (see account.html).
+// renderAccountPage serves the unified React account app through app_shell.html.
 // Both /account/profile and /account/import load the same bundle; tab tells
 // the app which panel to show first.
 func (s *Server) renderAccountPage(c *gin.Context, tab, targetUUID string) {
@@ -38,13 +37,12 @@ func (s *Server) renderAccountPage(c *gin.Context, tab, targetUUID string) {
 		return
 	}
 
-	// Hand the React app its data as JSON, mirroring the window.appData
-	// pattern in feed.html.
+	// Hand the React dispatcher a versioned bootstrap envelope.
 	serviceMap := make(map[string]*pb.FeedService, len(services.Services))
 	for _, service := range services.Services {
 		serviceMap[service.Id] = service
 	}
-	accountJSON, err := json.Marshal(gin.H{
+	accountJSON, err := marshalPageBootstrap("account", gin.H{
 		"tab":      tab,
 		"profile":  profile,
 		"services": serviceMap,
@@ -56,11 +54,11 @@ func (s *Server) renderAccountPage(c *gin.Context, tab, targetUUID string) {
 		return
 	}
 	data := pongo2.Context{
-		"title":       "Account",
-		"profile":     profile,
-		"accountData": string(accountJSON),
+		"title":         "Account",
+		"profile":       profile,
+		"pageBootstrap": string(accountJSON),
 	}
-	s.HTML(c, 200, "account.html", data)
+	s.HTML(c, 200, "app_shell.html", data)
 }
 
 // fetchAccountData loads the profile and the services graph in parallel,
@@ -202,7 +200,7 @@ func (s *Server) FeedImportPageHandler(c *gin.Context) {
 			serviceMap[service.Id] = service
 		}
 	}
-	encoded, err := json.Marshal(gin.H{
+	encoded, err := marshalPageBootstrap("feed-import", gin.H{
 		"services": serviceMap,
 		"states":   services.States,
 		"target":   feed.Uuid,
@@ -214,7 +212,7 @@ func (s *Server) FeedImportPageHandler(c *gin.Context) {
 	data := pongo2.Context{
 		"title":                "Import Services",
 		"feed":                 feed,
-		"feedImportData":       string(encoded),
+		"pageBootstrap":        string(encoded),
 		"feed_management_id":   feed.Id,
 		"feed_management_page": "import",
 		"manage_services_url":  "/feed/" + url.PathEscape(feed.Id) + "/import",

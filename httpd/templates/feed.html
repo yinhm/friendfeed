@@ -2,7 +2,7 @@
 
 {% block content %}
 
-<div id="root">
+<div id="app-root">
   {% if show_header %}
     <div class="header">
       <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
@@ -114,7 +114,7 @@
 
 {% block scripts %}
 <script>
-window.appData = {{appData|safe}};
+window.pageBootstrap = {{appData|safe}};
 </script>
 
 {% if dev %}

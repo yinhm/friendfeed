@@ -112,8 +112,9 @@ export function AccountApp(props) {
   );
 }
 
-export function AccountPage() {
-  const data = /** @type {Window & {accountData: AccountData}} */ (
+/** @param {{data?: AccountData}} props */
+export function AccountPage({data: providedData} = {}) {
+  const data = providedData ?? /** @type {Window & {accountData: AccountData}} */ (
     /** @type {unknown} */ (window)
   ).accountData;
   // First-time logins land here via AuthCallback's ?welcome=1 redirect.

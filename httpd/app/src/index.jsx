@@ -10,12 +10,29 @@ import { AccountPage } from './account';
 import { FeedImportPage } from './import';
 import { initNavigation } from './navigation';
 
-// Pages without the sidebar have no #search element, so guard every mount.
-const rootEl = document.getElementById("root");
+/** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
+
+function BootstrapError() {
+  return <div className="feed" role="alert">Unable to load this page.</div>;
+}
+
+/** @param {PageBootstrap} bootstrap */
+function PageDispatcher({page, data}) {
+  if (page === 'feed') return <App data={/** @type {import('./browser-types').FeedPageData} */ (data)} />;
+  if (page === 'account') return <AccountPage data={/** @type {NonNullable<Parameters<typeof AccountPage>[0]>['data']} */ (data)} />;
+  if (page === 'feed-import') return <FeedImportPage data={/** @type {NonNullable<Parameters<typeof FeedImportPage>[0]>['data']} */ (data)} />;
+  return <BootstrapError />;
+}
+
+const rootEl = document.getElementById("app-root");
 if (rootEl) {
+  const bootstrap = /** @type {Window & {pageBootstrap?: PageBootstrap}} */ (
+    /** @type {unknown} */ (window)
+  ).pageBootstrap;
+  const valid = bootstrap?.version === 1 && typeof bootstrap.page === 'string' && bootstrap.data != null;
   createRoot(rootEl).render(
     <React.StrictMode>
-      <App />
+      {valid ? <PageDispatcher {...bootstrap} /> : <BootstrapError />}
     </React.StrictMode>
   );
 }
@@ -25,24 +42,6 @@ if (searchEl) {
   createRoot(searchEl).render(
     <React.StrictMode>
       <Search />
-    </React.StrictMode>
-  );
-}
-
-const accountEl = document.getElementById("account-root");
-if (accountEl) {
-  createRoot(accountEl).render(
-    <React.StrictMode>
-      <AccountPage />
-    </React.StrictMode>
-  );
-}
-
-const feedImportEl = document.getElementById("feed-import-root");
-if (feedImportEl) {
-  createRoot(feedImportEl).render(
-    <React.StrictMode>
-      <FeedImportPage />
     </React.StrictMode>
   );
 }

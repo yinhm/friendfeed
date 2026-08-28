@@ -32,10 +32,14 @@ func TestFeedPageDataIsAnExplicitSafeBrowserContract(t *testing.T) {
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got["show_header"] != true {
-		t.Fatalf("show_header=%v", got["show_header"])
+	if got["version"] != float64(browserBootstrapVersion) || got["page"] != "feed" {
+		t.Fatalf("bootstrap=%v", got)
 	}
-	feed := got["feed"].(map[string]any)
+	data := got["data"].(map[string]any)
+	if data["show_header"] != true {
+		t.Fatalf("show_header=%v", data["show_header"])
+	}
+	feed := data["feed"].(map[string]any)
 	if feed["id"] != "alice" || feed["uuid"] != "feed-uuid" {
 		t.Fatalf("feed=%v", feed)
 	}

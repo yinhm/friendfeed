@@ -206,8 +206,9 @@ export function ImportPanel(props) {
   );
 }
 
-export function FeedImportPage() {
-  const data = /** @type {Window & {feedImportData: {
+/** @param {{data?: {services: Record<string, ServiceData>, states: Record<string, ServiceState>, target: string}}} props */
+export function FeedImportPage({data: providedData} = {}) {
+  const data = providedData ?? /** @type {Window & {feedImportData: {
    * services: Record<string, ServiceData>, states: Record<string, ServiceState>, target: string
    * }}} */ (/** @type {unknown} */ (window)).feedImportData;
   const [services, setServices] = useState(data.services ?? {});

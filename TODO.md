@@ -35,7 +35,7 @@ git diff --check
 
 - [x] 1. 锁定 Web route 与渲染基线
 - [x] 2. 定义 Browser bootstrap 与 Feed DTO
-- [ ] 3. 建立单一 React bootstrap dispatcher
+- [x] 3. 建立单一 React bootstrap dispatcher
 - [ ] 4. 将 Account/Profile 切到统一 app shell
 - [ ] 5. 将 Feed Import 切到统一 app shell
 - [ ] 6. 迁移 Notifications 页面

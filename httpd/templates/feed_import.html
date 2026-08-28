@@ -4,7 +4,7 @@
 <div class="feed">
   <h2 class="page-title">Import Services: {{ feed.Name|escape }}</h2>
   {% include "feed_management_nav.html" %}
-  <div id="feed-import-root">
+  <div id="app-root">
     <noscript>This page requires JavaScript.</noscript>
   </div>
 </div>
@@ -12,7 +12,7 @@
 
 {% block scripts %}
 <script>
-window.feedImportData = {{feedImportData|safe}};
+window.pageBootstrap = {{pageBootstrap|safe}};
 </script>
 
 {% if dev %}

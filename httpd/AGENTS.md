@@ -4,8 +4,8 @@
 
 ## 模板与渲染
 
-- 交互放在 React bundle，不新增内联行为脚本；`feed.html` 的 `window.appData` 引导脚本是现有例外。
-- 保留 SSR entry 首屏及 React mount 后替换 `#root` 的双渲染，改为纯 CSR 需单独决策。
+- 交互放在 React bundle；内联脚本只允许写入服务端生成的 `window.pageBootstrap` JSON。
+- 匿名 Public/公开 Feed/公开 Entry 保留 SSR；登录态页面逐步收敛到 `#app-root` 单一 React dispatcher。
 - `show_share` 默认 false，只在 Home 打开；Public、普通 Feed 和未登录首页不得展示或加载编辑器。
 
 ## 资源管线

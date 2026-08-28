@@ -184,5 +184,9 @@ func contextBool(c pongo2.Context, k string) bool     { v, _ := c[k].(bool); ret
 func contextString(c pongo2.Context, k string) string { v, _ := c[k].(string); return v }
 func contextInt32(c pongo2.Context, k string) int32   { v, _ := c[k].(int32); return v }
 func marshalFeedPageData(data pongo2.Context) ([]byte, error) {
-	return json.Marshal(feedPageDataFromContext(data))
+	return marshalPageBootstrap("feed", feedPageDataFromContext(data))
+}
+
+func marshalPageBootstrap(page string, data any) ([]byte, error) {
+	return json.Marshal(pageBootstrap{Version: browserBootstrapVersion, Page: page, Data: data})
 }

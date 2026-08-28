@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block content %}
-  <div id="root">
+  <div id="app-root">
     {{feed_body|safe}}
   </div>
 
@@ -9,7 +9,7 @@
 
 {% block scripts %}
 <script>
-window.appData = {{appData|safe}};
+window.pageBootstrap = {{appData|safe}};
 </script>
 
   {% if dev %}

@@ -1,18 +1,15 @@
 {% extends "layout.html" %}
 
 {% block content %}
-
-<div id="account-root">
+<div id="app-root">
   <noscript>This page requires JavaScript.</noscript>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-window.accountData = {{accountData|safe}};
+window.pageBootstrap = {{pageBootstrap|safe}};
 </script>
-
 {% if dev %}
   {% for filename in jsFiles %}
   <script type="module" src="/app/build/static/js/{{filename}}"></script>
