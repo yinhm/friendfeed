@@ -75,14 +75,15 @@ func (s *Server) UserGroupsPageHandler(c *gin.Context) {
 		return
 	}
 	prepareGroupPictures(groups)
-	s.HTML(c, http.StatusOK, "groups.html", pongo2.Context{
-		"title":       "My groups",
-		"heading":     "My groups",
-		"groups":      groups,
-		"show_create": true,
-		"group_page":  "mine",
-		"empty_text":  "You have not joined any groups yet.",
+	encoded, err := marshalPageBootstrap("groups", groupsPageData{
+		Heading: "My groups", Groups: groupFormViewsFromProto(groups), CurrentUserID: CurrentUserId(c),
+		Page: "mine", EmptyText: "You have not joined any groups yet.",
 	})
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Server error.")
+		return
+	}
+	s.HTML(c, http.StatusOK, "app_shell.html", pongo2.Context{"title": "My groups", "pageBootstrap": string(encoded)})
 }
 
 func (s *Server) GroupDiscoveryPageHandler(c *gin.Context) {
@@ -95,15 +96,15 @@ func (s *Server) GroupDiscoveryPageHandler(c *gin.Context) {
 		return
 	}
 	prepareGroupPictures(response.Groups)
-	s.HTML(c, http.StatusOK, "groups.html", pongo2.Context{
-		"title":       "Groups",
-		"heading":     "Groups",
-		"groups":      response.Groups,
-		"next_cursor": response.NextCursor,
-		"show_create": CurrentUserId(c) != "",
-		"group_page":  "discover",
-		"empty_text":  "No groups are available yet.",
+	encoded, err := marshalPageBootstrap("groups", groupsPageData{
+		Heading: "Groups", Groups: groupFormViewsFromProto(response.Groups), CurrentUserID: CurrentUserId(c),
+		Page: "discover", EmptyText: "No groups are available yet.", NextCursor: response.NextCursor,
 	})
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Server error.")
+		return
+	}
+	s.HTML(c, http.StatusOK, "app_shell.html", pongo2.Context{"title": "Groups", "pageBootstrap": string(encoded)})
 }
 
 // resolveGroupView maps a feed URL slug (profile ID) to its GroupView. Name

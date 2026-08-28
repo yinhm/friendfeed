@@ -83,8 +83,8 @@
 
 | Method/path | Handler | 身份 | 当前渲染 |
 | --- | --- | --- | --- |
-| `GET /groups` | `GroupDiscoveryPageHandler` | anonymous allowed | `groups.html` |
-| `GET /feed/:name/groups` | `UserGroupsPageHandler` | login + self-only | `groups.html` |
+| `GET /groups` | `GroupDiscoveryPageHandler` | anonymous allowed | `app_shell.html` + React `groups` |
+| `GET /feed/:name/groups` | `UserGroupsPageHandler` | login + self-only | `app_shell.html` + React `groups` |
 | `GET /feed/:name/import` | `FeedImportPageHandler` | owner/Group admin | `app_shell.html` + `#app-root` |
 | `GET /groups/create` | `GroupCreatePageHandler` | login | `app_shell.html` + React `group-create` |
 | `POST /groups/create` | `GroupCreateHandler` | login | create Group |

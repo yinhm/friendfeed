@@ -60,3 +60,7 @@ export type GroupMembersPageData = {
   members: Array<{profile: AccountPageData['profile']; is_admin: boolean}>;
   requests: RequestsPageData['requests']; has_more: boolean; can_manage: boolean; error?: string;
 };
+export type GroupsPageData = {
+  heading: string; groups: GroupCreatePageData['group'][]; current_user_id?: string;
+  page: 'discover' | 'mine'; empty_text: string; next_cursor?: string;
+};

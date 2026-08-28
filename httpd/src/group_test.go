@@ -141,6 +141,8 @@ func TestGroupDiscoveryPageIsPublicAndForwardsCursor(t *testing.T) {
 	}}
 	s := newGroupTestServer(client)
 	router := groupTestRouter(s)
+	capture := &captureNotificationRender{}
+	router.HTMLRender = capture
 	router.GET("/groups", s.GroupDiscoveryPageHandler)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/groups?cursor=current-page", nil))
@@ -152,6 +154,16 @@ func TestGroupDiscoveryPageIsPublicAndForwardsCursor(t *testing.T) {
 	}
 	if client.groupsCalls != 0 {
 		t.Fatalf("ListUserGroups called %d times", client.groupsCalls)
+	}
+	var bootstrap struct {
+		Page string         `json:"page"`
+		Data groupsPageData `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	if bootstrap.Page != "groups" || len(bootstrap.Data.Groups) != 1 || bootstrap.Data.CurrentUserID != "" || bootstrap.Data.NextCursor != "next-page" {
+		t.Fatalf("bootstrap = %+v", bootstrap)
 	}
 }
 

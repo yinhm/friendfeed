@@ -35,6 +35,25 @@ type groupMembersPageData struct {
 	Error     string              `json:"error,omitempty"`
 }
 
+type groupsPageData struct {
+	Heading       string          `json:"heading"`
+	Groups        []groupFormView `json:"groups"`
+	CurrentUserID string          `json:"current_user_id,omitempty"`
+	Page          string          `json:"page"`
+	EmptyText     string          `json:"empty_text"`
+	NextCursor    string          `json:"next_cursor,omitempty"`
+}
+
+func groupFormViewsFromProto(groups []*pb.Profile) []groupFormView {
+	views := make([]groupFormView, 0, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			views = append(views, groupFormViewFromProto(group))
+		}
+	}
+	return views
+}
+
 func groupMembersPageDataFromProto(group *pb.Profile, members []*pb.GroupMember, requests []*pb.FollowRequestItem, hasMore, canManage bool, errMsg string) groupMembersPageData {
 	data := groupMembersPageData{
 		Group: groupFormViewFromProto(group), Members: make([]groupMemberView, 0, len(members)),

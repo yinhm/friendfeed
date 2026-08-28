@@ -127,35 +127,3 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 		t.Fatal("anonymous render must not contain the Groups block")
 	}
 }
-
-func TestGroupsPageRendersCompleteList(t *testing.T) {
-	body := renderEmbeddedTemplate(t, "groups.html", pongo2.Context{
-		"title":        "My groups",
-		"heading":      "My groups",
-		"show_create":  true,
-		"empty_text":   "You have not joined any groups yet.",
-		"current_user": &pb.Profile{Uuid: "u", Id: "me"},
-		"groups": []*pb.Profile{
-			{Id: "alpha", Name: "Alpha", Description: "First", Picture: "https://example.com/a.png"},
-			// Handlers substitute the fixed fallback avatar for empty
-			// pictures before rendering; the template always renders one.
-			{Id: "secret", Name: "Secret", Private: true, Picture: "/static/images/ff-default.jpg"},
-		},
-	})
-	for _, want := range []string{
-		`<h2 class="page-title">My groups</h2>`,
-		`href="/feed/alpha"`,
-		`href="/feed/secret"`,
-		`href="/feed/secret" title="secret">Secret</a><span class="private-icon" role="img" aria-label="Private" title="Private"></span>`,
-		`href="/groups/create"`,
-		`<img class="avatar" src="https://example.com/a.png"`,
-		`<img class="avatar" src="/static/images/ff-default.jpg"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("groups.html missing %q", want)
-		}
-	}
-	if strings.Contains(body, `>private</span>`) || strings.Contains(body, `(private)`) {
-		t.Fatal("private Groups must use the lock icon instead of a text label")
-	}
-}
