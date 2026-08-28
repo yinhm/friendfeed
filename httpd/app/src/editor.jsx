@@ -28,6 +28,7 @@ import {
     uploadImage,
 } from './media-upload';
 import { formatFileSize } from './entry-files';
+import {FileUp, ImageUp} from 'lucide-react';
 
 /** @typedef {import('platejs').Value} Value */
 /** @typedef {import('platejs/react').PlateEditor} PlateEditor */
@@ -268,8 +269,8 @@ const OnPageEditor = (params) => {
                       </div>
                     )}
                     <div className="post upload-actions">
-                        <label className="inline-action">
-                          Add image
+                        <label className="inline-action upload-action" aria-label="Add image" title="Add image">
+                          <ImageUp size={18} aria-hidden="true" />
                           <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden
                                  onChange={event => {
                                    const files = Array.from(event.target.files ?? []);
@@ -277,8 +278,8 @@ const OnPageEditor = (params) => {
                                    event.target.value = '';
                                  }} />
                         </label>
-                        <label className="inline-action">
-                          Attach files
+                        <label className="inline-action upload-action" aria-label="Attach files" title="Attach files">
+                          <FileUp size={18} aria-hidden="true" />
                           <input type="file" multiple hidden
                                  onChange={event => {
                                    const files = Array.from(event.target.files ?? []);
