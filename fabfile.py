@@ -29,6 +29,7 @@ def production(_ctx):
     env.runner_group = env.runner_user
     env.deploy_root = "/srv"
     env.project_path = f"{env.deploy_root}/{env.project}"
+    env.media_path = f"{env.project_path}/files"
     env.go_path = "/srv/gopath"
     env.code_root = f"{env.go_path}/src/github.com/yinhm/friendfeed"
     env.httpcache_path = f"{env.project_path}/httpcache"
@@ -36,6 +37,7 @@ def production(_ctx):
     env.ffweb_bind = "127.0.0.1:8902"
     env.nginx_https = True
     env.nginx_server_name = "friendfeed.me"
+    env.nginx_media_server_name = "media.friendfeed.me"
     env.nginx_client_max_body_size = 200
 
     config = Config(overrides={"load_ssh_configs": True, "run": {"echo": True}})
@@ -226,16 +228,24 @@ def deploy_nginx(_ctx):
     """Deploy the HTTP nginx origin configuration."""
     conn = _conn()
     web_path = f"{env.project_path}/www"
+    nginx_cloudflare_conf_file = "/etc/nginx/conf.d/cloudflare.conf"
+    _upload_template(
+        "conf/nginx_cloudflare.conf",
+        nginx_cloudflare_conf_file,
+        _template_context(www_public_path=web_path),
+    )
+
     nginx_conf_file = "/etc/nginx/sites-enabled/friendfeed.conf"
     _upload_template(
         "conf/nginx_http.conf",
         nginx_conf_file,
         _template_context(www_public_path=web_path),
     )
-    nginx_cloudflare_conf_file = "/etc/nginx/conf.d/cloudflare.conf"
+
+    nginx_media_conf_file = "/etc/nginx/sites-enabled/friendfeed-media.conf"
     _upload_template(
-        "conf/nginx_cloudflare.conf",
-        nginx_cloudflare_conf_file,
+        "conf/nginx_media.conf",
+        nginx_media_conf_file,
         _template_context(www_public_path=web_path),
     )
 
