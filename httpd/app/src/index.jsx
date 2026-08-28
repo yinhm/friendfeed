@@ -11,6 +11,7 @@ import { FeedImportPage } from './import';
 import { NotificationsPage } from './notifications';
 import { RequestsPage } from './requests';
 import { GroupCreatePage } from './group-create';
+import { GroupSettingsPage } from './group-settings';
 import { initNavigation } from './navigation';
 
 /** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
@@ -27,6 +28,7 @@ function PageDispatcher({page, data}) {
   if (page === 'notifications') return <NotificationsPage data={/** @type {import('./browser-types').NotificationsPageData} */ (data)} />;
   if (page === 'requests') return <RequestsPage data={/** @type {import('./browser-types').RequestsPageData} */ (data)} />;
   if (page === 'group-create') return <GroupCreatePage data={/** @type {import('./browser-types').GroupCreatePageData} */ (data)} />;
+  if (page === 'group-settings') return <GroupSettingsPage data={/** @type {import('./browser-types').GroupSettingsPageData} */ (data)} />;
   return <BootstrapError />;
 }
 

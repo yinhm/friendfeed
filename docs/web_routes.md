@@ -88,7 +88,7 @@
 | `GET /feed/:name/import` | `FeedImportPageHandler` | owner/Group admin | `app_shell.html` + `#app-root` |
 | `GET /groups/create` | `GroupCreatePageHandler` | login | `app_shell.html` + React `group-create` |
 | `POST /groups/create` | `GroupCreateHandler` | login | create Group |
-| `GET /groups/:name/settings` | `GroupSettingsPageHandler` | Group admin | `group_settings.html` |
+| `GET /groups/:name/settings` | `GroupSettingsPageHandler` | Group admin | `app_shell.html` + React `group-settings` |
 | `POST /groups/:name/settings` | `GroupSettingsHandler` | Group admin | update Group |
 | `GET /groups/:name/members` | `GroupMembersPageHandler` | Group admin | `group_members.html` |
 | `POST /groups/:name/members/action` | `GroupMemberActionHandler` | Group admin | membership/admin mutation |

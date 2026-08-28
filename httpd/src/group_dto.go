@@ -16,6 +16,11 @@ type groupCreatePageData struct {
 	Error         string        `json:"error,omitempty"`
 }
 
+type groupSettingsPageData struct {
+	Group groupFormView `json:"group"`
+	Error string        `json:"error,omitempty"`
+}
+
 func groupFormViewFromProto(group *pb.Profile) groupFormView {
 	if group == nil {
 		return groupFormView{}

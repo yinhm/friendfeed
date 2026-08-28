@@ -576,6 +576,8 @@ func TestGroupSettingsPageAllowsSuper(t *testing.T) {
 	}
 	s := newGroupTestServer(client)
 	router := groupTestRouter(s)
+	capture := &captureNotificationRender{}
+	router.HTMLRender = capture
 	router.GET("/groups/:name/settings", s.GroupSettingsPageHandler)
 	login := groupLoginCookie(t, router)
 
@@ -586,6 +588,16 @@ func TestGroupSettingsPageAllowsSuper(t *testing.T) {
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", recorder.Code)
+	}
+	var bootstrap struct {
+		Page string                `json:"page"`
+		Data groupSettingsPageData `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	if bootstrap.Page != "group-settings" || bootstrap.Data.Group.ID != "book-club" {
+		t.Fatalf("bootstrap = %+v", bootstrap)
 	}
 }
 

@@ -162,19 +162,14 @@ func (s *Server) requireGroupManage(c *gin.Context, name string) *pb.GroupView {
 }
 
 func (s *Server) renderGroupSettings(c *gin.Context, view *pb.GroupView, errMsg string) {
-	s.HTML(c, 200, "group_settings.html", pongo2.Context{
-		"title":                "Group settings",
-		"group":                view.Group,
-		"error":                errMsg,
-		"form_action":          "/groups/" + url.PathEscape(view.Group.Id) + "/settings",
-		"submit_label":         "Save",
-		"cancel_url":           "/feed/" + url.PathEscape(view.Group.Id),
-		"feed_management_id":   view.Group.Id,
-		"feed_management_page": "settings",
-		"group_settings_url":   "/groups/" + url.PathEscape(view.Group.Id) + "/settings",
-		"group_members_url":    "/groups/" + url.PathEscape(view.Group.Id) + "/members",
-		"manage_services_url":  "/feed/" + url.PathEscape(view.Group.Id) + "/import",
+	encoded, err := marshalPageBootstrap("group-settings", groupSettingsPageData{
+		Group: groupFormViewFromProto(view.Group), Error: errMsg,
 	})
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Server error.")
+		return
+	}
+	s.HTML(c, http.StatusOK, "app_shell.html", pongo2.Context{"title": "Group settings", "pageBootstrap": string(encoded)})
 }
 
 func (s *Server) GroupSettingsPageHandler(c *gin.Context) {

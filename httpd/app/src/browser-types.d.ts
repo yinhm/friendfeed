@@ -52,3 +52,6 @@ export type GroupCreatePageData = {
   group: {id: string; name: string; description?: string; picture?: string; private?: boolean};
   current_user_id: string; error?: string;
 };
+export type GroupSettingsPageData = {
+  group: GroupCreatePageData['group']; error?: string;
+};

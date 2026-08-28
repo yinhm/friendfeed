@@ -39,38 +39,6 @@ func TestGroupTemplatesCompileAndRender(t *testing.T) {
 	}
 	currentUser := &pb.Profile{Uuid: "11111111-1111-1111-1111-111111111111", Id: "me"}
 
-	settings := renderEmbeddedTemplate(t, "group_settings.html", pongo2.Context{
-		"title":                "Group settings",
-		"group":                group,
-		"error":                "boom",
-		"form_action":          "/groups/book-club/settings",
-		"submit_label":         "Save",
-		"cancel_url":           "/feed/book-club",
-		"feed_management_id":   "book-club",
-		"feed_management_page": "settings",
-		"group_settings_url":   "/groups/book-club/settings",
-		"group_members_url":    "/groups/book-club/members",
-		"manage_services_url":  "/feed/book-club/import",
-		"current_user":         currentUser,
-	})
-	for _, want := range []string{
-		`action="/groups/book-club/settings"`,
-		`action="/groups/book-club/delete"`,
-		`href="/groups/book-club/members"`,
-		`value="Book Club"`,
-		`class="error-banner" role="alert">boom`,
-		`class="legacy-button danger"`,
-		`popovertarget="delete-group-confirmation"`,
-		`>Confirm delete</button>`,
-	} {
-		if !strings.Contains(settings, want) {
-			t.Fatalf("group_settings.html missing %q", want)
-		}
-	}
-	if strings.Contains(settings, "return confirm(") || strings.Contains(settings, "<style>") {
-		t.Fatal("group_settings.html must not carry inline scripts or styles")
-	}
-
 	members := renderEmbeddedTemplate(t, "group_members.html", pongo2.Context{
 		"title": "Group members",
 		"group": group,

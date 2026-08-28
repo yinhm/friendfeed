@@ -41,7 +41,7 @@ git diff --check
 - [x] 6. 迁移 Notifications 页面
 - [x] 7. 迁移 Follow Requests 页面
 - [x] 8a. 迁移 Group Create
-- [ ] 8b. 迁移 Group Settings
+- [x] 8b. 迁移 Group Settings
 - [ ] 8c. 迁移 Group Members
 - [ ] 9. 迁移 Group discovery 与 User Groups 列表
 - [ ] 10. 收敛 Feed interactive UI
