@@ -29,66 +29,6 @@ func renderEmbeddedTemplate(t *testing.T, name string, ctx pongo2.Context) strin
 	return response.Body.String()
 }
 
-func TestGroupTemplatesCompileAndRender(t *testing.T) {
-	group := &pb.Profile{
-		Uuid:        "22222222-2222-2222-2222-222222222222",
-		Id:          "book-club",
-		Name:        "Book Club",
-		Description: "reading",
-		Picture:     "https://example.com/p.png",
-	}
-	currentUser := &pb.Profile{Uuid: "11111111-1111-1111-1111-111111111111", Id: "me"}
-
-	members := renderEmbeddedTemplate(t, "group_members.html", pongo2.Context{
-		"title": "Group members",
-		"group": group,
-		"members": []*pb.GroupMember{
-			{Profile: &pb.Profile{Uuid: "u1", Id: "alice", Name: "Alice"}, IsAdmin: true},
-			{Profile: &pb.Profile{Uuid: "u2", Id: "bob", Name: "Bob"}},
-		},
-		"has_more":             true,
-		"can_manage":           true,
-		"feed_management_id":   "book-club",
-		"feed_management_page": "members",
-		"group_settings_url":   "/groups/book-club/settings",
-		"group_members_url":    "/groups/book-club/members",
-		"manage_services_url":  "/feed/book-club/import",
-		"current_user":         currentUser,
-	})
-	for _, want := range []string{
-		`action="/groups/book-club/members/action"`,
-		`value="demote"`,
-		`value="promote"`,
-		`value="remove"`,
-		"more members",
-		`href="/groups/book-club/settings"`,
-	} {
-		if !strings.Contains(members, want) {
-			t.Fatalf("group_members.html missing %q", want)
-		}
-	}
-
-	// Members page for a plain logged-in user hides management controls.
-	plain := renderEmbeddedTemplate(t, "group_members.html", pongo2.Context{
-		"title":                "Group members",
-		"group":                group,
-		"members":              []*pb.GroupMember{{Profile: &pb.Profile{Uuid: "u1", Id: "alice", Name: "Alice"}}},
-		"feed_management_id":   "book-club",
-		"feed_management_page": "members",
-		"group_members_url":    "/groups/book-club/members",
-		"current_user":         currentUser,
-	})
-	if strings.Contains(plain, "members/action") {
-		t.Fatal("plain member must not see management forms")
-	}
-	if strings.Contains(plain, ">Settings</a>") || strings.Contains(plain, ">Import Services</a>") {
-		t.Fatal("plain member must not see admin navigation")
-	}
-	if !strings.Contains(plain, `aria-current="page" class="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary">Members</a>`) {
-		t.Fatal("members navigation must remain available and selected")
-	}
-}
-
 func TestFeedArchiveSidebarRendersOnlyWhenSnapshotExists(t *testing.T) {
 	currentUser := &pb.Profile{Uuid: "11111111-1111-1111-1111-111111111111", Id: "me"}
 	feed := &pb.Feed{Uuid: "22222222-2222-2222-2222-222222222222", Id: "archive", Name: "Archive"}

@@ -55,3 +55,8 @@ export type GroupCreatePageData = {
 export type GroupSettingsPageData = {
   group: GroupCreatePageData['group']; error?: string;
 };
+export type GroupMembersPageData = {
+  group: GroupCreatePageData['group'];
+  members: Array<{profile: AccountPageData['profile']; is_admin: boolean}>;
+  requests: RequestsPageData['requests']; has_more: boolean; can_manage: boolean; error?: string;
+};

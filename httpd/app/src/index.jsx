@@ -12,6 +12,7 @@ import { NotificationsPage } from './notifications';
 import { RequestsPage } from './requests';
 import { GroupCreatePage } from './group-create';
 import { GroupSettingsPage } from './group-settings';
+import { GroupMembersPage } from './group-members';
 import { initNavigation } from './navigation';
 
 /** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
@@ -29,6 +30,7 @@ function PageDispatcher({page, data}) {
   if (page === 'requests') return <RequestsPage data={/** @type {import('./browser-types').RequestsPageData} */ (data)} />;
   if (page === 'group-create') return <GroupCreatePage data={/** @type {import('./browser-types').GroupCreatePageData} */ (data)} />;
   if (page === 'group-settings') return <GroupSettingsPage data={/** @type {import('./browser-types').GroupSettingsPageData} */ (data)} />;
+  if (page === 'group-members') return <GroupMembersPage data={/** @type {import('./browser-types').GroupMembersPageData} */ (data)} />;
   return <BootstrapError />;
 }
 

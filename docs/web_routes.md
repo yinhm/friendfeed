@@ -90,7 +90,7 @@
 | `POST /groups/create` | `GroupCreateHandler` | login | create Group |
 | `GET /groups/:name/settings` | `GroupSettingsPageHandler` | Group admin | `app_shell.html` + React `group-settings` |
 | `POST /groups/:name/settings` | `GroupSettingsHandler` | Group admin | update Group |
-| `GET /groups/:name/members` | `GroupMembersPageHandler` | Group admin | `group_members.html` |
+| `GET /groups/:name/members` | `GroupMembersPageHandler` | Group admin | `app_shell.html` + React `group-members` |
 | `POST /groups/:name/members/action` | `GroupMemberActionHandler` | Group admin | membership/admin mutation |
 | `POST /groups/:name/delete` | `GroupDeleteHandler` | Group admin | destructive mutation |
 

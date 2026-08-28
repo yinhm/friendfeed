@@ -263,23 +263,14 @@ func (s *Server) renderGroupMembers(c *gin.Context, view *pb.GroupView, errMsg s
 		}
 		requests = reqResp.Requests
 	}
-	data := pongo2.Context{
-		"title":                "Group members",
-		"group":                view.Group,
-		"members":              resp.Members,
-		"requests":             requests,
-		"has_more":             resp.NextCursor != "",
-		"can_manage":           manage,
-		"error":                errMsg,
-		"feed_management_id":   view.Group.Id,
-		"feed_management_page": "members",
-		"group_members_url":    "/groups/" + url.PathEscape(view.Group.Id) + "/members",
+	encoded, err := marshalPageBootstrap("group-members", groupMembersPageDataFromProto(
+		view.Group, resp.Members, requests, resp.NextCursor != "", manage, errMsg,
+	))
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Server error.")
+		return
 	}
-	if manage {
-		data["group_settings_url"] = "/groups/" + url.PathEscape(view.Group.Id) + "/settings"
-		data["manage_services_url"] = "/feed/" + url.PathEscape(view.Group.Id) + "/import"
-	}
-	s.HTML(c, 200, "group_members.html", data)
+	s.HTML(c, http.StatusOK, "app_shell.html", pongo2.Context{"title": "Group members", "pageBootstrap": string(encoded)})
 }
 
 // GroupMembersPageHandler lists the Group's members. Any logged-in user may

@@ -21,6 +21,38 @@ type groupSettingsPageData struct {
 	Error string        `json:"error,omitempty"`
 }
 
+type groupMemberView struct {
+	Profile profileView `json:"profile"`
+	IsAdmin bool        `json:"is_admin"`
+}
+
+type groupMembersPageData struct {
+	Group     groupFormView       `json:"group"`
+	Members   []groupMemberView   `json:"members"`
+	Requests  []followRequestView `json:"requests"`
+	HasMore   bool                `json:"has_more"`
+	CanManage bool                `json:"can_manage"`
+	Error     string              `json:"error,omitempty"`
+}
+
+func groupMembersPageDataFromProto(group *pb.Profile, members []*pb.GroupMember, requests []*pb.FollowRequestItem, hasMore, canManage bool, errMsg string) groupMembersPageData {
+	data := groupMembersPageData{
+		Group: groupFormViewFromProto(group), Members: make([]groupMemberView, 0, len(members)),
+		Requests: make([]followRequestView, 0, len(requests)), HasMore: hasMore, CanManage: canManage, Error: errMsg,
+	}
+	for _, member := range members {
+		if member != nil && member.Profile != nil {
+			data.Members = append(data.Members, groupMemberView{Profile: profileViewFromProto(member.Profile), IsAdmin: member.IsAdmin})
+		}
+	}
+	for _, request := range requests {
+		if request != nil && request.Requester != nil {
+			data.Requests = append(data.Requests, followRequestView{Requester: profileViewFromProto(request.Requester), RequestedAt: request.RequestedAt})
+		}
+	}
+	return data
+}
+
 func groupFormViewFromProto(group *pb.Profile) groupFormView {
 	if group == nil {
 		return groupFormView{}

@@ -601,6 +601,41 @@ func TestGroupSettingsPageAllowsSuper(t *testing.T) {
 	}
 }
 
+func TestGroupMembersPageUsesBoundedTypedBootstrap(t *testing.T) {
+	client := &fakeGroupClient{
+		feedResp:  &pb.Feed{Uuid: testGroupUUID, Id: "book-club"},
+		groupView: &pb.GroupView{Group: &pb.Profile{Uuid: testGroupUUID, Id: "book-club", Name: "Book Club"}},
+		profile:   &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user"},
+		membersResp: &pb.ListGroupMembersResponse{Members: []*pb.GroupMember{{
+			Profile: &pb.Profile{Uuid: "33333333-3333-3333-3333-333333333333", Id: "alice", Name: "Alice"},
+		}}, NextCursor: "more"},
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	capture := &captureNotificationRender{}
+	router.HTMLRender = capture
+	router.GET("/groups/:name/members", s.GroupMembersPageHandler)
+	login := groupLoginCookie(t, router)
+
+	req := httptest.NewRequest(http.MethodGet, "/groups/book-club/members", nil)
+	req.AddCookie(login)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", recorder.Code)
+	}
+	var bootstrap struct {
+		Page string               `json:"page"`
+		Data groupMembersPageData `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	if bootstrap.Page != "group-members" || len(bootstrap.Data.Members) != 1 || !bootstrap.Data.HasMore || bootstrap.Data.CanManage {
+		t.Fatalf("bootstrap = %+v", bootstrap)
+	}
+}
+
 func TestGroupDeleteHandler(t *testing.T) {
 	client := &fakeGroupClient{
 		feedResp:  &pb.Feed{Uuid: testGroupUUID, Id: "book-club"},
