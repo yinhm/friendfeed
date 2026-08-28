@@ -728,13 +728,13 @@ old route/template still works
 
 ---
 
-# 7. 分阶段实施 Spec
+# 7. 分阶段实施记录与后续 Spec
 
-以下阶段按顺序执行。可以在一个阶段内分多个小提交，但不建议跨阶段同时做大范围改动。
+Phase 0–4 已完成，以下内容保留为当前架构的实施依据与回归边界。Phase 5 及以后仍是后续 Spec；实施时可以在一个阶段内分多个小提交，但不建议跨阶段同时做大范围改动。
 
 ---
 
-## Phase 0：建立 Web contract baseline
+## Phase 0（已完成）：建立 Web contract baseline
 
 ### 目标
 
@@ -767,7 +767,7 @@ old route/template still works
    - Group；
    - notification；
    - upload。
-4. 保留当前 SSR + React 双渲染，不改变行为。
+4. 在建立 baseline 时保留当时的 SSR + React 双渲染，不改变行为。
 
 ### 验收
 
@@ -789,7 +789,7 @@ pnpm run test:e2e
 并且：
 
 - anonymous `/public` 首屏仍含 Entry HTML；
-- `/feed/:id` JS 加载前仍有服务端 Entry；
+- 匿名 `/feed/:id` JS 加载前仍有服务端 Entry；
 - React mount 后页面功能与原行为一致；
 - SSE 仅在允许的 Home 页面建立；
 - private Feed 不因测试/DTO 改造泄漏。
@@ -800,11 +800,11 @@ Phase 0 不允许删除模板或 route，只增加测试/文档/typed helper。
 
 ---
 
-## Phase 1：定义 Browser DTO 层
+## Phase 1（已完成）：定义 Browser DTO 层
 
 ### 目标
 
-把“Go protobuf object 直接塞给模板/React”逐渐变成显式 browser DTO，为后续 React 页面迁移建立稳定界面。
+把“Go protobuf object 直接塞给模板/React”收敛为显式 browser DTO，为 React 页面建立稳定界面。
 
 ### 实施
 
@@ -857,13 +857,13 @@ pb.Feed / arbitrary pongo2.Context
 
 ---
 
-## Phase 2：React 接管非核心管理页面
+## Phase 2（已完成）：React 接管非核心管理页面
 
 ### 目标
 
-优先迁移 SSR 价值较低、交互较多的 authenticated management pages。
+SSR 价值较低、交互较多的 authenticated management pages 已迁移到统一 React dispatcher。
 
-建议顺序：
+实际实施顺序：
 
 1. Account；
 2. Feed Import；
@@ -889,7 +889,7 @@ GET /account/...
    -> Pongo2 renders complete page
 ```
 
-目标：
+当前：
 
 ```text
 GET /account/...
@@ -957,7 +957,7 @@ React
 
 ---
 
-## Phase 3：Feed React 单一客户端实现
+## Phase 3（已完成）：Feed React 单一客户端实现
 
 ### 目标
 
@@ -1023,13 +1023,13 @@ authenticated Home/Public/Feed/Entry
 
 ---
 
-## Phase 4：Pongo2 收缩为 layout/bootstrap
+## Phase 4（已完成）：Pongo2 收缩为 layout/bootstrap
 
 ### 目标
 
 大部分 authenticated Web 页面不再使用完整 Pongo2 页面结构。
 
-理想状态：
+当前边界：
 
 ```text
 templates/
@@ -1050,7 +1050,7 @@ templates/
    - asset manifest；
    - page kind；
    - initial data。
-2. Sidebar/navigation 逐步改成 React；
+2. Sidebar/navigation 由 authenticated React layout 统一提供；
 3. 避免每个新页面增加新的 Pongo2 template；
 4. 新 authenticated feature 默认 React page；
 5. Pongo2 include 只用于仍保留 SSR 的静态内容。
