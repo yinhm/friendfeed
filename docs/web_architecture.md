@@ -245,16 +245,26 @@ Go fetches protobuf Feed
 
 当前使用 `createRoot`，不是对服务端相同 React tree 做 `hydrateRoot`，因此这不是标准意义上的 React hydration，而是“服务端备用/首屏 HTML + 客户端重新渲染”。
 
-### 当前不应立即删除双渲染
+### 当前不应立即删除匿名 SSR
 
-Public Feed / Entry 的 SSR 当前仍有实际价值：
+未登录用户访问 Public、公开 Feed 和公开 Entry 时，SSR 仍有实际价值：
 
 - 首屏内容立即可见；
 - JS 失败时仍有可读内容；
 - Public/Entry 对 crawler/social preview 更友好；
 - 调试时页面不依赖完整客户端启动。
 
-因此取消 Pongo2 Feed SSR 必须是单独决策，不能作为普通 React refactor 顺带完成。
+这项价值不适用于登录态：登录用户已经依赖完整交互、session DTO 和 React，继续输出同一批 Entry SSR DOM 只会造成重复渲染与维护。目标边界固定为：
+
+```text
+anonymous /public, /feed/:name, /e/:uuid
+  -> readable Pongo2 SSR (可由 React 渐进增强)
+
+authenticated Home/Public/Feed/Entry
+  -> thin bootstrap + React complete render
+```
+
+取消匿名 Public/Feed/Entry SSR 必须是单独决策，不能作为普通 React refactor 顺带完成。
 
 ---
 
@@ -966,7 +976,7 @@ React
 
 注意：
 
-> 本阶段仍不等于删除 Feed SSR。
+> 本阶段删除登录态 Feed SSR，但保留匿名 Public/Feed/Entry SSR。
 
 ### 实施
 
@@ -979,28 +989,29 @@ React
 
 ### SSR 策略
 
-Phase 3 保留两种允许实现，实施时只能选一种并在 PR 中明确：
-
-#### A. 保留 Pongo2 fallback SSR（当前推荐）
+Phase 3 的固定实现：
 
 ```text
-Pongo2 outputs readable static Feed
-React replaces #root for interactive client
+anonymous Public/Feed/Entry
+  -> Pongo2 outputs readable static content
+  -> React may progressively enhance
+
+authenticated Home/Public/Feed/Entry
+  -> Pongo2 outputs app bootstrap only
+  -> React renders the complete page
 ```
 
 优点：
 
-- 改动小；
-- 保留 no-JS/readable SSR；
+- 保留匿名 no-JS/readable SSR；
+- 登录态不再维护或替换重复 Entry DOM；
 - 不引入 Node production runtime。
 
 缺点：
 
-- server/client markup 仍有两份，但 template 只维护 static fallback，不再承担复杂 interaction。
+- 匿名 static markup 与 React component 仍有两份，但 template 不再承担登录态交互。
 
-#### B. Feed 改为 React-only CSR
-
-只允许在单独 architecture decision 后进行。
+匿名 Feed 改为 React-only CSR 只允许在单独 architecture decision 后进行。
 
 必须先回答：
 
@@ -1009,13 +1020,14 @@ React replaces #root for interactive client
 - no-JS fallback 是否可删除；
 - first content latency 是否可接受。
 
-没有这些证据前不采用 B。
+没有这些证据前不取消匿名 SSR。
 
 ### 验收
 
 - Feed interaction 不再依赖 template 中的行为 DOM 细节；
 - Entry/Like/Comment/Edit tests 只测试 React interactive implementation；
-- Public/Feed/Entry 首屏 SSR 仍可读；
+- anonymous Public/Feed/Entry 首屏 SSR 仍可读；
+- authenticated Public/Feed/Entry response 不再包含重复 Entry SSR DOM；
 - React mount 后不出现明显 layout shift；
 - realtime refresh 后 UI 与完整 reload 一致；
 - editor chunk 不进入静态 Feed initial bundle。
@@ -1034,7 +1046,7 @@ React replaces #root for interactive client
 templates/
   layout.html
   app_shell.html
-  feed.html          # if SSR fallback retained
+  feed.html          # anonymous Public/Feed/Entry SSR
   403.html
   404.html
   small transitional templates only
@@ -1360,10 +1372,10 @@ Feed API key 代表 Feed capability，不代表任何 User。
 
 | 页面 | 当前/目标 | 原因 |
 | --- | --- | --- |
-| Public | 保留 SSR | anonymous/readability/crawler |
-| Feed | 保留 SSR fallback + React | 核心内容页 |
-| Entry | 保留 SSR | permalink/social/readability |
-| Home | React-first，可保留 bootstrap | authenticated，SEO 无价值 |
+| Public | 匿名 SSR；登录态 React | anonymous readability/crawler；登录态避免双渲染 |
+| Feed | 匿名 SSR；登录态 React | 公开内容可读；登录态完整交互 |
+| Entry | 匿名 SSR；登录态 React | anonymous permalink/social；登录态完整交互 |
+| Home | React + bootstrap | authenticated，SEO 无价值 |
 | Account | React | authenticated management |
 | Import | React | interactive management |
 | Group settings | React | authenticated management |
@@ -1372,7 +1384,7 @@ Feed API key 代表 Feed capability，不代表任何 User。
 | Requests | React | workflow |
 | 403/404 | server-rendered simple page | 简单可靠 |
 
-该表不是永久 contract；未来改变 Public/Feed/Entry SSR 需独立决策。
+该表不是永久 contract；未来改变匿名 Public/Feed/Entry SSR 需独立决策。private target 仍必须先通过服务端可见性检查，SSR 白名单不改变权限。
 
 ---
 
@@ -1703,7 +1715,7 @@ Pongo2
 1. 新 authenticated 页面默认 React，而不是新增完整 Pongo2 template；
 2. 管理类页面基本由 React 主导；
 3. Feed interactive UI 只有一套 React 实现；
-4. Public/Feed/Entry SSR 是否保留是明确产品决策，而不是历史偶然；
+4. SSR 只服务匿名 Public/Feed/Entry；登录态页面由 React 完整渲染；
 5. Browser DTO 和 Public DTO 都不直接等于 protobuf；
 6. ffdb 继续掌握最终权限和业务不变量；
 7. production 仍保持简单的 Go binary + systemd 运维；
@@ -1716,7 +1728,7 @@ Pongo2
 
 以下事项到出现真实需求时再单独写 ADR/spec：
 
-- Feed/Entry 是否取消 Pongo2 SSR；
+- 是否取消匿名 Public/Feed/Entry 的 Pongo2 SSR；
 - 是否引入 React SSR/hydration；
 - production ffweb 是否迁到 Node.js；
 - 一个 Feed 是否支持多个 active API keys；
