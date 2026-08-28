@@ -9,6 +9,7 @@ import { Search } from './search';
 import { AccountPage } from './account';
 import { FeedImportPage } from './import';
 import { NotificationsPage } from './notifications';
+import { RequestsPage } from './requests';
 import { initNavigation } from './navigation';
 
 /** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
@@ -23,6 +24,7 @@ function PageDispatcher({page, data}) {
   if (page === 'account') return <AccountPage data={/** @type {NonNullable<Parameters<typeof AccountPage>[0]>['data']} */ (data)} />;
   if (page === 'feed-import') return <FeedImportPage data={/** @type {import('./browser-types').FeedImportPageData} */ (data)} />;
   if (page === 'notifications') return <NotificationsPage data={/** @type {import('./browser-types').NotificationsPageData} */ (data)} />;
+  if (page === 'requests') return <RequestsPage data={/** @type {import('./browser-types').RequestsPageData} */ (data)} />;
   return <BootstrapError />;
 }
 

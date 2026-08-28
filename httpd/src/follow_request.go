@@ -126,12 +126,12 @@ func (s *Server) renderAccountRequests(c *gin.Context, errMsg string) {
 			r.Requester.Picture = PictureOrDefault(r.Requester.Picture)
 		}
 	}
-	s.HTML(c, http.StatusOK, "account_requests.html", pongo2.Context{
-		"title":    "Follow requests",
-		"requests": resp.Requests,
-		"private":  currentUser.Private,
-		"error":    errMsg,
-	})
+	encoded, err := marshalPageBootstrap("requests", requestsPageDataFromProto(resp.Requests, currentUser.Private, errMsg))
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Server error.")
+		return
+	}
+	s.HTML(c, http.StatusOK, "app_shell.html", pongo2.Context{"title": "Follow requests", "pageBootstrap": string(encoded)})
 }
 
 func (s *Server) AccountRequestsHandler(c *gin.Context) {

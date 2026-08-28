@@ -44,3 +44,7 @@ export type FeedImportPageData = {
 export type NotificationsPageData = {
   items: Array<{text: string; href: string; date: string}>; next_cursor?: string;
 };
+export type RequestsPageData = {
+  requests: Array<{requester: AccountPageData['profile']; requested_at: string}>;
+  private: boolean; error?: string;
+};
