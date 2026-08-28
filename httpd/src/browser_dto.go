@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/flosch/pongo2"
-	"github.com/yinhm/ffdb/pb"
+	"github.com/yinhm/friendfeed/pb"
 )
 
 const browserBootstrapVersion = 1

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yinhm/ffdb/pb"
+	"github.com/yinhm/friendfeed/pb"
 )
 
 func TestAccountPageDataOmitsCredentialsAndInternalState(t *testing.T) {

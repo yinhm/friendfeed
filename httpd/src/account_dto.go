@@ -1,6 +1,6 @@
 package server
 
-import "github.com/yinhm/ffdb/pb"
+import "github.com/yinhm/friendfeed/pb"
 
 type accountPageData struct {
 	Tab      string                      `json:"tab"`
