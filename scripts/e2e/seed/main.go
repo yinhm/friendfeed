@@ -125,6 +125,16 @@ func main() {
 		})
 	}
 
+	editableEntry := &pb.Entry{
+		Id:          uuid.Must(uuid.NewV4()).String(),
+		ProfileUuid: profile.Uuid,
+		FeedUuid:    profile.Uuid,
+		From:        owner,
+		Body:        `<p>E2E editable original</p>`,
+		RawBody:     `[{"type":"p","children":[{"text":"E2E editable original"}]}]`,
+		Date:        time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
+		Commands:    []string{"comment", "edit", "delete"},
+	}
 	entries = append(entries, []*pb.Entry{
 		{
 			Id:          uuid.Must(uuid.NewV4()).String(),
@@ -143,16 +153,7 @@ func main() {
 			Date:        time.Now().UTC().Format(time.RFC3339),
 			Commands:    []string{"comment"},
 		},
-		{
-			Id:          uuid.Must(uuid.NewV4()).String(),
-			ProfileUuid: profile.Uuid,
-			FeedUuid:    profile.Uuid,
-			From:        owner,
-			Body:        `<p>E2E editable original</p>`,
-			RawBody:     `[{"type":"p","children":[{"text":"E2E editable original"}]}]`,
-			Date:        time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
-			Commands:    []string{"comment", "edit", "delete"},
-		},
+		editableEntry,
 		{
 			Id:          uuid.Must(uuid.NewV4()).String(),
 			ProfileUuid: profile.Uuid,
@@ -176,6 +177,16 @@ func main() {
 		log.Fatalf("close: %v", err)
 	}
 	log.Printf("seeded %d entries", summary.EntryCount)
+
+	// Give the authenticated fixture one deterministic notification so the
+	// browser baseline covers the real notification page and mark-read path.
+	if _, err := client.LikeEntry(ctx, &pb.LikeRequest{
+		Entry: editableEntry.Id,
+		User:  botProfile.Uuid,
+		Like:  true,
+	}); err != nil {
+		log.Fatalf("seed notification like: %v", err)
+	}
 }
 
 func writeSessionCookie(path, key, userID, profileUUID string) error {

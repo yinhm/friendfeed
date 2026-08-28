@@ -33,7 +33,7 @@ git diff --check
 
 ## 进度
 
-- [ ] 1. 锁定 Web route 与渲染基线
+- [x] 1. 锁定 Web route 与渲染基线
 - [ ] 2. 定义 Browser bootstrap 与 Feed DTO
 - [ ] 3. 建立单一 React bootstrap dispatcher
 - [ ] 4. 将 Account/Profile 切到统一 app shell
@@ -62,7 +62,7 @@ git diff --check
 
 - anonymous `/public` 与公开 `/feed/:name` 在 JS 执行前包含 Entry HTML；
 - anonymous permalink `/e/:uuid` 保留可读 SSR；
-- 同一 Public/Feed/Entry route 在登录状态下只输出 React bootstrap，不输出 Entry SSR DOM；
+- 记录同一 Public/Feed/Entry route 当前在登录状态下仍会输出 Entry SSR DOM；第 2/10 项再将该 characterization test 改为只输出 React bootstrap；
 - Home 登录要求、private Feed 403、login-required redirect 不变；
 - 非 Home 页面不建立 `/a/events`；
 - `window.appData` 不包含 session、OAuth token、secret 或内部错误；
