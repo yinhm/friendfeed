@@ -39,6 +39,7 @@ import {FileUp, ImageUp} from 'lucide-react';
  * @property {string} feedUuid
  * @property {string=} content
  * @property {{url: string, name: string, type?: string, size?: number}[]=} files
+ * @property {'list' | 'permalink'=} responseMode
  * @property {(formData: FormData) => Promise<unknown>} postEntry
  */
 
@@ -222,6 +223,7 @@ const OnPageEditor = (params) => {
             formData.set("id", params.id);
         }
         formData.set("feedUuid", params.feedUuid);
+        formData.set("responseMode", params.responseMode === 'permalink' ? 'permalink' : 'list');
         formData.set("body", htmlBody);
         formData.set("rawBody", rawBody);
         formData.set("filesPresent", "1");

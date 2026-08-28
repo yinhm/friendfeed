@@ -18,6 +18,7 @@ import (
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"golang.org/x/exp/utf8string"
+	"google.golang.org/protobuf/proto"
 )
 
 const maxUploadRequestBytes = media.MaxUploadFileBytes + 64<<10
@@ -98,6 +99,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		ExistingFiles []string `form:"existingFile"`
 		FileTokens    []string `form:"fileToken"`
 		Assets        string   `form:"assets"`
+		ResponseMode  string   `form:"responseMode"`
 	}
 	if err := c.MustBindWith(&form, binding.FormMultipart); err != nil {
 		return
@@ -189,16 +191,19 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	entry.RebuildCommand(profile, graph)
-	basetime, _ := time.Parse(time.RFC3339, entry.Date)
-	entry.Date = util.FormatTime(basetime)
-	// if format {
-	// 	e.FormatComments(int32(0))
-	// 	e.FormatLikes(int32(0))
-	// }
-	entry.RebuildCommentsCommand(profile, graph)
-	c.JSON(200, entry)
+	c.JSON(http.StatusOK, postedEntryView(entry, profile, graph, form.ResponseMode))
 	// c.Redirect(http.StatusFound, "/")
+}
+
+// postedEntryView applies the same presentation rules as an authoritative
+// Feed read without mutating the RPC result. The browser chooses only whether
+// it will render the response in a list or on a permalink; persistence and
+// authorization never depend on this hint. Unknown modes safely use list
+// semantics because that is the compact response used by new posts.
+func postedEntryView(entry *pb.Entry, profile *pb.Profile, graph *pb.Graph, responseMode string) entryView {
+	prepared := proto.Clone(entry).(*pb.Entry)
+	prepareFeedEntry(prepared, profile, graph, responseMode != "permalink")
+	return entryViewFromProto(prepared)
 }
 
 func (s *Server) EntryDeleteHandler(c *gin.Context) {

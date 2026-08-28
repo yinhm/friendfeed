@@ -68,6 +68,7 @@ test('legacy rawBody content loads and is submitted as JSON and HTML', async () 
     <OnPageEditor
       id="legacy-entry"
       feedUuid="legacy-feed"
+      responseMode="permalink"
       content={rawBody}
       postEntry={postEntry}
     />
@@ -80,6 +81,7 @@ test('legacy rawBody content loads and is submitted as JSON and HTML', async () 
 
   await waitFor(() => expect(postEntry).toHaveBeenCalledOnce());
   const formData = postEntry.mock.calls[0][0];
+  expect(formData.get('responseMode')).toBe('permalink');
   expect(JSON.parse(formData.get('rawBody'))).toMatchObject([
     {type: 'p', children: [{text: 'Legacy rich text', bold: true}]},
   ]);
@@ -107,6 +109,7 @@ test('editing submits retained attachments through the authenticated binding fie
   expect(formData.get('filesPresent')).toBe('1');
   expect(formData.getAll('existingFile')).toEqual(['/e/entry-with-file/files/hash/manual.pdf']);
   expect(formData.get('assets')).toBe('[]');
+  expect(formData.get('responseMode')).toBe('list');
 });
 
 test('legacy HTML fallback still deserializes into editable content', () => {

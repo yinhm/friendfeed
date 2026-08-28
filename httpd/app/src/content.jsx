@@ -37,6 +37,7 @@ export function EntryContent(props) {
                     feedUuid={feedCfg.feed_uuid}
                     content={props.rawBody}
                     files={props.files}
+                    responseMode={feedCfg.onpage ? 'permalink' : 'list'}
                     postEntry={onPostEntry} />
             </Suspense>
         );

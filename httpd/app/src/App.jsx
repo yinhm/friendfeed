@@ -316,7 +316,7 @@ export function Feed(props) {
   if (state.show_share === true) {
     editorNodes = (
       <Suspense fallback={<div className="editor-loading" role="status">Loading editor…</div>}>
-        <OnPageEditor feedUuid={feed.uuid} postEntry={onPostEntry} />
+        <OnPageEditor feedUuid={feed.uuid} responseMode="list" postEntry={onPostEntry} />
       </Suspense>
     )
   }

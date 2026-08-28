@@ -11,10 +11,11 @@ vi.mock('./utils', async (importOriginal) => ({
 }));
 
 vi.mock('./editor', () => ({
-  default: ({content}) => <div data-testid="test-editor">{content}</div>,
+  default: ({content, responseMode}) => <div data-testid="test-editor" data-response-mode={responseMode}>{content}</div>,
 }));
 
 import {Entry} from './entry';
+import {FeedContext} from './context';
 
 const makeEntry = (overrides = {}) => ({
   id: 'entry-1',
@@ -104,4 +105,18 @@ test('Entry keeps its original content while local editing is active', async () 
 
   expect(screen.getByTestId('test-editor')).toHaveTextContent('original raw body');
   expect(screen.getByTestId('test-editor')).not.toHaveTextContent('refreshed raw body');
+  expect(screen.getByTestId('test-editor')).toHaveAttribute('data-response-mode', 'list');
+});
+
+test('Entry edit requests permalink presentation only on an Entry page', async () => {
+  render(
+    <FeedContext.Provider value={{onpage: true, onpage_edit: false, feed_uuid: 'feed'}}>
+      <Entry entry={makeEntry({commands: ['edit']})} onpage_edit={false} />
+    </FeedContext.Provider>
+  );
+  fireEvent.click(screen.getByRole('button', {name: 'Edit'}));
+
+  await waitFor(() => {
+    expect(screen.getByTestId('test-editor')).toHaveAttribute('data-response-mode', 'permalink');
+  });
 });

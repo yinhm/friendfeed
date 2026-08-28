@@ -304,3 +304,23 @@ func TestPrepareFeedEntryPermalinkHidesThumbnailMediaBox(t *testing.T) {
 		t.Fatalf("list body must drop the thumbnail-backed image, got %q", list.Body)
 	}
 }
+
+func TestPostedEntryViewUsesRequestedPresentationWithoutMutatingStoredBody(t *testing.T) {
+	originalBody := `<p>hello</p><a href="https://media.example/original.jpg"><img src="https://media.example/thumb.jpg"></a>`
+	entry := &pb.Entry{
+		Id: "entry", Date: "2026-08-28T12:00:00Z", Body: originalBody,
+		Thumbnails: []*pb.Thumbnail{{Url: "https://media.example/thumb.jpg", Link: "https://media.example/original.jpg"}},
+	}
+
+	list := postedEntryView(entry, nil, nil, "list")
+	if strings.Contains(list.Body, "<img") || len(list.Thumbnails) != 1 {
+		t.Fatalf("list response must use the thumbnail box: %+v", list)
+	}
+	permalink := postedEntryView(entry, nil, nil, "permalink")
+	if !strings.Contains(permalink.Body, "<img") || len(permalink.Thumbnails) != 0 {
+		t.Fatalf("permalink response must keep the inline image without a duplicate thumbnail: %+v", permalink)
+	}
+	if entry.Body != originalBody || len(entry.Thumbnails) != 1 {
+		t.Fatal("response presentation mutated the canonical RPC entry")
+	}
+}
