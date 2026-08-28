@@ -563,20 +563,17 @@ func (s *Server) GroupCreatePageHandler(c *gin.Context) {
 	s.renderGroupCreate(c, http.StatusOK, &pb.Profile{}, "")
 }
 
-// renderGroupCreate renders the SSR create form, redisplaying the submitted
+// renderGroupCreate renders the React create form, redisplaying the submitted
 // values alongside an error message when creation failed.
 func (s *Server) renderGroupCreate(c *gin.Context, code int, group *pb.Profile, errMsg string) {
-	s.HTML(c, code, "group_create.html", pongo2.Context{
-		"title":        "Create Group",
-		"form_action":  "/groups/create",
-		"submit_label": "Create Group",
-		"cancel_url":   "/",
-		"show_id":      true,
-		"show_private": true,
-		"group_page":   "create",
-		"group":        group,
-		"error":        errMsg,
+	encoded, err := marshalPageBootstrap("group-create", groupCreatePageData{
+		Group: groupFormViewFromProto(group), CurrentUserID: CurrentUserId(c), Error: errMsg,
 	})
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Server error.")
+		return
+	}
+	s.HTML(c, code, "app_shell.html", pongo2.Context{"title": "Create Group", "pageBootstrap": string(encoded)})
 }
 
 // GroupCreateHandler processes the plain SSR form post: invalid input and

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -320,6 +321,37 @@ func TestGroupCreateHandlerRequiresIDAndName(t *testing.T) {
 	}
 	if client.createCalls != 0 {
 		t.Fatal("CreateGroup must not be called when validation fails")
+	}
+}
+
+func TestGroupCreatePageUsesTypedBootstrap(t *testing.T) {
+	client := &fakeGroupClient{profile: &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user", Name: "Test User"}}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	capture := &captureNotificationRender{}
+	router.HTMLRender = capture
+	router.GET("/groups/create", s.GroupCreatePageHandler)
+	login := groupLoginCookie(t, router)
+
+	req := httptest.NewRequest(http.MethodGet, "/groups/create", nil)
+	req.AddCookie(login)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", recorder.Code)
+	}
+	if capture.data["pageBootstrap"] == nil {
+		t.Fatal("missing pageBootstrap")
+	}
+	var bootstrap struct {
+		Page string              `json:"page"`
+		Data groupCreatePageData `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	if bootstrap.Page != "group-create" || bootstrap.Data.CurrentUserID != "test-user" {
+		t.Fatalf("bootstrap = %+v", bootstrap)
 	}
 }
 

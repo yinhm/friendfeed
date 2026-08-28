@@ -157,7 +157,8 @@ func TestFeedArchiveSidebarRendersOnlyWhenSnapshotExists(t *testing.T) {
 }
 
 func TestLayoutSidebarGroupsSection(t *testing.T) {
-	// group_create.html extends layout.html, which exercises the sidebar.
+	// app_shell.html extends layout.html, which exercises the sidebar used by
+	// authenticated React pages. The Group form has a component test.
 	createCtx := func() pongo2.Context {
 		return pongo2.Context{
 			"title":               "Create Group",
@@ -176,25 +177,16 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 			},
 		}
 	}
-	body := renderEmbeddedTemplate(t, "group_create.html", createCtx())
+	body := renderEmbeddedTemplate(t, "app_shell.html", createCtx())
 	for _, want := range []string{
 		`<a href="/feed/alpha" title="alpha">Alpha</a>`,
 		`<a href="/feed/secret-club" title="secret-club">Secret Club</a><span class="private-icon" role="img" aria-label="Private" title="Private"></span>`,
 		`<h3 class="groups-heading">Groups</h3>`,
 		`<li><a href="/groups">Groups</a></li>`,
-		`name="id"`,
-		`name="picture"`,
-		`name="private"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("sidebar/create page missing %q", want)
 		}
-	}
-	if strings.Contains(body, `name="private" disabled`) {
-		t.Fatal("private checkbox must be enabled: the approval flow exists now")
-	}
-	if strings.Contains(body, "<style>") || strings.Contains(body, "<script>") {
-		t.Fatal("group_create.html must not carry inline styles or scripts")
 	}
 	// The Groups block lives outside (below) the navigation <details>.
 	if strings.Index(body, "</details>") > strings.Index(body, "groups-menu") {
@@ -205,7 +197,7 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	// accidentally present in their render context.
 	nonHome := createCtx()
 	delete(nonHome, "show_groups_sidebar")
-	nonHomeBody := renderEmbeddedTemplate(t, "group_create.html", nonHome)
+	nonHomeBody := renderEmbeddedTemplate(t, "app_shell.html", nonHome)
 	if strings.Contains(nonHomeBody, "groups-menu") {
 		t.Fatal("non-Home page must not render the Groups block")
 	}
@@ -213,7 +205,7 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	// Logged in with no Groups: the block still links to the full list.
 	empty := createCtx()
 	empty["user_groups"] = []*pb.Profile{}
-	emptyBody := renderEmbeddedTemplate(t, "group_create.html", empty)
+	emptyBody := renderEmbeddedTemplate(t, "app_shell.html", empty)
 	if !strings.Contains(emptyBody, `groups-menu`) || !strings.Contains(emptyBody, `>More&hellip;</a>`) {
 		t.Fatal("empty Groups block must still link to the full list")
 	}
@@ -222,7 +214,7 @@ func TestLayoutSidebarGroupsSection(t *testing.T) {
 	anon := createCtx()
 	delete(anon, "current_user")
 	delete(anon, "user_groups")
-	anonBody := renderEmbeddedTemplate(t, "group_create.html", anon)
+	anonBody := renderEmbeddedTemplate(t, "app_shell.html", anon)
 	if strings.Contains(anonBody, "groups-menu") || strings.Contains(anonBody, "Create a group") {
 		t.Fatal("anonymous render must not contain the Groups block")
 	}

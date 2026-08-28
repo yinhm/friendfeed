@@ -86,7 +86,7 @@
 | `GET /groups` | `GroupDiscoveryPageHandler` | anonymous allowed | `groups.html` |
 | `GET /feed/:name/groups` | `UserGroupsPageHandler` | login + self-only | `groups.html` |
 | `GET /feed/:name/import` | `FeedImportPageHandler` | owner/Group admin | `app_shell.html` + `#app-root` |
-| `GET /groups/create` | `GroupCreatePageHandler` | login | `group_create.html` |
+| `GET /groups/create` | `GroupCreatePageHandler` | login | `app_shell.html` + React `group-create` |
 | `POST /groups/create` | `GroupCreateHandler` | login | create Group |
 | `GET /groups/:name/settings` | `GroupSettingsPageHandler` | Group admin | `group_settings.html` |
 | `POST /groups/:name/settings` | `GroupSettingsHandler` | Group admin | update Group |

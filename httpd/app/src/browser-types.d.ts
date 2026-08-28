@@ -48,3 +48,7 @@ export type RequestsPageData = {
   requests: Array<{requester: AccountPageData['profile']; requested_at: string}>;
   private: boolean; error?: string;
 };
+export type GroupCreatePageData = {
+  group: {id: string; name: string; description?: string; picture?: string; private?: boolean};
+  current_user_id: string; error?: string;
+};

@@ -40,7 +40,7 @@ git diff --check
 - [x] 5. 将 Feed Import 切到统一 app shell
 - [x] 6. 迁移 Notifications 页面
 - [x] 7. 迁移 Follow Requests 页面
-- [ ] 8a. 迁移 Group Create
+- [x] 8a. 迁移 Group Create
 - [ ] 8b. 迁移 Group Settings
 - [ ] 8c. 迁移 Group Members
 - [ ] 9. 迁移 Group discovery 与 User Groups 列表
