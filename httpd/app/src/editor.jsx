@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Node } from 'slate'
 import { TooltipProvider } from 'components/plate-ui/tooltip';
 import { deserializeHtml } from 'platejs';
@@ -91,6 +91,8 @@ const OnPageEditor = (params) => {
     const [, setEditorValue] = useState(/** @type {Value | null} */ (null));
     const [pendingUploads, setPendingUploads] = useState(0);
     const [uploadError, setUploadError] = useState('');
+    const [pasteWarning, setPasteWarning] = useState('');
+    const pasteWarningTimer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
     const [attachments, setAttachments] = useState(/** @returns {Array<{url?: string, assetToken?: string, name: string, type?: string, mimeType?: string, size?: number, existing: boolean}>} */ () =>
         (params.files ?? []).map(file => ({...file, existing: true}))
     );
@@ -136,6 +138,17 @@ const OnPageEditor = (params) => {
         } finally {
             setPendingUploads(count => count - 1);
         }
+    }, []);
+
+    const showPasteWarning = useCallback((/** @type {number} */ failures) => {
+        if (pasteWarningTimer.current) clearTimeout(pasteWarningTimer.current);
+        const noun = failures === 1 ? 'image was' : 'images were';
+        setPasteWarning(`${failures} pasted ${noun} skipped because upload failed`);
+        pasteWarningTimer.current = setTimeout(() => setPasteWarning(''), 6000);
+    }, []);
+
+    useEffect(() => () => {
+        if (pasteWarningTimer.current) clearTimeout(pasteWarningTimer.current);
     }, []);
 
     const insertImageFiles = useCallback((/** @type {File[]} */ files) => runUpload(async () => {
@@ -185,8 +198,11 @@ const OnPageEditor = (params) => {
             const fragment = deserializeHtml(editor, {element: mirrored.html});
             enrichImageNodes(fragment, mirrored.metadata);
             editor.tf.insertFragment(fragment);
+            if (mirrored.failures > 0) {
+                showPasteWarning(mirrored.failures);
+            }
         });
-    }, [editor, insertAttachmentFiles, insertImageFiles, runUpload]);
+    }, [editor, insertAttachmentFiles, insertImageFiles, runUpload, showPasteWarning]);
 
     const onPostEntry = useCallback(async () => {
         if (!editorRef.current) {
@@ -269,6 +285,7 @@ const OnPageEditor = (params) => {
                       </div>
                     )}
                     <div className="post upload-actions">
+                        {pasteWarning && <div className="paste-warning" role="status">{pasteWarning}</div>}
                         <label className="inline-action upload-action" aria-label="Add image" title="Add image">
                           <ImageUp size={18} aria-hidden="true" />
                           <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden

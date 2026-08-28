@@ -1012,6 +1012,20 @@ div.content pre {
     color: #a12622;
 }
 
+.paste-warning {
+    min-width: 0;
+    padding: 4px 7px;
+    border: 1px solid #e2b84b;
+    border-radius: 3px;
+    background: #fff4cc;
+    color: #6b4b00;
+    font-size: 12px;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 @media (max-width: 600px) {
     .groups-menu {
         display: none;

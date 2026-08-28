@@ -64,6 +64,7 @@ export async function mapWithConcurrency(items, limit, worker) {
 export async function mirrorPastedHTML(html, upload = uploadImage, mirror = mirrorImage) {
   const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
   const images = Array.from(parsedDocument.querySelectorAll('img'));
+  let failures = 0;
   if (images.length > MAX_PASTED_IMAGES) {
     throw new Error(`A paste may contain at most ${MAX_PASTED_IMAGES} images`);
   }
@@ -91,12 +92,13 @@ export async function mirrorPastedHTML(html, upload = uploadImage, mirror = mirr
     } catch {
       // One malformed or unavailable image must not discard the surrounding
       // pasted text and other successfully mirrored images.
+      failures += 1;
       image.remove();
       return null;
     }
   });
   const metadata = results.filter((/** @type {UploadedImage|null} */ result) => result !== null);
-  return { html: parsedDocument.body.innerHTML, metadata };
+  return {html: parsedDocument.body.innerHTML, metadata, failures};
 }
 
 /** @param {any[]} nodes @param {UploadedImage[]} metadata */

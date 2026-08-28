@@ -26,6 +26,7 @@ test('mirrors remote and embedded images before inserting pasted HTML', async ()
   expect(mirror).toHaveBeenCalledWith('https://remote.example/b.jpg');
   expect(result.html).toContain('https://media.example/thumb-a');
   expect(result.html).toContain('https://media.example/thumb-b');
+  expect(result.failures).toBe(0);
   const nodes = [{type: 'p', children: [
     {type: 'img', url: 'old-a', children: [{text: ''}]},
     {type: 'img', url: 'old-b', children: [{text: ''}]},
@@ -55,6 +56,26 @@ test('skips malformed pasted images without discarding surrounding content', asy
   expect(result.html).toContain('after');
   expect(result.html).not.toContain('<img');
   expect(result.metadata).toEqual([]);
+  expect(result.failures).toBe(1);
+});
+
+test('reports failed mirrors while preserving text and successful images', async () => {
+  const mirror = vi.fn()
+    .mockResolvedValueOnce({assetToken: 'token', url: 'https://media/good.jpg', originalUrl: 'https://media/good-original.jpg'})
+    .mockRejectedValueOnce(new Error('server unavailable'));
+
+  const result = await mirrorPastedHTML(
+    '<p>before<img src="https://remote.example/good.jpg"><img src="https://remote.example/bad.jpg">after</p>',
+    vi.fn(),
+    mirror
+  );
+
+  expect(result.html).toContain('before');
+  expect(result.html).toContain('after');
+  expect(result.html).toContain('https://media/good.jpg');
+  expect(result.html).not.toContain('bad.jpg');
+  expect(result.metadata).toHaveLength(1);
+  expect(result.failures).toBe(1);
 });
 
 test('resolves protocol-relative pasted images without failing the paste', async () => {
