@@ -44,9 +44,14 @@ type notificationSummaryDTO struct {
 }
 
 type notificationView struct {
-	Text string
-	Href string
-	Date string
+	Text string `json:"text"`
+	Href string `json:"href"`
+	Date string `json:"date"`
+}
+
+type notificationsPageData struct {
+	Items      []notificationView `json:"items"`
+	NextCursor string             `json:"next_cursor,omitempty"`
 }
 
 func (s *Server) notificationSummary(ctx context.Context, userUUID string) (notificationSummaryDTO, error) {
@@ -183,11 +188,12 @@ func (s *Server) NotificationsHandler(c *gin.Context) {
 		items = append(items, notificationToView(record))
 	}
 
-	s.HTML(c, http.StatusOK, "notifications.html", pongo2.Context{
-		"title":         "Notifications",
-		"notifications": items,
-		"next_cursor":   page.NextCursor,
-	})
+	encoded, err := marshalPageBootstrap("notifications", notificationsPageData{Items: items, NextCursor: page.NextCursor})
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Server error.")
+		return
+	}
+	s.HTML(c, http.StatusOK, "app_shell.html", pongo2.Context{"title": "Notifications", "pageBootstrap": string(encoded)})
 	if c.Writer.Status() >= http.StatusBadRequest {
 		return
 	}

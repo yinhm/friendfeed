@@ -167,11 +167,15 @@ func TestNotificationsHandlerMarksReadAfterSuccessfulRender(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Equal(t, []string{"NotificationList", "NotificationSummary", "NotificationMarkRead"}, commandNames(client.commandCalls))
-	views, ok := capture.data["notifications"].([]notificationView)
+	raw, ok := capture.data["pageBootstrap"].(string)
 	require.True(t, ok)
-	require.Len(t, views, 1)
-	require.Equal(t, "Alice liked your post", views[0].Text)
-	require.NotContains(t, views[0].Text, "body")
+	var bootstrap struct {
+		Data notificationsPageData `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(raw), &bootstrap))
+	require.Len(t, bootstrap.Data.Items, 1)
+	require.Equal(t, "Alice liked your post", bootstrap.Data.Items[0].Text)
+	require.NotContains(t, bootstrap.Data.Items[0].Text, "body")
 }
 
 func TestNotificationsHandlerDoesNotMarkReadWhenRenderFails(t *testing.T) {

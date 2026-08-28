@@ -10,7 +10,8 @@
 | 登录态 Home/Public/Feed/Entry | 同一批 Entry 同时 SSR 与 React 重绘 | 薄 bootstrap，React 完整渲染 |
 | Account/Profile | `app_shell.html` + React `#app-root` dispatcher | 已收敛为统一 app shell + React |
 | Feed Import | `app_shell.html` + React `#app-root` dispatcher | 已收敛为统一 app shell + React |
-| Notifications、Requests、Group 管理/列表 | 完整 Pongo2 页面 | 统一 app shell + React |
+| Notifications | `app_shell.html` + React dispatcher | 已迁移 |
+| Requests、Group 管理/列表 | 完整 Pongo2 页面 | 统一 app shell + React |
 | Sidebar Search | React `#search` | layout 最后收敛，迁移期间保持独立 mount |
 | 403/404 | Pongo2 | 保留简单服务端页面 |
 

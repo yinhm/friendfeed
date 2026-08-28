@@ -41,3 +41,6 @@ export type FeedImportPageData = {
   services: AccountPageData['services']; states: AccountPageData['states']; target: string;
   manage_services_url: string; group_settings_url?: string; group_members_url?: string;
 };
+export type NotificationsPageData = {
+  items: Array<{text: string; href: string; date: string}>; next_cursor?: string;
+};
