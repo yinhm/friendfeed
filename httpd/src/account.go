@@ -184,34 +184,26 @@ func (s *Server) FeedImportPageHandler(c *gin.Context) {
 	if services == nil {
 		services = &pb.ListFeedServicesResponse{}
 	}
-	serviceMap := make(map[string]*pb.FeedService, len(services.Services))
-	for _, service := range services.Services {
-		if service != nil {
-			serviceMap[service.Id] = service
-		}
+	serviceViews, stateViews := feedServiceViewsFromProto(services)
+	pageData := feedImportPageData{
+		Feed:     feedImportTargetView{ID: feed.Id, Name: feed.Name, Type: feed.Type},
+		Services: serviceViews, States: stateViews, Target: feed.Uuid,
+		ManageServicesURL: "/feed/" + url.PathEscape(feed.Id) + "/import",
 	}
-	encoded, err := marshalPageBootstrap("feed-import", gin.H{
-		"services": serviceMap,
-		"states":   services.States,
-		"target":   feed.Uuid,
-	})
+	if feed.Type == "group" {
+		pageData.GroupSettingsURL = "/groups/" + url.PathEscape(feed.Id) + "/settings"
+		pageData.GroupMembersURL = "/groups/" + url.PathEscape(feed.Id) + "/members"
+	}
+	encoded, err := marshalPageBootstrap("feed-import", pageData)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to encode feed services")
 		return
 	}
 	data := pongo2.Context{
-		"title":                "Import Services",
-		"feed":                 feed,
-		"pageBootstrap":        string(encoded),
-		"feed_management_id":   feed.Id,
-		"feed_management_page": "import",
-		"manage_services_url":  "/feed/" + url.PathEscape(feed.Id) + "/import",
+		"title":         "Import Services",
+		"pageBootstrap": string(encoded),
 	}
-	if feed.Type == "group" {
-		data["group_settings_url"] = "/groups/" + url.PathEscape(feed.Id) + "/settings"
-		data["group_members_url"] = "/groups/" + url.PathEscape(feed.Id) + "/members"
-	}
-	s.HTML(c, http.StatusOK, "feed_import.html", data)
+	s.HTML(c, http.StatusOK, "app_shell.html", data)
 }
 
 func (s *Server) AddFeedServiceHandler(c *gin.Context) {
@@ -230,7 +222,7 @@ func (s *Server) AddFeedServiceHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
 		return
 	}
-	c.JSON(http.StatusOK, binding)
+	c.JSON(http.StatusOK, feedServiceViewFromProto(binding))
 }
 
 func (s *Server) FeedServiceActionHandler(c *gin.Context) {
@@ -253,7 +245,7 @@ func (s *Server) FeedServiceActionHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": status.Convert(err).Message()})
 			return
 		}
-		c.JSON(http.StatusOK, binding)
+		c.JSON(http.StatusOK, feedServiceViewFromProto(binding))
 	case "refresh":
 		_, err := s.client.RefreshFeedService(ctx, &pb.RefreshFeedServiceRequest{
 			ActorUuid: actor, TargetFeedUuid: target, ServiceId: serviceID,

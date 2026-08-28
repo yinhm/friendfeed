@@ -122,13 +122,18 @@ describe('ImportPanel', () => {
 });
 
 it('renders the standalone Feed import page from its own bootstrap data', () => {
-  window.feedImportData = {
+  const data = {
+    feed: {id: 'book-club', name: 'Book Club', type: 'group'},
     services: {rss: {id: 'rss', name: 'Tech Notes', kind: 'web_feed'}},
     states: {},
     target: 'group-uuid',
+    manage_services_url: '/feed/book-club/import',
+    group_settings_url: '/groups/book-club/settings',
+    group_members_url: '/groups/book-club/members',
   };
-  render(<FeedImportPage />);
+  render(<FeedImportPage data={data} />);
   expect(screen.getByText('Tech Notes')).toBeInTheDocument();
-  expect(screen.getByRole('heading', {name: 'Import Services'})).toBeInTheDocument();
-  delete window.feedImportData;
+  expect(screen.getByRole('heading', {name: 'Import Services: Book Club'})).toBeInTheDocument();
+  expect(screen.getByRole('link', {name: 'Import Services'})).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('link', {name: 'Settings'})).toHaveAttribute('href', '/groups/book-club/settings');
 });

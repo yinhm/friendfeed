@@ -31,8 +31,13 @@ export type AccountPageData = {
   profile: {uuid: string; id: string; name: string; description?: string;
     picture?: string; private?: boolean; type?: string};
   services: Record<string, {id: string; name: string; icon?: string; profile?: string;
-    username?: string; kind?: string; service_uuid?: string; enabled: boolean}>;
+    username?: string; kind?: string; service_uuid?: string; enabled?: boolean}>;
   states: Record<string, {last_fetch_ms?: number; next_fetch_ms?: number;
     last_error?: string; status?: string; last_success_ms?: number}>;
   target: string;
+};
+export type FeedImportPageData = {
+  feed: {id: string; name: string; type: string};
+  services: AccountPageData['services']; states: AccountPageData['states']; target: string;
+  manage_services_url: string; group_settings_url?: string; group_members_url?: string;
 };

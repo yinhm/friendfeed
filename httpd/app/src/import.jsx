@@ -206,12 +206,23 @@ export function ImportPanel(props) {
   );
 }
 
-/** @param {{data?: {services: Record<string, ServiceData>, states: Record<string, ServiceState>, target: string}}} props */
+/** @param {{data?: import('./browser-types').FeedImportPageData}} props */
 export function FeedImportPage({data: providedData} = {}) {
-  const data = providedData ?? /** @type {Window & {feedImportData: {
+  const data = providedData ?? /** @type {import('./browser-types').FeedImportPageData} */ (/** @type {Window & {feedImportData: {
    * services: Record<string, ServiceData>, states: Record<string, ServiceState>, target: string
-   * }}} */ (/** @type {unknown} */ (window)).feedImportData;
+   * }}} */ (/** @type {unknown} */ (window)).feedImportData);
   const [services, setServices] = useState(data.services ?? {});
-  return <ImportPanel services={services} states={data.states ?? {}} target={data.target}
-    onServicesChange={setServices} />;
+  const inactive = 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground';
+  const active = 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary';
+  return <div className="feed">
+    <h2 className="page-title">Import Services: {data.feed?.name ?? ''}</h2>
+    <nav className="mb-6 flex gap-1 border-b border-border" aria-label="Feed management">
+      <a href={`/feed/${data.feed?.id ?? ''}`} className={inactive}>Feed</a>
+      {data.group_settings_url && <a href={data.group_settings_url} className={inactive}>Settings</a>}
+      {data.group_members_url && <a href={data.group_members_url} className={inactive}>Members</a>}
+      <a href={data.manage_services_url} aria-current="page" className={active}>Import Services</a>
+    </nav>
+    <ImportPanel services={services} states={data.states ?? {}} target={data.target}
+      onServicesChange={setServices} />
+  </div>;
 }

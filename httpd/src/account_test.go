@@ -159,9 +159,19 @@ func TestFeedImportPageUsesFeedIDAndAuthorizedTarget(t *testing.T) {
 		client.servicesReq.TargetFeedUuid != testGroupUUID {
 		t.Fatalf("ListFeedServices request=%+v", client.servicesReq)
 	}
-	if capture.data["feed_management_page"] != "import" ||
-		capture.data["manage_services_url"] != "/feed/book-club/import" {
+	raw, ok := capture.data["pageBootstrap"].(string)
+	if !ok {
 		t.Fatalf("feed import context=%v", capture.data)
+	}
+	var bootstrap struct {
+		Data feedImportPageData `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(raw), &bootstrap); err != nil {
+		t.Fatal(err)
+	}
+	if bootstrap.Data.Feed.ID != "book-club" || bootstrap.Data.ManageServicesURL != "/feed/book-club/import" ||
+		bootstrap.Data.GroupSettingsURL != "/groups/book-club/settings" {
+		t.Fatalf("feed import bootstrap=%+v", bootstrap.Data)
 	}
 }
 

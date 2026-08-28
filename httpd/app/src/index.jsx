@@ -20,7 +20,7 @@ function BootstrapError() {
 function PageDispatcher({page, data}) {
   if (page === 'feed') return <App data={/** @type {import('./browser-types').FeedPageData} */ (data)} />;
   if (page === 'account') return <AccountPage data={/** @type {NonNullable<Parameters<typeof AccountPage>[0]>['data']} */ (data)} />;
-  if (page === 'feed-import') return <FeedImportPage data={/** @type {NonNullable<Parameters<typeof FeedImportPage>[0]>['data']} */ (data)} />;
+  if (page === 'feed-import') return <FeedImportPage data={/** @type {import('./browser-types').FeedImportPageData} */ (data)} />;
   return <BootstrapError />;
 }
 
