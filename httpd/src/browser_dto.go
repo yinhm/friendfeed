@@ -150,7 +150,10 @@ func feedRefViewFromProto(ref *pb.Feed) *feedRefView {
 	return &feedRefView{ID: ref.Id, Name: ref.Name, Picture: ref.Picture, Private: ref.Private}
 }
 func entryViewFromProto(e *pb.Entry) entryView {
-	v := entryView{ID: e.Id, Title: e.Title, Body: e.Body, RawBody: e.RawBody, Type: e.Type, Date: e.Date, From: feedRefViewFromProto(e.From), Commands: append([]string(nil), e.Commands...)}
+	v := entryView{ID: e.Id, Title: e.Title, Body: e.Body, Type: e.Type, Date: e.Date, From: feedRefViewFromProto(e.From), Commands: append([]string(nil), e.Commands...)}
+	if hasCommand(e.Commands, "edit") {
+		v.RawBody = e.RawBody
+	}
 	for _, x := range e.To {
 		v.To = append(v.To, feedRefViewFromProto(x))
 	}
@@ -169,7 +172,11 @@ func entryViewFromProto(e *pb.Entry) entryView {
 	}
 	for _, x := range e.Comments {
 		if x != nil {
-			v.Comments = append(v.Comments, commentView{ID: x.Id, Body: x.Body, RawBody: x.RawBody, Date: x.Date, Placeholder: x.Placeholder, Commands: append([]string(nil), x.Commands...), From: feedRefViewFromProto(x.From)})
+			comment := commentView{ID: x.Id, Body: x.Body, Date: x.Date, Placeholder: x.Placeholder, Commands: append([]string(nil), x.Commands...), From: feedRefViewFromProto(x.From)}
+			if hasCommand(x.Commands, "edit") {
+				comment.RawBody = x.RawBody
+			}
+			v.Comments = append(v.Comments, comment)
 		}
 	}
 	for _, x := range e.Likes {
@@ -178,6 +185,15 @@ func entryViewFromProto(e *pb.Entry) entryView {
 		}
 	}
 	return v
+}
+
+func hasCommand(commands []string, want string) bool {
+	for _, command := range commands {
+		if command == want {
+			return true
+		}
+	}
+	return false
 }
 
 func contextBool(c pongo2.Context, k string) bool     { v, _ := c[k].(bool); return v }

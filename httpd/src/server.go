@@ -220,7 +220,9 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 
 	if c.Request.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
 		c.Request.Header.Get("Content-Type") == "application/json" {
-		c.JSON(200, data)
+		// Home reconciliation consumes the payload directly (without the full
+		// page envelope), but it must use the same explicit Browser DTO.
+		c.JSON(200, feedPageDataFromContext(data))
 	} else {
 		data["feed_body"] = ""
 		encoded, err := marshalFeedPageData(data)

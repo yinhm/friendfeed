@@ -258,6 +258,7 @@ git diff --check
 - 建立统一 React navigation/sidebar；
 - Pongo2 收缩到 `layout.html`、`app_shell.html`、匿名 Public/Feed/Entry SSR、403/404 和必要过渡模板；
 - 删除多 root mount、废弃 context key、无 route 消费的模板与测试；
+- 删除 `App`/`AccountPage`/`FeedImportPage` 为旧单测保留的 `window.appData`、`window.accountData`、`window.feedImportData` 回退，并把测试统一切到 dispatcher props；
 - 更新 `docs/web_routes.md` 和 `docs/web_architecture.md` 的实现状态。
 
 验收：
