@@ -37,9 +37,9 @@
         {% if entry.Thumbnails %}
           <div class="media" data-count="{{ entry.Thumbnails|length }}">
             {% for thumbnail in entry.Thumbnails %}
-              <a href="{{ thumbnail.Link|escape }}">
+              <button type="button" aria-label="Open media">
                 <img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} width="{{ thumbnail.Width }}" height="{{ thumbnail.Height }}"{% endif %} alt="" />
-              </a>
+              </button>
             {% endfor %}
           </div>
         {% endif %}

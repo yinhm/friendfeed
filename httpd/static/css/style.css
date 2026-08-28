@@ -320,18 +320,24 @@ a:not([class]):hover {
     line-height: 0;
 }
 
-.entry .media a {
+.entry .media > button {
     display: block;
     flex: 0 0 calc(33.333% - 4px);
     min-width: 0;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    background: none;
+    line-height: 0;
+    cursor: zoom-in;
 }
 
-.entry .media[data-count="1"] a {
+.entry .media[data-count="1"] > button {
     flex: 0 1 auto;
 }
 
-.entry .media[data-count="2"] a,
-.entry .media[data-count="4"] a {
+.entry .media[data-count="2"] > button,
+.entry .media[data-count="4"] > button {
     flex: 0 0 calc(50% - 3px);
 }
 

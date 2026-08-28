@@ -20,22 +20,53 @@ test('media box keeps intrinsic dimensions as attributes for proportional scalin
 test('clicking a media image opens an in-page lightbox with the original', () => {
   render(<EntryMediaBox thumbs={thumbs} />);
 
-  fireEvent.click(screen.getAllByRole('link', {name: 'Open media'})[1]);
+  const triggers = screen.getAllByRole('button', {name: 'Open media'});
+  expect(triggers[1]).not.toHaveAttribute('href');
+  fireEvent.click(triggers[1]);
 
   const dialog = screen.getByRole('dialog', {name: 'Enlarged media'});
   expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o2.jpg');
-  // The click must not navigate to the original URL.
-  expect(window.location.pathname).toBe('/');
+  expect(document.querySelector('.media a')).toBeNull();
+});
+
+test('lightbox falls back to the thumbnail without creating a media link', () => {
+  render(<EntryMediaBox thumbs={[{url: '/media/only.jpg', link: ''}]} />);
+
+  fireEvent.click(screen.getByRole('button', {name: 'Open media'}));
+  expect(screen.getByRole('dialog', {name: 'Enlarged media'}).querySelector('img'))
+    .toHaveAttribute('src', '/media/only.jpg');
+  expect(document.querySelector('.media a')).toBeNull();
+});
+
+test('lightbox ignores an HTML page link and shows the thumbnail immediately', () => {
+  render(<EntryMediaBox thumbs={[{
+    url: 'https://pbs.twimg.com/media/photo.jpg',
+    link: 'https://twitter.com/user/status/1/photo/1',
+  }]} />);
+
+  fireEvent.click(screen.getByRole('button', {name: 'Open media'}));
+  const image = screen.getByRole('dialog', {name: 'Enlarged media'}).querySelector('img');
+  expect(image).toHaveAttribute('src', 'https://pbs.twimg.com/media/photo.jpg');
+});
+
+test('lightbox falls back if a direct original image fails to load', () => {
+  render(<EntryMediaBox thumbs={[{url: '/media/thumb.jpg', link: '/media/original.jpg'}]} />);
+
+  fireEvent.click(screen.getByRole('button', {name: 'Open media'}));
+  const image = screen.getByRole('dialog', {name: 'Enlarged media'}).querySelector('img');
+  expect(image).toHaveAttribute('src', '/media/original.jpg');
+  fireEvent.error(image);
+  expect(image).toHaveAttribute('src', '/media/thumb.jpg');
 });
 
 test('lightbox closes on click and on Escape', () => {
   render(<EntryMediaBox thumbs={thumbs} />);
 
-  fireEvent.click(screen.getAllByRole('link', {name: 'Open media'})[0]);
+  fireEvent.click(screen.getAllByRole('button', {name: 'Open media'})[0]);
   fireEvent.click(screen.getByRole('dialog', {name: 'Enlarged media'}));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getAllByRole('link', {name: 'Open media'})[0]);
+  fireEvent.click(screen.getAllByRole('button', {name: 'Open media'})[0]);
   fireEvent.keyDown(document, {key: 'Escape'});
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
@@ -43,7 +74,7 @@ test('lightbox closes on click and on Escape', () => {
 test('lightbox navigates with arrow keys and buttons, wrapping around', () => {
   render(<EntryMediaBox thumbs={thumbs} />);
 
-  fireEvent.click(screen.getAllByRole('link', {name: 'Open media'})[0]);
+  fireEvent.click(screen.getAllByRole('button', {name: 'Open media'})[0]);
   const dialog = screen.getByRole('dialog', {name: 'Enlarged media'});
   expect(dialog.querySelector('img')).toHaveAttribute('src', '/media/o1.jpg');
 
@@ -68,7 +99,7 @@ test('lightbox navigates with arrow keys and buttons, wrapping around', () => {
 test('a single media image shows no navigation buttons', () => {
   render(<EntryMediaBox thumbs={[thumbs[0]]} />);
 
-  fireEvent.click(screen.getByRole('link', {name: 'Open media'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Open media'}));
   expect(screen.getByRole('dialog', {name: 'Enlarged media'})).toBeInTheDocument();
   expect(screen.queryByRole('button', {name: 'Next media'})).not.toBeInTheDocument();
 });

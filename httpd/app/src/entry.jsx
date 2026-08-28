@@ -418,16 +418,29 @@ function EntryAuthor(props) {
 /** @param {{thumb: Thumbnail, onEnlarge: () => void}} props */
 function EntryMedia(props) {
   var thumb = props.thumb;
-  /** @param {React.SyntheticEvent} event */
-  var enlarge = (event) => {
-    event.preventDefault();
-    props.onEnlarge();
-  };
   return (
-    <a href={thumb.link} aria-label="Open media" onClick={enlarge}>
+    <button type="button" aria-label="Open media" onClick={props.onEnlarge}>
       <img src={thumb.url} width={thumb.width} height={thumb.height} alt="" />
-    </a>
+    </button>
   );
+}
+
+/** @param {{thumb: Thumbnail}} props */
+function LightboxImage({thumb}) {
+  const [originalFailed, setOriginalFailed] = useState(false);
+  const src = !originalFailed && directImageURL(thumb.link) ? thumb.link : thumb.url;
+  return <img src={src} alt="" onError={() => setOriginalFailed(true)} />;
+}
+
+/** @param {string|undefined} value */
+function directImageURL(value) {
+  if (!value) return false;
+  try {
+    const path = new URL(value, 'https://local.invalid').pathname;
+    return /\.(?:avif|bmp|gif|jpe?g|png|svg|tiff?|webp)$/i.test(path);
+  } catch {
+    return false;
+  }
 }
 
 /** @param {{thumbs: Thumbnail[], index: number, onClose: () => void, onNavigate: (index: number) => void}} props */
@@ -451,7 +464,7 @@ function MediaLightbox(props) {
   return (
     <div className="media-lightbox" role="dialog" aria-modal="true" aria-label="Enlarged media"
          onClick={onClose}>
-      <img src={thumb.link} alt="" />
+      <LightboxImage key={`${thumb.link}-${thumb.url}`} thumb={thumb} />
       {thumbs.length > 1 && (
         <>
           <button type="button" className="media-lightbox-nav media-lightbox-prev" aria-label="Previous media"
