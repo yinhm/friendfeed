@@ -83,7 +83,7 @@
 
 | Method/path | Handler | 身份 | 当前渲染 |
 | --- | --- | --- | --- |
-| `GET /groups` | `GroupDiscoveryPageHandler` | anonymous allowed | `app_shell.html` + React `groups` |
+| `GET /groups` | `GroupDiscoveryPageHandler` | anonymous allowed | 匿名 `groups_public.html` SSR；登录态 app shell + React `groups` |
 | `GET /feed/:name/groups` | `UserGroupsPageHandler` | login + self-only | `app_shell.html` + React `groups` |
 | `GET /feed/:name/import` | `FeedImportPageHandler` | owner/Group admin | `app_shell.html` + `#app-root` |
 | `GET /groups/create` | `GroupCreatePageHandler` | login | `app_shell.html` + React `group-create` |

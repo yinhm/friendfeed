@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="feed">
+  <h2 class="page-title">Groups</h2>
+  {% if groups %}
+  <ul class="item-list groups-list">
+    {% for group in groups %}
+    <li>
+      <img class="avatar" src="{{ group.Picture|escape }}" alt="" />
+      <a href="/feed/{{ group.Id }}" title="{{ group.Id }}">{{ group.Name|escape }}</a>{% if group.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}
+      {% if group.Description %}<span class="muted">{{ group.Description|escape }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No groups are available yet.</p>
+  {% endif %}
+  {% if next_cursor %}<p class="pagination"><a href="/groups?cursor={{ next_cursor|urlencode }}">Next &raquo;</a></p>{% endif %}
+</div>
+{% endblock %}

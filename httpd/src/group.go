@@ -96,6 +96,12 @@ func (s *Server) GroupDiscoveryPageHandler(c *gin.Context) {
 		return
 	}
 	prepareGroupPictures(response.Groups)
+	if CurrentUserUuid(c) == "" {
+		s.HTML(c, http.StatusOK, "groups_public.html", pongo2.Context{
+			"title": "Groups", "groups": response.Groups, "next_cursor": response.NextCursor,
+		})
+		return
+	}
 	encoded, err := marshalPageBootstrap("groups", groupsPageData{
 		Heading: "Groups", Groups: groupFormViewsFromProto(response.Groups), CurrentUserID: CurrentUserId(c),
 		Page: "discover", EmptyText: "No groups are available yet.", NextCursor: response.NextCursor,

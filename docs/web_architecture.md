@@ -245,7 +245,7 @@ React 渐进增强使用 `createRoot` 替换 SSR tree，并非 `hydrateRoot`。
 这项价值不适用于登录态：登录用户已经依赖完整交互、session DTO 和 React，继续输出同一批 Entry SSR DOM 只会造成重复渲染与维护。目标边界固定为：
 
 ```text
-anonymous /public, /feed/:name, /e/:uuid
+anonymous /public, /feed/:name, /e/:uuid, /groups
   -> readable Pongo2 SSR (可由 React 渐进增强)
 
 authenticated Home/Public/Feed/Entry
@@ -1371,6 +1371,7 @@ Feed API key 代表 Feed capability，不代表任何 User。
 | Group members | React | interactive management |
 | Notifications | React | authenticated |
 | Requests | React | workflow |
+| Group discovery | 匿名 SSR；登录态 React | 公开目录在无 JS 时仍可浏览 |
 | 403/404 | server-rendered simple page | 简单可靠 |
 
 该表不是永久 contract；未来改变匿名 Public/Feed/Entry SSR 需独立决策。private target 仍必须先通过服务端可见性检查，SSR 白名单不改变权限。

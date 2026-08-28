@@ -155,6 +155,16 @@ func TestGroupDiscoveryPageIsPublicAndForwardsCursor(t *testing.T) {
 	if client.groupsCalls != 0 {
 		t.Fatalf("ListUserGroups called %d times", client.groupsCalls)
 	}
+	if capture.name != "groups_public.html" || capture.data["pageBootstrap"] != nil {
+		t.Fatalf("anonymous template=%q data=%v", capture.name, capture.data)
+	}
+
+	client.profile = &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user"}
+	login := groupLoginCookie(t, router)
+	req := httptest.NewRequest(http.MethodGet, "/groups?cursor=current-page", nil)
+	req.AddCookie(login)
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
 	var bootstrap struct {
 		Page string         `json:"page"`
 		Data groupsPageData `json:"data"`
@@ -162,7 +172,7 @@ func TestGroupDiscoveryPageIsPublicAndForwardsCursor(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
 		t.Fatalf("decode bootstrap: %v", err)
 	}
-	if bootstrap.Page != "groups" || len(bootstrap.Data.Groups) != 1 || bootstrap.Data.CurrentUserID != "" || bootstrap.Data.NextCursor != "next-page" {
+	if capture.name != "app_shell.html" || bootstrap.Page != "groups" || len(bootstrap.Data.Groups) != 1 || bootstrap.Data.CurrentUserID != "test-user" || bootstrap.Data.NextCursor != "next-page" {
 		t.Fatalf("bootstrap = %+v", bootstrap)
 	}
 }

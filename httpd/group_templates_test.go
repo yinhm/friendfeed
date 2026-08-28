@@ -63,3 +63,21 @@ func TestFeedArchiveSidebarRendersOnlyWhenSnapshotExists(t *testing.T) {
 		t.Fatal("Feed archive sidebar must not render an All navigation item")
 	}
 }
+
+func TestAnonymousGroupDiscoveryIsReadableWithoutJavaScript(t *testing.T) {
+	body := renderEmbeddedTemplate(t, "groups_public.html", pongo2.Context{
+		"title": "Groups", "next_cursor": "next/page",
+		"groups": []*pb.Profile{{Id: "book-club", Name: "Book Club", Description: "Reading", Picture: "/book.png", Private: true}},
+	})
+	for _, want := range []string{
+		`<h2 class="page-title">Groups</h2>`, `href="/feed/book-club"`, `>Book Club</a>`,
+		`aria-label="Private"`, `href="/groups?cursor=next%2Fpage"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("anonymous Group SSR missing %q", want)
+		}
+	}
+	if strings.Contains(body, `id="app-root"`) {
+		t.Fatal("anonymous Group discovery must not depend on the React root")
+	}
+}
