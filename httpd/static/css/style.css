@@ -188,6 +188,13 @@ div.content img {
     .menu > summary {
         display: none;
     }
+
+    /* Anonymous SSR-only pages do not load the React navigation helper.
+       Keep their menu readable on desktop while allowing <details> to start
+       naturally collapsed on mobile. */
+    details.menu:not([open]) > :not(summary) {
+        display: block;
+    }
 }
 
 @media (max-width: 600px) {

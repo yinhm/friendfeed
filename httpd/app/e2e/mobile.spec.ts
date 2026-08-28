@@ -68,3 +68,13 @@ test('anonymous mobile Feed starts with the SSR navigation collapsed', async ({ 
   await expect(navigation).not.toHaveAttribute('open', '');
   await expect(navigation.locator('summary')).toBeVisible();
 });
+
+test('anonymous mobile Group discovery keeps its no-JS navigation collapsed', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/groups');
+
+  const navigation = page.locator('details.menu');
+  await expect(navigation).toBeVisible();
+  await expect(navigation).not.toHaveAttribute('open', '');
+  await expect(page.getByRole('heading', {name: 'Groups'})).toBeVisible();
+});
