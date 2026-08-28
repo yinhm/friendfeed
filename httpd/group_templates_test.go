@@ -51,7 +51,7 @@ func TestFeedArchiveSidebarRendersOnlyWhenSnapshotExists(t *testing.T) {
 	}
 	with := renderEmbeddedTemplate(t, "feed.html", base)
 	for _, want := range []string{
-		`class="menu feed-archive-menu"`,
+		`class="menu feed-archive-menu sidebar-secondary-menu"`,
 		`href="/feed/archive">2026</a> <span class="feed-archive-count">25</span>`,
 		`href="/feed/archive?cursor=year-boundary">2025</a> <span class="feed-archive-count">50</span>`,
 	} {

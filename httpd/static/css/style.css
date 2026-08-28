@@ -933,11 +933,7 @@ div.content pre {
     gap: 6px;
 }
 
-.groups-menu {
-    margin-top: 24px;
-}
-
-.feed-archive-menu {
+.sidebar-secondary-menu {
     margin-top: 24px;
 }
 
@@ -1034,7 +1030,7 @@ div.content pre {
 }
 
 @media (max-width: 600px) {
-    .groups-menu {
+    .sidebar-secondary-menu {
         display: none;
     }
 }

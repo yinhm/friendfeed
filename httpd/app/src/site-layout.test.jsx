@@ -13,6 +13,7 @@ it('renders authenticated navigation, notification state, groups, archive, and s
   expect(screen.getByRole('link', {name: 'Secret'})).toHaveAttribute('href', '/feed/secret');
   expect(screen.getByRole('img', {name: 'Private'})).toBeInTheDocument();
   expect(screen.getByRole('link', {name: '2025'})).toHaveAttribute('href', '/feed/alice?cursor=next%2Fyear');
+  expect(screen.getByRole('link', {name: '2025'}).closest('.feed-archive-menu')).toHaveClass('sidebar-secondary-menu');
   expect(screen.getByRole('searchbox', {name: 'Search'})).toBeInTheDocument();
   expect(screen.getByText('page content')).toBeInTheDocument();
 });

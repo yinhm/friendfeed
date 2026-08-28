@@ -56,7 +56,7 @@ export function SiteLayout({bootstrap, children}) {
         </ul></div>
         <Search />
       </details>
-      {currentUser && layout.show_groups && <div className="menu groups-menu"><div className="section">
+      {currentUser && layout.show_groups && <div className="menu groups-menu sidebar-secondary-menu"><div className="section">
         <h3 className="groups-heading">Groups</h3>
         {layout.groups && layout.groups.length > 0 && <ul>{layout.groups.map(group => <li key={group.id}>
           <a href={`/feed/${group.id}`} title={group.id}>{group.name}</a>
@@ -65,7 +65,7 @@ export function SiteLayout({bootstrap, children}) {
         <div><a href={`/feed/${currentUser.id}/groups`}>More…</a></div>
       </div></div>}
       {currentUser && layout.archive_years && layout.archive_years.length > 0 &&
-        <div className="menu feed-archive-menu"><div className="section"><h3>Archive</h3><ul>
+        <div className="menu feed-archive-menu sidebar-secondary-menu"><div className="section"><h3>Archive</h3><ul>
           {layout.archive_years.map(year => <li key={year.year}><a href={`/feed/${layout.archive_feed_id}${year.cursor ? `?cursor=${encodeURIComponent(year.cursor)}` : ''}`}>{year.year}</a>{' '}
             <span className="feed-archive-count">{year.count}</span></li>)}
         </ul></div></div>}
