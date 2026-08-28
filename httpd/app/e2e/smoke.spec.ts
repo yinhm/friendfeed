@@ -54,6 +54,11 @@ test('authenticated user can publish from the Home editor', async ({
 }) => {
   await authenticate(context);
 
+  const rawHome = await page.request.get('/');
+  const rawHomeHTML = await rawHome.text();
+  expect(rawHomeHTML).toContain('window.pageBootstrap');
+  expect(rawHomeHTML).not.toContain('<div class="entry" eid=');
+
   const editorRequests: string[] = [];
   page.on('request', (request) => {
     if (/\/editor-[^/]+\.js$/.test(new URL(request.url()).pathname)) {

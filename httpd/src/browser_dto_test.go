@@ -78,6 +78,41 @@ func TestRenderFeedJSONUsesBrowserDTO(t *testing.T) {
 	}
 }
 
+func TestRenderFeedUsesSSROnlyForAnonymousReaders(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		authenticated bool
+		wantTemplate  string
+		wantDataKey   string
+	}{
+		{name: "anonymous", wantTemplate: "feed.html", wantDataKey: "appData"},
+		{name: "authenticated", authenticated: true, wantTemplate: "app_shell.html", wantDataKey: "pageBootstrap"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeGroupClient{}
+			if tc.authenticated {
+				client.profile = &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user"}
+			}
+			s := newGroupTestServer(client)
+			router := groupTestRouter(s)
+			capture := &captureNotificationRender{}
+			router.HTMLRender = capture
+			router.GET("/feed", func(c *gin.Context) {
+				s.renderFeed(c, pongo2.Context{"feed": &pb.Feed{Id: "alice", Entries: []*pb.Entry{}}})
+			})
+			req := httptest.NewRequest(http.MethodGet, "/feed", nil)
+			if tc.authenticated {
+				req.AddCookie(groupLoginCookie(t, router))
+			}
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+			if recorder.Code != http.StatusOK || capture.name != tc.wantTemplate || capture.data[tc.wantDataKey] == nil {
+				t.Fatalf("status=%d template=%q data=%v", recorder.Code, capture.name, capture.data)
+			}
+		})
+	}
+}
+
 func TestFeedPageDataOnlyExposesEditableRawBody(t *testing.T) {
 	view := feedViewFromProto(&pb.Feed{Entries: []*pb.Entry{
 		{Id: "read-only", RawBody: "private editor state"},

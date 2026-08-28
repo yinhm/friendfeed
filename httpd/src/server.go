@@ -230,8 +230,16 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 			RequestError(c, err)
 			return
 		}
-		data["appData"] = string(encoded)
-		s.HTML(c, 200, "feed.html", data)
+		if actor != "" {
+			// Authenticated pages are React-owned. Do not emit the same Entry
+			// tree once in Pongo2 and replace it a second time on mount.
+			data["pageBootstrap"] = string(encoded)
+			s.HTML(c, http.StatusOK, "app_shell.html", data)
+		} else {
+			// Public/Feed/permalink remain readable without JavaScript.
+			data["appData"] = string(encoded)
+			s.HTML(c, http.StatusOK, "feed.html", data)
+		}
 	}
 }
 

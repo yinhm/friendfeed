@@ -17,9 +17,11 @@ import (
 
 type captureNotificationRender struct {
 	data pongo2.Context
+	name string
 }
 
-func (r *captureNotificationRender) Instance(_ string, data any) render.Render {
+func (r *captureNotificationRender) Instance(name string, data any) render.Render {
+	r.name = name
 	r.data, _ = data.(pongo2.Context)
 	return render.Data{ContentType: "text/html; charset=utf-8", Data: []byte("rendered")}
 }

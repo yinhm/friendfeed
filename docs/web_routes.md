@@ -7,12 +7,12 @@
 | 请求 | 当前实现 | 目标边界 |
 | --- | --- | --- |
 | 匿名 `/public`、公开 `/feed/:name`、公开 `/e/:uuid` | Pongo2 Entry SSR 后由 React `#root` 替换 | 保留可读 SSR；允许 React 渐进增强 |
-| 登录态 Home/Public/Feed/Entry | 同一批 Entry 同时 SSR 与 React 重绘 | 薄 bootstrap，React 完整渲染 |
+| 登录态 Home/Public/Feed/Entry | `app_shell.html` + React dispatcher | 已收敛为薄 bootstrap，React 完整渲染 |
 | Account/Profile | `app_shell.html` + React `#app-root` dispatcher | 已收敛为统一 app shell + React |
 | Feed Import | `app_shell.html` + React `#app-root` dispatcher | 已收敛为统一 app shell + React |
 | Notifications | `app_shell.html` + React dispatcher | 已迁移 |
 | Follow Requests | `app_shell.html` + React dispatcher | 已迁移 |
-| Group 管理/列表 | 完整 Pongo2 页面 | 统一 app shell + React |
+| Group 管理/列表 | `app_shell.html` + React dispatcher | 已迁移 |
 | Sidebar Search | React `#search` | layout 最后收敛，迁移期间保持独立 mount |
 | 403/404 | Pongo2 | 保留简单服务端页面 |
 
@@ -37,7 +37,7 @@
 | `POST /account/profile` | `AccountProfileUpdateHandler` | Profile mutation |
 | `GET /account/import/` | `ImportHandler` | legacy import page |
 | `GET /account/import/twitter` | `TwitterImportHandler` | legacy Twitter import |
-| `GET /account/requests` | `AccountRequestsHandler` | `account_requests.html` |
+| `GET /account/requests` | `AccountRequestsHandler` | `app_shell.html` + React `requests` |
 | `POST /account/requests/action` | `AccountRequestActionHandler` | approve/reject request |
 | `POST /account/feed-service` | `AddFeedServiceHandler` | add Service binding |
 | `POST /account/feed-service/:service/:action` | `FeedServiceActionHandler` | disable/refresh/remove binding |
@@ -47,10 +47,10 @@
 
 | Method/path | Handler | 身份/可见性 | 当前渲染 |
 | --- | --- | --- | --- |
-| `GET /` | `HomeHandler` | anonymous redirect；登录态 Home | `feed.html` + React `#root` |
-| `GET /public` | `PublicHandler` | public | `feed.html` + React `#root` |
-| `GET /feed/:name` | `FeedHandler` | ffdb visibility | `feed.html` + React `#root` |
-| `GET /e/:uuid` | `EntryHandler` | ffdb visibility | `feed.html` + React `#root` |
+| `GET /` | `HomeHandler` | anonymous redirect；登录态 Home | 登录态 `app_shell.html` + React `feed` |
+| `GET /public` | `PublicHandler` | public | 匿名 `feed.html` SSR；登录态 app shell |
+| `GET /feed/:name` | `FeedHandler` | ffdb visibility | 匿名公开 Feed SSR；登录态 app shell |
+| `GET /e/:uuid` | `EntryHandler` | ffdb visibility | 匿名公开 Entry SSR；登录态 app shell |
 | `GET /feed/:name/likes` | `InteractionFeedHandler` | login + owner-only | Feed React |
 | `GET /feed/:name/comments` | `InteractionFeedHandler` | login + owner-only | Feed React |
 | `GET /search` | `SearchHandler` | visibility-filtered | Feed React |
