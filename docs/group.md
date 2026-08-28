@@ -33,7 +33,7 @@ user UUID -> group UUID             ProfileUuid = 发帖用户
 GroupAdmin(group, user) => Follow(user, group)
 每个未删除 Group 至少有一个 admin
 admin 不得直接退出 Group
-Group Entry 的作者始终是真实用户；外部 Service 导入除外
+Group Entry 的作者始终是真实用户；可信 machine producer 除外
 ```
 
 ## 权威数据
@@ -136,9 +136,11 @@ From        = 发帖用户快照
 To          = 唯一的 Group 快照
 ```
 
-服务端根据 Profile/FeedUuid 重建 From/To，不信任客户端提交的快照或多个 target。通过外部
-FeedService 导入的 Entry 是明确例外：它属于目标 Group，可以使用 Group 作为来源快照，但
-`Via` 必须记录外部 Service，不能伪造某个 admin 为作者。
+服务端根据 Profile/FeedUuid 重建 From/To，不信任客户端提交的快照或多个 target。可信
+machine producer 是明确例外：FeedService 导入和未来经认证的 per-Feed API key 都只能通过
+不导出的专用 mutation boundary 创建 Group/system-authored Entry，可以使用 Group 作为来源
+快照，但 `Via` 必须由服务端记录具体来源，不能伪造某个 admin 为作者。普通 `PostEntry` RPC
+仍不得接受 Group principal。
 
 ## 内容权限与审核
 

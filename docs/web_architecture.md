@@ -1,8 +1,10 @@
 # Web 架构与演进规范
 
+> **状态：Alpha。** 本文用于指导 Web 架构演进，目标边界已基本确定，但分阶段方案和 Public API 设计仍可能随实现验证调整；尚不构成稳定的外部兼容承诺。
+
 本文定义 FriendFeed Web 层的当前架构、职责边界和下一阶段演进路线。目标不是把现有 Go Web 服务替换为另一套技术栈，而是在保持 `ffdb` 领域边界和运行稳定性的前提下，逐步把 Web UI 从“Pongo2 SSR + React 二次渲染”收敛为“Go BFF + React 主导 UI”，并为正式 Public Feed API 保留清晰、稳定的接口边界。
 
-本文是 Web 架构的总规范。Feed、Group、Notification、Realtime、权限、Task、数据库等领域不变量仍分别以现有文档为准；发生冲突时，领域文档中的 source-of-truth / authorization / persistence 约束优先。
+本文是 Web 架构的总规范。Feed、Group、Notification、Realtime、权限、Task、数据库和媒体上传等领域不变量仍分别以现有文档为准；发生冲突时，领域文档中的 source-of-truth / authorization / persistence 约束优先。媒体格式、限额、staging、promote、下载与 R2 mirror 的完整契约以 [`media_upload.md`](media_upload.md) 为准。
 
 ---
 
@@ -48,17 +50,20 @@ Browser
    | HTTPS
    v
 nginx
+   |\
+   | \-- canonical media --> media_path
    |
    | HTTP / SSE
    v
-ffweb / httpd (Go)
+ffweb / httpd (Go) ---- staging / canonical promote ----> media_path
    |
    | loopback gRPC
    v
 ffdb (Go)
-   |
+   |\
+   | \-- background media mirror task --> R2 replica
    v
-Pebble / media storage / background task workers
+Pebble / background task workers
 ```
 
 核心边界：
@@ -68,6 +73,8 @@ Pebble / media storage / background task workers
 - `ffdb` 只监听 loopback gRPC，不对公网暴露；
 - 浏览器不能直接调用 `ffdb`；
 - `ffweb` 通过生成的 Go protobuf client 调用 `ffdb`；
+- 用户上传先落本机 staging，发布时由 `ffweb` promote 到本机 canonical media；
+- production canonical media 由独立 media origin/nginx 提供，R2 是异步 replica，不进入发布同步事务；
 - 业务领域校验不能只存在于 `ffweb`，最终 mutation authorization 必须由 `ffdb` 保证。
 
 这一边界必须继续保留。
@@ -91,7 +98,8 @@ Pebble / media storage / background task workers
 - mutation concurrency / atomicity；
 - visibility / authorization 的最终领域校验；
 - background lifecycle；
-- realtime event 的领域来源。
+- realtime event 的领域来源；
+- Entry 中结构化 media refs 的持久化，以及新增 canonical refs 的 R2 mirror task。
 
 Web 架构演进不得把这些权威规则复制到 React。
 
@@ -141,7 +149,9 @@ ffdb decides domain truth and final authorization.
 
 ### Web-specific capability
 
-- media upload；
+- 图片、远程图片与文件附件上传；
+- staging 生命周期、asset token 校验与 publish-time canonical promote；
+- Plate 剪贴板图片接入和上传错误呈现；
 - SSE endpoint；
 - asset manifest；
 - embedded static files；
@@ -478,7 +488,7 @@ FeedAPIPrincipal {
 
 Public API 请求不应该允许调用方决定 author UUID。
 
-例如：
+Feed API key 是 machine principal，只能向它绑定的 Feed 发布。客户端不能提交或覆盖 author/target：
 
 ```text
 Bearer key
@@ -487,14 +497,29 @@ Bearer key
 AuthenticateFeedAPIKey
     |
     v
-FeedUUID = G
+FeedAPIPrincipal { FeedUUID = F }
     |
     v
 PostFeedAPIEntry
     |
-    +--> ProfileUuid = G (server derived)
-    +--> FeedUuid    = G (server derived)
+    +--> ProfileUuid = F (server derived)
+    +--> FeedUuid    = F (server derived)
+    +--> From        = canonical Feed snapshot
+    +--> Via.Name    = "FriendFeed API" (server derived)
+    +--> Via.Url     = empty
 ```
+
+对 personal Feed，`F` 同时是用户 Profile 与目标 Feed。对 Group Feed，`ProfileUuid = FeedUuid = Group UUID` 是明确、受限的 **system-authored Entry** 例外，与 FeedService 导入使用相同领域语义；它不表示某个 admin 发帖，也不能借用 key 创建者的 user identity。
+
+这不会重新引入历史迁移修复的数据错误：普通用户向 Group 投稿仍必须保存 `ProfileUuid = user UUID, FeedUuid = Group UUID`。只有经过 Feed API key 认证的专用内部 mutation boundary 才能创建 Group/system-authored Entry；现有公开 `PostEntry` RPC 仍不得接受 Group 冒充用户 principal。
+
+Group machine entry 的权限边界：
+
+- key 只能写入其自身 `FeedUUID`，不能指定其他 Feed、Profile 或 admin；
+- V1 不提供 update/delete endpoint；Group admin/super 仍可按既有 Group moderation 规则删除；
+- machine entry 没有可登录的用户作者，不产生“通知作者本人”的语义；
+- author/feed direct index、timeline、realtime、media 与普通 Entry 使用同一 mutation invariant；
+- `Via` 必须由服务端固定为 `FriendFeed API`，不能由客户端伪造。
 
 这样不会出现：
 
@@ -574,7 +599,7 @@ domain model
 
 ## 4.7 附件
 
-V1 优先采用简单 multipart 一步发布：
+Public API 对调用方仍优先保持一次 multipart 发布，不提前暴露 browser staging protocol：
 
 ```text
 POST /api/v1/feed/entries
@@ -586,17 +611,18 @@ raw_body=...
 file=@...
 ```
 
-当前项目没有必要提前引入 upload session / presigned upload workflow。
+这只是外部 transport 形态，不代表另建一套媒体实现。ffweb adapter 必须复用 browser upload 已有的服务端能力：验证输入、生成 thumbnail、写 staging、promote 为 canonical object，再构造最终 Entry。Public API credential 不能复用 browser asset token，也不能让调用方提交 storage path。
 
-必须复用或抽取现有 upload 安全约束：
+必须保持：
 
-- request size limit；
-- MIME handling；
-- media.Storage；
-- thumbnail；
-- filename 不信任；
-- 不使用用户 filename 作为真实 object path；
-- upload failure 不得产生半个 Entry。
+- 与 browser endpoint 相同的 request、文件数、总大小和类型 allowlist；
+- MIME/magic/container 验证，不能信任扩展名或 multipart MIME；
+- server-derived extension 和 content-addressed canonical key；
+- filename 只作为清理后的 display name，不进入 object key；
+- 图片与文件分别进入 `Entry.thumbnails[]` / `Entry.files[]`；
+- HTML、SVG 等主动内容只能强制下载，不能在主站 origin inline 执行；
+- 上传或 promote 失败不得提交 Entry；promote 成功后 domain mutation 失败所留下的 canonical orphan 由未来离线 GC 处理；
+- Entry 成功后 R2 mirror 异步执行，本机 canonical object 仍是当前 serving source。
 
 如果未来出现大文件、对象存储直传或多阶段草稿，再新增独立 upload resource。
 
@@ -792,7 +818,7 @@ Phase 0 不允许删除模板或 route，只增加测试/文档/typed helper。
    - Realtime bootstrap。
 2. DTO 由 ffweb 构造；
 3. DTO 只包含 React/SSR 真正需要的字段；
-4. rich HTML / rawBody 的安全语义保持现有规则；
+4. `rawBody` 只作为 editor round-trip 数据，展示只使用服务端消毒后的 `Body`；
 5. `window.appData` 改为该 DTO，而不是任意 `pongo2.Context` JSON serialization；
 6. 给对应 DTO 写 TypeScript type；
 7. 保证 SSR 与 React 都从同一 DTO 语义生成 UI。
@@ -899,7 +925,7 @@ React
 - actor 永远从 session 获取；
 - 不信任 hidden input 中的 actor UUID；
 - mutation 最终由 ffdb 校验；
-- CSRF 策略与现有 browser action 一致；
+- 不误称现状已有 CSRF token：当前 production session cookie 是 `Secure + SameSite=None`，debug 为 `SameSite=Lax`，browser action 尚无独立 CSRF token；页面迁移不得扩大 mutation 面，CSRF hardening 需单独实施并统一覆盖旧、新 action；
 - secret 不进入 initial data/log。
 
 #### 可访问性
@@ -949,7 +975,7 @@ React
 3. 所有 client mutation 统一通过 Browser BFF endpoint；
 4. React 的 Entry state 与 realtime refresh 使用同一 DTO；
 5. Editor 继续 lazy-load，静态 Feed 不引入 Plate runtime；
-6. 保持 rawBody compatibility 和 sanitized HTML fallback。
+6. 保持旧 `rawBody` editor round-trip；Entry 展示只渲染服务端消毒后的 `Body`，不从 `rawBody` 回退渲染。
 
 ### SSR 策略
 
@@ -1111,7 +1137,7 @@ Authorization: Bearer <feed-api-key>
 
 ### 5.4 POST Entry
 
-V1 允许 multipart。
+V1 允许 personal Feed 和 Group Feed 使用 multipart。两者都通过专用 Feed API mutation boundary，由已认证的 Feed principal 派生 author/target；不得把这一能力开放到 legacy `PostEntry` RPC。
 
 Server derived：
 
@@ -1180,7 +1206,8 @@ Public API 统一响应，例如：
 #### Write
 
 - personal Feed key 发布后 author/feed 正确；
-- Group Feed key 发布后是 Group machine-authored Entry；
+- Group Feed key 发布后得到带 API provenance 的 Group/system-authored Entry；
+- 普通用户向 Group 投稿仍以真实用户作为 `ProfileUuid`；
 - client 伪造 ProfileUuid 无效；
 - Entry domain/timeline/realtime invariant 与正常创建一致；
 - multipart media 成功时 Entry 能引用正确资源；
@@ -1392,27 +1419,73 @@ Web 演进中必须保持：
 
 # 13. Upload / media
 
-当前 media/upload 属于 ffweb transport 能力。
+媒体上传的 browser protocol 和发布编排属于 ffweb；Entry 及其中的结构化 media refs 属于 ffdb domain。详细契约以 [`media_upload.md`](media_upload.md) 为准，本节只固定 Web 架构边界。
 
-Browser 和 Public API 可复用底层 helper，但必须避免复制两套安全逻辑。
-
-建议逐步抽取：
+## 13.1 当前 Browser 写入链路
 
 ```text
-parse multipart
-  -> validate size/type
-  -> media service/helper
-  -> object + thumbnail
+Plate / file picker / clipboard
+  -> POST /a/upload | /a/upload_file
+  -> ffweb validates bytes/type/dimensions/container
+  -> media_path/upload-staging (24h TTL)
+  -> actor-bound HMAC asset token
+  -> POST /a/share with final editor state + referenced tokens
+  -> verify token, digest, size and final reference
+  -> atomic promote on the same filesystem
+  -> content-addressed canonical object
+  -> rewrite body/rawBody and build Thumbnails[] / Files[]
+  -> ffdb PostEntry
+  -> when media_mirror is enabled, enqueue newly added canonical refs for R2 mirror
 ```
 
-Browser endpoint 和 Public API endpoint 只负责不同 auth/response contract。
+关键点：
+
+- staging URL/token 只服务未发布编辑态，不能进入最终 Entry；
+- `/a/share` 只 promote 最终编辑态仍引用的对象；取消或移除的上传等待 staging TTL 清理；
+- 编辑既有 Entry 时保留的 canonical refs 不重复 promote/mirror；
+- canonical key 由已验证内容摘要和服务端扩展名决定，不含用户 filename；
+- ffweb promote 与 Pebble mutation 无跨系统事务，少量 canonical orphan 是明确接受的边界；
+- R2 mirror 受 `media_mirror` 开关控制（默认关闭）；开启且配置完整时才入队。它是 best-effort background task，不阻塞本机 canonical media 的发布和读取。
+
+## 13.2 编辑器与剪贴板
+
+Plate editor 负责识别本地文件、剪贴板 binary/data/blob 和 HTML 内远程图片，但所有内容最终都必须经过 ffweb upload endpoint。不得把 `data:`、`blob:`、staging URL、asset token 或 remote source URL 写入最终 `rawBody/body`。
+
+上传是可失败的网络操作：pending/error 时不得发布引用不完整的 Entry；失败应在 composer 操作区给出不阻断编辑的可见提示，不能静默删除图片，也不要求用户额外 dismiss。编辑器内部 Slate fragment 的复制粘贴不得重新上传已发布 media。
+
+## 13.3 读取与下载
+
+当前 media URL 是公开 capability，不随 Feed private 权限做读取鉴权。production 由独立 media origin/nginx 从 `media_path` serve；dev/local 可由 ffweb fallback serve。
+
+- 光栅图片允许 inline 与 modal preview；
+- 附件必须带 download 语义；
+- HTML、SVG 等主动内容强制 `Content-Disposition: attachment`、`application/octet-stream` 与 `nosniff`；
+- 主站 `/file` 仅作为历史 fallback，不能成为主动内容的 inline 执行入口；
+- external image 只为历史 Entry 保持读取兼容，新上传必须 canonicalize 到本站 media。
+
+## 13.4 共享实现边界
+
+Browser 和未来 Public API 可以复用底层 helper，但不能复制两套安全逻辑。合理分层是：
+
+```text
+transport/auth adapter
+  -> bounded input
+  -> verified media pipeline
+  -> staging/promote
+  -> canonical media refs
+  -> domain mutation
+```
+
+Browser endpoint 和 Public API endpoint 只负责不同的 principal、request/response contract；类型识别、SSRF 防护、限额、thumbnail、canonical key 和下载安全规则必须共用。
 
 不得：
 
 - 让 React 直接写 storage；
 - 让 Public API 直接信任 object path；
 - 用原始用户 filename 作为真实 storage key；
-- 在失败时留下引用不存在附件的 Entry。
+- 在失败时提交引用不存在附件的 Entry；
+- 把 R2 当作同步发布前置条件；
+- 在 read path 自动 mirror 历史外站图片。
 
 ---
 
@@ -1647,6 +1720,7 @@ Pongo2
 - 是否引入 React SSR/hydration；
 - production ffweb 是否迁到 Node.js；
 - 一个 Feed 是否支持多个 active API keys；
+- browser mutation 的统一 CSRF token/origin 防护；
 - Public API 是否支持 comments/likes/group management；
 - Public API OAuth/User token；
 - 大文件 direct upload / presigned URL；
