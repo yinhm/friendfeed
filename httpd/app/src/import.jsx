@@ -206,11 +206,8 @@ export function ImportPanel(props) {
   );
 }
 
-/** @param {{data?: import('./browser-types').FeedImportPageData}} props */
-export function FeedImportPage({data: providedData} = {}) {
-  const data = providedData ?? /** @type {import('./browser-types').FeedImportPageData} */ (/** @type {Window & {feedImportData: {
-   * services: Record<string, ServiceData>, states: Record<string, ServiceState>, target: string
-   * }}} */ (/** @type {unknown} */ (window)).feedImportData);
+/** @param {{data: import('./browser-types').FeedImportPageData}} props */
+export function FeedImportPage({data}) {
   const [services, setServices] = useState(data.services ?? {});
   const inactive = 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground';
   const active = 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary';

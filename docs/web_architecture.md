@@ -212,9 +212,9 @@ embedded into ffweb Go binary
 
 ---
 
-## 2.5 当前 Feed 双渲染
+## 2.5 Feed 渲染边界（已收敛）
 
-当前 Feed 页面是最需要收敛的结构：
+登录态 Feed 已不再双渲染：
 
 ```text
 GET /feed/:id
@@ -222,28 +222,16 @@ GET /feed/:id
       v
 Go fetches protobuf Feed
       |
-      +--> Pongo2 renders complete Feed HTML
+      +--> authenticated: typed bootstrap -> app_shell.html -> one React root
       |
-      +--> serializes same page data into window.appData
-                              |
-                              v
-                         React createRoot()
-                              |
-                              v
-                       replaces #root UI
+      +--> anonymous public target: readable Pongo2 Feed HTML
+                                   + typed bootstrap for progressive enhancement
 ```
 
-因此同一 Feed/Entry UI 同时存在：
-
-- `httpd/templates/feed.html`；
-- React `App / Entry` components。
-
-这产生两个长期问题：
-
-1. markup 和行为需要双维护；
-2. SSR 和 React mount 后容易出现视觉/语义漂移。
-
-当前使用 `createRoot`，不是对服务端相同 React tree 做 `hydrateRoot`，因此这不是标准意义上的 React hydration，而是“服务端备用/首屏 HTML + 客户端重新渲染”。
+`app_shell.html` 只输出文档壳、typed bootstrap 和一个 `#app-root`。登录态页面的
+navigation、sidebar、Search 与页面内容都由这个 root 管理；不再使用 `window.appData`、
+`window.accountData` 或独立 Search root。匿名 Public/Feed/Entry 仍使用 `feed.html`，其
+React 渐进增强使用 `createRoot` 替换 SSR tree，并非 `hydrateRoot`。
 
 ### 当前不应立即删除匿名 SSR
 
@@ -717,7 +705,8 @@ model/
 
 React 应使用 Web DTO/JS object，而不是依赖 protobuf generated JS runtime。
 
-当前 `window.appData` 是过渡形式；长期 DTO 应有显式结构和 TypeScript type。
+当前统一使用 versioned `window.pageBootstrap`，其 page data 与 layout data 都有显式
+Go DTO 和对应 TypeScript type；protobuf 不直接跨浏览器边界。
 
 ### 6.4 Server remains authoritative
 
@@ -829,7 +818,7 @@ Phase 0 不允许删除模板或 route，只增加测试/文档/typed helper。
 2. DTO 由 ffweb 构造；
 3. DTO 只包含 React/SSR 真正需要的字段；
 4. `rawBody` 只作为 editor round-trip 数据，展示只使用服务端消毒后的 `Body`；
-5. `window.appData` 改为该 DTO，而不是任意 `pongo2.Context` JSON serialization；
+5. versioned `window.pageBootstrap` 只承载该 DTO，不序列化任意 `pongo2.Context`；
 6. 给对应 DTO 写 TypeScript type；
 7. 保证 SSR 与 React 都从同一 DTO 语义生成 UI。
 

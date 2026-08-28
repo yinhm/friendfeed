@@ -131,3 +131,14 @@ func TestFeedPageDataOnlyExposesEditableRawBody(t *testing.T) {
 		t.Fatalf("comment rawBody filtering failed: %+v", view.Entries[1].Comments)
 	}
 }
+
+func TestEnrichPageBootstrapPreservesPageJSONIntegers(t *testing.T) {
+	raw := `{"version":1,"page":"test","data":{"exact":9007199254740993}}`
+	enriched, err := enrichPageBootstrap(raw, &pb.Profile{Uuid: "u", Id: "alice"}, pongo2.Context{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains([]byte(enriched), []byte(`"exact":9007199254740993`)) {
+		t.Fatalf("page data integer changed: %s", enriched)
+	}
+}

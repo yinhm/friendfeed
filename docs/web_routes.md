@@ -13,7 +13,7 @@
 | Notifications | `app_shell.html` + React dispatcher | 已迁移 |
 | Follow Requests | `app_shell.html` + React dispatcher | 已迁移 |
 | Group 管理/列表 | `app_shell.html` + React dispatcher | 已迁移 |
-| Sidebar Search | React `#search` | layout 最后收敛，迁移期间保持独立 mount |
+| Sidebar Search | authenticated app shell 内的 React navigation | 已并入唯一 `#app-root`；匿名 SSR 使用普通 HTML form |
 | 403/404 | Pongo2 | 保留简单服务端页面 |
 
 匿名 SSR 白名单不改变权限：private Feed/Entry 必须先通过 ffdb 可见性检查，未授权时不得输出正文。登录态明确依赖 JavaScript。
@@ -90,7 +90,7 @@
 | `POST /groups/create` | `GroupCreateHandler` | login | create Group |
 | `GET /groups/:name/settings` | `GroupSettingsPageHandler` | Group admin | `app_shell.html` + React `group-settings` |
 | `POST /groups/:name/settings` | `GroupSettingsHandler` | Group admin | update Group |
-| `GET /groups/:name/members` | `GroupMembersPageHandler` | Group admin | `app_shell.html` + React `group-members` |
+| `GET /groups/:name/members` | `GroupMembersPageHandler` | login + private visibility；管理按钮仅 admin/super | `app_shell.html` + React `group-members` |
 | `POST /groups/:name/members/action` | `GroupMemberActionHandler` | Group admin | membership/admin mutation |
 | `POST /groups/:name/delete` | `GroupDeleteHandler` | Group admin | destructive mutation |
 

@@ -167,6 +167,14 @@ func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context
 			data["has_unread_notifications"] = true
 		}
 	}
+	if raw, ok := data["pageBootstrap"].(string); ok {
+		enriched, enrichErr := enrichPageBootstrap(raw, profile, data)
+		if enrichErr != nil {
+			c.String(http.StatusInternalServerError, "Server error.")
+			return
+		}
+		data["pageBootstrap"] = enriched
+	}
 	data["dev"] = s.debug
 
 	if s.debug {

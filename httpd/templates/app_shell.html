@@ -1,12 +1,17 @@
-{% extends "layout.html" %}
-
-{% block content %}
+<!doctype html>
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ title|escape }} - FriendFeed</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  {% if dev %}{% for filename in cssFiles %}<link href="/app/build/static/css/{{filename}}" rel="stylesheet" />{% endfor %}
+  {% else %}<link href="/{{ cssFile }}" rel="stylesheet" />{% endif %}
+  <link rel="stylesheet" href="/static/css/style.css?v={{ styleCssVer }}" />
+</head>
+<body>
 <div id="app-root">
   <noscript>This page requires JavaScript.</noscript>
 </div>
-{% endblock %}
-
-{% block scripts %}
 <script>
 window.pageBootstrap = {{pageBootstrap|safe}};
 </script>
@@ -17,4 +22,5 @@ window.pageBootstrap = {{pageBootstrap|safe}};
 {% else %}
   <script type="module" src="/{{ jsFile }}"></script>
 {% endif %}
-{% endblock %}
+</body>
+</html>

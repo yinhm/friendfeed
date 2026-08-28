@@ -107,11 +107,8 @@ export function AccountApp(props) {
   );
 }
 
-/** @param {{data?: AccountData}} props */
-export function AccountPage({data: providedData} = {}) {
-  const data = providedData ?? /** @type {Window & {accountData: AccountData}} */ (
-    /** @type {unknown} */ (window)
-  ).accountData;
+/** @param {{data: AccountData}} props */
+export function AccountPage({data}) {
   // First-time logins land here via AuthCallback's ?welcome=1 redirect.
   const welcome = new URLSearchParams(window.location.search).get('welcome') === '1';
   return <AccountApp initialTab={data.tab} profile={data.profile} services={data.services}

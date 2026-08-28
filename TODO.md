@@ -45,7 +45,7 @@ git diff --check
 - [x] 8c. 迁移 Group Members
 - [x] 9. 迁移 Group discovery 与 User Groups 列表
 - [x] 10. 收敛 Feed interactive UI
-- [ ] 11. 收敛 layout/navigation
+- [x] 11. 收敛 layout/navigation
 
 ---
 

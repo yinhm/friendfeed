@@ -19,7 +19,7 @@ async function expectNoAccessibilityViolations(container) {
 }
 
 test('public feed has no detectable accessibility violations', async () => {
-  window.appData = {
+  const data = {
     feed: {
       id: 'public',
       uuid: 'public',
@@ -54,7 +54,7 @@ test('public feed has no detectable accessibility violations', async () => {
     onpage_edit: false,
   };
 
-  const { container } = render(<App />);
+  const { container } = render(<App data={data} />);
   await expectNoAccessibilityViolations(container);
 });
 

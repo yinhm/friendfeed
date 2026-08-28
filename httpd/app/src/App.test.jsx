@@ -5,7 +5,7 @@ test.each([
   ['Public', {id: 'public', uuid: 'public'}],
   ['Feed', {id: 'friend-feed', uuid: 'feed-uuid'}],
 ])('%s page does not render the post editor', (_page, feed) => {
-  window.appData = {
+  const data = {
     feed: {...feed, entries: []},
     show_header: false,
     show_paging: false,
@@ -17,14 +17,14 @@ test.each([
     onpage_edit: false,
   };
 
-  const {container} = render(<App />);
+  const {container} = render(<App data={data} />);
   expect(container.querySelector('#feed')).toBeInTheDocument();
   expect(container.querySelector('[role="status"]')).not.toBeInTheDocument();
   expect(container.querySelector('[contenteditable="true"]')).not.toBeInTheDocument();
 });
 
 test('Home page renders the post editor input and submit control', async () => {
-  window.appData = {
+  const data = {
     feed: {id: 'home', uuid: 'home', entries: []},
     show_header: false,
     show_paging: false,
@@ -36,7 +36,7 @@ test('Home page renders the post editor input and submit control', async () => {
     onpage_edit: false,
   };
 
-  const {container} = render(<App />);
+  const {container} = render(<App data={data} />);
   expect(container.querySelector('[role="status"]')).toHaveTextContent('Loading editor…');
   // the editor is lazy-loaded, wait for the chunk to resolve
   await waitFor(() => {
@@ -46,7 +46,7 @@ test('Home page renders the post editor input and submit control', async () => {
 }, 10000);
 
 test('Cursor-paged feeds render only the opaque next link', () => {
-  window.appData = {
+  const data = {
     feed: {id: 'friend-feed', uuid: 'feed-uuid', entries: []},
     show_header: false,
     show_paging: true,
@@ -60,14 +60,14 @@ test('Cursor-paged feeds render only the opaque next link', () => {
     onpage_edit: false,
   };
 
-  const {getByText, queryByText} = render(<App />);
+  const {getByText, queryByText} = render(<App data={data} />);
   expect(queryByText('« Prev')).not.toBeInTheDocument();
   expect(getByText('Next »')).toHaveAttribute(
     'href', '?cursor=older%2Bcursor');
 });
 
 test('Offset-paged search feeds render prev/next with an encoded query', () => {
-  window.appData = {
+  const data = {
     feed: {id: 'Search', uuid: 'Search', entries: []},
     show_header: false,
     show_paging: true,
@@ -81,13 +81,13 @@ test('Offset-paged search feeds render prev/next with an encoded query', () => {
     onpage_edit: false,
   };
 
-  const {getByText} = render(<App />);
+  const {getByText} = render(<App data={data} />);
   expect(getByText('« Prev')).toHaveAttribute('href', '?q=a%26b&start=0');
   expect(getByText('Next »')).toHaveAttribute('href', '?q=a%26b&start=60');
 });
 
 test('Offset last page keeps only the prev link', () => {
-  window.appData = {
+  const data = {
     feed: {id: 'Search', uuid: 'Search', entries: []},
     show_header: false,
     show_paging: true,
@@ -101,7 +101,7 @@ test('Offset last page keeps only the prev link', () => {
     onpage_edit: false,
   };
 
-  const {getByText, queryByText} = render(<App />);
+  const {getByText, queryByText} = render(<App data={data} />);
   expect(getByText('« Prev')).toHaveAttribute('href', '?start=30');
   expect(queryByText('Next »')).not.toBeInTheDocument();
 });

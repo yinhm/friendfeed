@@ -17,7 +17,29 @@ type pageBootstrap struct {
 	Version     int             `json:"version"`
 	Page        string          `json:"page"`
 	CurrentUser *profileSummary `json:"current_user,omitempty"`
+	Layout      *layoutView     `json:"layout,omitempty"`
 	Data        any             `json:"data"`
+}
+
+type layoutGroupView struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Private bool   `json:"private,omitempty"`
+}
+
+type layoutArchiveYearView struct {
+	Year   int32  `json:"year"`
+	Count  int64  `json:"count"`
+	Cursor string `json:"cursor,omitempty"`
+}
+
+type layoutView struct {
+	OnPage        bool                    `json:"onpage"`
+	HasUnread     bool                    `json:"has_unread_notifications"`
+	Groups        []layoutGroupView       `json:"groups,omitempty"`
+	ShowGroups    bool                    `json:"show_groups"`
+	ArchiveFeedID string                  `json:"archive_feed_id,omitempty"`
+	ArchiveYears  []layoutArchiveYearView `json:"archive_years,omitempty"`
 }
 
 type profileSummary struct {
@@ -205,4 +227,43 @@ func marshalFeedPageData(data pongo2.Context) ([]byte, error) {
 
 func marshalPageBootstrap(page string, data any) ([]byte, error) {
 	return json.Marshal(pageBootstrap{Version: browserBootstrapVersion, Page: page, Data: data})
+}
+
+func enrichPageBootstrap(raw string, profile *pb.Profile, context pongo2.Context) (string, error) {
+	// Keep page data as raw JSON. Decoding into any would round large integer
+	// fields through float64 while merely adding layout metadata.
+	var bootstrap struct {
+		Version     int             `json:"version"`
+		Page        string          `json:"page"`
+		CurrentUser *profileSummary `json:"current_user,omitempty"`
+		Layout      *layoutView     `json:"layout,omitempty"`
+		Data        json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(raw), &bootstrap); err != nil {
+		return "", err
+	}
+	if profile != nil && profile.Uuid != "" {
+		bootstrap.CurrentUser = &profileSummary{UUID: profile.Uuid, ID: profile.Id, Name: profile.Name, Picture: PictureOrDefault(profile.Picture)}
+	}
+	layout := &layoutView{
+		OnPage: contextBool(context, "onpage"), HasUnread: contextBool(context, "has_unread_notifications"),
+		ShowGroups: contextBool(context, "show_groups_sidebar"), ArchiveFeedID: contextString(context, "feed_archive_id"),
+	}
+	if groups, ok := context["user_groups"].([]*pb.Profile); ok {
+		for _, group := range groups {
+			if group != nil {
+				layout.Groups = append(layout.Groups, layoutGroupView{ID: group.Id, Name: group.Name, Private: group.Private})
+			}
+		}
+	}
+	if archive, ok := context["feed_archive"].(*pb.FeedArchiveStats); ok && archive != nil {
+		for _, year := range archive.Years {
+			if year != nil {
+				layout.ArchiveYears = append(layout.ArchiveYears, layoutArchiveYearView{Year: year.Year, Count: year.EntryCount, Cursor: year.Cursor})
+			}
+		}
+	}
+	bootstrap.Layout = layout
+	encoded, err := json.Marshal(bootstrap)
+	return string(encoded), err
 }

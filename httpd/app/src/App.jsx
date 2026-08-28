@@ -353,23 +353,10 @@ export function Feed(props) {
   );
 }
 
-/** @param {{data?: AppData}} props */
+/** @param {{data: AppData}} props */
 export function App({data}) {
-  // NOT WORK??
-  // componentDidMount() {
-  //   console.log("app, componentDidMount")
-  //   this.setState({
-  //     url: window.location.pathname + window.location.search,
-  //     feedData: window.appData.feed
-  //   });
-  //   console.log(this.state.url);
-  //   console.log(this.state.feedData);
-  // }
-
   var url = window.location.pathname + window.location.search;
-  const appData = data ?? /** @type {Window & {appData: AppData}} */ (
-    /** @type {unknown} */ (window)
-  ).appData;
+  const appData = data;
   var feedData = appData.feed;
   return (
     <Feed url={url} feed={feedData}

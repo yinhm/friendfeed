@@ -5,7 +5,6 @@ import { createRoot } from "react-dom/client";
 
 import './styles/globals.css';
 import { App } from './App';
-import { Search } from './search';
 import { AccountPage } from './account';
 import { FeedImportPage } from './import';
 import { NotificationsPage } from './notifications';
@@ -14,7 +13,7 @@ import { GroupCreatePage } from './group-create';
 import { GroupSettingsPage } from './group-settings';
 import { GroupMembersPage } from './group-members';
 import { GroupsPage } from './groups';
-import { initNavigation } from './navigation';
+import { SiteLayout } from './site-layout';
 
 /** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
 
@@ -44,18 +43,9 @@ if (rootEl) {
   const valid = bootstrap?.version === 1 && typeof bootstrap.page === 'string' && bootstrap.data != null;
   createRoot(rootEl).render(
     <React.StrictMode>
-      {valid ? <PageDispatcher {...bootstrap} /> : <BootstrapError />}
+      {valid ? (bootstrap.layout
+        ? <SiteLayout bootstrap={bootstrap}><PageDispatcher {...bootstrap} /></SiteLayout>
+        : <PageDispatcher {...bootstrap} />) : <BootstrapError />}
     </React.StrictMode>
   );
 }
-
-const searchEl = document.getElementById("search");
-if (searchEl) {
-  createRoot(searchEl).render(
-    <React.StrictMode>
-      <Search />
-    </React.StrictMode>
-  );
-}
-
-initNavigation();

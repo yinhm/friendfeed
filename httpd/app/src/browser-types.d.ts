@@ -24,7 +24,11 @@ export type FeedPageData = {
 };
 export type ProfileSummary = {uuid: string; id: string; name: string; picture?: string};
 export type PageBootstrap<T = unknown> = {
-  version: 1; page: string; current_user?: ProfileSummary; data: T;
+  version: 1; page: string; current_user?: ProfileSummary;
+  layout?: {onpage: boolean; has_unread_notifications: boolean; show_groups: boolean;
+    groups?: Array<{id: string; name: string; private?: boolean}>; archive_feed_id?: string;
+    archive_years?: Array<{year: number; count: number; cursor?: string}>};
+  data: T;
 };
 export type AccountPageData = {
   tab: 'profile' | 'import';
