@@ -223,7 +223,11 @@ func (s *Server) renderFeed(c *gin.Context, data pongo2.Context) {
 		c.JSON(200, data)
 	} else {
 		data["feed_body"] = ""
-		encoded, _ := json.Marshal(data)
+		encoded, err := marshalFeedPageData(data)
+		if err != nil {
+			RequestError(c, err)
+			return
+		}
 		data["appData"] = string(encoded)
 		s.HTML(c, 200, "feed.html", data)
 	}

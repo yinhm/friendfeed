@@ -10,22 +10,8 @@ import { FeedContext } from './context'
 const OnPageEditor = lazy(() => import('./editor'));
 
 /**
- * @typedef {object} FeedEntry
- * @property {string} id
- * @property {{id: string, name: string, picture?: string, title?: string}} from
- * @property {string} body
- * @property {string[]} commands
- * @property {Record<string, unknown>} [data]
- *
- * @typedef {object} FeedData
- * @property {string} id
- * @property {string} uuid
- * @property {string} [name]
- * @property {string} [picture]
- * @property {string} [description]
- * @property {boolean} [private]
- * @property {string[]} [commands]
- * @property {FeedEntry[]} [entries]
+ * @typedef {import('./browser-types').EntryView} FeedEntry
+ * @typedef {import('./browser-types').FeedView} FeedData
  *
  * @typedef {object} FeedProps
  * @property {string} url
