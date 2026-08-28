@@ -67,10 +67,11 @@ func TestFeedArchiveSidebarRendersOnlyWhenSnapshotExists(t *testing.T) {
 func TestAnonymousGroupDiscoveryIsReadableWithoutJavaScript(t *testing.T) {
 	body := renderEmbeddedTemplate(t, "groups_public.html", pongo2.Context{
 		"title": "Groups", "next_cursor": "next/page",
-		"groups": []*pb.Profile{{Id: "book-club", Name: "Book Club", Description: "Reading", Picture: "/book.png", Private: true}},
+		"groups": []*pb.Profile{{Id: "book-club", Name: "读书会 & Friends", Description: "阅读 & 交流", Picture: "/book.png?a=1&b=2", Private: true}},
 	})
 	for _, want := range []string{
-		`<h2 class="page-title">Groups</h2>`, `href="/feed/book-club"`, `>Book Club</a>`,
+		`<h2 class="page-title">Groups</h2>`, `href="/feed/book-club"`, `>读书会 &amp; Friends</a>`,
+		`src="/book.png?a=1&amp;b=2"`, `阅读 &amp; 交流`,
 		`aria-label="Private"`, `href="/groups?cursor=next%2Fpage"`,
 	} {
 		if !strings.Contains(body, want) {
@@ -79,5 +80,8 @@ func TestAnonymousGroupDiscoveryIsReadableWithoutJavaScript(t *testing.T) {
 	}
 	if strings.Contains(body, `id="app-root"`) {
 		t.Fatal("anonymous Group discovery must not depend on the React root")
+	}
+	if strings.Contains(body, "&amp;amp;") {
+		t.Fatal("anonymous Group discovery must not double-escape profile fields")
 	}
 }

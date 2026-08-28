@@ -16,12 +16,12 @@ export function GroupNav({currentUserId, active}) {
   </nav>;
 }
 
-/** @param {{data: import('./browser-types').GroupCreatePageData}} props */
-export function GroupCreatePage({data}) {
+/** @param {{data: import('./browser-types').GroupCreatePageData, currentUserId: string}} props */
+export function GroupCreatePage({data, currentUserId}) {
   const group = data.group;
   return <div className="feed">
     <h2 className="page-title">Create a Group</h2>
-    <GroupNav currentUserId={data.current_user_id} active="create" />
+    <GroupNav currentUserId={currentUserId} active="create" />
     <form method="post" action="/groups/create" className="ff-form">
       {data.error && <div className="error-banner" role="alert">{data.error}</div>}
       <div className="field">

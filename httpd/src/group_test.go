@@ -159,20 +159,23 @@ func TestGroupDiscoveryPageIsPublicAndForwardsCursor(t *testing.T) {
 		t.Fatalf("anonymous template=%q data=%v", capture.name, capture.data)
 	}
 
-	client.profile = &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user"}
+	// The canonical profile ID may differ from the session's historical user_id
+	// after a rename. Group navigation must use this resolved profile identity.
+	client.profile = &pb.Profile{Uuid: testGroupUserUUID, Id: "renamed-user"}
 	login := groupLoginCookie(t, router)
 	req := httptest.NewRequest(http.MethodGet, "/groups?cursor=current-page", nil)
 	req.AddCookie(login)
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 	var bootstrap struct {
-		Page string         `json:"page"`
-		Data groupsPageData `json:"data"`
+		Page        string          `json:"page"`
+		CurrentUser *profileSummary `json:"current_user"`
+		Data        groupsPageData  `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
 		t.Fatalf("decode bootstrap: %v", err)
 	}
-	if capture.name != "app_shell.html" || bootstrap.Page != "groups" || len(bootstrap.Data.Groups) != 1 || bootstrap.Data.CurrentUserID != "test-user" || bootstrap.Data.NextCursor != "next-page" {
+	if capture.name != "app_shell.html" || bootstrap.Page != "groups" || len(bootstrap.Data.Groups) != 1 || bootstrap.CurrentUser == nil || bootstrap.CurrentUser.ID != "renamed-user" || bootstrap.Data.NextCursor != "next-page" {
 		t.Fatalf("bootstrap = %+v", bootstrap)
 	}
 }
@@ -366,13 +369,14 @@ func TestGroupCreatePageUsesTypedBootstrap(t *testing.T) {
 		t.Fatal("missing pageBootstrap")
 	}
 	var bootstrap struct {
-		Page string              `json:"page"`
-		Data groupCreatePageData `json:"data"`
+		Page        string              `json:"page"`
+		CurrentUser *profileSummary     `json:"current_user"`
+		Data        groupCreatePageData `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
 		t.Fatalf("decode bootstrap: %v", err)
 	}
-	if bootstrap.Page != "group-create" || bootstrap.Data.CurrentUserID != "test-user" {
+	if bootstrap.Page != "group-create" || bootstrap.CurrentUser == nil || bootstrap.CurrentUser.ID != "test-user" {
 		t.Fatalf("bootstrap = %+v", bootstrap)
 	}
 }

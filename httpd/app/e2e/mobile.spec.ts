@@ -58,3 +58,13 @@ test('mobile stacks sidebar above the feed', async ({ context, page }) => {
   expect(mainBox).not.toBeNull();
   expect(sidebarBox!.y).toBeLessThan(mainBox!.y);
 });
+
+test('anonymous mobile Feed starts with the SSR navigation collapsed', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/public');
+
+  const navigation = page.locator('details.menu');
+  await expect(navigation).toBeVisible();
+  await expect(navigation).not.toHaveAttribute('open', '');
+  await expect(navigation.locator('summary')).toBeVisible();
+});

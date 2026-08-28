@@ -11,9 +11,8 @@ type groupFormView struct {
 }
 
 type groupCreatePageData struct {
-	Group         groupFormView `json:"group"`
-	CurrentUserID string        `json:"current_user_id"`
-	Error         string        `json:"error,omitempty"`
+	Group groupFormView `json:"group"`
+	Error string        `json:"error,omitempty"`
 }
 
 type groupSettingsPageData struct {
@@ -36,12 +35,11 @@ type groupMembersPageData struct {
 }
 
 type groupsPageData struct {
-	Heading       string          `json:"heading"`
-	Groups        []groupFormView `json:"groups"`
-	CurrentUserID string          `json:"current_user_id,omitempty"`
-	Page          string          `json:"page"`
-	EmptyText     string          `json:"empty_text"`
-	NextCursor    string          `json:"next_cursor,omitempty"`
+	Heading    string          `json:"heading"`
+	Groups     []groupFormView `json:"groups"`
+	Page       string          `json:"page"`
+	EmptyText  string          `json:"empty_text"`
+	NextCursor string          `json:"next_cursor,omitempty"`
 }
 
 func groupFormViewsFromProto(groups []*pb.Profile) []groupFormView {

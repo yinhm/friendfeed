@@ -54,7 +54,7 @@ export type RequestsPageData = {
 };
 export type GroupCreatePageData = {
   group: {id: string; name: string; description?: string; picture?: string; private?: boolean};
-  current_user_id: string; error?: string;
+  error?: string;
 };
 export type GroupSettingsPageData = {
   group: GroupCreatePageData['group']; error?: string;
@@ -65,6 +65,6 @@ export type GroupMembersPageData = {
   requests: RequestsPageData['requests']; has_more: boolean; can_manage: boolean; error?: string;
 };
 export type GroupsPageData = {
-  heading: string; groups: GroupCreatePageData['group'][]; current_user_id?: string;
+  heading: string; groups: GroupCreatePageData['group'][];
   page: 'discover' | 'mine'; empty_text: string; next_cursor?: string;
 };

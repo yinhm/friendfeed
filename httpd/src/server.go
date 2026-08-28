@@ -583,7 +583,7 @@ func (s *Server) GroupCreatePageHandler(c *gin.Context) {
 // values alongside an error message when creation failed.
 func (s *Server) renderGroupCreate(c *gin.Context, code int, group *pb.Profile, errMsg string) {
 	encoded, err := marshalPageBootstrap("group-create", groupCreatePageData{
-		Group: groupFormViewFromProto(group), CurrentUserID: CurrentUserId(c), Error: errMsg,
+		Group: groupFormViewFromProto(group), Error: errMsg,
 	})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Server error.")

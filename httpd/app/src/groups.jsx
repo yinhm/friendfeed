@@ -2,11 +2,11 @@
 import React from 'react';
 import {GroupNav} from './group-create';
 
-/** @param {{data: import('./browser-types').GroupsPageData}} props */
-export function GroupsPage({data}) {
+/** @param {{data: import('./browser-types').GroupsPageData, currentUserId?: string}} props */
+export function GroupsPage({data, currentUserId = ''}) {
   return <div className="feed">
     <h2 className="page-title">{data.heading}</h2>
-    {data.current_user_id && <GroupNav currentUserId={data.current_user_id}
+    {currentUserId && <GroupNav currentUserId={currentUserId}
       active={data.page === 'mine' ? 'mine' : 'discover'} />}
     {data.groups.length > 0
       ? <ul className="item-list groups-list">{data.groups.map(group => <li key={group.id}>

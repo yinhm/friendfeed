@@ -76,7 +76,7 @@ func (s *Server) UserGroupsPageHandler(c *gin.Context) {
 	}
 	prepareGroupPictures(groups)
 	encoded, err := marshalPageBootstrap("groups", groupsPageData{
-		Heading: "My groups", Groups: groupFormViewsFromProto(groups), CurrentUserID: CurrentUserId(c),
+		Heading: "My groups", Groups: groupFormViewsFromProto(groups),
 		Page: "mine", EmptyText: "You have not joined any groups yet.",
 	})
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *Server) GroupDiscoveryPageHandler(c *gin.Context) {
 		return
 	}
 	encoded, err := marshalPageBootstrap("groups", groupsPageData{
-		Heading: "Groups", Groups: groupFormViewsFromProto(response.Groups), CurrentUserID: CurrentUserId(c),
+		Heading: "Groups", Groups: groupFormViewsFromProto(response.Groups),
 		Page: "discover", EmptyText: "No groups are available yet.", NextCursor: response.NextCursor,
 	})
 	if err != nil {

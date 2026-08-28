@@ -4,16 +4,16 @@
 <div class="header">
   <div class="picture"><img src="{{ profile.Picture }}" alt="" /></div>
   <div class="body">
-    <h1>{{ profile.Name|escape }}<span class="private-icon" role="img" aria-label="Private" title="Private"></span></h1>
+    <h1>{{ profile.Name }}<span class="private-icon" role="img" aria-label="Private" title="Private"></span></h1>
     {% if profile.Description %}
-      <div class="description">{{ profile.Description|escape }}</div>
+      <div class="description">{{ profile.Description }}</div>
     {% endif %}
   </div>
   <div class="clear"></div>
 </div>
 
 {% if error %}
-  <div class="error-banner" role="alert">{{ error|escape }}</div>
+  <div class="error-banner" role="alert">{{ error }}</div>
 {% endif %}
 
 <div class="ff-form">
@@ -23,14 +23,14 @@
     <p>This feed is private. Your follow request is pending approval.</p>
     <form method="post" action="/a/feed-request/cancel">
       <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
-      <input type="hidden" name="feed_id" value="{{ profile.Id|escape }}" />
+      <input type="hidden" name="feed_id" value="{{ profile.Id }}" />
       <button type="submit" class="legacy-button">Cancel request</button>
     </form>
   {% else %}
     <p>This feed is private. Only approved followers can read it.</p>
     <form method="post" action="/a/feed-request">
       <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
-      <input type="hidden" name="feed_id" value="{{ profile.Id|escape }}" />
+      <input type="hidden" name="feed_id" value="{{ profile.Id }}" />
       <button type="submit" class="legacy-button">Request to follow</button>
     </form>
   {% endif %}

@@ -14,6 +14,7 @@ import { GroupSettingsPage } from './group-settings';
 import { GroupMembersPage } from './group-members';
 import { GroupsPage } from './groups';
 import { SiteLayout } from './site-layout';
+import { initSSRNavigation } from './ssr-navigation';
 
 /** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
 
@@ -22,16 +23,16 @@ function BootstrapError() {
 }
 
 /** @param {PageBootstrap} bootstrap */
-function PageDispatcher({page, data}) {
+function PageDispatcher({page, data, current_user: currentUser}) {
   if (page === 'feed') return <App data={/** @type {import('./browser-types').FeedPageData} */ (data)} />;
   if (page === 'account') return <AccountPage data={/** @type {NonNullable<Parameters<typeof AccountPage>[0]>['data']} */ (data)} />;
   if (page === 'feed-import') return <FeedImportPage data={/** @type {import('./browser-types').FeedImportPageData} */ (data)} />;
   if (page === 'notifications') return <NotificationsPage data={/** @type {import('./browser-types').NotificationsPageData} */ (data)} />;
   if (page === 'requests') return <RequestsPage data={/** @type {import('./browser-types').RequestsPageData} */ (data)} />;
-  if (page === 'group-create') return <GroupCreatePage data={/** @type {import('./browser-types').GroupCreatePageData} */ (data)} />;
+  if (page === 'group-create') return <GroupCreatePage data={/** @type {import('./browser-types').GroupCreatePageData} */ (data)} currentUserId={currentUser?.id ?? ''} />;
   if (page === 'group-settings') return <GroupSettingsPage data={/** @type {import('./browser-types').GroupSettingsPageData} */ (data)} />;
   if (page === 'group-members') return <GroupMembersPage data={/** @type {import('./browser-types').GroupMembersPageData} */ (data)} />;
-  if (page === 'groups') return <GroupsPage data={/** @type {import('./browser-types').GroupsPageData} */ (data)} />;
+  if (page === 'groups') return <GroupsPage data={/** @type {import('./browser-types').GroupsPageData} */ (data)} currentUserId={currentUser?.id ?? ''} />;
   return <BootstrapError />;
 }
 
@@ -41,6 +42,7 @@ if (rootEl) {
     /** @type {unknown} */ (window)
   ).pageBootstrap;
   const valid = bootstrap?.version === 1 && typeof bootstrap.page === 'string' && bootstrap.data != null;
+  if (valid && !bootstrap.layout) initSSRNavigation();
   createRoot(rootEl).render(
     <React.StrictMode>
       {valid ? (bootstrap.layout

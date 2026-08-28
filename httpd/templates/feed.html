@@ -7,7 +7,7 @@
     <div class="header">
       <div class="picture"><a href="/feed/{{ feed.Id }}"><img src="{{ feed.Picture }}"/></a></div>
       <div class="body">
-        <h1><a href="/feed/{{ feed.Id }}">{{ feed.Name|escape }}</a>{% if feed.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}</h1>
+        <h1><a href="/feed/{{ feed.Id }}">{{ feed.Name }}</a>{% if feed.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}</h1>
         {% if feed.Description %}
           <div class="description">{{ feed.Description }}</div>
         {% endif %}
@@ -26,10 +26,10 @@
       <div class="picture"><a href="/feed/{{ entry.From.Id }}"><img src="{{ entry.From.Picture }}"/></a></div>
       <div class="body">
         <div class="author">
-          <span class="from"><a href="/feed/{{ entry.From.Id }}">{{ entry.From.Name|escape }}</a>{% if entry.From.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}</span>
+          <span class="from"><a href="/feed/{{ entry.From.Id }}">{{ entry.From.Name }}</a>{% if entry.From.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}</span>
           {% if entry.To %}
               {% for recipient in entry.To %}
-                <a href="/feed/{{ recipient.Id }}">{{ recipient.Name|escape }}</a>{% if recipient.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}{% if not forloop.Last %},{% endif %}
+                <a href="/feed/{{ recipient.Id }}">{{ recipient.Name }}</a>{% if recipient.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}{% if not forloop.Last %},{% endif %}
               {% endfor %}
           {% endif %}
         </div>
@@ -38,7 +38,7 @@
           <div class="media" data-count="{{ entry.Thumbnails|length }}">
             {% for thumbnail in entry.Thumbnails %}
               <button type="button" aria-label="Open media">
-                <img src="{{ thumbnail.Url|escape }}"{% if thumbnail.Width and thumbnail.Height %} width="{{ thumbnail.Width }}" height="{{ thumbnail.Height }}"{% endif %} alt="" />
+                <img src="{{ thumbnail.Url }}"{% if thumbnail.Width and thumbnail.Height %} width="{{ thumbnail.Width }}" height="{{ thumbnail.Height }}"{% endif %} alt="" />
               </button>
             {% endfor %}
           </div>
@@ -46,9 +46,9 @@
         {% if entry.Files %}
           <div class="entry-files">
             {% for file in entry.Files %}
-              <a class="entry-file" href="{{ file.Url|escape }}" download="{{ file.Name|escape }}">
+              <a class="entry-file" href="{{ file.Url }}" download="{{ file.Name }}">
                 <span class="entry-file-icon" aria-hidden="true"></span>
-                <span class="entry-file-name">{{ file.Name|escape }}</span>
+                <span class="entry-file-name">{{ file.Name }}</span>
                 {% if file.Size %}<span class="entry-file-size">{{ file.Size }} bytes</span>{% endif %}
               </a>
             {% endfor %}
@@ -57,7 +57,7 @@
         <div class="info">
           <a href="/e/{{ entry.Id }}" class="permalink">{{ entry.Date }}</a>
           {% if entry.Via %}
-            from <a href="{{ entry.Via.Url|escape }}" class="via">{{ entry.Via.Name|escape }}</a>
+            from <a href="{{ entry.Via.Url }}" class="via">{{ entry.Via.Name }}</a>
           {% endif %}
           {% for command in entry.Commands %}
             {% if command != "delete" %}
@@ -74,7 +74,7 @@
               {% if like.Placeholder %}
                   {{ like.Body }}
               {% else %}
-                <a href="/feed/{{ like.From.Id }}">{{ like.From.Name|escape }}</a>{% if like.From.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}{% if not forloop.Last and not entry.Likes|length_is:"2" %},{% endif %}
+                <a href="/feed/{{ like.From.Id }}">{{ like.From.Name }}</a>{% if like.From.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}{% if not forloop.Last and not entry.Likes|length_is:"2" %},{% endif %}
               {% endif %}
             {% endfor %}
             liked this
@@ -86,7 +86,7 @@
               <a href="#" class="expandcomments">{{ comment.Body|safe }}</a>
             {% else %}
               <span>{{ comment.Body|safe }}</span>
-              {% if comment.From %} - <a href="/feed/{{ comment.From.Id }}">{{ comment.From.Name|escape }}</a>{% if comment.From.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}{% endif %}
+              {% if comment.From %} - <a href="/feed/{{ comment.From.Id }}">{{ comment.From.Name }}</a>{% if comment.From.Private %}<span class="private-icon" role="img" aria-label="Private" title="Private"></span>{% endif %}{% endif %}
             {% endif %}
           </div>
         {% endfor %}
@@ -97,7 +97,7 @@
     {% if show_paging %}
     <div class="pager bottom">
       {% if cursor_paging %}
-        {% if next_cursor %}<a href="?cursor={{ next_cursor|escape }}">Next &raquo;</a>{% endif %}
+        {% if next_cursor %}<a href="?cursor={{ next_cursor }}">Next &raquo;</a>{% endif %}
       {% else %}
         {% if show_prev %}<a href="?{% if query %}q={{ query|urlencode }}&amp;{% endif %}start={{ prev_start }}">&laquo; Prev</a>{% endif %}
         {% if show_prev and show_next %} {% endif %}
