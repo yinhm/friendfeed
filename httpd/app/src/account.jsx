@@ -8,12 +8,7 @@ import {ImportPanel} from './import';
  * @typedef {import('./profile').ProfileData} ProfileData
  * @typedef {import('./import').ServiceData} ServiceData
  * @typedef {'profile' | 'import'} AccountTab
- * @typedef {object} AccountData
- * @property {AccountTab} tab
- * @property {ProfileData} profile
- * @property {Record<string, ServiceData>} services
- * @property {Record<string, import('./import').ServiceState>} states
- * @property {string} target
+ * @typedef {import('./browser-types').AccountPageData} AccountData
  */
 
 /** @type {Record<AccountTab, string>} */

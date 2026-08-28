@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 匿名 `/public`、公开 `/feed/:name`、公开 `/e/:uuid` | Pongo2 Entry SSR 后由 React `#root` 替换 | 保留可读 SSR；允许 React 渐进增强 |
 | 登录态 Home/Public/Feed/Entry | 同一批 Entry 同时 SSR 与 React 重绘 | 薄 bootstrap，React 完整渲染 |
-| Account/Profile | Pongo2 shell + React `#app-root` dispatcher | 统一 app shell + React |
+| Account/Profile | `app_shell.html` + React `#app-root` dispatcher | 已收敛为统一 app shell + React |
 | Feed Import | Pongo2 shell + React `#app-root` dispatcher | 统一 app shell + React |
 | Notifications、Requests、Group 管理/列表 | 完整 Pongo2 页面 | 统一 app shell + React |
 | Sidebar Search | React `#search` | layout 最后收敛，迁移期间保持独立 mount |

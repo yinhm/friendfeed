@@ -38,17 +38,7 @@ func (s *Server) renderAccountPage(c *gin.Context, tab, targetUUID string) {
 	}
 
 	// Hand the React dispatcher a versioned bootstrap envelope.
-	serviceMap := make(map[string]*pb.FeedService, len(services.Services))
-	for _, service := range services.Services {
-		serviceMap[service.Id] = service
-	}
-	accountJSON, err := marshalPageBootstrap("account", gin.H{
-		"tab":      tab,
-		"profile":  profile,
-		"services": serviceMap,
-		"states":   services.States,
-		"target":   targetUUID,
-	})
+	accountJSON, err := marshalPageBootstrap("account", accountPageDataFromProto(tab, targetUUID, profile, services))
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to encode account data")
 		return
@@ -160,7 +150,7 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 	s.cache.Delete("profile:" + uuid)
 	s.cache.Delete("graph:" + uuid)
 
-	c.JSON(200, profile)
+	c.JSON(200, profileViewFromProto(profile))
 }
 
 func (s *Server) ImportHandler(c *gin.Context) {

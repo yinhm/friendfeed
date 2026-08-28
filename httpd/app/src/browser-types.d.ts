@@ -26,3 +26,13 @@ export type ProfileSummary = {uuid: string; id: string; name: string; picture?: 
 export type PageBootstrap<T = unknown> = {
   version: 1; page: string; current_user?: ProfileSummary; data: T;
 };
+export type AccountPageData = {
+  tab: 'profile' | 'import';
+  profile: {uuid: string; id: string; name: string; description?: string;
+    picture?: string; private?: boolean; type?: string};
+  services: Record<string, {id: string; name: string; icon?: string; profile?: string;
+    username?: string; kind?: string; service_uuid?: string; enabled: boolean}>;
+  states: Record<string, {last_fetch_ms?: number; next_fetch_ms?: number;
+    last_error?: string; status?: string; last_success_ms?: number}>;
+  target: string;
+};

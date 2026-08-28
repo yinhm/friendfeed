@@ -2,15 +2,53 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/yinhm/friendfeed/pb"
 	"google.golang.org/grpc"
 )
+
+func TestAccountProfileHandlerUsesExplicitBootstrap(t *testing.T) {
+	client := &fakeAccountClient{
+		profile: &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user", Name: "Test User", IsSuper: true},
+		services: &pb.ListFeedServicesResponse{Services: []*pb.FeedService{{
+			Id: "twitter", Name: "Twitter", Oauth: &pb.OAuthUser{AccessToken: "must-not-leak"},
+		}}},
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	capture := new(captureNotificationRender)
+	router.HTMLRender = capture
+	router.GET("/account/profile", LoginRequired(), s.AccountProfileHandler)
+	cookie := groupLoginCookie(t, router)
+	req := httptest.NewRequest(http.MethodGet, "/account/profile", nil)
+	req.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d", response.Code)
+	}
+	raw, ok := capture.data["pageBootstrap"].(string)
+	if !ok {
+		t.Fatalf("pageBootstrap=%T", capture.data["pageBootstrap"])
+	}
+	if strings.Contains(raw, "must-not-leak") {
+		t.Fatalf("bootstrap exposed OAuth: %s", raw)
+	}
+	var bootstrap map[string]any
+	if err := json.Unmarshal([]byte(raw), &bootstrap); err != nil {
+		t.Fatal(err)
+	}
+	if bootstrap["page"] != "account" {
+		t.Fatalf("bootstrap=%v", bootstrap)
+	}
+}
 
 // fakeAccountClient stubs only the two RPCs fetchAccountData uses; the
 // embedded interface satisfies the rest (nil, never called).
