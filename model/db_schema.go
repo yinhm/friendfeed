@@ -76,19 +76,19 @@ func PutDBSchemaVersion(db *store.Store, version uint32) error {
 	if version != CurrentDBSchemaVersion {
 		return fmt.Errorf("database schema version must be current version %d", CurrentDBSchemaVersion)
 	}
-	info, err := InspectDBSchema(db)
-	if err != nil {
-		return err
-	}
-	switch info.Status {
-	case DBSchemaCurrent:
-		return nil
-	case DBSchemaFuture, DBSchemaMalformed:
-		return fmt.Errorf("refuse to replace %s database schema marker", info.Status)
-	}
 	var raw [4]byte
 	binary.BigEndian.PutUint32(raw[:], version)
 	return db.ApplyBatch(func(batch *pebble.Batch) error {
+		info, err := InspectDBSchema(db)
+		if err != nil {
+			return err
+		}
+		switch info.Status {
+		case DBSchemaCurrent:
+			return nil
+		case DBSchemaFuture, DBSchemaMalformed:
+			return fmt.Errorf("refuse to replace %s database schema marker", info.Status)
+		}
 		return batch.Set(dbSchemaVersionKey, raw[:], nil)
 	})
 }
