@@ -98,6 +98,20 @@ func confirmDestructive(command, dbPath string, in io.Reader, out io.Writer) err
 	return nil
 }
 
+func confirmSchemaStamp(dbPath string, in io.Reader, out io.Writer) error {
+	const command = "stamp_schema"
+	fmt.Fprintf(out, "WARNING: %q certifies that %s satisfies the current application schema; this cannot be bypassed.\n", command, dbPath)
+	fmt.Fprintf(out, "Type %q to continue: ", command)
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("read confirmation: %w", err)
+	}
+	if strings.TrimSpace(line) != command {
+		return errors.New("confirmation did not match; aborted")
+	}
+	return nil
+}
+
 type timelineRebuildStats struct {
 	profiles  int
 	follows   int
@@ -1259,6 +1273,7 @@ func main() {
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
 		command == "inspect_service" ||
+		command == "inspect_schema" || command == "verify_schema" ||
 		command == "audit_profiles" || command == "audit_store" ||
 		command == "list_tasks" || command == "inspect_task" ||
 		command == "rebuild_search_index" || command == "mirror_twimg" ||
@@ -1276,6 +1291,9 @@ func main() {
 		(command == "rebuild_feed_archive" && dryRun) ||
 		(command == "fix_default_picture" && dryRun) ||
 		(command == "purge_public_cache" && dryRun)
+	if command == "stamp_schema" && dryRun {
+		readOnly = true
+	}
 	if command == "compact_timelines" && dryRun {
 		readOnly = true
 	}
@@ -1289,6 +1307,11 @@ func main() {
 	// 确认必须发生在打开(创建)目标库之前,避免误操作产生副作用。
 	if destructiveCommands[command] || (command == "purge_task_done" && !dryRun) {
 		if err := confirmDestructive(command, toPath, os.Stdin, os.Stderr); err != nil {
+			log.Fatal(err)
+		}
+	}
+	if command == "stamp_schema" && !dryRun {
+		if err := confirmSchemaStamp(toPath, os.Stdin, os.Stderr); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -1437,6 +1460,36 @@ func main() {
 			log.Fatal(err)
 		}
 		writeStoreAudit(os.Stdout, stats)
+	case "inspect_schema":
+		result, err := verifySchema(ndb)
+		if err != nil {
+			log.Fatal(err)
+		}
+		writeSchemaVerification(os.Stdout, result)
+	case "verify_schema":
+		result, err := verifySchema(ndb)
+		if err != nil {
+			log.Fatal(err)
+		}
+		writeSchemaVerification(os.Stdout, result)
+		if len(result.Blockers) != 0 {
+			log.Fatalf("database is not ready for application schema %d: %d blocker classes", model.CurrentDBSchemaVersion, len(result.Blockers))
+		}
+	case "stamp_schema":
+		result, wrote, err := stampSchema(ndb, dryRun)
+		if err != nil {
+			log.Fatal(err)
+		}
+		writeSchemaVerification(os.Stdout, result)
+		if dryRun {
+			log.Printf("dry-run: would stamp application schema version %d", model.CurrentDBSchemaVersion)
+			break
+		}
+		if !wrote {
+			log.Printf("application schema version %d is already current", model.CurrentDBSchemaVersion)
+			break
+		}
+		log.Printf("stamped application schema version %d", model.CurrentDBSchemaVersion)
 	case "list_tasks":
 		runListTasksCommand(ndb)
 	case "inspect_task":

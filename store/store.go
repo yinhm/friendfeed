@@ -248,6 +248,12 @@ func (db *Store) Metrics() *pebble.Metrics {
 	return db.rdb.Metrics()
 }
 
+// FormatMajorVersion reports Pebble's on-disk format version. It is distinct
+// from the application's schema marker stored in TableMeta.
+func (db *Store) FormatMajorVersion() pebble.FormatMajorVersion {
+	return db.rdb.FormatMajorVersion()
+}
+
 func (db *Store) Iterator() (*Iterator, error) {
 	opts := &pebble.IterOptions{}
 	return newIterator(db.rdb, opts)
