@@ -19,12 +19,12 @@ func TestPrepareRuntimeSchemaInitializesEmptyDatabase(t *testing.T) {
 	require.Equal(t, model.DBSchemaCurrent, info.Status)
 }
 
-func TestPrepareRuntimeSchemaAllowsUnversionedExistingDatabaseInV22(t *testing.T) {
+func TestPrepareRuntimeSchemaRejectsUnversionedExistingDatabase(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	defer db.Close()
 	require.NoError(t, db.Set(model.TableMeta.Bytes(), []byte("existing")))
-	require.NoError(t, prepareRuntimeSchema(db))
+	require.ErrorContains(t, prepareRuntimeSchema(db), "v2.2 verify_schema and stamp_schema")
 	info, err := model.InspectDBSchema(db)
 	require.NoError(t, err)
 	require.Equal(t, model.DBSchemaMissing, info.Status)

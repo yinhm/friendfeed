@@ -186,9 +186,8 @@ func prepareRuntimeSchema(db *store.Store) error {
 		return fmt.Errorf("refuse to open %s application schema marker (version=%d, current=%d)",
 			info.Status, info.Version, model.CurrentDBSchemaVersion)
 	case model.DBSchemaOlder:
-		slog.Warn("database application schema is older; v2.2 compatibility mode is temporary",
-			"version", info.Version, "current", model.CurrentDBSchemaVersion)
-		return nil
+		return fmt.Errorf("database application schema is older (version=%d, current=%d); use the v2.2 migration tools before starting this release",
+			info.Version, model.CurrentDBSchemaVersion)
 	case model.DBSchemaMissing:
 		hasRecords, err := model.StoreHasRecords(db)
 		if err != nil {
@@ -197,9 +196,7 @@ func prepareRuntimeSchema(db *store.Store) error {
 		if !hasRecords {
 			return model.PutDBSchemaVersion(db, model.CurrentDBSchemaVersion)
 		}
-		slog.Warn("database application schema marker is missing; v2.2 compatibility mode is temporary",
-			"current", model.CurrentDBSchemaVersion)
-		return nil
+		return fmt.Errorf("non-empty database has no application schema marker; use the v2.2 verify_schema and stamp_schema tools before starting this release")
 	default:
 		return fmt.Errorf("unknown application schema status %q", info.Status)
 	}
