@@ -6,7 +6,6 @@ import { createRoot } from "react-dom/client";
 import './styles/globals.css';
 import { App } from './App';
 import { SiteLayout } from './site-layout';
-import { initSSRNavigation } from './ssr-navigation';
 
 const AccountPages = lazy(() => import('./account-pages'));
 const GroupPages = lazy(() => import('./group-pages'));
@@ -47,7 +46,6 @@ if (rootEl) {
     /** @type {unknown} */ (window)
   ).pageBootstrap;
   const valid = bootstrap?.version === 1 && typeof bootstrap.page === 'string' && bootstrap.data != null;
-  if (valid && !bootstrap.layout) initSSRNavigation();
   createRoot(rootEl).render(
     <React.StrictMode>
       {valid ? (bootstrap.layout

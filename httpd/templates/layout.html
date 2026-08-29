@@ -108,6 +108,18 @@
 
     </div>
 
+    <script>
+    (() => {
+        const navigation = document.querySelector('body > .page .sidebar details.menu');
+        if (!navigation || !window.matchMedia) return;
+
+        const media = window.matchMedia('(max-width: 600px)');
+        const sync = () => { navigation.open = !media.matches; };
+        sync();
+        media.addEventListener('change', sync);
+    })();
+    </script>
+
     {% block scripts %} {% endblock %}
 </body>
 

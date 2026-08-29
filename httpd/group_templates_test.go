@@ -73,6 +73,8 @@ func TestAnonymousGroupDiscoveryIsReadableWithoutJavaScript(t *testing.T) {
 		`<h2 class="page-title">Groups</h2>`, `href="/feed/book-club"`, `>读书会 &amp; Friends</a>`,
 		`src="/book.png?a=1&amp;b=2"`, `阅读 &amp; 交流`,
 		`aria-label="Private"`, `href="/groups?cursor=next%2Fpage"`,
+		`document.querySelector('body > .page .sidebar details.menu')`,
+		`navigation.open = !media.matches`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("anonymous Group SSR missing %q", want)
@@ -83,5 +85,14 @@ func TestAnonymousGroupDiscoveryIsReadableWithoutJavaScript(t *testing.T) {
 	}
 	if strings.Contains(body, "&amp;amp;") {
 		t.Fatal("anonymous Group discovery must not double-escape profile fields")
+	}
+}
+
+func TestSharedLayoutInitializesSSRSidebarNavigation(t *testing.T) {
+	for _, name := range []string{"feed.html", "feed_private.html", "groups_public.html"} {
+		body := renderEmbeddedTemplate(t, name, pongo2.Context{"title": "SSR navigation"})
+		if count := strings.Count(body, `navigation.open = !media.matches`); count != 1 {
+			t.Fatalf("%s contains %d SSR navigation initializers, want 1", name, count)
+		}
 	}
 }
