@@ -85,6 +85,7 @@ function FeedHeader(props) {
   const [followError, setFollowError] = useState('');
   const followButtonClass = "rounded-full bg-[#1c1917] px-4 py-2 text-sm font-semibold text-white hover:bg-[#292524] disabled:opacity-50";
   const followingButtonClass = "rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#1c1917] hover:bg-stone-50 disabled:opacity-50";
+  const unfollowConfirmationId = "unfollow-confirmation";
 
   const handleFollow = () => {
     var data = {
@@ -124,9 +125,23 @@ function FeedHeader(props) {
     }
     if (command === "unfollow") {
       followBtn = (
-        <button type="button" className={followingButtonClass} onClick={handleUnfollow}>
-          Following
-        </button>
+        <>
+          <button type="button" className={followingButtonClass}
+                  popoverTarget={unfollowConfirmationId}>
+            Following
+          </button>
+          <div id={unfollowConfirmationId} popover="auto"
+               className="destructive-confirmation border-stone-300">
+            <p><strong>Unfollow {props.name}?</strong></p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" className={followButtonClass}
+                      popoverTarget={unfollowConfirmationId} popoverTargetAction="hide"
+                      onClick={handleUnfollow}>Unfollow</button>
+              <button type="button" className={followingButtonClass}
+                      popoverTarget={unfollowConfirmationId} popoverTargetAction="hide">Cancel</button>
+            </div>
+          </div>
+        </>
       )
     }
     if (command === "requested") {
