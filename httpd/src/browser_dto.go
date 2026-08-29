@@ -58,6 +58,7 @@ type feedPageData struct {
 	ShowPaging       bool     `json:"show_paging"`
 	ShowShare        bool     `json:"show_share"`
 	ShowRelations    bool     `json:"show_profile_relations"`
+	GroupFeedHeader  bool     `json:"group_feed_header"`
 	ShowPrev         bool     `json:"show_prev"`
 	ShowNext         bool     `json:"show_next"`
 	PrevStart        int32    `json:"prev_start"`
@@ -147,8 +148,9 @@ func feedPageDataFromContext(data pongo2.Context) feedPageData {
 	return feedPageData{
 		Feed: feedViewFromProto(feed), ShowHeader: contextBool(data, "show_header"),
 		ShowPaging: contextBool(data, "show_paging"), ShowShare: contextBool(data, "show_share"),
-		ShowRelations: contextBool(data, "show_profile_relations"),
-		ShowPrev:      contextBool(data, "show_prev"), ShowNext: contextBool(data, "show_next"),
+		ShowRelations:   contextBool(data, "show_profile_relations"),
+		GroupFeedHeader: contextBool(data, "group_feed_header"),
+		ShowPrev:        contextBool(data, "show_prev"), ShowNext: contextBool(data, "show_next"),
 		PrevStart: contextInt32(data, "prev_start"), NextStart: contextInt32(data, "next_start"),
 		CursorPaging: contextBool(data, "cursor_paging"), NextCursor: contextString(data, "next_cursor"),
 		RealtimeEnabled: contextBool(data, "realtime_enabled"), RealtimeHome: contextBool(data, "realtime_home"),

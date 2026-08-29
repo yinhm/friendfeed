@@ -110,21 +110,8 @@ Unfollow Group = Leave Group
 
 ## 可见性与投稿
 
-权限矩阵：
-
-| 操作 | 公开 Group 非成员 | 普通成员 | Group admin | super |
-| --- | --- | --- | --- | --- |
-| 查看 Group Feed | 允许 | 允许 | 允许 | 允许 |
-| 加入公开 Group | 允许 | 已加入，幂等 | 已加入，幂等 | 允许 |
-| 向 Group 投稿 | 拒绝 | 允许 | 允许 | 允许 |
-| 管理成员/admin | 拒绝 | 拒绝 | 允许 | 允许 |
-| 管理 FeedService | 拒绝 | 拒绝 | 允许 | 允许 |
-| 修改/删除 Group | 拒绝 | 拒绝 | 允许 | 允许 |
-
-私有 Group 仅成员、admin 和 super 可读取；非成员不能靠知道 Group ID、Entry UUID、Search
-结果或旧 timeline 行绕过。private Group 内容不得进入 Public timeline，Search 返回前也必须
-执行可见性检查。metadata（名称、头像、description）不属于内容：对包括匿名在内的任何人
-可见，作为 follow request 流程的入口；private user feed 的 metadata 同样公开。
+读取、投稿、成员管理、审核和 private metadata/content 的权威权限矩阵统一见
+`docs/perm.md`；本文件只定义 Group 领域对象、数据身份与生命周期，不维护第二份权限副本。
 
 投稿权限必须在 ffdb mutation 边界验证。httpd 可以隐藏输入框，但不能成为唯一权限检查。
 Group Entry 的 canonical identity 为：
@@ -142,18 +129,14 @@ machine producer 是明确例外：FeedService 导入和未来经认证的 per-F
 快照，但 `Via` 必须由服务端记录具体来源，不能伪造某个 admin 为作者。普通 `PostEntry` RPC
 仍不得接受 Group principal。
 
+Group Feed 的最新第一页按 `docs/perm.md` 展示发布窗口，历史 cursor 页不展示。发布只创建
+一条 canonical Entry：author direct index 使其出现在用户 Feed，Group direct index 使同一条
+记录出现在 Group Feed，不复制正文或互动数据。
+
 ## 内容权限与审核
 
-- Entry 作者可以编辑、删除自己的投稿；
-- Group admin 可以删除 Group 内的 Entry，但不能编辑其他作者的正文；
-- Comment 作者可以编辑、删除自己的 Comment；
-- Group admin 可以删除 Group Entry 下的 Comment，但不能编辑或冒充 Comment 作者；
-- super 保留恢复和审核权限；
-- admin 审核只适用于 `Entry.FeedUuid == group UUID` 的内容，不能因 Entry 的其他快照字段或
-  cross-post 表象扩张到另一个 Feed。
-
-权限判断必须使用 UUID，并在 model/server 层保持同一规则。前端 commands 只是服务端授权
-结果的展示提示。
+审核与 mutation 权限统一见 `docs/perm.md`。Group 侧只保留一条数据约束：审核范围必须以
+canonical `Entry.FeedUuid` 为准，不能依据 From/To 展示快照推断。
 
 ## Timeline
 

@@ -52,6 +52,7 @@ type fakeGroupClient struct {
 
 	groupView    *pb.GroupView
 	groupViewErr error
+	graphFollow  *pb.FollowResponse
 
 	profile    *pb.Profile
 	profileErr error
@@ -223,6 +224,13 @@ func (f *fakeGroupClient) FetchGraph(ctx context.Context, req *pb.ProfileRequest
 		return &pb.Graph{}, nil
 	}
 	return f.graphResp, nil
+}
+
+func (f *fakeGroupClient) GraphFollow(ctx context.Context, req *pb.FollowRequest, opts ...grpc.CallOption) (*pb.FollowResponse, error) {
+	if f.graphFollow != nil {
+		return f.graphFollow, nil
+	}
+	return &pb.FollowResponse{}, nil
 }
 
 func (f *fakeGroupClient) GetGroup(ctx context.Context, req *pb.GetGroupRequest, opts ...grpc.CallOption) (*pb.GroupView, error) {

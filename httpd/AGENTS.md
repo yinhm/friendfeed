@@ -6,7 +6,7 @@
 
 - 交互放在 React bundle；内联脚本只允许写入服务端生成的 `window.pageBootstrap` JSON。
 - 匿名 Public/公开 Feed/公开 Entry 及 Group 发现页保留可读 SSR；登录态页面使用 `#app-root` 单一 React dispatcher。
-- `show_share` 默认 false，只在 Home 打开；Public、普通 Feed 和未登录首页不得展示或加载编辑器。
+- Editor 默认不加载；页面展示边界见 `docs/web_architecture.md` 与 `docs/group.md`。前端 `show_share` 仅是展示提示，投稿授权以 `docs/perm.md` 和 ffdb mutation 校验为准。
 
 ## 资源管线
 

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -118,6 +119,53 @@ func TestLoggedInFeedStartMayRenderCompatibilityPage(t *testing.T) {
 
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("status=%d; logged-in legacy page should be allowed", recorder.Code)
+	}
+}
+
+func TestGroupFeedEditorIsLimitedToMembersOnNewestPage(t *testing.T) {
+	client := &fakeGroupClient{
+		feedResp: &pb.Feed{Uuid: testGroupUUID, Id: "book-club", Name: "Book Club", Type: "group"},
+		profile:  &pb.Profile{Uuid: testGroupUserUUID, Id: "viewer", Type: "user"},
+		groupView: &pb.GroupView{Group: &pb.Profile{
+			Uuid: testGroupUUID, Id: "book-club", Type: "group",
+		}, IsMember: true},
+	}
+	server := newGroupTestServer(client)
+	router := groupTestRouter(server)
+	capture := &captureNotificationRender{}
+	router.HTMLRender = capture
+	router.GET("/feed/:name", server.FeedHandler)
+	login := groupLoginCookie(t, router)
+
+	request := func(path string) feedPageData {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(login)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s status=%d", path, recorder.Code)
+		}
+		var bootstrap struct {
+			Data feedPageData `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
+			t.Fatal(err)
+		}
+		return bootstrap.Data
+	}
+
+	if data := request("/feed/book-club"); !data.ShowShare {
+		t.Fatal("member should see editor on newest Group page")
+	} else if !data.GroupFeedHeader {
+		t.Fatal("Group Feed should use the borderless header variant")
+	}
+	if data := request("/feed/book-club?cursor=older"); data.ShowShare {
+		t.Fatal("older Group page must not show editor")
+	}
+	client.groupView.IsMember = false
+	if data := request("/feed/book-club"); data.ShowShare {
+		t.Fatal("non-member must not see Group editor")
 	}
 }
 

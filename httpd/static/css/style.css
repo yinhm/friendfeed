@@ -272,6 +272,10 @@ a:not([class]):hover {
     margin-bottom: 12px;
 }
 
+.header.group-feed-header {
+    border-bottom: 0;
+}
+
 .sharebox,
 .entry,
 .share {

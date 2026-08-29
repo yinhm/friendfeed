@@ -458,6 +458,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		data = legacyFeedCursorContext(feed, req.PageSize)
 	}
 	data["show_header"] = true
+	data["group_feed_header"] = feed.Type == "group"
 	actor := CurrentUserUuid(c)
 	data["show_profile_relations"] = actor != "" && feed.Type == "user"
 	if actor != "" && feed.Archive != nil {
@@ -466,8 +467,9 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	}
 	if actor != "" && feed.Type == "group" {
 		ctx, cancel := DefaultTimeoutContext()
-		// Group feeds offer admin/super viewers entry points to the
-		// settings and members pages (docs/group.md manage_group rule).
+		// One authoritative Group view drives both presentation permissions:
+		// members may post on the newest page, while admin/super viewers also
+		// receive the settings entry point. ffdb still rechecks every post.
 		view, viewErr := s.client.GetGroup(ctx, &pb.GetGroupRequest{
 			GroupUuid: feed.Uuid, ViewerUuid: actor,
 		})
@@ -475,6 +477,10 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		if viewErr == nil {
 			data["group_members_url"] = "/groups/" + url.PathEscape(feed.Id) + "/members"
 			profile, _ := s.CurrentUser(c)
+			if req.Cursor == "" && req.Start == 0 &&
+				(view.IsMember || view.IsAdmin || profile != nil && profile.IsSuper) {
+				data["show_share"] = true
+			}
 			if canManageGroup(view, profile) {
 				data["group_settings_url"] = "/groups/" + url.PathEscape(feed.Id) + "/settings"
 			}

@@ -87,6 +87,34 @@ Group member 与普通 Feed subscriber 都由既有 Follow/Follower 边表达。
 - Pebble 等真实读取故障：`Internal`，不得伪装为公开、不可见或不存在；
 - 聚合列表中的 denied/missing/deleted Entry：跳过；真实存储故障中止请求。
 
+## 写入与 Group 管理
+
+本节是 User Feed 投稿、Group 投稿和 Group 管理权限的权威矩阵；页面是否显示按钮或 editor
+只属于展示提示，不能替代 ffdb mutation 校验。
+
+| 操作 | 公开 Group 非成员 | 普通成员 | Group admin | super |
+| --- | --- | --- | --- | --- |
+| 查看 Group Feed | 允许 | 允许 | 允许 | 允许 |
+| 加入公开 Group | 允许 | 已加入，幂等 | 已加入，幂等 | 允许 |
+| 向 Group 投稿 | 拒绝 | 允许 | 允许 | 允许 |
+| 管理成员/admin | 拒绝 | 拒绝 | 允许 | 允许 |
+| 管理 FeedService | 拒绝 | 拒绝 | 允许 | 允许 |
+| 修改/删除 Group | 拒绝 | 拒绝 | 允许 | 允许 |
+
+- 用户可以向自己的 User Feed 投稿，不能向另一个用户的 Feed 投稿；
+- private Group 仍只允许已批准的 member、admin、super 查看和投稿；
+- Entry 作者可编辑、删除自己的投稿；Group admin 可删除 Group 内的 Entry，但不能编辑或
+  冒充其他作者；
+- Comment 作者可编辑、删除自己的 Comment；Group admin 可删除 Group Entry 下的 Comment，
+  但不能编辑或冒充作者；
+- Group admin 的审核范围只由 Entry 的 canonical `FeedUuid` 决定，不能由 From/To 快照扩张；
+- Group Feed 仅在最新第一页为 member、admin、super 设置 `show_share`；历史 cursor 页、
+  非成员和匿名 viewer 不展示 editor。`PostEntry.authorizeEntryPost` 仍是权威边界。
+
+Group 投稿只创建一条 canonical Entry：`ProfileUuid` 是实际发帖用户，`FeedUuid` 是 Group。
+author 与 Group 两个 direct index 让同一条记录同时出现在用户 Feed 和 Group Feed，不复制正文、
+Like 或 Comment。详细数据语义见 `docs/group.md`。
+
 ## 最小架构
 
 不引入通用 policy engine，也不新增表、迁移或 RPC。ffdb 内增加请求级 resolver：

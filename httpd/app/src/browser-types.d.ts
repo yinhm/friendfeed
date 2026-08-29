@@ -19,6 +19,7 @@ export type FeedView = {
 export type FeedPageData = {
   feed: FeedView; show_header: boolean; show_paging: boolean; show_share: boolean;
   show_profile_relations: boolean;
+  group_feed_header: boolean;
   show_prev: boolean; show_next: boolean; prev_start: number; next_start: number;
   cursor_paging: boolean; next_cursor: string; realtime_enabled: boolean;
   realtime_home: boolean; onpage: boolean; onpage_edit: boolean; query: string;

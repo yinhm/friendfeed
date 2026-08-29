@@ -298,11 +298,13 @@ test('Group Feed header exposes members and settings as plain links', () => {
   render(<Feed {...makeFeedProps({
     feed,
     show_header: true,
+    group_feed_header: true,
     group_settings_url: '/groups/book-club/settings',
     group_members_url: '/groups/book-club/members',
   })} />);
 
   expect(screen.queryByRole('navigation', {name: 'Feed management'})).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', {name: 'Book Club'}).closest('.header')).toHaveClass('group-feed-header');
   expect(screen.queryByRole('link', {name: 'Import Services'})).not.toBeInTheDocument();
   expect(screen.getByRole('link', {name: 'Settings'}))
     .toHaveAttribute('href', '/groups/book-club/settings');

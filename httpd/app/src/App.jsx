@@ -20,6 +20,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {boolean} show_paging
  * @property {boolean} show_share
  * @property {boolean} show_profile_relations
+ * @property {boolean} group_feed_header
  * @property {number} prev_start
  * @property {number} next_start
  * @property {boolean} [show_prev]
@@ -77,7 +78,7 @@ function FeedPagin(props) {
 
 /**
  * @param {{feedId: string, feedUuid: string, name?: string, picture?: string,
- * description?: string, private?: boolean, showRelations?: boolean, commands?: string[],
+ * description?: string, private?: boolean, showRelations?: boolean, groupHeader?: boolean, commands?: string[],
  * groupSettingsUrl?: string, groupMembersUrl?: string}} props
  */
 function FeedHeader(props) {
@@ -154,7 +155,7 @@ function FeedHeader(props) {
   }
 
   return (
-    <div className="header">
+    <div className={`header${props.groupHeader ? ' group-feed-header' : ''}`}>
       <div className="picture"><a href={"/feed/" + props.feedId}>
         <img src={props.picture} alt={props.name ?? ''} /></a>
       </div>
@@ -314,6 +315,7 @@ export function Feed(props) {
                   description={feed.description}
                   private={feed.private}
                   showRelations={state.show_profile_relations}
+                  groupHeader={state.group_feed_header}
                   commands={feed.commands}
                   groupSettingsUrl={state.group_settings_url}
                   groupMembersUrl={state.group_members_url} />
@@ -384,6 +386,7 @@ export function App({data}) {
       show_paging={appData.show_paging}
       show_share={appData.show_share}
       show_profile_relations={appData.show_profile_relations}
+      group_feed_header={appData.group_feed_header}
       prev_start={appData.prev_start}
       next_start={appData.next_start}
       show_prev={appData.show_prev}

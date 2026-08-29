@@ -1397,7 +1397,7 @@ Go build embeds static
 - 不提交 generated JS/CSS/manifest；
 - 保留手写 style.css；
 - production asset 使用 content hash；
-- editor/Plate 必须 lazy chunk；
+- editor/Plate 必须 lazy chunk；具体页面展示与投稿权限边界见 `docs/group.md`、`docs/perm.md`；
 - 普通 static Feed 不加载 editor runtime；
 - build manifest 缺失要在 build/CI 阶段失败，不能等 production request 才发现；
 - Go binary 与其 embedded assets 必须来自同一 commit。
