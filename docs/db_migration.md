@@ -3,22 +3,24 @@
 数据库表、key 编码、Flake 与 EntryIndex 的设计背景见
 [database_design.md](database_design.md)。
 
-> 本文档从 README 拆出，记录 `old_db` 到 `new_db` 的历史迁移，以及当前 new DB 的诊断、
-> rebuild 和一次性修复命令。`v1.0.0` 是 old DB/Pebble v1 的最后迁移工具基线；2.0 只运行
-> Pebble v2 new DB，不兼容旧库或降级。
+> 本文档记录当前 new DB 的诊断、rebuild 和维护命令。`v1.0.0` 是 old DB/Pebble v1
+> 的最后迁移工具基线；`v2.2.0` 是 application schema 1 一次性迁移工具的最后基线。
+> 当前版本只运行 Pebble v2、且非空数据库必须带 current application schema marker；
+> 不兼容旧库、未盖章库或降级运行。
 > `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 及 `debug` 的 mdb 参数仅存在于
 > `v1.0.0` tag，不在 master 重新实现。当前命令及顺序以本文后续章节和工具实际 `-c` 分支为准，
 > 不在此维护一份容易过期的穷举列表。
 >
-> master 中的 `db`、`sync` 已退役并在开库前 fail-loud；必须 checkout `v1.0.0` 且只对
-> 离线副本执行 old-DB copy。`-from` 目前只供无 `-table` 的历史 `debug` 使用。
+> `db`、`sync` 及所有一次性 migrate/backfill/fix/purge 命令已经从 master 删除。
+> 如 schema 验证发现遗留编码，必须 checkout `v2.2.0`，构建该 tag 的 `tools`，并且只
+> 对停服后的离线副本修复；当前版本不会恢复这些写入器。
 
-## v2.2 application schema 盖章
+## application schema gate
 
 Pebble FMV 只表示底层文件格式。ffdb 另用
 `TableMeta | "db-schema/version" -> uint32 big-endian` 记录 application schema，当前为 `1`。
-v2.2 是最后迁移窗口：非空 missing/older 数据库启动时告警但继续服务；future 或损坏 marker
-直接拒绝。空数据库首次 ffdb 启动会初始化 current marker。
+`v2.2.0` 是最后迁移窗口。当前版本中，空数据库首次启动会初始化 current marker；任何
+非空 missing/older/future/malformed 数据库均拒绝启动。
 
 `inspect_schema` 只读取 marker 与 Pebble FMV，是 O(1) 状态检查。`verify_schema` 才执行完整
 流式验证。在一致性副本执行：
@@ -40,8 +42,8 @@ drift，只输出非阻塞 warning；它们由 audit、懒清理、rebuild 或�
 application schema。无法解析本地 Profile 的历史 Group 作者同样只是 warning。archive 中无法映射
 本地 Profile 的历史 actor、Feedinfo/UserMap、legacy rawBody/HTML/blockquote 和保留表号不是 blocker。
 
-Twitter OAuth 的历史 Name/NickName 顺序无法仅凭记录可靠判定；运行
-`fix_twitter_oauth_fields` 的历史证据和抽查结果必须由操作者单独保存，工具不得用启发式结果冒充证明。
+Twitter OAuth 的历史 Name/NickName 顺序无法仅凭记录可靠判定；既有修复证据和抽查结果
+必须由操作者单独保存，工具不得用启发式结果冒充证明。
 
 修复全部 blocker 后，停服、备份，再执行：
 
@@ -53,11 +55,7 @@ echo stamp_schema | ./tools -to <db> -c stamp_schema
 apply 在同一进程重新验证后写入，不提供 force。`stamp_schema -dry-run` 也会完整验证但不写
 marker，只在需要额外演练时使用；刚完成 `verify_schema` 后不必把它列为第二次强制扫描。写入后不需要手动
 `Flush()` 才生效。dev 与 production 都必须保存 verify/inspect 输出；若另跑 audit，也一并保存。
-v2.3 只有在二者盖章并
-运行一个发布周期后，才强制拒绝 missing/older 数据库并删除一次性迁移代码。
-
-无行为兼容 flag 已进入一个版本的弃用期：`cli --debug` 与显式
-`mirror_twimg --no-wayback` 会输出 warning，计划在 v2.3 删除。Wayback 默认关闭，只有
+dev 与 production 已完成盖章；该 marker 现在是启动前置条件。Wayback 默认关闭，只有
 `mirror_twimg --wayback` 会启用。
 
 当前版本可在 new DB 上重建社交图：
@@ -82,13 +80,6 @@ Feed 年度统计同样先按用户验证，再全量重建；它逐个处理全
     ./tools -to /srv/ffdb/db -c rebuild_feed_archive -dry-run
     ./tools -to /srv/ffdb/db -c rebuild_feed_archive
 
-把 Profile 上残留的 FriendFeed 旧默认头像（`friendfeed.com/static/images/group-large.png`，
-任意 scheme 与 `?v=` 变体）改写为本地默认图 `/static/images/ff-default.jpg`（先
--dry-run 看计数再实跑，可重复执行，`-user` 可限定单个 profile ID 或 UUID）：
-
-    ./tools -to /srv/ffdb/db -c fix_default_picture -dry-run
-    ./tools -to /srv/ffdb/db -c fix_default_picture
-
 社交图完成后重建用户 timeline。
 
 单个用户：
@@ -98,19 +89,6 @@ Feed 年度统计同样先按用户验证，再全量重建；它逐个处理全
 全部用户：
 
     ./tools -to new_db -c rebuild_timeline
-
-迁移媒体 URL 到 R2（先 -dry-run 看计数再实跑，可重复执行）：
-
-    ./tools -to new_db -c migrate_media_urls -dry-run
-    ./tools -to new_db -c migrate_media_urls
-
-覆盖 `Profile.Picture`、`Entry.Thumbnails[].Url` 与 `Entry.Thumbnails[].Link`（模板
-渲染媒体块的 `<a href>`），以及 `Entry.Body`/`RawBody` 内嵌的媒体 URL（`<img src>`
-与媒体链接均处理，外部链接不动）。已退役 host 一律改写为
-`https://m.friendfeed.me` 且对象路径不变（serving 契约见 conf/nginx_media.conf）：
-`storage.googleapis.com/lastff01/*`、`m.friendfeed-media.com`、`i.friendfeed.com`、
-`friendfeed-media.com`；`http://m.friendfeed.me` 会被升级为 https。`Entry.Files`
-暂不迁移。命令只改 DB、不搬运对象；执行前应确认媒体目录中对象实际存在。
 
 ### 抢救 Twitter 历史媒体
 
@@ -146,21 +124,6 @@ R2 key 是内容 SHA-256，因此异常中断发生在上传成功但结果落�
 该 JSONL 是后续生产数据库 URL 改写的唯一输入。改写命令应重新流式扫描生产 Entry，并按
 `url -> new_url` 替换所有 Body/RawBody/Thumbnail/File 引用，不依赖样本 `refs`，且必须另行
 提供 dry-run、备份和逐 Entry 原子更新。在该改写命令完成并验证前，不要直接修改生产 DB。
-
-## EntryIndex 44 B 格式迁移
-
-当前 EntryIndex 为 `T | owner UUID | reverse Unix ms(8) | entry UUID(16)`（44 B，value
-为空）。含旧格式（56 B reverse Flake + canonical key 后缀，或更早的 36 B 无后缀）的库
-升级后执行：
-
-    ./tools -to new_db -c migrate_entry_index -dry-run        # 演练，不写盘
-    ./tools -to new_db -c migrate_entry_index                 # 可用 -max-limit 先小范围验证
-
-迁移按键直接转换：Entry.Date 为整秒，reverse Unix ms 可由 reverse Flake 精确还原，无需
-读取 Entry；重复的 legacy 行会折叠到同一新 key。也可以用 `rebuild_entry_index` 从 Entry
-源数据清空重建。应按 schema 升级惯例停服执行：旧代码写入的 56/36 B 行在新代码的读取
-路径上会被判为非法 key，混跑期间 feed 读取会报错；旧格式的分页 cursor 在升级后失效
-（cursor 为不透明短期令牌，重新翻页即可）。
 
 ## Home Timeline 有界缓存迁移
 
@@ -205,13 +168,6 @@ echo purge_timeline | ./tools -to new_db -c purge_timeline
 ## v1.0.0 old DB 迁移记录
 
 `meta`、`sync_meta`、`public_feed`、`profile`、`count_meta` 仅存在于 `v1.0.0` tag。需要处理尚未迁移的 old DB 时，必须先使用 v1.0.0 工具完成迁移，再使用当前版本打开 new DB；不要在 master 上寻找或重新实现这些命令。
-
-当前仍保留 `db` 与 `sync` 供内部数据复制使用：
-
-```bash
-./tools -from old_db -to new_db -c db
-./tools -from old_db -to new_db -c sync
-```
 
 整表清理命令执行前会要求输入完整命令名确认；脚本化可通过管道输入：
 
@@ -258,143 +214,14 @@ inspect 只读；purge 会释放全部保留的旧 ID，并允许相关用户再
 
 背景：feed 路由只认 `Profile.Id`（FriendFeed 昵称），而 twitter 的 OAuth `NickName` 是 screen_name（handle），二者可以合法地不同。例如 `/feed/elon_musk`（handle）会 404，而 `/feed/elon_musk`（feed id）正常。
 
-## fix_twitter_oauth_fields
+## 已退役的一次性修复
 
-对每一条 `provider == "twitter"` 的 OAuth 记录，交换 `Name` 与 `NickName`。迁移进来的旧记录字段顺序是 `Name=显示名、NickName=handle`，而当前登录实现（`httpd/src/auth.go`）期望 `Name=handle、NickName=显示名`，此命令把旧记录翻正。
-
-    ./tools -to new_db -c fix_twitter_oauth_fields
-
-注意：命令**不是幂等的** —— 每执行一次就翻转一次，重复执行会翻回去，只应运行一次。仅影响 twitter provider，其他 provider（如 google）不受影响。
-
-## backfill_actor_uuids
-
-为当前 new DB 的历史 Entry 回填稳定身份：
-
-- `entry.From.Uuid` 与 `entry.ProfileUuid`；
-- `comment.From.Uuid`；
-- `like.From.Uuid`。
-
-本命令依赖一次性迁移前提：目标 dev/production 数据从导入至今没有发生 Profile ID 修改，因此历史 `From.Id` 仍能通过当前 `UserMap -> Profile` 证明原 owner。命令仍会完整校验映射链；缺失、损坏或与已有 UUID 冲突的记录只计数，不会猜测或覆盖。
-
-使用 `-dry-run` 时仅报告，并以只读方式打开目标 DB，但仍需取得 Pebble 数据库锁。请停止使用该目录的服务，或对一致性备份副本执行：
-
-```bash
-./tools -to new_db -c backfill_actor_uuids -dry-run
-./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20 -dry-run
-```
-
-确认 dry-run 的 `unresolved`/`conflicts` 后，停止所有使用该 Pebble 目录的服务、完成备份，再执行写入：
-
-```bash
-./tools -to new_db -c backfill_actor_uuids
-```
-
-迁移不依赖 old DB，不修改 ID/Name/Picture 等展示快照，不修改 `FeedUuid`；可重复执行，第二次应报告零 changed。dry-run 的安全边界是核心迁移函数在所有 mutation API 之前返回；末尾是否调用 Pebble `Flush` 不决定数据是否已经写入。
-
-## 修复历史 Group Entry 作者
-
-早期归档器在抓取 Group Feed 时曾把 `Entry.ProfileUuid` 覆盖为 Group UUID，原作者仍保留在
-`Entry.From.Id`，目标 Group 则保留在 `Entry.FeedUuid`。这会令页面把 Group 显示为作者，并令
-作者自己的 Profile Feed 缺少该 Entry。
-
-命令只接受可以严格证明的记录：当前 `ProfileUuid` 和 `FeedUuid` 指向同一 Group，且
-`From.Id` 能通过当前 `UserMap -> Profile` 解析为另一个有效 user。Group 自身发布的 Service/system
-Entry、目标不一致及无法解析的记录均不修改。修复 Entry 与新增作者 EntryIndex 在同一 Pebble batch
-提交；原 Group 目标索引保留。
-
-先对单个作者、小批量 dry-run：
-
-```bash
-./tools -to <db-dir> -c migrate_group_entry_authors -user yinhm -max-limit 20 -dry-run
-```
-
-确认计数后执行同一范围，再全量 dry-run 和执行：
-
-```bash
-./tools -to <db-dir> -c migrate_group_entry_authors -user yinhm -max-limit 20
-./tools -to <db-dir> -c migrate_group_entry_authors -dry-run
-./tools -to <db-dir> -c migrate_group_entry_authors
-./tools -to <db-dir> -c audit_store
-```
-
-该命令流式处理且幂等，不依赖 old DB。它已经补齐作者索引，因此正常执行后无需再运行
-`rebuild_entry_index`；全量 `rebuild_entry_index` 仍会从修复后的 `ProfileUuid`（作者）和
-`FeedUuid`（Group 目标）正确重建两类 direct index，可作为额外恢复手段。
-
-## EntryIndex 与互动表离线升级
-
-当前版本把 EntryIndex 升级为同秒不碰撞的 key，并把 Like/Comment 从 Entry value
-拆到独立表。升级不维护旧格式双轨，完成后不得用旧程序打开或降级写入数据库。
-
-大库命令必须保持流式、内存有界。`rebuild_entry_index` 会先流式预检 Entry，再用
-Pebble range tombstone 清理 EntryIndex，最后第二遍流式重建；dry-run 也不保留全量
-Entry 或 index。不要把“每 500 条提交一次”误当成内存上限：如果提交前已经把全部
-key/record 收进 slice/map，内存仍会随全库数据线性增长。需要先验证后写入时，应接受
-多遍扫描，而不是缓存全库中间结果。
-
-推荐依次使用全量 `rebuild_entry_index` 和 `rebuild_timeline`。前者从 Entry 重建
-Profile/target feed direct index，并清除 orphan/旧 EntryIndex timeline；后者从 Entry、
-当前 Like/Comment 与当前 Follow 关系重建 Home activity timeline。
-`migrate_entry_index` 只转换现存旧 key，不能恢复已经丢失的索引；执行全量 rebuild
-时不需要先运行它。
-
-按以下顺序操作，每个数据库目录单独完成：
-
-1. 停止所有使用该 Pebble 目录的进程并确认释放 `LOCK`；保存升级前二进制。
-   新二进制已经读取 TimelineIndex，必须保持服务停止直到步骤 6 的 `rebuild_timeline`
-   完成；提前启动会让 Home 暂时为空或只包含升级后的新帖。
-2. 使用 `cp -a <db-dir> <db-dir>.bak-entry-index` 创建离线备份，并在副本上确认
-   `audit_store` 能打开。备份只用于升级验收失败时整体恢复，不能与已升级库混合。
-3. 若历史 actor UUID 尚未回填，先按上一节完成 `backfill_actor_uuids`；互动迁移不按
-   可回收的 `From.Id` 猜测身份。
-4. 先修复历史字符串 Entry key。该命令只认已知的
-   `TableEntry + 36-character UUID` 污染格式，并核对 key UUID、`Entry.Id` 及已有
-   canonical row；冲突会在任何写入前报错：
-
-```bash
-./tools -to <db-dir> -c migrate_entry_keys -dry-run
-./tools -to <db-dir> -c migrate_entry_keys
-```
-
-5. 再对一个用户、小上限执行其余 dry-run，最后执行全库 dry-run：
-
-```bash
-./tools -to <db-dir> -c migrate_interactions -user yinhm -max-limit 20 -dry-run
-./tools -to <db-dir> -c rebuild_entry_index -user yinhm -max-limit 20 -dry-run
-./tools -to <db-dir> -c rebuild_timeline -user yinhm -max-limit 20 -dry-run
-./tools -to <db-dir> -c migrate_interactions -dry-run
-./tools -to <db-dir> -c rebuild_entry_index -dry-run
-./tools -to <db-dir> -c rebuild_timeline -dry-run
-```
-
-`migrate_interactions` 全量 apply 前会再次完整预检。已经过
-`backfill_actor_uuids` 仍无法可靠映射的 archive actor 会保留为只读展示快照：
-迁移只为独立表生成确定性的内部 row UUID，不填写 `From.Uuid`，因此不会按当前同名
-profile 授予编辑、删除或 unlike 权限。非 UUID 的历史 comment ID 同样会确定性转换为
-UUID。日志中的 `legacy_actors`、`generated_comment_ids` 是兼容计数，不阻断迁移；只有
-会覆盖同一独立表 key 的 `duplicates` 非零时拒绝开始写入。
-历史 Like/Comment 缺少或带有非法 `Date` 时仍保留展示，但 `rebuild_timeline` 会计数并
-跳过该互动的 activity bump；不得用当前时间或 Entry 发布时间伪造互动时间。Entry
-自身的发布时间无效仍会阻断重建，因为无法建立基础排序位置。
-
-全量 dry-run 和 apply 都应观察进程 RSS；内存应主要由 Pebble cache 和少量按 feed 的
-校验状态构成，不应随已扫描 Entry 数持续线性增长。`rebuild_timeline` 按 profile 逐个
-处理，内存上限与单个用户的 Home timeline 规模相关，而非全库 Entry 总数。
-
-6. 确认 dry-run 后执行写入。命令默认会写库，`-dry-run` 才是不写开关：
-
-```bash
-./tools -to <db-dir> -c migrate_interactions
-./tools -to <db-dir> -c rebuild_entry_index
-./tools -to <db-dir> -c rebuild_timeline
-```
-
-7. 执行 `./tools -to <db-dir> -c audit_store`。必须确认 `noncanonical_entries=0`、
-   `entry_key_id_mismatches=0`、`noncanonical_indexes=0`、`missing_direct=0`、
-   `orphan_indexes=0`，且 timeline 的 missing/duplicate/timestamp mismatch 均为 0；抽查目标用户的 cursor 多页顺序、首尾、
-   无重复项，以及 Like/Comment 数量、顺序、编辑/删除权限和 rename 后身份。
-8. 用新二进制冷启动，验证 feed 与互动后正常停止并再次启动。若验收失败，应在没有
-   新写入的前提下整体恢复步骤 2 的目录并中止升级；不要让旧程序打开已升级目录。
+Entry key/EntryIndex 格式、嵌入互动、actor UUID、Group admin/作者、旧媒体 URL、旧默认头像、
+Twitter OAuth 字段和 retired public cache 的写入型修复均已完成并从当前源码删除。
+`verify_schema` 仍以只读方式识别会影响 schema 1 的残留；一旦报告 blocker，只能使用
+`v2.2.0` tag 的工具在停服后的离线副本上修复，再由当前版本重新 verify/stamp。不要把旧
+写入器复制回 master。`rebuild_entry_index`、`rebuild_timeline` 与互动 timeline rebuild
+仍是现行的派生数据恢复工具。
 
 ## Like/Comment timeline 重建
 

@@ -160,7 +160,7 @@ batch 中删除对应 index 与 position；未再次读取的孤儿由 `audit_st
 value，必须先运行：
 
 ```text
-migrate_entry_keys
+v2.2.0 的 migrate_entry_keys
 rebuild_entry_index
 rebuild_timeline
 audit_store
@@ -509,7 +509,7 @@ CommentEntry）改为调用 public bump，调用前完成两个前置判断（�
 1. 部署新代码（写路径 bump + 读路径 cursor，public timeline 初始为空）
 2. rebuild_timeline -public（先 dry-run 验证，再 apply）
 3. audit_store 验证 108/109 双向一致
-4. 确认 public 页面正常后执行 `purge_public_cache` 删除 index:public:cache meta 行
+4. `v2.2.0` 升级期确认 public 页面正常后，删除 `index:public:cache` Meta 行
 ```
 
 部署到回填完成之间 public 页面为空，该空窗已确认可接受。本阶段不做双写：`FeedIndex`

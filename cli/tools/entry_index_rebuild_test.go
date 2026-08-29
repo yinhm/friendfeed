@@ -9,7 +9,26 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
+
+func seedActorProfile(t *testing.T, db *store.Store, id string) uuid.UUID {
+	t.Helper()
+	profileUUID := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: profileUUID.String(), Id: id, Name: id, Type: "user",
+	}))
+	return profileUUID
+}
+
+func putLegacyStringKeyEntry(t *testing.T, db *store.Store, entry *pb.Entry) store.Key {
+	t.Helper()
+	raw, err := proto.Marshal(entry)
+	require.NoError(t, err)
+	key := model.NewKeyFrom(model.Entry.Prefix, []byte(entry.Id))
+	require.NoError(t, db.Put(key, raw))
+	return key
+}
 
 func TestRebuildEntryIndexesRestoresSourceDerivedRows(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())

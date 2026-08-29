@@ -97,6 +97,37 @@ func TestVerifySchemaCombinesLegacyEntryChecks(t *testing.T) {
 	require.Equal(t, 1, legacy.legacyMediaEntries)
 }
 
+func TestVerifySchemaClassifiesLegacyGroupAuthors(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	groupID := uuid.Must(uuid.NewV4())
+	authorID := uuid.Must(uuid.NewV4())
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: groupID.String(), Id: "legacy-group", Type: "group",
+	}))
+	require.NoError(t, model.UpdateProfile(db, &pb.Profile{
+		Uuid: authorID.String(), Id: "known-author", Type: "user",
+	}))
+	putEntry := func(fromID string) {
+		entryID := uuid.Must(uuid.NewV4())
+		raw, marshalErr := proto.Marshal(&pb.Entry{
+			Id: entryID.String(), ProfileUuid: groupID.String(), FeedUuid: groupID.String(),
+			From: &pb.Feed{Id: fromID}, Date: "2026-01-01T00:00:00Z",
+		})
+		require.NoError(t, marshalErr)
+		require.NoError(t, db.Set(model.Entry.PrefixAppend(entryID.Bytes()), raw))
+	}
+	putEntry("known-author")
+	putEntry("archive-only-author")
+
+	result, err := verifySchema(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, blockerCount(result, "legacy_group_entry_authors"))
+	require.Equal(t, 1, warningCount(result, "unresolved_group_entry_authors"))
+}
+
 func TestConfirmSchemaStamp(t *testing.T) {
 	var out bytes.Buffer
 	require.NoError(t, confirmSchemaStamp("/db", strings.NewReader("stamp_schema\n"), &out))
@@ -157,7 +188,7 @@ func TestSchemaVerificationExplainsBlockersAndWarnings(t *testing.T) {
 	var out bytes.Buffer
 	writeSchemaVerification(&out, result)
 	require.Contains(t, out.String(), "ready=false blockers=1 warnings=1")
-	require.Contains(t, out.String(), "action=run migrate_group_entry_authors -dry-run")
+	require.Contains(t, out.String(), "action=use the tools from tag v2.2.0 on an offline copy: run migrate_group_entry_authors -dry-run")
 	require.Contains(t, out.String(), "warning=groups_without_admins count=262")
 	require.Contains(t, out.String(), "warnings may be handled separately")
 }
@@ -166,6 +197,15 @@ func blockerCount(result schemaVerification, name string) int {
 	for _, blocker := range result.Blockers {
 		if blocker.Name == name {
 			return blocker.Count
+		}
+	}
+	return 0
+}
+
+func warningCount(result schemaVerification, name string) int {
+	for _, warning := range result.Warnings {
+		if warning.Name == name {
+			return warning.Count
 		}
 	}
 	return 0

@@ -43,8 +43,9 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 2021 年短期使用过 `Entry.Put(db, entry.Id, ...)`。当 `entry.Id` 是带连字符 UUID 时，
 `KeyFromString` 无法按 hex 解码，因而写出了错误的 `TableEntry(4) + UUID string(36)`；
 后来的 EntryIndex rebuild 又曾直接复用该 40 B key，使污染进入 index value 和 key 后缀。
-这不是受支持的第二种编码。升级时必须先用 `migrate_entry_keys` 修复源 Entry，再用
-`rebuild_entry_index` 丢弃并重建派生索引；运行时和 TimelineIndex 不兼容字符串 key。
+这不是受支持的第二种编码。当前运行时和 TimelineIndex 不兼容字符串 key；如
+`verify_schema` 检出该遗留格式，只能使用 `v2.2.0` 的一次性工具在离线副本修复，再用
+当前 `rebuild_entry_index` 丢弃并重建派生索引。
 
 ## 主要表与 key 设计
 
@@ -178,9 +179,8 @@ direct feed cursor 编码完整 24 B 位置（reverse ms + entry UUID），与 t
 
 早期格式为 `T | owner UUID | reverse Flake(16)`（36 B，value 为 canonical Entry key），
 后追加 canonical Entry key 后缀变为 56 B。Flake 的 worker/sequence 对派生索引不贡献
-唯一性，value 与 key 后缀冗余。两种旧格式由 `migrate_entry_index` 按键直接转换
-（Entry.Date 为整秒，reverse ms 可由 reverse Flake 精确还原），或由
-`rebuild_entry_index` 从 Entry 源数据清空重建。
+唯一性，value 与 key 后缀冗余。两种旧格式的一次性转换器只保留在 `v2.2.0` tag；当前
+版本只支持用 `rebuild_entry_index` 从 canonical Entry 源数据清空重建。
 
 ## Entry 写入和读取路径
 
@@ -241,7 +241,8 @@ TableMeta | "db-schema/version" -> uint32 big-endian
 
 当前版本为 `1`。它证明应用数据已通过当前结构验证，与 Pebble
 `FormatMajorVersion` 完全无关。非空数据库不得自动补 marker；空库可由 ffdb 首次启动初始化。
-future 或损坏 marker 必须拒绝启动，v2.2 对 missing/older 只告警以保留最后迁移窗口。
+非空 missing/older/future/malformed marker 均拒绝启动；`v2.2.0` 是最后一个允许未盖章
+数据库启动、并包含一次性迁移写入器的版本。
 marker 只证明持久化编码和一次性迁移边界，不承诺 timeline、graph、Group admin、Notification、
 Task 等运行时派生关系永远没有 drift；这些差异由 audit/rebuild 单独报告和修复。
 

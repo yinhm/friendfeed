@@ -2,11 +2,7 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,41 +15,18 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestRetiredOldDBCommandsFailBeforePathValidation(t *testing.T) {
-	if command := os.Getenv("FFDB_TEST_RETIRED_COMMAND"); command != "" {
-		toPath = os.Getenv("FFDB_TEST_RETIRED_TO")
-		fromPath = os.Getenv("FFDB_TEST_RETIRED_FROM")
-		setCommandForRetiredTest(command)
-		main()
-		return
-	}
+func TestRetiredCommandsPointToHistoricalOfflineTools(t *testing.T) {
 	for _, command := range []string{"db", "sync"} {
 		err := retiredCommandError(command)
 		require.ErrorContains(t, err, "v1.0.0")
 		require.ErrorContains(t, err, "offline database copy")
-
-		root := t.TempDir()
-		to := filepath.Join(root, "target")
-		from := filepath.Join(root, "source")
-		cmd := exec.Command(os.Args[0], "-test.run=^TestRetiredOldDBCommandsFailBeforePathValidation$")
-		cmd.Env = append(os.Environ(),
-			"FFDB_TEST_RETIRED_COMMAND="+command,
-			"FFDB_TEST_RETIRED_TO="+to,
-			"FFDB_TEST_RETIRED_FROM="+from,
-		)
-		output, runErr := cmd.CombinedOutput()
-		require.Error(t, runErr)
-		require.Contains(t, string(output), "v1.0.0")
-		_, statErr := os.Stat(to)
-		require.ErrorIs(t, statErr, os.ErrNotExist)
-		_, statErr = os.Stat(from)
-		require.ErrorIs(t, statErr, os.ErrNotExist)
+	}
+	for command := range retiredV22Commands {
+		err := retiredCommandError(command)
+		require.ErrorContains(t, err, "v2.2.0")
+		require.ErrorContains(t, err, "offline database copy")
 	}
 	require.NoError(t, retiredCommandError("audit_store"))
-}
-
-func setCommandForRetiredTest(value string) {
-	command = value
 }
 
 func TestConfirmDestructive(t *testing.T) {
@@ -160,46 +133,6 @@ func TestPurgeTimelineTables(t *testing.T) {
 	}
 }
 
-func TestFixTwitterOAuthFields(t *testing.T) {
-	db, err := store.NewStore(t.TempDir())
-	require.NoError(t, err)
-	defer db.Close()
-
-	seed := []*pb.OAuthUser{
-		{Provider: "twitter", UserId: "1", Name: "芸窗", NickName: "yun_chuang"},
-		{Provider: "twitter", UserId: "2", Name: "Olive Fee", NickName: "Olivefee"},
-		// non-twitter rows must never be touched
-		{Provider: "google", UserId: "3", Name: "Yin Heming", NickName: "epaulin"},
-	}
-	for _, u := range seed {
-		if _, err := model.PutOAuthUser(db, u); err != nil {
-			t.Fatalf("seed %s: %v", u.UserId, err)
-		}
-	}
-
-	runFixTwitterOAuthFieldsCommand(db)
-
-	want := map[string]struct{ name, nick string }{
-		"1": {"yun_chuang", "芸窗"},
-		"2": {"Olivefee", "Olive Fee"},
-	}
-	for id, w := range want {
-		_, u, err := model.GetOAuthUser(db, "twitter", id)
-		if err != nil {
-			t.Fatalf("get twitter:%s: %v", id, err)
-		}
-		if u.Name != w.name || u.NickName != w.nick {
-			t.Fatalf("twitter:%s = (Name=%q, NickName=%q); want (Name=%q, NickName=%q)",
-				id, u.Name, u.NickName, w.name, w.nick)
-		}
-	}
-
-	// google row must be untouched
-	if _, u, _ := model.GetOAuthUser(db, "google", "3"); u.Name != "Yin Heming" || u.NickName != "epaulin" {
-		t.Fatalf("google row mutated: Name=%q NickName=%q", u.Name, u.NickName)
-	}
-}
-
 func TestDumpTable(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
@@ -274,188 +207,6 @@ func TestDumpTableProfile(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("output missing %q: %q", want, out.String())
 		}
-	}
-}
-
-func TestMigrateMediaURL(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-		ok   bool
-	}{
-		{
-			name: "GCS profile image",
-			in:   "https://storage.googleapis.com/lastff01/p-c6f8dca854f011ddb489003048343a40-large-1002",
-			want: "https://m.friendfeed.me/p-c6f8dca854f011ddb489003048343a40-large-1002",
-			ok:   true,
-		},
-		{
-			name: "legacy thumbnail host",
-			in:   "http://m.friendfeed-media.com/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
-			want: "https://m.friendfeed.me/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
-			ok:   true,
-		},
-		{
-			name: "friendfeed image CDN",
-			in:   "http://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188",
-			want: "https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188",
-			ok:   true,
-		},
-		{
-			name: "friendfeed image CDN https",
-			in:   "https://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188",
-			want: "https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188",
-			ok:   true,
-		},
-		{
-			name: "bare friendfeed-media host",
-			in:   "http://friendfeed-media.com/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
-			want: "https://m.friendfeed.me/b4c16ec30ea16e9cf98d138cd274a8676f1e3b96",
-			ok:   true,
-		},
-		{
-			name: "GCS http",
-			in:   "http://storage.googleapis.com/lastff01/p-avatar-large",
-			want: "https://m.friendfeed.me/p-avatar-large",
-			ok:   true,
-		},
-		{
-			name: "GCS other bucket untouched",
-			in:   "https://storage.googleapis.com/otherbucket/p-avatar-large",
-			want: "https://storage.googleapis.com/otherbucket/p-avatar-large",
-		},
-		{
-			name: "scheme self-repair",
-			in:   "http://m.friendfeed.me/image.jpg",
-			want: "https://m.friendfeed.me/image.jpg",
-			ok:   true,
-		},
-		{name: "external image", in: "https://example.com/image.jpg", want: "https://example.com/image.jpg"},
-		{name: "twitter CDN untouched", in: "http://pbs.twimg.com/media/ABC.jpg", want: "http://pbs.twimg.com/media/ABC.jpg"},
-		{name: "already migrated", in: "https://m.friendfeed.me/image.jpg", want: "https://m.friendfeed.me/image.jpg"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, ok := migrateMediaURL(tt.in)
-			if got != tt.want || ok != tt.ok {
-				t.Fatalf("migrateMediaURL(%q) = %q, %t; want %q, %t", tt.in, got, ok, tt.want, tt.ok)
-			}
-		})
-	}
-}
-
-func TestMigrateMediaText(t *testing.T) {
-	// Image URLs on retired hosts are rewritten; external links are not.
-	body := `<div class="media"><a href="http://online.wsj.com/article/SB124535285705228571.html" aria-label="Open media"><img alt="" src="http://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188" style="width: 262px; height: 174px;"></a></div>`
-	got, ok := migrateMediaText(body)
-	if !ok {
-		t.Fatal("expected body to be rewritten")
-	}
-	if !strings.Contains(got, `src="https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188"`) {
-		t.Fatalf("image src not migrated: %q", got)
-	}
-	if !strings.Contains(got, `href="http://online.wsj.com/article/SB124535285705228571.html"`) {
-		t.Fatalf("external link was changed: %q", got)
-	}
-
-	// Media links on the retired friendfeed-media host are rewritten too, and
-	// already-migrated http URLs are upgraded to https.
-	linked := `<div class="media"><a href="http://m.friendfeed-media.com/07a1ee699cef1999e03bcbaaec661ef77ac8852d" aria-label="Open media"><img alt="" src="http://m.friendfeed.me/46b97c2da4b7596dfb4f78613d65080cbdca2439" style="width: 405px; height: 175px;"></a></div>`
-	got, ok = migrateMediaText(linked)
-	if !ok {
-		t.Fatal("expected linked media body to be rewritten")
-	}
-	if !strings.Contains(got, `href="https://m.friendfeed.me/07a1ee699cef1999e03bcbaaec661ef77ac8852d"`) {
-		t.Fatalf("media link not migrated: %q", got)
-	}
-	if !strings.Contains(got, `src="https://m.friendfeed.me/46b97c2da4b7596dfb4f78613d65080cbdca2439"`) {
-		t.Fatalf("image src not upgraded to https: %q", got)
-	}
-
-	if _, ok := migrateMediaText(`<p>plain text</p>`); ok {
-		t.Fatal("plain text should not be rewritten")
-	}
-}
-
-func TestMigrateMediaURLsOnlyUpdatesNewDatabase(t *testing.T) {
-	db, err := store.NewStore(t.TempDir())
-	require.NoError(t, err)
-	defer db.Close()
-	db.SetSync(false)
-
-	profileID := uuid.Must(uuid.NewV4())
-	profile := &pb.Profile{
-		Uuid:    profileID.String(),
-		Id:      "user",
-		Picture: "https://storage.googleapis.com/lastff01/p-avatar-large",
-	}
-	if err := model.UpdateProfile(db, profile); err != nil {
-		t.Fatal(err)
-	}
-	entryID := uuid.Must(uuid.NewV4())
-	entry := &pb.Entry{
-		Id: entryID.String(),
-		Thumbnails: []*pb.Thumbnail{
-			{Url: "http://m.friendfeed-media.com/thumbnail",
-				Link: "http://m.friendfeed-media.com/07a1ee699cef1999e03bcbaaec661ef77ac8852d"},
-			{Url: "https://example.com/external.jpg"},
-		},
-		Body: `<div class="media"><a href="http://online.wsj.com/article/SB124535285705228571.html" aria-label="Open media"><img alt="" src="http://i.friendfeed.com/5516ac2b193edd120573963d53ddcf79fbd46188" style="width: 262px; height: 174px;"></a></div>`,
-	}
-	if _, err := model.Entry.Put(db, entryID.Bytes(), entry); err != nil {
-		t.Fatal(err)
-	}
-
-	dryStats, err := migrateMediaURLs(db, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if dryStats.profiles != 1 || dryStats.entries != 1 || dryStats.thumbnails != 1 ||
-		dryStats.links != 1 || dryStats.bodies != 1 {
-		t.Fatalf("unexpected dry-run stats: %+v", dryStats)
-	}
-	unchanged, err := model.GetProfileFromUuid(db, profileID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if unchanged.Picture != profile.Picture {
-		t.Fatalf("dry-run changed profile picture to %q", unchanged.Picture)
-	}
-
-	stats, err := migrateMediaURLs(db, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stats != dryStats {
-		t.Fatalf("migration stats %+v differ from dry-run %+v", stats, dryStats)
-	}
-	migratedProfile, err := model.GetProfileFromUuid(db, profileID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if migratedProfile.Picture != "https://m.friendfeed.me/p-avatar-large" {
-		t.Fatalf("unexpected profile picture: %q", migratedProfile.Picture)
-	}
-	migratedEntry, err := model.GetEntry(db, entryID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := migratedEntry.Thumbnails[0].Url; got != "https://m.friendfeed.me/thumbnail" {
-		t.Fatalf("unexpected thumbnail URL: %q", got)
-	}
-	if got := migratedEntry.Thumbnails[0].Link; got != "https://m.friendfeed.me/07a1ee699cef1999e03bcbaaec661ef77ac8852d" {
-		t.Fatalf("unexpected thumbnail link: %q", got)
-	}
-	if got := migratedEntry.Thumbnails[1].Url; got != "https://example.com/external.jpg" {
-		t.Fatalf("external thumbnail was changed: %q", got)
-	}
-	if !strings.Contains(migratedEntry.Body, `src="https://m.friendfeed.me/5516ac2b193edd120573963d53ddcf79fbd46188"`) {
-		t.Fatalf("body image not migrated: %q", migratedEntry.Body)
-	}
-	if !strings.Contains(migratedEntry.Body, "http://online.wsj.com/") {
-		t.Fatalf("body external link was changed: %q", migratedEntry.Body)
 	}
 }
 
@@ -797,31 +548,4 @@ func TestRebuildPublicTimelineFiltersPrivateFeeds(t *testing.T) {
 	if _, err := model.TimelineLastAccess(db, model.PublicTimelineUUID); err == nil {
 		t.Fatal("public timeline must not carry TimelineState")
 	}
-}
-
-func TestPurgePublicCache(t *testing.T) {
-	db, err := store.NewStore(t.TempDir())
-	require.NoError(t, err)
-	defer db.Close()
-	db.SetSync(false)
-
-	key := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
-	if err := db.Put(key, []byte("retired gob blob")); err != nil {
-		t.Fatal(err)
-	}
-
-	dryRun = true
-	runPurgePublicCacheCommand(db)
-	if _, err := db.Get(key); err != nil {
-		t.Fatalf("dry-run must keep the cache row: %v", err)
-	}
-
-	dryRun = false
-	runPurgePublicCacheCommand(db)
-	if _, err := db.Get(key); !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("cache row should be deleted, err=%v", err)
-	}
-
-	// Idempotent when the row is already absent.
-	runPurgePublicCacheCommand(db)
 }

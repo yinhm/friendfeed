@@ -224,7 +224,7 @@ following，不得为此把全量订阅塞回 Graph 响应。
   不作为新建 Group 的公开路径。
 - ✅ admin 权威已切换到 GroupAdmin 表。**迁移注意**：现有 Group 的 admin 若仅存在于
   legacy Feedinfo.Admins 快照中，需通过 super 手动执行 JoinGroup + AddGroupAdmin
-  引导，或运行 `backfill_group_admins` 一次性命令；
+  引导；历史 `backfill_group_admins` 一次性命令仅保留在 `v2.2.0` tag；
 - ✅ GraphFollow 对 Group 目标已路由进 Join/Leave 领域层（admin 退出拦截、最后 admin
   保护在所有入口一致生效）。
 - ✅ PostEntry 已在 mutation 边界验证 Group 成员资格，并用服务端读取的 Profile

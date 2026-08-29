@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var fromPath string
 var toPath string
 var command string
 var timelineUser string
@@ -44,7 +42,6 @@ var taskState string
 var beforeTime string
 
 func init() {
-	flag.StringVar(&fromPath, "from", "", "from directory")
 	flag.StringVar(&toPath, "to", "", "to directory")
 	flag.StringVar(&command, "c", "", "command to do")
 	flag.StringVar(&timelineUser, "user", "", "limit timeline rebuild to one profile ID")
@@ -79,6 +76,29 @@ var destructiveCommands = map[string]bool{
 	"purge_oauth":           true,
 	"purge_timeline":        true,
 	"purge_user_rename_map": true,
+}
+
+var retiredV22Commands = map[string]bool{
+	"migrate_entry_index":         true,
+	"migrate_entry_keys":          true,
+	"migrate_interactions":        true,
+	"backfill_actor_uuids":        true,
+	"migrate_group_entry_authors": true,
+	"backfill_group_admins":       true,
+	"migrate_media_urls":          true,
+	"fix_default_picture":         true,
+	"fix_twitter_oauth_fields":    true,
+	"purge_public_cache":          true,
+}
+
+func retiredCommandError(command string) error {
+	if command == "db" || command == "sync" {
+		return fmt.Errorf("command %q was removed; use tag v1.0.0 only on an offline database copy", command)
+	}
+	if retiredV22Commands[command] {
+		return fmt.Errorf("command %q was removed after schema 1 rollout; use tag v2.2.0 only on an offline database copy", command)
+	}
+	return nil
 }
 
 // confirmDestructive 要求用户完整输入命令名才放行；脚本化场景可以管道喂入，
@@ -137,148 +157,6 @@ type socialGraphRebuildStats struct {
 	feedinfos int
 	edges     int
 	skipped   int
-}
-
-type mediaURLMigrationStats struct {
-	profiles   int
-	entries    int
-	thumbnails int
-	links      int
-	bodies     int
-}
-
-// mediaOrigin is the canonical public media origin (media.defaultMediaBaseURL,
-// conf/nginx_media.conf). Legacy media URLs are rewritten onto it with the
-// object path preserved: the origin serves the path verbatim from disk.
-const mediaOrigin = "https://m.friendfeed.me"
-
-// mediaURLRewrites maps legacy media URL prefixes to the current origin,
-// first match wins. All rewrites upgrade to https. The GCS rules include the
-// bucket name because objects lived at the bucket root.
-var mediaURLRewrites = []struct{ old, new string }{
-	{"https://storage.googleapis.com/lastff01/", mediaOrigin + "/"},
-	{"http://storage.googleapis.com/lastff01/", mediaOrigin + "/"},
-	{"https://m.friendfeed-media.com/", mediaOrigin + "/"},
-	{"http://m.friendfeed-media.com/", mediaOrigin + "/"},
-	{"https://i.friendfeed.com/", mediaOrigin + "/"},
-	{"http://i.friendfeed.com/", mediaOrigin + "/"},
-	{"https://friendfeed-media.com/", mediaOrigin + "/"},
-	{"http://friendfeed-media.com/", mediaOrigin + "/"},
-	// Scheme self-repair for URLs migrated before https was enforced.
-	{"http://m.friendfeed.me/", mediaOrigin + "/"},
-}
-
-// migrateMediaURL rewrites one legacy media URL. The scheme/host prefix match
-// is case-insensitive; the object path is preserved byte-for-byte.
-func migrateMediaURL(rawURL string) (string, bool) {
-	lower := strings.ToLower(rawURL)
-	for _, rule := range mediaURLRewrites {
-		if strings.HasPrefix(lower, rule.old) {
-			return rule.new + rawURL[len(rule.old):], true
-		}
-	}
-	return rawURL, false
-}
-
-// migrateMediaText rewrites legacy media URLs embedded in a larger text:
-// entry bodies are sanitized HTML fragments whose <img src> may point at
-// legacy hosts. Matching is exact and lowercase, which is how archived
-// fragments store URLs.
-func migrateMediaText(text string) (string, bool) {
-	changed := false
-	for _, rule := range mediaURLRewrites {
-		if strings.Contains(text, rule.old) {
-			text = strings.ReplaceAll(text, rule.old, rule.new)
-			changed = true
-		}
-	}
-	return text, changed
-}
-
-func migrateMediaURLs(db *store.Store, dryRun bool) (mediaURLMigrationStats, error) {
-	stats := mediaURLMigrationStats{}
-
-	if err := model.Profile.Iter(db, func(key, raw []byte) error {
-		profile := new(pb.Profile)
-		if err := proto.Unmarshal(raw, profile); err != nil {
-			return fmt.Errorf("decode profile at %x: %w", key, err)
-		}
-		picture, changed := migrateMediaURL(profile.Picture)
-		if !changed {
-			return nil
-		}
-		profile.Picture = picture
-		stats.profiles++
-		if dryRun {
-			return nil
-		}
-		value, err := proto.Marshal(profile)
-		if err != nil {
-			return fmt.Errorf("encode profile %q: %w", profile.Id, err)
-		}
-		if err := db.Set(key, value); err != nil {
-			return fmt.Errorf("write migrated profile %q: %w", profile.Id, err)
-		}
-		return nil
-	}); err != nil {
-		return stats, err
-	}
-
-	if err := model.Entry.Iter(db, func(key, raw []byte) error {
-		entry := new(pb.Entry)
-		if err := proto.Unmarshal(raw, entry); err != nil {
-			return fmt.Errorf("decode entry at %x: %w", key, err)
-		}
-		changed := false
-		for _, thumbnail := range entry.Thumbnails {
-			if thumbnail == nil {
-				continue
-			}
-			if migrated, ok := migrateMediaURL(thumbnail.Url); ok {
-				thumbnail.Url = migrated
-				stats.thumbnails++
-				changed = true
-			}
-			// Link is the media page the thumbnail points at; templates render
-			// it as the <a href> wrapping the image. External links never match
-			// the retired-host table and pass through unchanged.
-			if migrated, ok := migrateMediaURL(thumbnail.Link); ok {
-				thumbnail.Link = migrated
-				stats.links++
-				changed = true
-			}
-		}
-		// Bodies are sanitized HTML fragments that embed media URLs directly
-		// (e.g. <img src="http://i.friendfeed.com/...">).
-		if body, ok := migrateMediaText(entry.Body); ok {
-			entry.Body = body
-			stats.bodies++
-			changed = true
-		}
-		if rawBody, ok := migrateMediaText(entry.RawBody); ok {
-			entry.RawBody = rawBody
-			stats.bodies++
-			changed = true
-		}
-		if !changed {
-			return nil
-		}
-		stats.entries++
-		if dryRun {
-			return nil
-		}
-		value, err := proto.Marshal(entry)
-		if err != nil {
-			return fmt.Errorf("encode entry %q: %w", entry.Id, err)
-		}
-		if err := db.Set(key, value); err != nil {
-			return fmt.Errorf("write migrated entry %q: %w", entry.Id, err)
-		}
-		return nil
-	}); err != nil {
-		return stats, err
-	}
-	return stats, nil
 }
 
 func rebuildSocialGraph(db *store.Store, dryRun bool) (socialGraphRebuildStats, error) {
@@ -593,58 +471,6 @@ func rebuildPublicTimeline(db *store.Store, options timelineRebuildOptions) erro
 	return nil
 }
 
-// runPurgePublicCacheCommand deletes the retired FeedIndex gob row (Meta
-// table, uuidv5("index:public:cache")). The public timeline on TimelineIndex
-// has replaced it; the row is derived cache and safe to drop once the new
-// read path is verified.
-func runPurgePublicCacheCommand(ndb *store.Store) {
-	key := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
-	raw, err := ndb.Get(key)
-	if errors.Is(err, store.ErrNotFound) {
-		log.Println("public cache row already absent; nothing to do")
-		return
-	}
-	if err != nil {
-		log.Fatalf("read public cache row: %v", err)
-	}
-	if dryRun {
-		log.Printf("would delete public cache row %x (%d bytes)", []byte(key), len(raw))
-		return
-	}
-	if err := ndb.Delete(key); err != nil {
-		log.Fatalf("delete public cache row: %v", err)
-	}
-	if err := ndb.Flush(); err != nil {
-		log.Fatalf("flush database: %v", err)
-	}
-	log.Printf("deleted public cache row %x (%d bytes)", []byte(key), len(raw))
-}
-
-func runDBCommand(db, ndb *store.Store) {
-	prefix := []byte("")
-
-	log.Println("iter db now...")
-
-	// iter here
-	iter, err := db.NewIterator(prefix)
-	if err != nil {
-		log.Fatalf("create database iterator: %v", err)
-	}
-	defer iter.Close()
-	for iter.First(); iter.Valid(); iter.Next() {
-		if err := ndb.Set(iter.Key(), iter.Value()); err != nil {
-			log.Fatalf("copy database key %x: %v", iter.UnsafeRawKey(), err)
-		}
-	}
-	if err := iter.Error(); err != nil {
-		log.Fatalf("iterate database: %v", err)
-	}
-	if err := ndb.Flush(); err != nil {
-		log.Fatalf("flush database: %v", err)
-	}
-	log.Println("iter done...")
-}
-
 func runRebuildTimelineCommand(ndb *store.Store) {
 	options := timelineRebuildOptions{user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun}
 	if timelinePublic {
@@ -681,77 +507,6 @@ func runRebuildSocialGraphCommand(ndb *store.Store) {
 		}
 	}
 	log.Printf("social graph summary: %d feedinfos, %d edges, %d skipped references, dry-run=%t", stats.feedinfos, stats.edges, stats.skipped, dryRun)
-}
-
-func runMigrateMediaURLsCommand(ndb *store.Store) {
-	stats, err := migrateMediaURLs(ndb, dryRun)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if !dryRun {
-		if err := ndb.Flush(); err != nil {
-			log.Fatalf("flush database: %v", err)
-		}
-	}
-	log.Printf("media URL summary: %d profiles, %d entries, %d thumbnails, %d links, %d bodies, dry-run=%t",
-		stats.profiles, stats.entries, stats.thumbnails, stats.links, stats.bodies, dryRun)
-}
-
-func runBackfillActorUUIDsCommand(ndb *store.Store) {
-	options := actorUUIDBackfillOptions{
-		user:     timelineUser,
-		maxLimit: timelineMaxLimit,
-		dryRun:   dryRun,
-	}
-	stats, err := backfillActorUUIDs(ndb, options)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if !dryRun {
-		// Writes have already committed to Pebble's WAL/memtable. Flush only
-		// forces the memtable to stable storage; it is not the dry-run switch.
-		if err := ndb.Flush(); err != nil {
-			log.Fatalf("flush database: %v", err)
-		}
-	}
-	log.Printf(
-		"actor UUID backfill summary: %d entries scanned, %d entries changed, %d entry authors, %d comments, %d likes, %d already set, %d unresolved, %d conflicts, dry-run=%t",
-		stats.entriesScanned,
-		stats.entriesChanged,
-		stats.entryAuthors,
-		stats.comments,
-		stats.likes,
-		stats.alreadySet,
-		stats.unresolved,
-		stats.conflicts,
-		dryRun,
-	)
-}
-
-func runSyncCommand(db, ndb *store.Store) {
-	// EntryIndex
-	model.EntryIndex.Iter(db, func(k, v []byte) error {
-		return ndb.Set(k, v)
-	})
-	if err := ndb.Flush(); err != nil {
-		log.Fatalf("flush database: %v", err)
-	}
-	log.Println("iter done...")
-
-	// Entry
-	i := 0
-	err := model.Entry.Iter(db, func(k, v []byte) error {
-		i++
-		return ndb.Set(k, v)
-	})
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("synced entry count: ", i)
-	if err := ndb.Flush(); err != nil {
-		log.Fatalf("flush database: %v", err)
-	}
-	log.Println("entry iter done...")
 }
 
 func runPurgeProfileCommand(ndb *store.Store) {
@@ -862,39 +617,6 @@ func runPurgeUserRenameMapCommand(ndb *store.Store) {
 		log.Fatalf("purge UserRenameMap: %v", err)
 	}
 	fmt.Printf("UserRenameMap: %d records removed.\n", n)
-}
-
-// runFixTwitterOAuthFieldsCommand swaps Name and NickName on every twitter
-// OAuth row. Migrated rows use the old field order (Name=display,
-// NickName=handle); the current login path (httpd/src/auth.go) expects
-// Name=handle, NickName=display. Only touches provider == "twitter".
-func runFixTwitterOAuthFieldsCommand(ndb *store.Store) {
-	n := 0
-	err := model.OAuth.Iter(ndb, func(key, raw []byte) error {
-		u := new(pb.OAuthUser)
-		if err := proto.Unmarshal(raw, u); err != nil {
-			return fmt.Errorf("decode oauth at %x: %w", key, err)
-		}
-		if strings.ToLower(u.Provider) != "twitter" {
-			return nil
-		}
-		u.Name, u.NickName = u.NickName, u.Name
-		// Iter's key buffer is reused across iterations; strip the table
-		// prefix and copy before writing back to the same slot.
-		k := append(store.Key(nil), model.OAuth.PrefixRemove(store.Key(key))...)
-		if _, err := model.OAuth.Put(ndb, k, u); err != nil {
-			return fmt.Errorf("write oauth twitter:%s: %w", u.UserId, err)
-		}
-		n++
-		return nil
-	})
-	if err != nil {
-		log.Fatalf("fix twitter oauth fields: %v", err)
-	}
-	if err := ndb.Flush(); err != nil {
-		log.Fatalf("flush database: %v", err)
-	}
-	fmt.Printf("swapped Name/NickName on %d twitter oauth rows\n", n)
 }
 
 var errDebugLimitReached = errors.New("debug table limit reached")
@@ -1175,79 +897,15 @@ func runAuditProfilesCommand(ndb *store.Store) {
 		aliasable, aliasSameOwner, aliasCollision)
 }
 
-func runDebugCommand(db, ndb *store.Store) {
-	entryId := "744b310d5dca442d82f1ec2366554b1e"
-	// entryId := "0000012820141462fa7290a658763ae1"
-	entry, err := model.GetEntry(db, entryId)
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println(entry)
-
-	entry, err = model.GetEntry(ndb, entryId)
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println(entry)
-
-	// First entry
-	// model.Entry.Iter(ndb, func(k, v []byte) error {
-	// 	log.Println(model.Entry.ToStringKey(k))
-	// 	log.Println(hex.EncodeToString(k), hex.EncodeToString(v))
-
-	// 	return errors.New("stop iter")
-	// })
-
-	// test oauth user in new db
-	_, msg, err := model.GetOAuthUser(ndb, "twitter", "5289142")
-	if err != nil && !errors.Is(err, model.ErrNotFound) {
-		log.Printf("oauth user not found: %s", err)
-	}
-	if msg != nil {
-		log.Printf("oauth user: provider=%s user_id=%s uuid=%s", msg.Provider, msg.UserId, msg.Uuid)
-	}
-
-	model.OAuth.Iter(ndb, func(k, v []byte) error {
-		log.Println(model.Entry.ToStringKey(k))
-		log.Println(hex.EncodeToString(k), hex.EncodeToString(v))
-
-		return errors.New("stop iter")
-	})
-
-	// uuidStr := "f82871b4-6b05-510a-9ae1-b626addf5b09"
-	// profile, err := model.GetProfileFromUuid(db, uuidStr)
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// log.Println(profile)
-
-	v, _ := model.UserMap.GetRaw(ndb, []byte("yinhm"))
-	log.Printf("id map: <%s>", v)
-}
-
-// We should open original db ad readonly mode.
-//
 // rebuild Home timelines from each profile's own feed and Follow edges
 // ./tools -to new_db -c rebuild_timeline -user yinhm -max-limit 20 -dry-run
 // rebuild Follow and Follower tables from legacy Feedinfo metadata
 // ./tools -to new_db -c rebuild_social_graph -dry-run
-// migrate legacy GCS and FriendFeed media URLs in profiles and entries
-// ./tools -to new_db -c migrate_media_urls -dry-run
 // mirror rotting twimg media into local+R2 storage and record the URL mapping
 // (database is opened read-only; a later migration rewrites entries from the mapping)
 // ./tools -to backup_db -c mirror_twimg -config config.json -out twimg_sync.jsonl -dry-run
-// backfill stable actor UUIDs
-// ./tools -to new_db -c backfill_actor_uuids -user yinhm -max-limit 20 -dry-run
-// backfill TableGroupAdmin from legacy Feedinfo.Admins snapshots
-// ./tools -to new_db -c backfill_group_admins -dry-run
 // dump decoded table records
 // ./tools -to new_db -c debug -table oauth -max-limit 10
-//
-// sync all data from db
-// ./tools -from old_db -to new_db -c db
-//
-// debug
-// ./tools -from old_db -to new_db -c debug
 func main() {
 	flag.Parse()
 	if err := retiredCommandError(command); err != nil {
@@ -1257,10 +915,6 @@ func main() {
 	if toPath == "" {
 		log.Fatal("-to is required")
 	}
-	// Only a few commands read from a source db; everything else operates on
-	// the target (-to) alone. Default to not requiring -from and opt those in.
-	needsSource := command == "db" || command == "sync" ||
-		(command == "debug" && debugTable == "")
 	// readOnly commands only inspect the target db; open it read-only so we
 	// never mutate on-disk state or fight another process for the write lock.
 	readOnly := command == "inspect_profile" || command == "inspect_user_rename_map" ||
@@ -1270,19 +924,11 @@ func main() {
 		command == "list_tasks" || command == "inspect_task" ||
 		command == "rebuild_search_index" || command == "mirror_twimg" ||
 		(command == "debug" && debugTable != "") ||
-		(command == "migrate_entry_index" && dryRun) ||
-		(command == "migrate_entry_keys" && dryRun) ||
-		(command == "migrate_interactions" && dryRun) ||
 		(command == "rebuild_entry_index" && dryRun) ||
-		(command == "backfill_actor_uuids" && dryRun) ||
-		(command == "migrate_group_entry_authors" && dryRun) ||
-		(command == "backfill_group_admins" && dryRun) ||
 		(command == "rebuild_interaction_timelines" && dryRun) ||
 		(command == "rebuild_group_activity" && dryRun) ||
 		(command == "rebuild_group_index" && dryRun) ||
-		(command == "rebuild_feed_archive" && dryRun) ||
-		(command == "fix_default_picture" && dryRun) ||
-		(command == "purge_public_cache" && dryRun)
+		(command == "rebuild_feed_archive" && dryRun)
 	if command == "stamp_schema" && dryRun {
 		readOnly = true
 	}
@@ -1292,10 +938,6 @@ func main() {
 	if command == "purge_task_done" && dryRun {
 		readOnly = true
 	}
-	if needsSource && fromPath == "" {
-		log.Fatal("-from is required for command ", command)
-	}
-
 	// 确认必须发生在打开(创建)目标库之前,避免误操作产生副作用。
 	if destructiveCommands[command] || (command == "purge_task_done" && !dryRun) {
 		if err := confirmDestructive(command, toPath, os.Stdin, os.Stderr); err != nil {
@@ -1321,17 +963,7 @@ func main() {
 	if !readOnly {
 		ndb.SetSync(false)
 	}
-	var db *store.Store
-	if needsSource {
-		db, err = store.NewStore(fromPath)
-		if err != nil {
-			log.Fatalf("open source database %s: %v", fromPath, err)
-		}
-	}
-
 	switch command {
-	case "db":
-		runDBCommand(db, ndb)
 	case "rebuild_timeline":
 		runRebuildTimelineCommand(ndb)
 	case "rebuild_interaction_timelines":
@@ -1362,13 +994,6 @@ func main() {
 		}
 		log.Printf("Feed archive rebuild: feeds=%d entries=%d changed=%d dry-run=%t",
 			stats.feeds, stats.entries, stats.changed, dryRun)
-	case "fix_default_picture":
-		stats, err := fixDefaultPictures(ndb, timelineUser, dryRun)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("default picture fix: profiles=%d fixed=%d dry-run=%t",
-			stats.profiles, stats.fixed, dryRun)
 	case "compact_timelines":
 		stats, err := compactTimelines(ndb, timelineCompactOptions{
 			user: timelineUser, dryRun: dryRun,
@@ -1381,10 +1006,6 @@ func main() {
 			stats.deletedIndexes, stats.deletedPositions, dryRun)
 	case "rebuild_social_graph":
 		runRebuildSocialGraphCommand(ndb)
-	case "backfill_group_admins":
-		runBackfillGroupAdminsCommand(ndb)
-	case "migrate_media_urls":
-		runMigrateMediaURLsCommand(ndb)
 	case "mirror_twimg":
 		var cfg *util.Config
 		if !dryRun {
@@ -1412,24 +1033,11 @@ func main() {
 		log.Printf("twimg mirror: entries=%d urls=%d resumed=%d pending=%d mirrored=%d wayback=%d dead=%d failed=%d dry-run=%t out=%s",
 			stats.entries, stats.urls, stats.resumed, stats.pending, stats.mirrored,
 			stats.wayback, stats.dead, stats.failed, dryRun, outPath)
-	case "backfill_actor_uuids":
-		runBackfillActorUUIDsCommand(ndb)
-	case "migrate_group_entry_authors":
-		stats, err := migrateGroupEntryAuthors(ndb, groupEntryAuthorMigrationOptions{
-			user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun,
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("Group entry author migration: scanned=%d candidates=%d fixed=%d unresolved=%d skipped=%d dry-run=%t",
-			stats.entriesScanned, stats.candidates, stats.fixed, stats.unresolved, stats.skipped, dryRun)
 	case "rebuild_search_index":
 		if indexPath == "" {
 			indexPath = filepath.Join(toPath, "index")
 		}
 		runRebuildSearchIndexCommand(ndb, indexPath)
-	case "sync":
-		runSyncCommand(db, ndb)
 	case "purge_profile":
 		runPurgeProfileCommand(ndb)
 	case "purge_oauth":
@@ -1438,8 +1046,6 @@ func main() {
 		runPurgeTimelineCommand(ndb)
 	case "purge_user_rename_map":
 		runPurgeUserRenameMapCommand(ndb)
-	case "purge_public_cache":
-		runPurgePublicCacheCommand(ndb)
 	case "inspect_profile":
 		runInspectProfileCommand(ndb, inspectID)
 	case "inspect_user_rename_map":
@@ -1504,30 +1110,6 @@ func main() {
 		runReplayDeadTaskCommand(ndb)
 	case "purge_task_done":
 		runPurgeTaskDoneCommand(ndb)
-	case "migrate_entry_index":
-		stats, err := migrateEntryIndex(ndb, dryRun, timelineMaxLimit)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("entry index migration: scanned=%d migrated=%d current=%d dry-run=%t",
-			stats.scanned, stats.migrated, stats.current, dryRun)
-	case "migrate_entry_keys":
-		stats, err := migrateEntryKeys(ndb, dryRun)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("entry key migration: scanned=%d canonical=%d migrated=%d dry-run=%t",
-			stats.scanned, stats.canonical, stats.migrated, dryRun)
-	case "migrate_interactions":
-		stats, err := migrateInteractions(ndb, interactionMigrationOptions{
-			user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun,
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("interaction migration: scanned=%d migrated=%d likes=%d comments=%d legacy_actors=%d generated_comment_ids=%d duplicates=%d dry-run=%t",
-			stats.entriesScanned, stats.entriesMigrated, stats.likes, stats.comments,
-			stats.legacyActors, stats.generatedIDs, stats.duplicates, dryRun)
 	case "rebuild_entry_index":
 		stats, err := rebuildEntryIndexes(ndb, entryIndexRebuildOptions{
 			user: timelineUser, maxLimit: timelineMaxLimit, dryRun: dryRun,
@@ -1538,14 +1120,11 @@ func main() {
 		log.Printf("entry index rebuild: entries=%d direct=%d removed=%d feeds_checked=%d feeds_mismatched=%d duplicate_indexes=%d dry-run=%t",
 			stats.entries, stats.direct, stats.removed, stats.feedsChecked,
 			stats.feedsMismatched, stats.duplicateIndexes, dryRun)
-	case "fix_twitter_oauth_fields":
-		runFixTwitterOAuthFieldsCommand(ndb)
 	case "debug":
-		if debugTable != "" {
-			runDebugTableCommand(ndb, debugTable, timelineMaxLimit)
-		} else {
-			runDebugCommand(db, ndb)
+		if debugTable == "" {
+			log.Fatal("debug requires -table")
 		}
+		runDebugTableCommand(ndb, debugTable, timelineMaxLimit)
 	default:
 		// Retired old_db migration commands (meta, sync_meta, public_feed,
 		// profile, count_meta) must fail loudly rather than exit 0 silently.
@@ -1553,14 +1132,4 @@ func main() {
 	}
 
 	ndb.Close()
-	if db != nil {
-		db.Close()
-	}
-}
-
-func retiredCommandError(command string) error {
-	if command == "db" || command == "sync" {
-		return fmt.Errorf("command %q is retired; checkout tag v1.0.0 and operate only on an offline database copy", command)
-	}
-	return nil
 }

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
+	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
@@ -29,6 +31,50 @@ type schemaLegacyStats struct {
 	legacyMediaProfiles        int
 	legacyMediaEntries         int
 	legacyDefaultPictures      int
+	legacyGroupAuthors         int
+	unresolvedGroupAuthors     int
+}
+
+const (
+	legacyDefaultPictureHost = "friendfeed.com"
+	legacyDefaultPicturePath = "/static/images/group-large.png"
+	mediaOrigin              = "https://m.friendfeed.me"
+)
+
+var mediaURLRewrites = []struct{ old, new string }{
+	{"https://storage.googleapis.com/lastff01/", mediaOrigin + "/"},
+	{"http://storage.googleapis.com/lastff01/", mediaOrigin + "/"},
+	{"https://m.friendfeed-media.com/", mediaOrigin + "/"},
+	{"http://m.friendfeed-media.com/", mediaOrigin + "/"},
+	{"https://i.friendfeed.com/", mediaOrigin + "/"},
+	{"http://i.friendfeed.com/", mediaOrigin + "/"},
+	{"https://friendfeed-media.com/", mediaOrigin + "/"},
+	{"http://friendfeed-media.com/", mediaOrigin + "/"},
+	{"http://m.friendfeed.me/", mediaOrigin + "/"},
+}
+
+func legacyMediaURL(rawURL string) bool {
+	lower := strings.ToLower(rawURL)
+	for _, rule := range mediaURLRewrites {
+		if strings.HasPrefix(lower, rule.old) {
+			return true
+		}
+	}
+	return false
+}
+
+func legacyMediaText(text string) bool {
+	for _, rule := range mediaURLRewrites {
+		if strings.Contains(text, rule.old) {
+			return true
+		}
+	}
+	return false
+}
+
+func legacyDefaultPicture(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	return err == nil && parsed.Host == legacyDefaultPictureHost && parsed.Path == legacyDefaultPicturePath
 }
 
 func inspectSchema(db *store.Store) (schemaVerification, error) {
@@ -118,12 +164,8 @@ func verifySchema(db *store.Store) (schemaVerification, error) {
 	addBlocker("legacy_media_entries", legacy.legacyMediaEntries)
 	addBlocker("legacy_default_pictures", legacy.legacyDefaultPictures)
 
-	groupAuthors, err := migrateGroupEntryAuthors(db, groupEntryAuthorMigrationOptions{dryRun: true})
-	if err != nil {
-		return result, fmt.Errorf("verify Group entry authors: %w", err)
-	}
-	addBlocker("legacy_group_entry_authors", groupAuthors.fixed)
-	addWarning("unresolved_group_entry_authors", groupAuthors.unresolved)
+	addBlocker("legacy_group_entry_authors", legacy.legacyGroupAuthors)
+	addWarning("unresolved_group_entry_authors", legacy.unresolvedGroupAuthors)
 
 	publicCacheKey := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
 	if _, err := db.Get(publicCacheKey); err == nil {
@@ -141,10 +183,10 @@ func scanSchemaLegacyRows(db *store.Store) (schemaLegacyStats, error) {
 		if err := proto.Unmarshal(raw, profile); err != nil {
 			return fmt.Errorf("decode Profile[%x]: %w", key, err)
 		}
-		if _, legacy := migrateMediaURL(profile.Picture); legacy {
+		if legacyMediaURL(profile.Picture) {
 			stats.legacyMediaProfiles++
 		}
-		if isLegacyDefaultPicture(profile.Picture) {
+		if legacyDefaultPicture(profile.Picture) {
 			stats.legacyDefaultPictures++
 		}
 		return nil
@@ -159,22 +201,31 @@ func scanSchemaLegacyRows(db *store.Store) (schemaLegacyStats, error) {
 		if len(entry.Likes) != 0 || len(entry.Comments) != 0 {
 			stats.embeddedInteractionEntries++
 		}
+		resolvable, unresolved, err := legacyGroupEntryAuthor(db, entry)
+		if err != nil {
+			return err
+		}
+		if resolvable {
+			stats.legacyGroupAuthors++
+		} else if unresolved {
+			stats.unresolvedGroupAuthors++
+		}
 		legacyMedia := false
 		for _, thumbnail := range entry.Thumbnails {
 			if thumbnail == nil {
 				continue
 			}
-			if _, legacy := migrateMediaURL(thumbnail.Url); legacy {
+			if legacyMediaURL(thumbnail.Url) {
 				legacyMedia = true
 			}
-			if _, legacy := migrateMediaURL(thumbnail.Link); legacy {
+			if legacyMediaURL(thumbnail.Link) {
 				legacyMedia = true
 			}
 		}
-		if _, legacy := migrateMediaText(entry.Body); legacy {
+		if legacyMediaText(entry.Body) {
 			legacyMedia = true
 		}
-		if _, legacy := migrateMediaText(entry.RawBody); legacy {
+		if legacyMediaText(entry.RawBody) {
 			legacyMedia = true
 		}
 		if legacyMedia {
@@ -185,6 +236,33 @@ func scanSchemaLegacyRows(db *store.Store) (schemaLegacyStats, error) {
 		return stats, fmt.Errorf("verify legacy Entry rows: %w", err)
 	}
 	return stats, nil
+}
+
+func legacyGroupEntryAuthor(db *store.Store, entry *pb.Entry) (resolvable, unresolved bool, err error) {
+	groupID, err := uuid.FromString(entry.ProfileUuid)
+	if err != nil || groupID == uuid.Nil {
+		return false, false, nil
+	}
+	group := new(pb.Profile)
+	if err := model.Profile.Get(db, groupID.Bytes(), group); err != nil || group.Type != "group" {
+		return false, false, nil
+	}
+	if entry.FeedUuid != "" && entry.FeedUuid != entry.ProfileUuid {
+		return false, false, nil
+	}
+	fromID := entry.GetFrom().GetId()
+	if fromID == "" || fromID == group.Id {
+		return false, false, nil
+	}
+	author, err := model.GetProfileFromUserId(db, fromID)
+	if err != nil || author.Type != "user" {
+		return false, true, nil
+	}
+	authorID, err := uuid.FromString(author.Uuid)
+	if err != nil || authorID == uuid.Nil || authorID == groupID {
+		return false, true, nil
+	}
+	return true, false, nil
 }
 
 func writeSchemaVerification(out io.Writer, result schemaVerification) {
@@ -214,7 +292,7 @@ func writeSchemaInspection(out io.Writer, result schemaVerification) {
 	case model.DBSchemaCurrent:
 		fmt.Fprintln(out, "guidance=application schema marker is current; no schema action is required")
 	case model.DBSchemaOlder:
-		fmt.Fprintln(out, "guidance=run the migration tools from the current release, then verify_schema and stamp_schema")
+		fmt.Fprintln(out, "guidance=use the migration tools from tag v2.2.0 on an offline copy, then verify_schema and stamp_schema")
 	case model.DBSchemaFuture:
 		fmt.Fprintln(out, "guidance=do not open with this binary; upgrade to a release that supports the recorded schema")
 	case model.DBSchemaMalformed:
@@ -223,23 +301,24 @@ func writeSchemaInspection(out io.Writer, result schemaVerification) {
 }
 
 func schemaBlockerAction(name string) string {
+	const retiredTools = "use the tools from tag v2.2.0 on an offline copy: "
 	switch name {
 	case "noncanonical_entries":
-		return "run migrate_entry_keys on an offline copy, then rebuild_entry_index"
+		return retiredTools + "run migrate_entry_keys, then rebuild_entry_index"
 	case "entry_key_id_mismatches":
 		return "inspect the reported Entry corruption; do not guess or auto-rewrite mismatched authoritative IDs"
 	case "noncanonical_indexes":
 		return "run rebuild_entry_index on an offline copy"
 	case "embedded_interaction_entries":
-		return "run migrate_interactions -dry-run, resolve duplicate errors if any, then apply"
+		return retiredTools + "run migrate_interactions -dry-run, resolve duplicate errors if any, then apply"
 	case "legacy_group_entry_authors":
-		return "run migrate_group_entry_authors -dry-run, then apply; unresolved historical authors are reported only as warnings"
+		return retiredTools + "run migrate_group_entry_authors -dry-run, then apply; unresolved historical authors are warnings"
 	case "legacy_media_profiles", "legacy_media_entries":
-		return "run migrate_media_urls -dry-run, then apply"
+		return retiredTools + "run migrate_media_urls -dry-run, then apply"
 	case "legacy_default_pictures":
-		return "run fix_default_picture -dry-run, then apply"
+		return retiredTools + "run fix_default_picture -dry-run, then apply"
 	case "retired_public_cache":
-		return "run purge_public_cache -dry-run, then apply"
+		return retiredTools + "run purge_public_cache -dry-run, then apply"
 	default:
 		return "inspect this blocker with audit_store before making changes"
 	}

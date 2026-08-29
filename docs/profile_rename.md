@@ -67,7 +67,7 @@ echo purge_user_rename_map | \
 
 命令要求输入完整命令名确认。表中没有时间字段，因此当前只能整表回收；回收后相关旧链接不再跳转、旧 ID重新可用，原用户也可以再次 rename。执行前应停止使用该 Pebble 目录的服务并备份。
 
-历史 Entry actor UUID 使用 `backfill_actor_uuids` 修复。它只依赖 new DB；执行方法、安全前提和 dry-run 规则见 [db_migration.md](db_migration.md)。
+历史 Entry actor UUID 已在 schema 1 盖章前完成修复；对应一次性工具只保留在 `v2.2.0` tag。
 
 ## 缓存与验证
 
