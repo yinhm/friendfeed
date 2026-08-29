@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"strings"
 	"testing"
@@ -15,6 +16,27 @@ import (
 	"github.com/yinhm/friendfeed/store"
 	"google.golang.org/protobuf/proto"
 )
+
+func TestRetiredOldDBCommandsFailBeforePathValidation(t *testing.T) {
+	for _, command := range []string{"db", "sync"} {
+		err := retiredCommandError(command)
+		require.ErrorContains(t, err, "v1.0.0")
+		require.ErrorContains(t, err, "offline database copy")
+	}
+	require.NoError(t, retiredCommandError("audit_store"))
+}
+
+func TestFlagWasProvided(t *testing.T) {
+	flags := flag.NewFlagSet("test", flag.ContinueOnError)
+	flags.Bool("no-wayback", false, "")
+	require.NoError(t, flags.Parse(nil))
+	require.False(t, flagWasProvided(flags, "no-wayback"))
+
+	flags = flag.NewFlagSet("test", flag.ContinueOnError)
+	flags.Bool("no-wayback", false, "")
+	require.NoError(t, flags.Parse([]string{"-no-wayback=false"}))
+	require.True(t, flagWasProvided(flags, "no-wayback"))
+}
 
 func TestConfirmDestructive(t *testing.T) {
 	tests := []struct {

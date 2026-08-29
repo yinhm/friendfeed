@@ -1238,6 +1238,12 @@ func runDebugCommand(db, ndb *store.Store) {
 // ./tools -from old_db -to new_db -c debug
 func main() {
 	flag.Parse()
+	if err := retiredCommandError(command); err != nil {
+		log.Fatal(err)
+	}
+	if flagWasProvided(flag.CommandLine, "no-wayback") {
+		log.Print("warning: -no-wayback is deprecated and has no effect; Wayback is disabled unless -wayback is specified, and the flag will be removed in v2.3")
+	}
 
 	if toPath == "" {
 		log.Fatal("-to is required")
@@ -1497,4 +1503,21 @@ func main() {
 	if db != nil {
 		db.Close()
 	}
+}
+
+func retiredCommandError(command string) error {
+	if command == "db" || command == "sync" {
+		return fmt.Errorf("command %q is retired; checkout tag v1.0.0 and operate only on an offline database copy", command)
+	}
+	return nil
+}
+
+func flagWasProvided(flags *flag.FlagSet, name string) bool {
+	provided := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			provided = true
+		}
+	})
+	return provided
 }

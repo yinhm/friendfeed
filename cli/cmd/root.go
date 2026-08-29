@@ -28,6 +28,7 @@ var rootCmd = &cobra.Command{
 	Short: "ffdb同步数据客户端",
 	Long:  `CLI客户端，--help for more information`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		warnDeprecatedFlags(cmd)
 		var err error
 		rpcConn, err = grpc.Dial(config.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
@@ -38,6 +39,12 @@ var rootCmd = &cobra.Command{
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		defer rpcConn.Close()
 	},
+}
+
+func warnDeprecatedFlags(cmd *cobra.Command) {
+	if cmd.Flags().Changed("debug") {
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: --debug is deprecated and has no effect; it will be removed in v2.3")
+	}
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

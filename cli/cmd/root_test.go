@@ -1,12 +1,34 @@
 package cmd
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+func TestWarnDeprecatedDebugFlagOnlyWhenExplicit(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	var debug bool
+	cmd.Flags().BoolVar(&debug, "debug", false, "")
+	out := new(bytes.Buffer)
+	cmd.SetErr(out)
+
+	warnDeprecatedFlags(cmd)
+	if out.Len() != 0 {
+		t.Fatalf("warning without explicit flag: %q", out.String())
+	}
+	if err := cmd.Flags().Set("debug", "true"); err != nil {
+		t.Fatal(err)
+	}
+	warnDeprecatedFlags(cmd)
+	if got := out.String(); got != "warning: --debug is deprecated and has no effect; it will be removed in v2.3\n" {
+		t.Fatalf("warning = %q", got)
+	}
+}
 
 func TestInitConfigReadsExplicitFileAndEnvironment(t *testing.T) {
 	oldDataPath := config.datapath
