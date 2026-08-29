@@ -10,7 +10,46 @@
 > `v1.0.0` tag，不在 master 重新实现。当前命令及顺序以本文后续章节和工具实际 `-c` 分支为准，
 > 不在此维护一份容易过期的穷举列表。
 >
-> `-from` 只对读取源库的命令（`db`、`sync`、无 `-table` 的 `debug`）为必填；其余命令仅操作 `-to` 目标库，无需 `-from`。
+> master 中的 `db`、`sync` 已退役并在开库前 fail-loud；必须 checkout `v1.0.0` 且只对
+> 离线副本执行 old-DB copy。`-from` 目前只供无 `-table` 的历史 `debug` 使用。
+
+## v2.2 application schema 盖章
+
+Pebble FMV 只表示底层文件格式。ffdb 另用
+`TableMeta | "db-schema/version" -> uint32 big-endian` 记录 application schema，当前为 `1`。
+v2.2 是最后迁移窗口：非空 missing/older 数据库启动时告警但继续服务；future 或损坏 marker
+直接拒绝。空数据库首次 ffdb 启动会初始化 current marker。
+
+在一致性副本先执行：
+
+```bash
+./tools -to <db-copy> -c audit_store
+./tools -to <db-copy> -c inspect_schema
+./tools -to <db-copy> -c verify_schema
+```
+
+`verify_schema` 流式复用 store audit，并检查仍嵌入 Entry 的互动、历史 Group 作者、旧媒体 URL、
+旧默认头像和 retired public cache。blocker 非零时命令失败。archive 中无法映射本地 Profile 的
+历史 actor、Feedinfo/UserMap、legacy rawBody/HTML/blockquote 和保留表号不是 blocker。
+
+Twitter OAuth 的历史 Name/NickName 顺序无法仅凭记录可靠判定；运行
+`fix_twitter_oauth_fields` 的历史证据和抽查结果必须由操作者单独保存，工具不得用启发式结果冒充证明。
+
+修复全部 blocker 后，停服、备份，再执行：
+
+```bash
+./tools -to <db> -c stamp_schema -dry-run
+echo stamp_schema | ./tools -to <db> -c stamp_schema
+./tools -to <db> -c inspect_schema
+```
+
+dry-run 完整验证但不写 marker；apply 在同一进程重新验证后写入，不提供 force。写入后不需要手动
+`Flush()` 才生效。dev 与 production 都必须保存 audit/verify/inspect 输出。v2.3 只有在二者盖章并
+运行一个发布周期后，才强制拒绝 missing/older 数据库并删除一次性迁移代码。
+
+无行为兼容 flag 已进入一个版本的弃用期：`cli --debug` 与显式
+`mirror_twimg --no-wayback` 会输出 warning，计划在 v2.3 删除。Wayback 默认关闭，只有
+`mirror_twimg --wayback` 会启用。
 
 当前版本可在 new DB 上重建社交图：
 

@@ -2,6 +2,17 @@
 
 目标：在 v2.2 提供最后一个可审计、可盖章的迁移窗口；只有 dev 与 production 都留下迁移完成证据后，v2.3 才允许强制 schema gate 并删除一次性迁移实现。
 
+当前进度：
+
+- [x] 1. 无行为 flags 进入弃用期。
+- [x] 2. old-DB copy 命令开库前 fail-loud。
+- [x] 3. application schema marker 基础能力。
+- [x] 4. `inspect_schema` / `verify_schema`。
+- [x] 5. `stamp_schema`。
+- [x] 6. v2.2 server 启动策略。
+- [x] 7. 文档与 v2.3 人工闸门。
+- [ ] 8. 最终门禁与 review。
+
 ## 不变量
 
 - Pebble `FormatMajorVersion` 与 ffdb application schema 是两套独立版本，不得混用。
@@ -76,8 +87,11 @@ schema 1 blocker：
 - Group Entry author、Group admin、Group index 不满足当前不变量。
 - TimelineIndex/Position 不成对、孤儿、重复或时间不一致。
 - Notification、Task、Service 已登记结构的 audit 错误。
-- 仍使用已知旧 media URL、旧 default picture、旧 Twitter OAuth 字段。
+- 仍使用已知旧 media URL、旧 default picture。
 - retired public cache Meta 行仍存在。
+
+Twitter OAuth 的历史字段顺序无法仅凭数据可靠自证，不使用启发式 blocker；盖章前必须保存
+既有迁移执行证据和抽查结果。
 
 验收：
 
@@ -106,7 +120,7 @@ schema 1 blocker：
 
 实现：
 
-- Store 提供只读 schema inspection API，但保持 `NewStore`/`NewStoreReadOnly` 导出签名和 v2.2 打开行为。
+- model 提供只读 schema inspection API，Store 只补充 Pebble FMV 查询；保持 `NewStore`/`NewStoreReadOnly` 导出签名和 v2.2 打开行为。
 - 新建空数据库在第一次业务初始化前可写 current marker；现有非空无 marker 仅记录一次明确 warning，继续运行以允许迁移。
 - server 启动遇到 future/malformed marker 必须拒绝；missing/older 在 v2.2 warning 后继续。
 - CLI 迁移工具必须能打开 missing/older 数据库；不能被 server gate 误伤。
