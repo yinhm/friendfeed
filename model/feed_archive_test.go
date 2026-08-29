@@ -64,7 +64,7 @@ func TestBuildFeedArchiveCountsYearsAndBuildsBoundaryCursors(t *testing.T) {
 	require.Equal(t, last2025, decodeBoundary(stats.Years[2].Cursor))
 }
 
-func TestFeedArchiveRoundTripAndInvalidation(t *testing.T) {
+func TestFeedArchiveRoundTripDirtyMarkerAndPublish(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
@@ -76,10 +76,27 @@ func TestFeedArchiveRoundTripAndInvalidation(t *testing.T) {
 	require.Equal(t, FeedArchiveVersion, got.Version)
 	require.Equal(t, want.EntryCount, got.EntryCount)
 
+	dirtyAt := time.Date(2026, 8, 1, 2, 3, 4, 0, time.UTC)
 	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
-		return StageInvalidateFeedArchive(batch, feed)
+		return StageMarkFeedArchiveDirty(db, batch, feed, dirtyAt)
 	}))
-	_, err = GetFeedArchive(db, feed)
+	got, err = GetFeedArchive(db, feed)
+	require.NoError(t, err)
+	require.Equal(t, want.EntryCount, got.EntryCount)
+	gotDirtyAt, err := FeedArchiveDirtySince(db, feed)
+	require.NoError(t, err)
+	require.Equal(t, dirtyAt, gotDirtyAt)
+
+	// Further mutations retain the first dirty time.
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		return StageMarkFeedArchiveDirty(db, batch, feed, dirtyAt.Add(48*time.Hour))
+	}))
+	gotDirtyAt, err = FeedArchiveDirtySince(db, feed)
+	require.NoError(t, err)
+	require.Equal(t, dirtyAt, gotDirtyAt)
+
+	require.NoError(t, PutFeedArchive(db, feed, want))
+	_, err = FeedArchiveDirtySince(db, feed)
 	require.ErrorIs(t, err, store.ErrNotFound)
 
 	// A snapshot written by an older payload version is rejected so the read

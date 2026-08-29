@@ -15,6 +15,7 @@ import (
 )
 
 const feedArchiveRebuildTaskType = "feed.archive.rebuild"
+const feedArchiveRebuildAfter = 7 * 24 * time.Hour
 
 func feedArchiveTaskDefinition(handler taskqueue.Handler) taskqueue.Definition {
 	return taskqueue.Definition{
@@ -82,9 +83,9 @@ func (s *ApiServer) enqueueFeedArchiveRebuild(ctx context.Context, feed uuid.UUI
 	}
 }
 
-// attachFeedArchive returns an existing snapshot to authenticated callers.
-// Missing or invalid derived data never blocks the Feed: it is omitted while
-// one idempotent background rebuild is staged.
+// attachFeedArchive serves and maintains archive snapshots only for
+// authenticated readers. A stale snapshot remains readable; only a dirty
+// marker at least one week old stages rebuild.
 func (s *ApiServer) attachFeedArchive(ctx context.Context, viewerRaw string, feed uuid.UUID, response *pb.Feed) {
 	if viewerRaw == "" || feed == uuid.Nil || response == nil {
 		return
@@ -92,10 +93,26 @@ func (s *ApiServer) attachFeedArchive(ctx context.Context, viewerRaw string, fee
 	stats, err := model.GetFeedArchive(s.rdb, feed)
 	if err == nil {
 		response.Archive = stats
+	} else {
+		if !errors.Is(err, store.ErrNotFound) {
+			slog.Warn("read Feed archive", "feed", feed, "error", err)
+		}
+		// A missing or invalid snapshot has nothing useful to serve and does
+		// not benefit from the one-week stale window.
+		s.enqueueFeedArchiveRebuild(ctx, feed)
 		return
 	}
-	if !errors.Is(err, store.ErrNotFound) {
-		slog.Warn("read Feed archive", "feed", feed, "error", err)
+	dirtySince, err := model.FeedArchiveDirtySince(s.rdb, feed)
+	if errors.Is(err, store.ErrNotFound) {
+		return
 	}
-	s.enqueueFeedArchiveRebuild(ctx, feed)
+	if err != nil {
+		slog.Warn("read Feed archive dirty marker", "feed", feed, "error", err)
+		// A malformed derived marker must not permanently prevent repair.
+		s.enqueueFeedArchiveRebuild(ctx, feed)
+		return
+	}
+	if time.Since(dirtySince) >= feedArchiveRebuildAfter {
+		s.enqueueFeedArchiveRebuild(ctx, feed)
+	}
 }

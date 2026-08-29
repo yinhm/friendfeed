@@ -52,7 +52,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 
 | Prefix | 表 | Key（省略 value 中的 protobuf 细节） | Value | 性质 |
 | ---: | --- | --- | --- | --- |
-| 0 | Meta | 领域固定字符串 + UUID | raw UUID、JSON 或 protobuf | 小型 metadata 与可重建物化视图；含 Group owner/activity 与 `feed-archive/v1` |
+| 0 | Meta | 领域固定字符串 + UUID | raw UUID、JSON 或 protobuf | 小型 metadata 与可重建物化视图；含 Group owner/activity、`feed-archive/v1` 快照及 `feed-archive-dirty/v1` 首次失效时间 |
 | 1 | Feed | 保留，当前无运行时表实例 | — | 历史前缀 |
 | 2 | Feedinfo | `T + feed UUID` | `pb.Feedinfo` | 历史/迁移 metadata |
 | 3 | Entry | `T + entry UUID` | `pb.Entry`，不再内嵌 canonical Like/Comment | 源数据 |

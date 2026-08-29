@@ -60,6 +60,7 @@ func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer Tim
 		return nil, err
 	}
 	created := false
+	archiveDirtyAt := time.Now().UTC()
 	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
 		if _, err := db.Get(key); errors.Is(err, store.ErrNotFound) {
 			created = true
@@ -78,12 +79,12 @@ func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer Tim
 			}
 		}
 		if created {
-			if err := StageInvalidateFeedArchive(batch, userUuid); err != nil {
-				return fmt.Errorf("invalidate author Feed archive: %w", err)
+			if err := StageMarkFeedArchiveDirty(db, batch, userUuid, archiveDirtyAt); err != nil {
+				return fmt.Errorf("mark author Feed archive dirty: %w", err)
 			}
 			if feedUuid != userUuid {
-				if err := StageInvalidateFeedArchive(batch, feedUuid); err != nil {
-					return fmt.Errorf("invalidate target Feed archive: %w", err)
+				if err := StageMarkFeedArchiveDirty(db, batch, feedUuid, archiveDirtyAt); err != nil {
+					return fmt.Errorf("mark target Feed archive dirty: %w", err)
 				}
 			}
 		}
@@ -172,6 +173,7 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 	}
 	// Activity timeline rows are derived, unbounded fanout state. Readers
 	// remove stale rows lazily; audit/rebuild handles rows never read again.
+	archiveDirtyAt := time.Now().UTC()
 	if err := db.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := EntryIndex.removeIndexBatch(batch, profileUuid, oldtime, entryKey); err != nil {
 			return fmt.Errorf("remove author entry index: %w", err)
@@ -181,12 +183,12 @@ func DeleteEntry(db *store.Store, uuidStr string) error {
 				return fmt.Errorf("remove feed entry index: %w", err)
 			}
 		}
-		if err := StageInvalidateFeedArchive(batch, profileUuid); err != nil {
-			return fmt.Errorf("invalidate author Feed archive: %w", err)
+		if err := StageMarkFeedArchiveDirty(db, batch, profileUuid, archiveDirtyAt); err != nil {
+			return fmt.Errorf("mark author Feed archive dirty: %w", err)
 		}
 		if feedUuid != profileUuid {
-			if err := StageInvalidateFeedArchive(batch, feedUuid); err != nil {
-				return fmt.Errorf("invalidate target Feed archive: %w", err)
+			if err := StageMarkFeedArchiveDirty(db, batch, feedUuid, archiveDirtyAt); err != nil {
+				return fmt.Errorf("mark target Feed archive dirty: %w", err)
 			}
 		}
 		if err := batch.Delete(entryKey, nil); err != nil {

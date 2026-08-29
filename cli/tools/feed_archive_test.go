@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/model"
@@ -50,4 +51,15 @@ func TestRebuildFeedArchiveDryRunAndApply(t *testing.T) {
 	stats, err = rebuildFeedArchives(db, "archive-rebuild", false)
 	require.NoError(t, err)
 	require.Zero(t, stats.changed)
+
+	// A dirty marker is freshness state in its own right. Rebuilding clears it
+	// even if no Entry changed and the calculated snapshot is identical.
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		return model.StageMarkFeedArchiveDirty(db, batch, feed, time.Now().UTC())
+	}))
+	stats, err = rebuildFeedArchives(db, "archive-rebuild", false)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.changed)
+	_, err = model.FeedArchiveDirtySince(db, feed)
+	require.ErrorIs(t, err, store.ErrNotFound)
 }

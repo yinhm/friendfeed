@@ -1,8 +1,10 @@
 package model
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
@@ -18,12 +20,38 @@ import (
 const FeedArchiveVersion int32 = 2
 
 var feedArchiveMetaPrefix = []byte("feed-archive/v1/")
+var feedArchiveDirtyMetaPrefix = []byte("feed-archive-dirty/v1/")
 
 // FeedArchiveMetaKey identifies one rebuildable direct-Feed archive snapshot.
 // The raw UUID suffix keeps the Meta key fixed-width and avoids textual UUID
 // ambiguity.
 func FeedArchiveMetaKey(feed uuid.UUID) store.Key {
 	return NewKeyFrom(TableMeta.Bytes(), feedArchiveMetaPrefix, feed.Bytes())
+}
+
+// FeedArchiveDirtyMetaKey records when a direct Feed snapshot first became
+// stale. Later mutations preserve that timestamp so an active Feed cannot
+// postpone maintenance indefinitely.
+func FeedArchiveDirtyMetaKey(feed uuid.UUID) store.Key {
+	return NewKeyFrom(TableMeta.Bytes(), feedArchiveDirtyMetaPrefix, feed.Bytes())
+}
+
+func FeedArchiveDirtySince(db *store.Store, feed uuid.UUID) (time.Time, error) {
+	if feed == uuid.Nil {
+		return time.Time{}, errors.New("feed UUID is required")
+	}
+	raw, err := db.Get(FeedArchiveDirtyMetaKey(feed))
+	if err != nil {
+		return time.Time{}, err
+	}
+	if len(raw) != 8 {
+		return time.Time{}, fmt.Errorf("Feed archive dirty marker for %s has invalid length %d", feed, len(raw))
+	}
+	ms := binary.BigEndian.Uint64(raw)
+	if ms > uint64(^uint64(0)>>1) {
+		return time.Time{}, fmt.Errorf("Feed archive dirty marker for %s has invalid timestamp", feed)
+	}
+	return time.UnixMilli(int64(ms)).UTC(), nil
 }
 
 func GetFeedArchive(db *store.Store, feed uuid.UUID) (*pb.FeedArchiveStats, error) {
@@ -53,17 +81,34 @@ func PutFeedArchive(db *store.Store, feed uuid.UUID, stats *pb.FeedArchiveStats)
 	if err != nil {
 		return err
 	}
-	return db.Set(FeedArchiveMetaKey(feed), raw)
+	return db.ApplyBatch(func(batch *pebble.Batch) error {
+		if err := batch.Set(FeedArchiveMetaKey(feed), raw, nil); err != nil {
+			return err
+		}
+		return batch.Delete(FeedArchiveDirtyMetaKey(feed), nil)
+	})
 }
 
-// StageInvalidateFeedArchive removes a derived snapshot in the same mutation
-// batch that changes its direct EntryIndex. A later authenticated read stages
-// an idempotent rebuild task.
-func StageInvalidateFeedArchive(batch *pebble.Batch, feed uuid.UUID) error {
-	if batch == nil || feed == uuid.Nil {
-		return errors.New("batch and feed UUID are required")
+// StageMarkFeedArchiveDirty preserves the first mutation time and leaves the
+// last good snapshot readable while deferred maintenance is pending. It must
+// be called inside Store.ApplyBatch so its read and staged write are
+// serialized with other archive mutations.
+func StageMarkFeedArchiveDirty(db *store.Store, batch *pebble.Batch, feed uuid.UUID, at time.Time) error {
+	if db == nil || batch == nil || feed == uuid.Nil || at.IsZero() {
+		return errors.New("store, batch, feed UUID, and dirty time are required")
 	}
-	return batch.Delete(FeedArchiveMetaKey(feed), nil)
+	if _, err := db.Get(FeedArchiveDirtyMetaKey(feed)); err == nil {
+		return nil
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	ms := at.UTC().UnixMilli()
+	if ms < 0 {
+		return errors.New("Feed archive dirty time predates Unix epoch")
+	}
+	var raw [8]byte
+	binary.BigEndian.PutUint64(raw[:], uint64(ms))
+	return batch.Set(FeedArchiveDirtyMetaKey(feed), raw[:], nil)
 }
 
 // BuildFeedArchive streams one direct EntryIndex from newest to oldest. The

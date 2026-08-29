@@ -35,6 +35,11 @@ func rebuildOneFeedArchive(db *store.Store, profile *pb.Profile, dryRun bool, st
 		// A corrupt/old derived snapshot is replaced just like a missing one.
 		changed = true
 	}
+	// A rebuild also publishes freshness. Clear a dirty marker even when the
+	// rebuilt snapshot happens to be byte-for-byte equivalent.
+	if _, dirtyErr := model.FeedArchiveDirtySince(db, feed); dirtyErr == nil || !errors.Is(dirtyErr, store.ErrNotFound) {
+		changed = true
+	}
 	if changed && !dryRun {
 		if err := model.PutFeedArchive(db, feed, built); err != nil {
 			return fmt.Errorf("write Feed archive for %s: %w", profile.Id, err)

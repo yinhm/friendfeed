@@ -15,7 +15,7 @@
   - `TableFollowRequest = 118`，编码为 `target feed UUID + requester user UUID -> RFC3339 时间字符串`；新写入使用 `RFC3339Nano` 保留同秒重复申请的 occurrence 精度，读取必须兼容历史秒精度 RFC3339 值。该表仅是 private feed/Group 关注审批的工作流数据；批准后的关系仍以 Follow/Follower 边表示。
   - `TableGroupIndex = 119`，编码为 `reverse activity Unix ms + raw Group UUID -> 空`，是可重建的 Group 发现页排序索引；Profile 仍是 Group metadata 权威来源。
   - Notification 表固定为 `TableNotification = 120`、`TableNotificationInbox = 121`、`TableNotificationState = 122`。canonical Notification key 为 `recipient UUID + notification UUID`；Inbox key 为 `recipient UUID + ^UnixMillis(activity_at) + notification UUID`；State 记录 `last_read_at_ns/unread_count/total_count`。这些编码和 retention 规则见 `docs/notifications.md`。
-  - Feed 年度统计是 Meta 下的 `feed-archive/v1/<raw feed UUID>` 可重建 protobuf 快照；编码和失效规则见 `docs/feed_archive.md`。
+  - Feed 年度统计是 Meta 下的 `feed-archive/v1/<raw feed UUID>` 可重建 protobuf 快照；首次失效时间存于 `feed-archive-dirty/v1/<raw feed UUID>`，编码和维护规则见 `docs/feed_archive.md`。
   - Entry 与 EntryIndex 中的 Entry key 固定为 `4-byte table prefix + 16-byte raw UUID`，不得写 UUID/hex 字符串。
 - 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/config.py` 的 `zh_names` 和现存 Fabric task。
 - 旧 Twitter FeedAgent、FeedJob 服务端和 `deploy_client` Fabric task 已整体退役；历史表号 200–202 永久保留，不得复用。

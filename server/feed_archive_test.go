@@ -11,7 +11,6 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
-	"github.com/yinhm/friendfeed/store"
 	"github.com/yinhm/friendfeed/util"
 )
 
@@ -81,15 +80,25 @@ func TestAuthenticatedFeedReadStagesAndConsumesArchiveRebuild(t *testing.T) {
 	require.NotEmpty(t, yearPage.Entries)
 	require.Equal(t, newest2025ID, yearPage.Entries[0].Id)
 
-	// A real Entry creation invalidates the snapshot atomically. Re-archiving
-	// the same Entry would leave it intact because the direct Feed did not move.
+	// A real Entry creation preserves the stale snapshot and records the first
+	// dirty time. The normal one-week delay does not hide the Archive or stage
+	// immediate maintenance.
 	_, err = srv.PostEntry(context.Background(), &pb.Entry{
 		Id: uuid.Must(uuid.NewV4()).String(), Date: time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		ProfileUuid: viewer.String(), FeedUuid: viewer.String(), Body: "new",
 	})
 	require.NoError(t, err)
-	_, err = model.GetFeedArchive(srv.rdb, viewer)
-	require.ErrorIs(t, err, store.ErrNotFound)
+	archive, err := model.GetFeedArchive(srv.rdb, viewer)
+	require.NoError(t, err)
+	require.Equal(t, int64(3), archive.EntryCount)
+	_, err = model.FeedArchiveDirtySince(srv.rdb, viewer)
+	require.NoError(t, err)
+	feed, err = srv.FetchFeed(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, feed.Archive)
+	claimed, err = srv.tasks.Claim(context.Background(), "archive-test", []string{feedArchiveRebuildTaskType}, 1)
+	require.NoError(t, err)
+	require.Empty(t, claimed)
 }
 
 func TestAnonymousFeedReadDoesNotExposeOrStageArchive(t *testing.T) {

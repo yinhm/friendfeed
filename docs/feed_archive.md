@@ -10,6 +10,9 @@ Home、Public、Search、Likes 或 Comments。
 ```text
 key   = TableMeta | "feed-archive/v1/" | raw feed UUID (16 B)
 value = pb.FeedArchiveStats
+
+dirty key   = TableMeta | "feed-archive-dirty/v1/" | raw feed UUID (16 B)
+dirty value = first dirty Unix milliseconds (8 B big-endian)
 ```
 
 key 前缀保持 `v1` 不变；快照语义的演进只提升 `FeedArchiveStats.version`。旧版本快照读取即
@@ -28,12 +31,15 @@ cursor 仍是位置而非 Entry UUID。请求 `/feed/:id?cursor=...` 时，既�
 
 ## 生命周期
 
-- 新建 Entry 时，作者 Profile Feed 与不同的目标 Group Feed 在同一 Entry batch 中删除旧快照；
-- 删除 Entry 同样使两类快照失效；
-- 重复归档同一 Entry 不改变 direct Feed，不使快照失效；
-- 登录用户读取 direct Feed 时，有快照才随 `pb.Feed.archive` 返回；缺失或损坏时仅幂等入队
-  `feed.archive.rebuild`，本次 Feed 请求正常返回且不显示 Archive；
-- 匿名读取既不返回统计，也不触发 rebuild；
+- 新建 Entry 时，作者 Profile Feed 与不同的目标 Group Feed 在同一 Entry batch 中保留快照并写
+  dirty marker；删除 Entry 同样标记两类快照；
+- marker 记录首次 dirty 时间，后续 mutation 不刷新它，避免活跃 Feed 无限推迟维护；
+- 重复归档同一 Entry 不改变 direct Feed，不标记快照；
+- 登录用户每次读取 direct Feed 都检查 marker；已有快照继续返回，marker 满 7 天后才幂等入队
+  `feed.archive.rebuild`；
+- 缺失、损坏或版本不符的快照没有 stale 数据可用，登录用户读取时立即入队首次构建；
+- 匿名读取不访问快照、不检查 marker，也不触发 rebuild；Archive 只服务登录用户；
+- rebuild 以同一 batch 写新快照并删除 marker；
 - task 的扫描与快照发布持有 Entry lifecycle 读锁，不能覆盖并发 Entry mutation 留下的失效状态。
 
 Task handler 流式扫描单个 Feed，内存只随年份数增长。EntryIndex orphan 不计入统计；它仍由既有
