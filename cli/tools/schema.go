@@ -21,6 +21,7 @@ type schemaVerification struct {
 	Schema       model.DBSchemaInfo
 	PebbleFormat string
 	Blockers     []schemaBlocker
+	Warnings     []schemaBlocker
 }
 
 type schemaLegacyStats struct {
@@ -52,76 +53,81 @@ func verifySchema(db *store.Store) (schemaVerification, error) {
 	if err != nil {
 		return result, err
 	}
-	add := func(name string, count int) {
+	addBlocker := func(name string, count int) {
 		if count != 0 {
 			result.Blockers = append(result.Blockers, schemaBlocker{Name: name, Count: count})
 		}
 	}
-	add("noncanonical_entries", audit.noncanonicalEntries)
-	add("entry_key_id_mismatches", audit.entryKeyIDMismatches)
-	add("noncanonical_indexes", audit.noncanonicalIndexes)
-	add("missing_direct_indexes", audit.missingDirectIndexes)
-	add("orphan_indexes", audit.orphanIndexes)
-	add("timeline_missing_entry", audit.timelineMissingEntry)
-	add("timeline_missing_position", audit.timelineMissingPos)
-	add("timeline_missing_index", audit.timelineMissingIndex)
-	add("timeline_duplicates", audit.timelineDuplicates)
-	add("timeline_time_mismatch", audit.timelineTimeMismatch)
-	add("missing_follower_edges", audit.missingFollowerEdges)
-	add("missing_follow_edges", audit.missingFollowEdges)
-	add("orphan_memberships", audit.orphanMemberships)
-	add("invalid_follow_requests", audit.invalidFollowRequests)
-	add("service_state_missing_source", audit.stateMissingService)
-	add("binding_missing_source", audit.bindingMissingSource)
-	add("binding_missing_index", audit.bindingMissingIndex)
-	add("disabled_binding_with_index", audit.disabledWithIndex)
-	add("orphan_service_indexes", audit.orphanServiceIndexes)
-	add("interaction_orphans", audit.interactionOrphans)
-	add("interaction_mismatches", audit.interactionMismatches)
-	add("invalid_group_admins", audit.invalidGroupAdmins)
-	add("admin_missing_membership", audit.adminMissingMember)
-	add("groups_without_admins", audit.groupsWithoutAdmins)
-	add("deleted_group_residuals", audit.deletedGroupResiduals)
-	add("invalid_group_index", audit.invalidGroupIndexRows)
-	add("orphan_group_index", audit.orphanGroupIndexRows)
-	add("missing_group_index", audit.missingGroupIndexRows)
-	add("duplicate_group_index", audit.duplicateGroupIndexRows)
-	add("invalid_notifications", audit.invalidNotifications)
-	add("orphan_notification_recipients", audit.orphanNotificationRecipients)
-	add("missing_notification_inbox", audit.missingNotificationInbox)
-	add("orphan_notification_inbox", audit.orphanNotificationInbox)
-	add("notification_inbox_mismatch", audit.notificationInboxMismatch)
-	add("notification_state_mismatch", audit.notificationStateMismatch)
-	add("task_missing_ready", audit.tasks.MissingReady)
-	add("task_missing_lease", audit.tasks.MissingLease)
-	add("task_missing_idem", audit.tasks.MissingIdem)
-	add("task_orphan_ready", audit.tasks.OrphanReady)
-	add("task_orphan_lease", audit.tasks.OrphanLease)
-	add("task_orphan_idem", audit.tasks.OrphanIdem)
-	add("task_mismatched_ready", audit.tasks.MismatchedReady)
-	add("task_mismatched_lease", audit.tasks.MismatchedLease)
-	add("task_mismatched_idem", audit.tasks.MismatchedIdem)
-	add("task_invalid_done", audit.tasks.InvalidDone)
+	addWarning := func(name string, count int) {
+		if count != 0 {
+			result.Warnings = append(result.Warnings, schemaBlocker{Name: name, Count: count})
+		}
+	}
+	addBlocker("noncanonical_entries", audit.noncanonicalEntries)
+	addBlocker("entry_key_id_mismatches", audit.entryKeyIDMismatches)
+	addBlocker("noncanonical_indexes", audit.noncanonicalIndexes)
+	addWarning("missing_direct_indexes", audit.missingDirectIndexes)
+	addWarning("orphan_indexes", audit.orphanIndexes)
+	addWarning("timeline_missing_entry", audit.timelineMissingEntry)
+	addWarning("timeline_missing_position", audit.timelineMissingPos)
+	addWarning("timeline_missing_index", audit.timelineMissingIndex)
+	addWarning("timeline_duplicates", audit.timelineDuplicates)
+	addWarning("timeline_time_mismatch", audit.timelineTimeMismatch)
+	addWarning("missing_follower_edges", audit.missingFollowerEdges)
+	addWarning("missing_follow_edges", audit.missingFollowEdges)
+	addWarning("orphan_memberships", audit.orphanMemberships)
+	addWarning("invalid_follow_requests", audit.invalidFollowRequests)
+	addWarning("service_state_missing_source", audit.stateMissingService)
+	addWarning("binding_missing_source", audit.bindingMissingSource)
+	addWarning("binding_missing_index", audit.bindingMissingIndex)
+	addWarning("disabled_binding_with_index", audit.disabledWithIndex)
+	addWarning("orphan_service_indexes", audit.orphanServiceIndexes)
+	addWarning("interaction_orphans", audit.interactionOrphans)
+	addWarning("interaction_mismatches", audit.interactionMismatches)
+	addWarning("invalid_group_admins", audit.invalidGroupAdmins)
+	addWarning("admin_missing_membership", audit.adminMissingMember)
+	addWarning("groups_without_admins", audit.groupsWithoutAdmins)
+	addWarning("deleted_group_residuals", audit.deletedGroupResiduals)
+	addWarning("invalid_group_index", audit.invalidGroupIndexRows)
+	addWarning("orphan_group_index", audit.orphanGroupIndexRows)
+	addWarning("missing_group_index", audit.missingGroupIndexRows)
+	addWarning("duplicate_group_index", audit.duplicateGroupIndexRows)
+	addWarning("invalid_notifications", audit.invalidNotifications)
+	addWarning("orphan_notification_recipients", audit.orphanNotificationRecipients)
+	addWarning("missing_notification_inbox", audit.missingNotificationInbox)
+	addWarning("orphan_notification_inbox", audit.orphanNotificationInbox)
+	addWarning("notification_inbox_mismatch", audit.notificationInboxMismatch)
+	addWarning("notification_state_mismatch", audit.notificationStateMismatch)
+	addWarning("task_missing_ready", audit.tasks.MissingReady)
+	addWarning("task_missing_lease", audit.tasks.MissingLease)
+	addWarning("task_missing_idem", audit.tasks.MissingIdem)
+	addWarning("task_orphan_ready", audit.tasks.OrphanReady)
+	addWarning("task_orphan_lease", audit.tasks.OrphanLease)
+	addWarning("task_orphan_idem", audit.tasks.OrphanIdem)
+	addWarning("task_mismatched_ready", audit.tasks.MismatchedReady)
+	addWarning("task_mismatched_lease", audit.tasks.MismatchedLease)
+	addWarning("task_mismatched_idem", audit.tasks.MismatchedIdem)
+	addWarning("task_invalid_done", audit.tasks.InvalidDone)
 
 	legacy, err := scanSchemaLegacyRows(db)
 	if err != nil {
 		return result, err
 	}
-	add("embedded_interaction_entries", legacy.embeddedInteractionEntries)
-	add("legacy_media_profiles", legacy.legacyMediaProfiles)
-	add("legacy_media_entries", legacy.legacyMediaEntries)
-	add("legacy_default_pictures", legacy.legacyDefaultPictures)
+	addBlocker("embedded_interaction_entries", legacy.embeddedInteractionEntries)
+	addBlocker("legacy_media_profiles", legacy.legacyMediaProfiles)
+	addBlocker("legacy_media_entries", legacy.legacyMediaEntries)
+	addBlocker("legacy_default_pictures", legacy.legacyDefaultPictures)
 
 	groupAuthors, err := migrateGroupEntryAuthors(db, groupEntryAuthorMigrationOptions{dryRun: true})
 	if err != nil {
 		return result, fmt.Errorf("verify Group entry authors: %w", err)
 	}
-	add("legacy_group_entry_authors", groupAuthors.candidates)
-	add("unresolved_group_entry_authors", groupAuthors.unresolved)
+	addBlocker("legacy_group_entry_authors", groupAuthors.fixed)
+	addWarning("unresolved_group_entry_authors", groupAuthors.unresolved)
 
 	publicCacheKey := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
 	if _, err := db.Get(publicCacheKey); err == nil {
-		add("retired_public_cache", 1)
+		addBlocker("retired_public_cache", 1)
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return result, fmt.Errorf("verify retired public cache: %w", err)
 	}
@@ -182,17 +188,61 @@ func scanSchemaLegacyRows(db *store.Store) (schemaLegacyStats, error) {
 }
 
 func writeSchemaVerification(out io.Writer, result schemaVerification) {
-	fmt.Fprintf(out, "application_schema=%s version=%d current=%d pebble_format=%s ready=%t\n",
+	fmt.Fprintf(out, "application_schema=%s version=%d current=%d pebble_format=%s ready=%t blockers=%d warnings=%d\n",
 		result.Schema.Status, result.Schema.Version, model.CurrentDBSchemaVersion,
-		result.PebbleFormat, len(result.Blockers) == 0)
+		result.PebbleFormat, len(result.Blockers) == 0, len(result.Blockers), len(result.Warnings))
 	for _, blocker := range result.Blockers {
 		fmt.Fprintf(out, "blocker=%s count=%d\n", blocker.Name, blocker.Count)
+		fmt.Fprintf(out, "action=%s\n", schemaBlockerAction(blocker.Name))
+	}
+	for _, warning := range result.Warnings {
+		fmt.Fprintf(out, "warning=%s count=%d\n", warning.Name, warning.Count)
+	}
+	if len(result.Blockers) == 0 {
+		fmt.Fprintln(out, "guidance=schema encoding is ready; warnings are non-blocking runtime drift; run stamp_schema to verify again and write the marker")
+	} else {
+		fmt.Fprintln(out, "guidance=resolve every blocker and rerun verify_schema; warnings may be handled separately with audit/rebuild tools")
 	}
 }
 
 func writeSchemaInspection(out io.Writer, result schemaVerification) {
 	fmt.Fprintf(out, "application_schema=%s version=%d current=%d pebble_format=%s\n",
 		result.Schema.Status, result.Schema.Version, model.CurrentDBSchemaVersion, result.PebbleFormat)
+	switch result.Schema.Status {
+	case model.DBSchemaMissing:
+		fmt.Fprintln(out, "guidance=run verify_schema; if ready, run stamp_schema")
+	case model.DBSchemaCurrent:
+		fmt.Fprintln(out, "guidance=application schema marker is current; no schema action is required")
+	case model.DBSchemaOlder:
+		fmt.Fprintln(out, "guidance=run the migration tools from the current release, then verify_schema and stamp_schema")
+	case model.DBSchemaFuture:
+		fmt.Fprintln(out, "guidance=do not open with this binary; upgrade to a release that supports the recorded schema")
+	case model.DBSchemaMalformed:
+		fmt.Fprintln(out, "guidance=do not stamp or overwrite the marker; inspect a backup and repair the corrupted marker deliberately")
+	}
+}
+
+func schemaBlockerAction(name string) string {
+	switch name {
+	case "noncanonical_entries":
+		return "run migrate_entry_keys on an offline copy, then rebuild_entry_index"
+	case "entry_key_id_mismatches":
+		return "inspect the reported Entry corruption; do not guess or auto-rewrite mismatched authoritative IDs"
+	case "noncanonical_indexes":
+		return "run rebuild_entry_index on an offline copy"
+	case "embedded_interaction_entries":
+		return "run migrate_interactions -dry-run, resolve duplicate errors if any, then apply"
+	case "legacy_group_entry_authors":
+		return "run migrate_group_entry_authors -dry-run, then apply; unresolved historical authors are reported only as warnings"
+	case "legacy_media_profiles", "legacy_media_entries":
+		return "run migrate_media_urls -dry-run, then apply"
+	case "legacy_default_pictures":
+		return "run fix_default_picture -dry-run, then apply"
+	case "retired_public_cache":
+		return "run purge_public_cache -dry-run, then apply"
+	default:
+		return "inspect this blocker with audit_store before making changes"
+	}
 }
 
 func stampSchema(db *store.Store, dryRun bool) (schemaVerification, bool, error) {

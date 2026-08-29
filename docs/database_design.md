@@ -242,6 +242,8 @@ TableMeta | "db-schema/version" -> uint32 big-endian
 当前版本为 `1`。它证明应用数据已通过当前结构验证，与 Pebble
 `FormatMajorVersion` 完全无关。非空数据库不得自动补 marker；空库可由 ffdb 首次启动初始化。
 future 或损坏 marker 必须拒绝启动，v2.2 对 missing/older 只告警以保留最后迁移窗口。
+marker 只证明持久化编码和一次性迁移边界，不承诺 timeline、graph、Group admin、Notification、
+Task 等运行时派生关系永远没有 drift；这些差异由 audit/rebuild 单独报告和修复。
 
 - schema 升级必须停服、备份、先按用户和小上限 dry-run，再全量执行及 audit。
 - `rebuild_entry_index` 从 Entry 恢复 direct index；`rebuild_timeline` 从 Entry、互动和当前

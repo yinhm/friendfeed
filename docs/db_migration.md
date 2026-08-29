@@ -31,8 +31,14 @@ v2.2 是最后迁移窗口：非空 missing/older 数据库启动时告警但继
 `verify_schema` 已包含 store audit，不要求先重复执行 `audit_store`；需要单独保存完整 audit
 统计时才额外运行。验证在已有 audit 扫描之外，把互动与媒体残留合并为一次 Entry 扫描、把媒体与
 默认头像合并为一次 Profile 扫描，并独立检查历史 Group 作者和 retired public cache。
-blocker 非零时命令失败。archive 中无法映射本地 Profile 的
-历史 actor、Feedinfo/UserMap、legacy rawBody/HTML/blockquote 和保留表号不是 blocker。
+blocker 只表示当前持久化编码或一次性迁移尚未完成：noncanonical Entry/EntryIndex、Entry key/ID
+不一致、仍嵌入 Entry 的互动、可解析且仍可修复的 Group 作者、旧媒体 URL、旧默认头像和 retired
+public cache。blocker 非零时命令失败，并逐项打印建议命令。
+
+timeline/graph/Group admin/Group index/Notification/Task 等一致性差异是运行时可能再次产生的
+drift，只输出非阻塞 warning；它们由 audit、懒清理、rebuild 或人工维护单独收敛，不能用来定义
+application schema。无法解析本地 Profile 的历史 Group 作者同样只是 warning。archive 中无法映射
+本地 Profile 的历史 actor、Feedinfo/UserMap、legacy rawBody/HTML/blockquote 和保留表号不是 blocker。
 
 Twitter OAuth 的历史 Name/NickName 顺序无法仅凭记录可靠判定；运行
 `fix_twitter_oauth_fields` 的历史证据和抽查结果必须由操作者单独保存，工具不得用启发式结果冒充证明。

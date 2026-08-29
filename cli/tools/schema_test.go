@@ -45,6 +45,7 @@ func TestInspectSchemaOnlyReadsMetadata(t *testing.T) {
 	require.Contains(t, out.String(), "application_schema=missing")
 	require.NotContains(t, out.String(), "ready=")
 	require.NotContains(t, out.String(), "blocker=")
+	require.Contains(t, out.String(), "guidance=run verify_schema")
 }
 
 func TestVerifySchemaReportsRetiredPublicCache(t *testing.T) {
@@ -144,6 +145,21 @@ func TestStampSchemaRefusesBlockers(t *testing.T) {
 	info, inspectErr := model.InspectDBSchema(db)
 	require.NoError(t, inspectErr)
 	require.Equal(t, model.DBSchemaMissing, info.Status)
+}
+
+func TestSchemaVerificationExplainsBlockersAndWarnings(t *testing.T) {
+	result := schemaVerification{
+		Schema:       model.DBSchemaInfo{Status: model.DBSchemaMissing},
+		PebbleFormat: "016",
+		Blockers:     []schemaBlocker{{Name: "legacy_group_entry_authors", Count: 2}},
+		Warnings:     []schemaBlocker{{Name: "groups_without_admins", Count: 262}},
+	}
+	var out bytes.Buffer
+	writeSchemaVerification(&out, result)
+	require.Contains(t, out.String(), "ready=false blockers=1 warnings=1")
+	require.Contains(t, out.String(), "action=run migrate_group_entry_authors -dry-run")
+	require.Contains(t, out.String(), "warning=groups_without_admins count=262")
+	require.Contains(t, out.String(), "warnings may be handled separately")
 }
 
 func blockerCount(result schemaVerification, name string) int {

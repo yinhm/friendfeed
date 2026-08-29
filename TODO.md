@@ -83,16 +83,18 @@
 
 schema 1 blocker：
 
-- noncanonical Entry key 或 EntryIndex 编码；Entry key/ID 不一致；direct index missing/orphan。
-- Like/Comment 权威表或互动 timeline 的 orphan/mismatch/unpaired/duplicate。
-- Group Entry author、Group admin、Group index 不满足当前不变量。
-- TimelineIndex/Position 不成对、孤儿、重复或时间不一致。
-- Notification、Task、Service 已登记结构的 audit 错误。
+- noncanonical Entry key 或 EntryIndex 编码；Entry key/ID 不一致。
+- 仍嵌入 Entry 的 Like/Comment。
+- 可解析且仍可修复的 legacy Group Entry author。
 - 仍使用已知旧 media URL、旧 default picture。
 - retired public cache Meta 行仍存在。
 
 Twitter OAuth 的历史字段顺序无法仅凭数据可靠自证，不使用启发式 blocker；盖章前必须保存
 既有迁移执行证据和抽查结果。
+
+以下只作为 warning，不阻止盖章：direct/timeline/interaction 派生索引 drift、graph、Group
+admin/index、Notification、Task/Service 一致性差异，以及无法解析本地作者的历史 Group Entry。
+这些状态可能在盖章后再次产生，因此不能被 application schema marker 承诺。
 
 验收：
 

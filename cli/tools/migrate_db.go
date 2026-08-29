@@ -1469,6 +1469,9 @@ func main() {
 	case "verify_schema":
 		result, err := verifySchema(ndb)
 		if err != nil {
+			if result.PebbleFormat != "" {
+				writeSchemaInspection(os.Stdout, result)
+			}
 			log.Fatal(err)
 		}
 		writeSchemaVerification(os.Stdout, result)
@@ -1478,6 +1481,11 @@ func main() {
 	case "stamp_schema":
 		result, wrote, err := stampSchema(ndb, dryRun)
 		if err != nil {
+			if len(result.Blockers) != 0 || len(result.Warnings) != 0 {
+				writeSchemaVerification(os.Stdout, result)
+			} else if result.PebbleFormat != "" {
+				writeSchemaInspection(os.Stdout, result)
+			}
 			log.Fatal(err)
 		}
 		writeSchemaVerification(os.Stdout, result)
