@@ -132,6 +132,26 @@ func TestFeedPageDataOnlyExposesEditableRawBody(t *testing.T) {
 	}
 }
 
+func TestFeedPageDataConvertsLegacyYouTubePlayerToSafeVideoIdentity(t *testing.T) {
+	player := `<object><param name="movie" value="http://www.youtube.com/v/nJDf-sdylwU&amp;autoplay=1"></param><embed src="http://www.youtube.com/v/nJDf-sdylwU&amp;autoplay=1"></embed></object>`
+	view := feedViewFromProto(&pb.Feed{Entries: []*pb.Entry{{
+		Id: "youtube-entry", Thumbnails: []*pb.Thumbnail{{
+			Url: "http://img.youtube.com/vi/nJDf-sdylwU/2.jpg", Player: player,
+		}},
+	}}})
+	thumbnail := view.Entries[0].Thumbnails[0]
+	if thumbnail.Video == nil || thumbnail.Video.Provider != "youtube" || thumbnail.Video.ID != "nJDf-sdylwU" {
+		t.Fatalf("thumbnail video=%+v", thumbnail.Video)
+	}
+	raw, err := json.Marshal(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte("object")) || bytes.Contains(raw, []byte("autoplay")) {
+		t.Fatalf("legacy player HTML crossed browser boundary: %s", raw)
+	}
+}
+
 func TestEnrichPageBootstrapPreservesPageJSONIntegers(t *testing.T) {
 	raw := `{"version":1,"page":"test","data":{"exact":9007199254740993}}`
 	enriched, err := enrichPageBootstrap(raw, &pb.Profile{Uuid: "u", Id: "alice"}, pongo2.Context{})

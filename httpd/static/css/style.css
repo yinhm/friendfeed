@@ -327,11 +327,15 @@ a:not([class]):hover {
     line-height: 0;
 }
 
-.entry .media > button {
+.entry .media > button,
+.entry .media > .ff-youtube {
     display: block;
     flex: 0 0 calc(33.333% - 4px);
     min-width: 0;
     margin: 0;
+}
+
+.entry .media > button {
     border: 0;
     padding: 0;
     background: none;
@@ -339,16 +343,19 @@ a:not([class]):hover {
     cursor: zoom-in;
 }
 
-.entry .media[data-count="1"] > button {
+.entry .media[data-count="1"] > button,
+.entry .media[data-count="1"] > .ff-youtube {
     flex: 0 1 auto;
 }
 
 .entry .media[data-count="2"] > button,
-.entry .media[data-count="4"] > button {
+.entry .media[data-count="2"] > .ff-youtube,
+.entry .media[data-count="4"] > button,
+.entry .media[data-count="4"] > .ff-youtube {
     flex: 0 0 calc(50% - 3px);
 }
 
-.entry .media img {
+.entry .media > button > img {
     box-sizing: border-box;
     width: 100%;
     height: 320px;
@@ -358,12 +365,16 @@ a:not([class]):hover {
     cursor: zoom-in;
 }
 
-.entry .media[data-count="1"] img {
+.entry .media[data-count="1"] > button > img {
     width: auto;
     height: auto;
     max-width: 100%;
     max-height: 320px;
     object-fit: none;
+}
+
+.entry .media > .ff-youtube {
+    border: 1px solid var(--ff-border);
 }
 
 .media-lightbox {

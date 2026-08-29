@@ -103,3 +103,19 @@ test('a single media image shows no navigation buttons', () => {
   expect(screen.getByRole('dialog', {name: 'Enlarged media'})).toBeInTheDocument();
   expect(screen.queryByRole('button', {name: 'Next media'})).not.toBeInTheDocument();
 });
+
+test('a validated YouTube thumbnail uses a click-to-load privacy facade', async () => {
+  const {container} = render(<EntryMediaBox thumbs={[{
+    url: 'http://img.youtube.com/vi/nJDf-sdylwU/2.jpg',
+    link: 'https://twitter.com/user/status/1',
+    video: {provider: 'youtube', id: 'nJDf-sdylwU'},
+  }]} />);
+
+  const play = await screen.findByRole('button', {name: 'Watch YouTube video'});
+  expect(container.querySelector('.ff-youtube')).toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: 'Open media'})).not.toBeInTheDocument();
+  fireEvent.click(play);
+  expect(await screen.findByTitle('YouTube video')).toHaveAttribute(
+    'src', expect.stringContaining('https://www.youtube-nocookie.com/embed/nJDf-sdylwU')
+  );
+});

@@ -21,11 +21,11 @@ describe('YouTube embed', () => {
       React.createElement(LiteYouTubeEmbed, {
         id: 'dQw4w9WgXcQ',
         title: 'YouTube fixture',
-        wrapperClass: 'friendfeed-youtube',
+        wrapperClass: 'ff-youtube',
       })
     );
 
-    expect(container.querySelector('.friendfeed-youtube')).toBeInTheDocument();
+    expect(container.querySelector('.ff-youtube')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Watch YouTube fixture' }));
 
     const iframe = screen.getByTitle('YouTube fixture');

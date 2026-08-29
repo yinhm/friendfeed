@@ -5,7 +5,8 @@ export type EntryView = {
   id: string; from: FeedRefView; to?: FeedRefView[]; title?: string;
   body: string; rawBody?: string; type?: string; date?: string;
   via?: {name: string; url: string}; commands: string[];
-  thumbnails?: Array<{width?: number; height?: number; link: string; url: string}>;
+  thumbnails?: Array<{width?: number; height?: number; link: string; url: string;
+    video?: {provider: 'youtube'; id: string}}>;
   files?: Array<{url: string; name: string; type?: string; size?: number}>;
   comments?: Array<{id?: string; body: string; rawBody?: string; date?: string;
     placeholder?: boolean; commands?: string[]; from?: FeedRefView}>;

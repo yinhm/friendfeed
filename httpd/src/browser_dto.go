@@ -91,10 +91,15 @@ type feedRefView struct {
 	Private bool   `json:"private,omitempty"`
 }
 type thumbnailView struct {
-	Width  int32  `json:"width,omitempty"`
-	Height int32  `json:"height,omitempty"`
-	Link   string `json:"link,omitempty"`
-	URL    string `json:"url"`
+	Width  int32      `json:"width,omitempty"`
+	Height int32      `json:"height,omitempty"`
+	Link   string     `json:"link,omitempty"`
+	URL    string     `json:"url"`
+	Video  *videoView `json:"video,omitempty"`
+}
+type videoView struct {
+	Provider string `json:"provider"`
+	ID       string `json:"id"`
 }
 type fileView struct {
 	URL  string `json:"url"`
@@ -184,7 +189,11 @@ func entryViewFromProto(e *pb.Entry) entryView {
 	}
 	for _, x := range e.Thumbnails {
 		if x != nil {
-			v.Thumbnails = append(v.Thumbnails, thumbnailView{Width: x.Width, Height: x.Height, Link: x.Link, URL: x.Url})
+			thumbnail := thumbnailView{Width: x.Width, Height: x.Height, Link: x.Link, URL: x.Url}
+			if id := legacyYouTubeVideoID(x.Player); id != "" {
+				thumbnail.Video = &videoView{Provider: "youtube", ID: id}
+			}
+			v.Thumbnails = append(v.Thumbnails, thumbnail)
 		}
 	}
 	for _, x := range e.Files {

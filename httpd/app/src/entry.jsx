@@ -1,14 +1,17 @@
 // @ts-check
 
-import React, {useEffect, useState} from 'react';
+import React, {lazy, Suspense, useEffect, useState} from 'react';
 import { EntryContent } from './content'
 import {EntryLike} from './entry-like';
 import {EntryFiles} from './entry-files';
 import {getJSON, postJSON, postForm, intersperse} from './utils';
 
+const YouTubeFacade = lazy(() => import('./youtube-facade'));
+
 /**
  * @typedef {{id: string, name: string, picture?: string, title?: string, private?: boolean}} FeedRef
- * @typedef {{width?: number, height?: number, link: string, url: string}} Thumbnail
+ * @typedef {{width?: number, height?: number, link: string, url: string,
+ * video?: {provider: 'youtube', id: string}}} Thumbnail
  * @typedef {{id?: string, body: string, rawBody?: string, is_editing?: boolean,
  * commands?: string[], placeholder?: boolean, from?: FeedRef, date?: string}} CommentData
  * @typedef {object} LikeData
@@ -418,6 +421,13 @@ function EntryAuthor(props) {
 /** @param {{thumb: Thumbnail, onEnlarge: () => void}} props */
 function EntryMedia(props) {
   var thumb = props.thumb;
+  if (thumb.video?.provider === 'youtube') {
+    return (
+      <Suspense fallback={<img src={thumb.url} width={thumb.width} height={thumb.height} alt="" />}>
+        <YouTubeFacade id={thumb.video.id} />
+      </Suspense>
+    );
+  }
   return (
     <button type="button" aria-label="Open media" onClick={props.onEnlarge}>
       <img src={thumb.url} width={thumb.width} height={thumb.height} alt="" />

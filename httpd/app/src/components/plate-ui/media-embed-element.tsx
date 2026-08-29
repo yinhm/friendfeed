@@ -80,6 +80,7 @@ export const MediaEmbedElement = withHOC(
                     id={embed!.id!}
                     title="youtube"
                     wrapperClass={cn(
+                      'ff-youtube',
                       'rounded-sm',
                       focused && selected && 'ring-2 ring-ring ring-offset-2',
                       'relative block cursor-pointer bg-black bg-cover bg-center [contain:content]',
