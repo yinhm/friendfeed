@@ -47,6 +47,25 @@ func TestGraphFollowMaintainsBothEdges(t *testing.T) {
 	}
 }
 
+func TestFetchGraphLoadsAuthoritativeFollowAndFollowerEdges(t *testing.T) {
+	srv := newServiceServer(t)
+	owner := createServiceUser(t, srv, "graph-owner")
+	following := createServiceUser(t, srv, "graph-following")
+	follower := createServiceUser(t, srv, "graph-follower")
+	missing := uuid.Must(uuid.NewV4())
+
+	require.NoError(t, srv.rdb.Put(model.NewKeyFrom(model.Follow.Prefix, owner.Bytes(), following.Bytes()), []byte("1")))
+	require.NoError(t, srv.rdb.Put(model.NewKeyFrom(model.Follow.Prefix, owner.Bytes(), missing.Bytes()), []byte("1")))
+	require.NoError(t, srv.rdb.Put(model.NewKeyFrom(model.Follower.Prefix, owner.Bytes(), follower.Bytes()), []byte("1")))
+
+	graph, err := srv.FetchGraph(context.Background(), &pb.ProfileRequest{Uuid: owner.String()})
+	require.NoError(t, err)
+	require.Contains(t, graph.Following, "graph-following")
+	require.Contains(t, graph.Followers, "graph-follower")
+	require.Len(t, graph.Following, 1, "orphan edges must be skipped")
+	require.Len(t, graph.Followers, 1)
+}
+
 func TestGraphFollowAddsAtMostOneHundredFeedEntriesAndUnfollowRemovesThem(t *testing.T) {
 	srv := newServiceServer(t)
 	viewer := createServiceUser(t, srv, "timeline-viewer")

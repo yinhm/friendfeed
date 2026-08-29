@@ -196,6 +196,8 @@ func Serve(s *server.Server, config *util.Config) error {
 	r.GET("/feed/:name/import", server.LoginRequired(), s.FeedImportPageHandler)
 	r.GET("/feed/:name/likes", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_LIKE, "likes"))
 	r.GET("/feed/:name/comments", server.LoginRequired(), s.InteractionFeedHandler(pb.InteractionKind_INTERACTION_KIND_COMMENT, "comments"))
+	r.GET("/feed/:name/following", server.LoginRequired(), s.ProfileRelationsHandler("following"))
+	r.GET("/feed/:name/followers", server.LoginRequired(), s.ProfileRelationsHandler("followers"))
 	r.GET("/e/:uuid", s.EntryHandler)
 
 	r.GET("/a/entry/:uuid", s.ExpandCommentHandler)

@@ -53,6 +53,8 @@
 | `GET /e/:uuid` | `EntryHandler` | ffdb visibility | 匿名公开 Entry SSR；登录态 app shell |
 | `GET /feed/:name/likes` | `InteractionFeedHandler` | login + owner-only | Feed React |
 | `GET /feed/:name/comments` | `InteractionFeedHandler` | login + owner-only | Feed React |
+| `GET /feed/:name/following` | `ProfileRelationsHandler` | login + Feed visibility；User only | app shell + React `profile-relations` |
+| `GET /feed/:name/followers` | `ProfileRelationsHandler` | login + Feed visibility；User only | app shell + React `profile-relations` |
 | `GET /search` | `SearchHandler` | visibility-filtered | Feed React |
 | `GET /tag/:name` | `TagHandler` | visibility-filtered | Feed React |
 | `GET /a/entry/:uuid` | `ExpandCommentHandler` | entry visibility | HTML fragment |

@@ -19,6 +19,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {boolean} show_header
  * @property {boolean} show_paging
  * @property {boolean} show_share
+ * @property {boolean} show_profile_relations
  * @property {number} prev_start
  * @property {number} next_start
  * @property {boolean} [show_prev]
@@ -77,7 +78,7 @@ function FeedPagin(props) {
 
 /**
  * @param {{feedId: string, feedUuid: string, name?: string, picture?: string,
- * description?: string, private?: boolean, commands?: string[],
+ * description?: string, private?: boolean, showRelations?: boolean, commands?: string[],
  * manageServicesUrl?: string, groupSettingsUrl?: string, groupMembersUrl?: string}} props
  */
 function FeedHeader(props) {
@@ -166,7 +167,13 @@ function FeedHeader(props) {
 
         <div className="description">{props.description}</div>
 
-        {followBtn}
+        <div className="flex items-center gap-3">
+          {followBtn}
+          {props.showRelations && <span className="flex gap-3 text-sm text-muted-foreground">
+            <a href={`/feed/${props.feedId}/following`} className="hover:text-foreground">Following</a>
+            <a href={`/feed/${props.feedId}/followers`} className="hover:text-foreground">Followers</a>
+          </span>}
+        </div>
         {followError && <div role="alert" className="error-banner">{followError}</div>}
       </div>
       <div className="clear"></div>
@@ -177,6 +184,20 @@ function FeedHeader(props) {
     </div>
   )
 
+}
+
+/** @param {{feedId: string, active: 'feed' | 'following' | 'followers'}} props */
+export function ProfileRelationsNav({feedId, active}) {
+  const linkClass = 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground';
+  const activeClass = 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary';
+  /** @param {'feed' | 'following' | 'followers'} name @param {string} href @param {string} label */
+  const link = (name, href, label) => <a href={href} aria-current={active === name ? 'page' : undefined}
+    className={active === name ? activeClass : linkClass}>{label}</a>;
+  return <nav className="mb-6 flex gap-1 border-b border-border" aria-label="Profile relationships">
+    {link('feed', `/feed/${feedId}`, 'Feed')}
+    {link('following', `/feed/${feedId}/following`, 'Following')}
+    {link('followers', `/feed/${feedId}/followers`, 'Followers')}
+  </nav>;
 }
 
 /**
@@ -310,6 +331,7 @@ export function Feed(props) {
                   picture={feed.picture}
                   description={feed.description}
                   private={feed.private}
+                  showRelations={state.show_profile_relations}
                   commands={feed.commands}
                   manageServicesUrl={state.manage_services_url}
                   groupSettingsUrl={state.group_settings_url}
@@ -380,6 +402,7 @@ export function App({data}) {
       show_header={appData.show_header}
       show_paging={appData.show_paging}
       show_share={appData.show_share}
+      show_profile_relations={appData.show_profile_relations}
       prev_start={appData.prev_start}
       next_start={appData.next_start}
       show_prev={appData.show_prev}

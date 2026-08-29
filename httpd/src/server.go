@@ -571,6 +571,10 @@ func (s *Server) FollowHandler(c *gin.Context) {
 		}
 		return
 	}
+	// FetchGraph now carries the authoritative Following/Followers maps. A
+	// successful relationship mutation must not leave the current user's
+	// cached graph stale for the relationship pages.
+	s.cache.Delete("graph:" + uuid)
 
 	c.JSON(200, entry)
 }

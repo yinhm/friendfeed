@@ -11,7 +11,7 @@ const manifest = JSON.parse(await readFile('build/static/manifest.json', 'utf8')
 // Plate 49 toolbar registry migration (focus ring, toolbar-group separators,
 // size-4 icon convention); reviewed: +1,315 raw / +197 gzip over the 71,135
 // baseline, after dropping the dead aria-invalid rules from the official base.
-// 2026-08-29: authenticated account, Group, and notification pages moved to
+// 2026-08-29: authenticated account, Group, notification, and profile relation pages moved to
 // route-level lazy chunks. Reset entry JS to the 217,648-byte baseline plus
 // roughly 10% headroom and add explicit budgets for each route group.
 const budgets = [
@@ -36,6 +36,12 @@ const budgets = [
   {
     name: 'notification pages JS',
     manifestKey: 'src/notification-pages.jsx',
+    maxBytes: 4_000,
+    maxGzipBytes: 1_500,
+  },
+  {
+    name: 'profile relations JS',
+    manifestKey: 'src/profile-relations.jsx',
     maxBytes: 4_000,
     maxGzipBytes: 1_500,
   },

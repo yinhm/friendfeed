@@ -376,7 +376,45 @@ func (s *ApiServer) FetchGraph(ctx context.Context, req *pb.ProfileRequest) (*pb
 	ss, _ := model.GetFeedServices(s.rdb, profileUuid)
 	feedinfo.Services = ss
 
-	return BuildGraph(feedinfo), nil
+	graph := BuildGraph(feedinfo)
+	if err := s.loadGraphProfiles(model.Follow.Prefix, profileUuid, graph.Following); err != nil {
+		return nil, err
+	}
+	if err := s.loadGraphProfiles(model.Follower.Prefix, profileUuid, graph.Followers); err != nil {
+		return nil, err
+	}
+	return graph, nil
+}
+
+// loadGraphProfiles resolves the second UUID in relationship keys whose first
+// UUID is owner. Follow/Follower rows are authoritative; stale edges pointing
+// at missing or deleted profiles are omitted from the presentation graph.
+func (s *ApiServer) loadGraphProfiles(tablePrefix store.Key, owner uuid.UUID, profiles map[string]*pb.Profile) error {
+	prefix := model.NewKeyFrom(tablePrefix, owner.Bytes())
+	iter, err := s.rdb.NewIterator(prefix)
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := iter.UnsafeKey()
+		if len(key) != len(prefix)+uuid.Size {
+			continue
+		}
+		profileUUID, err := uuid.FromBytes(key[len(prefix):])
+		if err != nil || profileUUID == uuid.Nil {
+			continue
+		}
+		profile, err := model.GetProfileFromUuid(s.rdb, profileUUID)
+		if errors.Is(err, model.ErrNotFound) || errors.Is(err, model.ErrProfileDeleted) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		profiles[profile.Id] = profile
+	}
+	return iter.Error()
 }
 
 func (s *ApiServer) ArchiveFeed(stream pb.Api_ArchiveFeedServer) error {

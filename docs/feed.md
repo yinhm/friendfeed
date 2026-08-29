@@ -211,3 +211,23 @@ Entry 多 Comment 只产生一个 timeline 项但卡片展示全部评论；删�
 索引；非本人请求稳定返回 403 且不泄露互动；删除 Entry 的孤儿不
 返回；cursor 遇删除锚点和大量过滤项可继续；legacy 缺 UUID/Date 的 rebuild 安全跳过；全量
 迁移内存有界。
+
+## Following 与 Followers 页面
+
+User Feed 提供两个登录后可访问的关系列表：
+
+- `/feed/:id/following`
+- `/feed/:id/followers`
+
+页面复用既有 `FetchGraph` RPC 与 `Graph.following/followers` 字段，不新增 RPC、表或计数
+字段。关系以 Follow/Follower 表为权威来源；解析时跳过指向缺失或已删除 Profile 的孤儿边，
+真实存储错误必须返回。Group 不使用这两个页面，成员关系继续由 Members 页面表达。
+
+Web 先通过正常 `FetchFeed` 读取完成旧 ID 重定向及 private Feed 可见性检查，再读取 Graph。
+结果按 Profile Name（忽略大小写）及 ID 稳定排序。User Feed header 在 Follow/Following 按钮
+后显示 Following、Followers 两个无计数普通链接；完整的 Feed、Following、Followers nav 仅
+在两个列表页用于返回和切换。普通 Feed 响应不携带关系列表。
+
+第一版返回完整列表，不提供 count、cursor、prev/next。当前已知关系规模仍适合既有 Graph map
+契约；若实际规模增长到完整响应不可接受，应新增专用分页 RPC，而不是向 map 字段伪装分页
+或截断后冒充完整集合。

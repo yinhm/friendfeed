@@ -11,6 +11,7 @@ import { initSSRNavigation } from './ssr-navigation';
 const AccountPages = lazy(() => import('./account-pages'));
 const GroupPages = lazy(() => import('./group-pages'));
 const NotificationPages = lazy(() => import('./notification-pages'));
+const ProfileRelationsPage = lazy(() => import('./profile-relations').then(module => ({default: module.ProfileRelationsPage})));
 
 /** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
 
@@ -30,6 +31,9 @@ function PageDispatcher({page, data, current_user: currentUser}) {
   }
   if (page === 'notifications' || page === 'requests') {
     return <Suspense fallback={<PageLoading />}><NotificationPages page={page} data={data} /></Suspense>;
+  }
+  if (page === 'profile-relations') {
+    return <Suspense fallback={<PageLoading />}><ProfileRelationsPage data={/** @type {import('./browser-types').ProfileRelationsPageData} */ (data)} /></Suspense>;
   }
   if (page === 'group-create' || page === 'group-settings' || page === 'group-members' || page === 'groups') {
     return <Suspense fallback={<PageLoading />}><GroupPages page={page} data={data} currentUserId={currentUser?.id ?? ''} /></Suspense>;

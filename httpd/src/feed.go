@@ -459,6 +459,7 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	}
 	data["show_header"] = true
 	actor := CurrentUserUuid(c)
+	data["show_profile_relations"] = actor != "" && feed.Type == "user"
 	if actor != "" && feed.Archive != nil {
 		data["feed_archive"] = feed.Archive
 		data["feed_archive_id"] = feed.Id

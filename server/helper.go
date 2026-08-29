@@ -182,6 +182,7 @@ func fmtCommentOrLikeWithResolver(resolver *profileResolver, from *pb.Feed) {
 func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 	graph := &pb.Graph{
 		Following: make(map[string]*pb.Profile),
+		Followers: make(map[string]*pb.Profile),
 		Admins:    make(map[string]*pb.Profile),
 		Services:  make(map[string]*pb.FeedService),
 	}

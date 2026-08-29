@@ -279,6 +279,15 @@ test('private Feed header marks its name with a lock icon', () => {
     .toContainElement(screen.getByRole('img', {name: 'Private'}));
 });
 
+test('User Feed header exposes plain relationship links without a navigation bar', () => {
+  const feed = {id: 'alice', uuid: 'alice-uuid', name: 'Alice', entries: []};
+  render(<Feed {...makeFeedProps({feed, show_header: true, show_profile_relations: true})} />);
+
+  expect(screen.getByRole('link', {name: 'Following'})).toHaveAttribute('href', '/feed/alice/following');
+  expect(screen.getByRole('link', {name: 'Followers'})).toHaveAttribute('href', '/feed/alice/followers');
+  expect(screen.queryByRole('navigation', {name: 'Profile relationships'})).not.toBeInTheDocument();
+});
+
 test('Feed management nav preserves server-authorized links after React mounts', () => {
   const feed = {
     id: 'book-club',
