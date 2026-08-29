@@ -53,25 +53,24 @@ type profileSummary struct {
 // while the React migration proceeds; protobuf messages and arbitrary template
 // context must never cross this boundary directly.
 type feedPageData struct {
-	Feed              feedView `json:"feed"`
-	ShowHeader        bool     `json:"show_header"`
-	ShowPaging        bool     `json:"show_paging"`
-	ShowShare         bool     `json:"show_share"`
-	ShowRelations     bool     `json:"show_profile_relations"`
-	ShowPrev          bool     `json:"show_prev"`
-	ShowNext          bool     `json:"show_next"`
-	PrevStart         int32    `json:"prev_start"`
-	NextStart         int32    `json:"next_start"`
-	CursorPaging      bool     `json:"cursor_paging"`
-	NextCursor        string   `json:"next_cursor"`
-	RealtimeEnabled   bool     `json:"realtime_enabled"`
-	RealtimeHome      bool     `json:"realtime_home"`
-	OnPage            bool     `json:"onpage"`
-	OnPageEdit        bool     `json:"onpage_edit"`
-	Query             string   `json:"query"`
-	ManageServicesURL string   `json:"manage_services_url,omitempty"`
-	GroupSettingsURL  string   `json:"group_settings_url,omitempty"`
-	GroupMembersURL   string   `json:"group_members_url,omitempty"`
+	Feed             feedView `json:"feed"`
+	ShowHeader       bool     `json:"show_header"`
+	ShowPaging       bool     `json:"show_paging"`
+	ShowShare        bool     `json:"show_share"`
+	ShowRelations    bool     `json:"show_profile_relations"`
+	ShowPrev         bool     `json:"show_prev"`
+	ShowNext         bool     `json:"show_next"`
+	PrevStart        int32    `json:"prev_start"`
+	NextStart        int32    `json:"next_start"`
+	CursorPaging     bool     `json:"cursor_paging"`
+	NextCursor       string   `json:"next_cursor"`
+	RealtimeEnabled  bool     `json:"realtime_enabled"`
+	RealtimeHome     bool     `json:"realtime_home"`
+	OnPage           bool     `json:"onpage"`
+	OnPageEdit       bool     `json:"onpage_edit"`
+	Query            string   `json:"query"`
+	GroupSettingsURL string   `json:"group_settings_url,omitempty"`
+	GroupMembersURL  string   `json:"group_members_url,omitempty"`
 }
 
 type feedView struct {
@@ -154,8 +153,8 @@ func feedPageDataFromContext(data pongo2.Context) feedPageData {
 		CursorPaging: contextBool(data, "cursor_paging"), NextCursor: contextString(data, "next_cursor"),
 		RealtimeEnabled: contextBool(data, "realtime_enabled"), RealtimeHome: contextBool(data, "realtime_home"),
 		OnPage: contextBool(data, "onpage"), OnPageEdit: contextBool(data, "onpage_edit"), Query: contextString(data, "query"),
-		ManageServicesURL: contextString(data, "manage_services_url"), GroupSettingsURL: contextString(data, "group_settings_url"),
-		GroupMembersURL: contextString(data, "group_members_url"),
+		GroupSettingsURL: contextString(data, "group_settings_url"),
+		GroupMembersURL:  contextString(data, "group_members_url"),
 	}
 }
 

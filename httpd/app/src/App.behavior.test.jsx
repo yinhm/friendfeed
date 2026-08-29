@@ -288,7 +288,7 @@ test('User Feed header exposes plain relationship links without a navigation bar
   expect(screen.queryByRole('navigation', {name: 'Profile relationships'})).not.toBeInTheDocument();
 });
 
-test('Feed management nav preserves server-authorized links after React mounts', () => {
+test('Group Feed header exposes members and settings as plain links', () => {
   const feed = {
     id: 'book-club',
     uuid: 'group-uuid',
@@ -298,17 +298,12 @@ test('Feed management nav preserves server-authorized links after React mounts',
   render(<Feed {...makeFeedProps({
     feed,
     show_header: true,
-    manage_services_url: '/feed/book-club/import',
     group_settings_url: '/groups/book-club/settings',
     group_members_url: '/groups/book-club/members',
   })} />);
 
-  const navigation = screen.getByRole('navigation', {name: 'Feed management'});
-  expect(navigation).toBeInTheDocument();
-  expect(navigation.closest('.header')).not.toBeNull();
-  expect(screen.getByRole('link', {name: 'Feed'})).toHaveAttribute('aria-current', 'page');
-  expect(screen.getByRole('link', {name: 'Import Services'}))
-    .toHaveAttribute('href', '/feed/book-club/import');
+  expect(screen.queryByRole('navigation', {name: 'Feed management'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Import Services'})).not.toBeInTheDocument();
   expect(screen.getByRole('link', {name: 'Settings'}))
     .toHaveAttribute('href', '/groups/book-club/settings');
   expect(screen.getByRole('link', {name: 'Members'}))

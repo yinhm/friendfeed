@@ -465,20 +465,9 @@ func (s *Server) FeedHandler(c *gin.Context) {
 		data["feed_archive_id"] = feed.Id
 	}
 	if actor != "" && feed.Type == "group" {
-		data["feed_management_id"] = feed.Id
-		data["feed_management_page"] = "feed"
 		ctx, cancel := DefaultTimeoutContext()
-		_, manageErr := s.client.ListFeedServices(ctx, &pb.ListFeedServicesRequest{
-			ActorUuid: actor, TargetFeedUuid: feed.Uuid,
-		})
-		cancel()
-		if manageErr == nil {
-			data["manage_services_url"] = "/feed/" + url.PathEscape(feed.Id) + "/import"
-		}
-
 		// Group feeds offer admin/super viewers entry points to the
 		// settings and members pages (docs/group.md manage_group rule).
-		ctx, cancel = DefaultTimeoutContext()
 		view, viewErr := s.client.GetGroup(ctx, &pb.GetGroupRequest{
 			GroupUuid: feed.Uuid, ViewerUuid: actor,
 		})

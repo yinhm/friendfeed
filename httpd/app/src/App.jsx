@@ -28,7 +28,6 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {string} [next_cursor]
  * @property {boolean} [realtime_enabled]
  * @property {boolean} [realtime_home]
- * @property {string} [manage_services_url]
  * @property {string} [group_settings_url]
  * @property {string} [group_members_url]
  * @property {string} query
@@ -79,7 +78,7 @@ function FeedPagin(props) {
 /**
  * @param {{feedId: string, feedUuid: string, name?: string, picture?: string,
  * description?: string, private?: boolean, showRelations?: boolean, commands?: string[],
- * manageServicesUrl?: string, groupSettingsUrl?: string, groupMembersUrl?: string}} props
+ * groupSettingsUrl?: string, groupMembersUrl?: string}} props
  */
 function FeedHeader(props) {
   const [commands, setCommands] = useState(props.commands);
@@ -169,18 +168,19 @@ function FeedHeader(props) {
 
         <div className="flex items-center gap-3">
           {followBtn}
-          {props.showRelations && <span className="flex gap-3 text-sm text-muted-foreground">
-            <a href={`/feed/${props.feedId}/following`} className="hover:text-foreground">Following</a>
-            <a href={`/feed/${props.feedId}/followers`} className="hover:text-foreground">Followers</a>
+          {(props.showRelations || props.groupMembersUrl || props.groupSettingsUrl) &&
+          <span className="flex gap-3 text-sm text-muted-foreground">
+            {props.showRelations && <>
+              <a href={`/feed/${props.feedId}/following`} className="hover:text-foreground">Following</a>
+              <a href={`/feed/${props.feedId}/followers`} className="hover:text-foreground">Followers</a>
+            </>}
+            {props.groupMembersUrl && <a href={props.groupMembersUrl} className="hover:text-foreground">Members</a>}
+            {props.groupSettingsUrl && <a href={props.groupSettingsUrl} className="hover:text-foreground">Settings</a>}
           </span>}
         </div>
         {followError && <div role="alert" className="error-banner">{followError}</div>}
       </div>
       <div className="clear"></div>
-      <FeedManagementNav feedId={props.feedId}
-                         manageServicesUrl={props.manageServicesUrl}
-                         groupSettingsUrl={props.groupSettingsUrl}
-                         groupMembersUrl={props.groupMembersUrl} />
     </div>
   )
 
@@ -198,24 +198,6 @@ export function ProfileRelationsNav({feedId, active}) {
     {link('following', `/feed/${feedId}/following`, 'Following')}
     {link('followers', `/feed/${feedId}/followers`, 'Followers')}
   </nav>;
-}
-
-/**
- * @param {{feedId: string, manageServicesUrl?: string,
- * groupSettingsUrl?: string, groupMembersUrl?: string}} props
- */
-function FeedManagementNav(props) {
-  if (!props.manageServicesUrl && !props.groupSettingsUrl && !props.groupMembersUrl) return null;
-  const linkClass = 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground';
-  return (
-    <nav className="mb-6 flex gap-1 border-b border-border" aria-label="Feed management">
-      <a href={'/feed/' + props.feedId} aria-current="page"
-         className="border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary">Feed</a>
-      {props.groupSettingsUrl && <a href={props.groupSettingsUrl} className={linkClass}>Settings</a>}
-      {props.groupMembersUrl && <a href={props.groupMembersUrl} className={linkClass}>Members</a>}
-      {props.manageServicesUrl && <a href={props.manageServicesUrl} className={linkClass}>Import Services</a>}
-    </nav>
-  );
 }
 
 /** @param {FeedProps} props */
@@ -333,7 +315,6 @@ export function Feed(props) {
                   private={feed.private}
                   showRelations={state.show_profile_relations}
                   commands={feed.commands}
-                  manageServicesUrl={state.manage_services_url}
                   groupSettingsUrl={state.group_settings_url}
                   groupMembersUrl={state.group_members_url} />
     )
@@ -411,7 +392,6 @@ export function App({data}) {
       next_cursor={appData.next_cursor}
       realtime_enabled={appData.realtime_enabled}
       realtime_home={appData.realtime_home}
-      manage_services_url={appData.manage_services_url}
       group_settings_url={appData.group_settings_url}
       group_members_url={appData.group_members_url}
       query={appData.query}

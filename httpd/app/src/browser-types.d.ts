@@ -22,7 +22,7 @@ export type FeedPageData = {
   show_prev: boolean; show_next: boolean; prev_start: number; next_start: number;
   cursor_paging: boolean; next_cursor: string; realtime_enabled: boolean;
   realtime_home: boolean; onpage: boolean; onpage_edit: boolean; query: string;
-  manage_services_url?: string; group_settings_url?: string; group_members_url?: string;
+  group_settings_url?: string; group_members_url?: string;
 };
 export type ProfileSummary = {uuid: string; id: string; name: string; picture?: string};
 export type PageBootstrap<T = unknown> = {
