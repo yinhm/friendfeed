@@ -10,6 +10,7 @@ import (
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestVerifySchemaAcceptsCanonicalEmptyDatabase(t *testing.T) {
@@ -27,6 +28,23 @@ func TestVerifySchemaAcceptsCanonicalEmptyDatabase(t *testing.T) {
 	writeSchemaVerification(&out, result)
 	require.Contains(t, out.String(), "application_schema=missing")
 	require.Contains(t, out.String(), "ready=true")
+}
+
+func TestInspectSchemaOnlyReadsMetadata(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+	key := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
+	require.NoError(t, db.Set(key, []byte("legacy")))
+
+	result, err := inspectSchema(db)
+	require.NoError(t, err)
+	require.Empty(t, result.Blockers)
+	var out bytes.Buffer
+	writeSchemaInspection(&out, result)
+	require.Contains(t, out.String(), "application_schema=missing")
+	require.NotContains(t, out.String(), "ready=")
+	require.NotContains(t, out.String(), "blocker=")
 }
 
 func TestVerifySchemaReportsRetiredPublicCache(t *testing.T) {
@@ -55,6 +73,27 @@ func TestVerifySchemaReportsLegacyDefaultPicture(t *testing.T) {
 	result, err := verifySchema(db)
 	require.NoError(t, err)
 	require.Equal(t, 1, blockerCount(result, "legacy_default_pictures"))
+}
+
+func TestVerifySchemaCombinesLegacyEntryChecks(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	entryID := uuid.Must(uuid.NewV4())
+	entry := &pb.Entry{
+		Id: entryID.String(), ProfileUuid: uuid.Must(uuid.NewV4()).String(),
+		Date: "2026-01-01T00:00:00Z", Body: `<img src="http://i.friendfeed.com/legacy.jpg">`,
+		Likes: []*pb.Like{{}},
+	}
+	raw, err := proto.Marshal(entry)
+	require.NoError(t, err)
+	require.NoError(t, db.Set(model.Entry.PrefixAppend(entryID.Bytes()), raw))
+
+	legacy, err := scanSchemaLegacyRows(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, legacy.embeddedInteractionEntries)
+	require.Equal(t, 1, legacy.legacyMediaEntries)
 }
 
 func TestConfirmSchemaStamp(t *testing.T) {

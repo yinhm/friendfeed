@@ -74,8 +74,9 @@
 
 实现：
 
-- `inspect_schema` 只读输出 application schema、Pebble FMV 和是否可盖章，不修改数据库。
+- `inspect_schema` 只读输出 application schema 与 Pebble FMV，不扫描业务表、不修改数据库。
 - `verify_schema` 复用 `audit_store` 的流式扫描，并补充一次性迁移的 blocker 统计。
+- 互动与媒体残留合并为一次 Entry 扫描，媒体与默认头像合并为一次 Profile 扫描；不为加速并发读取同一 Pebble 表。
 - 输出必须稳定、可保存、每项有名称与计数；任一 blocker 非零时退出失败。
 - archive 中无法映射 actor UUID 的只读 Like/Comment 快照不是 blocker。
 - legacy rawBody/HTML/blockquote、Feedinfo/UserMap、保留表号不是 blocker。

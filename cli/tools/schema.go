@@ -7,7 +7,9 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 type schemaBlocker struct {
@@ -21,13 +23,27 @@ type schemaVerification struct {
 	Blockers     []schemaBlocker
 }
 
-func verifySchema(db *store.Store) (schemaVerification, error) {
-	result := schemaVerification{PebbleFormat: db.FormatMajorVersion().String()}
+type schemaLegacyStats struct {
+	embeddedInteractionEntries int
+	legacyMediaProfiles        int
+	legacyMediaEntries         int
+	legacyDefaultPictures      int
+}
+
+func inspectSchema(db *store.Store) (schemaVerification, error) {
 	info, err := model.InspectDBSchema(db)
+	if err != nil {
+		return schemaVerification{}, err
+	}
+	return schemaVerification{Schema: info, PebbleFormat: db.FormatMajorVersion().String()}, nil
+}
+
+func verifySchema(db *store.Store) (schemaVerification, error) {
+	result, err := inspectSchema(db)
 	if err != nil {
 		return result, err
 	}
-	result.Schema = info
+	info := result.Schema
 	if info.Status == model.DBSchemaMalformed || info.Status == model.DBSchemaFuture {
 		return result, fmt.Errorf("database schema marker is %s (version=%d)", info.Status, info.Version)
 	}
@@ -87,12 +103,14 @@ func verifySchema(db *store.Store) (schemaVerification, error) {
 	add("task_mismatched_idem", audit.tasks.MismatchedIdem)
 	add("task_invalid_done", audit.tasks.InvalidDone)
 
-	interactions, err := migrateInteractions(db, interactionMigrationOptions{dryRun: true})
+	legacy, err := scanSchemaLegacyRows(db)
 	if err != nil {
-		return result, fmt.Errorf("verify embedded interactions: %w", err)
+		return result, err
 	}
-	add("embedded_interaction_entries", interactions.entriesMigrated)
-	add("duplicate_embedded_interactions", interactions.duplicates)
+	add("embedded_interaction_entries", legacy.embeddedInteractionEntries)
+	add("legacy_media_profiles", legacy.legacyMediaProfiles)
+	add("legacy_media_entries", legacy.legacyMediaEntries)
+	add("legacy_default_pictures", legacy.legacyDefaultPictures)
 
 	groupAuthors, err := migrateGroupEntryAuthors(db, groupEntryAuthorMigrationOptions{dryRun: true})
 	if err != nil {
@@ -100,19 +118,6 @@ func verifySchema(db *store.Store) (schemaVerification, error) {
 	}
 	add("legacy_group_entry_authors", groupAuthors.candidates)
 	add("unresolved_group_entry_authors", groupAuthors.unresolved)
-
-	mediaURLs, err := migrateMediaURLs(db, true)
-	if err != nil {
-		return result, fmt.Errorf("verify media URLs: %w", err)
-	}
-	add("legacy_media_profiles", mediaURLs.profiles)
-	add("legacy_media_entries", mediaURLs.entries)
-
-	defaultPictures, err := fixDefaultPictures(db, "", true)
-	if err != nil {
-		return result, fmt.Errorf("verify default pictures: %w", err)
-	}
-	add("legacy_default_pictures", defaultPictures.fixed)
 
 	publicCacheKey := model.NewUUIDKey(model.TableMeta, uuid.NewV5(uuid.NamespaceURL, "index:public:cache"))
 	if _, err := db.Get(publicCacheKey); err == nil {
@@ -123,6 +128,59 @@ func verifySchema(db *store.Store) (schemaVerification, error) {
 	return result, nil
 }
 
+func scanSchemaLegacyRows(db *store.Store) (schemaLegacyStats, error) {
+	stats := schemaLegacyStats{}
+	if err := model.Profile.Iter(db, func(key, raw []byte) error {
+		profile := new(pb.Profile)
+		if err := proto.Unmarshal(raw, profile); err != nil {
+			return fmt.Errorf("decode Profile[%x]: %w", key, err)
+		}
+		if _, legacy := migrateMediaURL(profile.Picture); legacy {
+			stats.legacyMediaProfiles++
+		}
+		if isLegacyDefaultPicture(profile.Picture) {
+			stats.legacyDefaultPictures++
+		}
+		return nil
+	}); err != nil {
+		return stats, fmt.Errorf("verify legacy Profile rows: %w", err)
+	}
+	if err := model.Entry.Iter(db, func(key, raw []byte) error {
+		entry := new(pb.Entry)
+		if err := proto.Unmarshal(raw, entry); err != nil {
+			return fmt.Errorf("decode Entry[%x]: %w", key, err)
+		}
+		if len(entry.Likes) != 0 || len(entry.Comments) != 0 {
+			stats.embeddedInteractionEntries++
+		}
+		legacyMedia := false
+		for _, thumbnail := range entry.Thumbnails {
+			if thumbnail == nil {
+				continue
+			}
+			if _, legacy := migrateMediaURL(thumbnail.Url); legacy {
+				legacyMedia = true
+			}
+			if _, legacy := migrateMediaURL(thumbnail.Link); legacy {
+				legacyMedia = true
+			}
+		}
+		if _, legacy := migrateMediaText(entry.Body); legacy {
+			legacyMedia = true
+		}
+		if _, legacy := migrateMediaText(entry.RawBody); legacy {
+			legacyMedia = true
+		}
+		if legacyMedia {
+			stats.legacyMediaEntries++
+		}
+		return nil
+	}); err != nil {
+		return stats, fmt.Errorf("verify legacy Entry rows: %w", err)
+	}
+	return stats, nil
+}
+
 func writeSchemaVerification(out io.Writer, result schemaVerification) {
 	fmt.Fprintf(out, "application_schema=%s version=%d current=%d pebble_format=%s ready=%t\n",
 		result.Schema.Status, result.Schema.Version, model.CurrentDBSchemaVersion,
@@ -130,6 +188,11 @@ func writeSchemaVerification(out io.Writer, result schemaVerification) {
 	for _, blocker := range result.Blockers {
 		fmt.Fprintf(out, "blocker=%s count=%d\n", blocker.Name, blocker.Count)
 	}
+}
+
+func writeSchemaInspection(out io.Writer, result schemaVerification) {
+	fmt.Fprintf(out, "application_schema=%s version=%d current=%d pebble_format=%s\n",
+		result.Schema.Status, result.Schema.Version, model.CurrentDBSchemaVersion, result.PebbleFormat)
 }
 
 func stampSchema(db *store.Store, dryRun bool) (schemaVerification, bool, error) {

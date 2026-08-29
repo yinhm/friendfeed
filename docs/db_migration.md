@@ -20,16 +20,18 @@ Pebble FMV 只表示底层文件格式。ffdb 另用
 v2.2 是最后迁移窗口：非空 missing/older 数据库启动时告警但继续服务；future 或损坏 marker
 直接拒绝。空数据库首次 ffdb 启动会初始化 current marker。
 
-在一致性副本先执行：
+`inspect_schema` 只读取 marker 与 Pebble FMV，是 O(1) 状态检查。`verify_schema` 才执行完整
+流式验证。在一致性副本执行：
 
 ```bash
-./tools -to <db-copy> -c audit_store
 ./tools -to <db-copy> -c inspect_schema
 ./tools -to <db-copy> -c verify_schema
 ```
 
-`verify_schema` 流式复用 store audit，并检查仍嵌入 Entry 的互动、历史 Group 作者、旧媒体 URL、
-旧默认头像和 retired public cache。blocker 非零时命令失败。archive 中无法映射本地 Profile 的
+`verify_schema` 已包含 store audit，不要求先重复执行 `audit_store`；需要单独保存完整 audit
+统计时才额外运行。验证在已有 audit 扫描之外，把互动与媒体残留合并为一次 Entry 扫描、把媒体与
+默认头像合并为一次 Profile 扫描，并独立检查历史 Group 作者和 retired public cache。
+blocker 非零时命令失败。archive 中无法映射本地 Profile 的
 历史 actor、Feedinfo/UserMap、legacy rawBody/HTML/blockquote 和保留表号不是 blocker。
 
 Twitter OAuth 的历史 Name/NickName 顺序无法仅凭记录可靠判定；运行
@@ -38,13 +40,14 @@ Twitter OAuth 的历史 Name/NickName 顺序无法仅凭记录可靠判定；运
 修复全部 blocker 后，停服、备份，再执行：
 
 ```bash
-./tools -to <db> -c stamp_schema -dry-run
 echo stamp_schema | ./tools -to <db> -c stamp_schema
 ./tools -to <db> -c inspect_schema
 ```
 
-dry-run 完整验证但不写 marker；apply 在同一进程重新验证后写入，不提供 force。写入后不需要手动
-`Flush()` 才生效。dev 与 production 都必须保存 audit/verify/inspect 输出。v2.3 只有在二者盖章并
+apply 在同一进程重新验证后写入，不提供 force。`stamp_schema -dry-run` 也会完整验证但不写
+marker，只在需要额外演练时使用；刚完成 `verify_schema` 后不必把它列为第二次强制扫描。写入后不需要手动
+`Flush()` 才生效。dev 与 production 都必须保存 verify/inspect 输出；若另跑 audit，也一并保存。
+v2.3 只有在二者盖章并
 运行一个发布周期后，才强制拒绝 missing/older 数据库并删除一次性迁移代码。
 
 无行为兼容 flag 已进入一个版本的弃用期：`cli --debug` 与显式

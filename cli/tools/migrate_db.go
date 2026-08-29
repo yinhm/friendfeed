@@ -1461,11 +1461,11 @@ func main() {
 		}
 		writeStoreAudit(os.Stdout, stats)
 	case "inspect_schema":
-		result, err := verifySchema(ndb)
+		result, err := inspectSchema(ndb)
 		if err != nil {
 			log.Fatal(err)
 		}
-		writeSchemaVerification(os.Stdout, result)
+		writeSchemaInspection(os.Stdout, result)
 	case "verify_schema":
 		result, err := verifySchema(ndb)
 		if err != nil {
