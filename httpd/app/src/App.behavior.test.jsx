@@ -244,9 +244,10 @@ test('Feed header follows and unfollows with semantic actions', async () => {
       action: 'follow',
     });
   });
-  expect(screen.getByRole('button', {name: 'Unfollow'})).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Following'})).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Following'})).toHaveClass('rounded-full', 'bg-white');
 
-  fireEvent.click(screen.getByRole('button', {name: 'Unfollow'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Following'}));
   await waitFor(() => {
     expect(postJSONMock).toHaveBeenLastCalledWith('/a/follow', {
       feed_uuid: 'feed-uuid',
@@ -311,10 +312,10 @@ test('Feed header shows the error when unfollow is rejected', async () => {
 
   render(<Feed {...makeFeedProps({feed, show_header: true})} />);
 
-  fireEvent.click(screen.getByRole('button', {name: 'Unfollow'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Following'}));
 
   const alert = await screen.findByRole('alert');
   expect(alert).toHaveTextContent('This action cannot be completed.');
   // The relationship did not change, so the button must not flip to Follow.
-  expect(screen.getByRole('button', {name: 'Unfollow'})).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Following'})).toBeInTheDocument();
 });

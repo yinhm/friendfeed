@@ -83,6 +83,8 @@ function FeedPagin(props) {
 function FeedHeader(props) {
   const [commands, setCommands] = useState(props.commands);
   const [followError, setFollowError] = useState('');
+  const followButtonClass = "rounded-full bg-[#1c1917] px-4 py-2 text-sm font-semibold text-white hover:bg-[#292524] disabled:opacity-50";
+  const followingButtonClass = "rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#1c1917] hover:bg-stone-50 disabled:opacity-50";
 
   const handleFollow = () => {
     var data = {
@@ -115,21 +117,21 @@ function FeedHeader(props) {
     var command = commands[0];
     if (command === "follow") {
       followBtn = (
-        <button type="button" className="inline-action header-action" onClick={handleFollow}>
+        <button type="button" className={followButtonClass} onClick={handleFollow}>
           Follow
         </button>
       )
     }
     if (command === "unfollow") {
       followBtn = (
-        <button type="button" className="inline-action header-action" onClick={handleUnfollow}>
-          Unfollow
+        <button type="button" className={followingButtonClass} onClick={handleUnfollow}>
+          Following
         </button>
       )
     }
     if (command === "requested") {
       followBtn = (
-        <button type="button" className="inline-action header-action" disabled>
+        <button type="button" className={followingButtonClass} disabled>
           Requested
         </button>
       )
