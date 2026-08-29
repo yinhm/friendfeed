@@ -125,6 +125,10 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := prepareRuntimeSchema(rdb); err != nil {
+		rdb.Close()
+		return nil, err
+	}
 	// The legacy meta store was unified into rdb; mdb is kept as an alias.
 	mdb := rdb
 
@@ -168,6 +172,37 @@ func NewApiServer(dbpath string, cfg *util.Config) (*ApiServer, error) {
 		return nil, fmt.Errorf("register media replica task: %w", err)
 	}
 	return srv, nil
+}
+
+func prepareRuntimeSchema(db *store.Store) error {
+	info, err := model.InspectDBSchema(db)
+	if err != nil {
+		return err
+	}
+	switch info.Status {
+	case model.DBSchemaCurrent:
+		return nil
+	case model.DBSchemaFuture, model.DBSchemaMalformed:
+		return fmt.Errorf("refuse to open %s application schema marker (version=%d, current=%d)",
+			info.Status, info.Version, model.CurrentDBSchemaVersion)
+	case model.DBSchemaOlder:
+		slog.Warn("database application schema is older; v2.2 compatibility mode is temporary",
+			"version", info.Version, "current", model.CurrentDBSchemaVersion)
+		return nil
+	case model.DBSchemaMissing:
+		hasRecords, err := model.StoreHasRecords(db)
+		if err != nil {
+			return fmt.Errorf("inspect unversioned database: %w", err)
+		}
+		if !hasRecords {
+			return model.PutDBSchemaVersion(db, model.CurrentDBSchemaVersion)
+		}
+		slog.Warn("database application schema marker is missing; v2.2 compatibility mode is temporary",
+			"current", model.CurrentDBSchemaVersion)
+		return nil
+	default:
+		return fmt.Errorf("unknown application schema status %q", info.Status)
+	}
 }
 
 // StartBackgroundJobs starts task queue and service maintenance.
