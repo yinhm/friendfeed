@@ -5,6 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,12 +21,40 @@ import (
 )
 
 func TestRetiredOldDBCommandsFailBeforePathValidation(t *testing.T) {
+	if command := os.Getenv("FFDB_TEST_RETIRED_COMMAND"); command != "" {
+		toPath = os.Getenv("FFDB_TEST_RETIRED_TO")
+		fromPath = os.Getenv("FFDB_TEST_RETIRED_FROM")
+		setCommandForRetiredTest(command)
+		main()
+		return
+	}
 	for _, command := range []string{"db", "sync"} {
 		err := retiredCommandError(command)
 		require.ErrorContains(t, err, "v1.0.0")
 		require.ErrorContains(t, err, "offline database copy")
+
+		root := t.TempDir()
+		to := filepath.Join(root, "target")
+		from := filepath.Join(root, "source")
+		cmd := exec.Command(os.Args[0], "-test.run=^TestRetiredOldDBCommandsFailBeforePathValidation$")
+		cmd.Env = append(os.Environ(),
+			"FFDB_TEST_RETIRED_COMMAND="+command,
+			"FFDB_TEST_RETIRED_TO="+to,
+			"FFDB_TEST_RETIRED_FROM="+from,
+		)
+		output, runErr := cmd.CombinedOutput()
+		require.Error(t, runErr)
+		require.Contains(t, string(output), "v1.0.0")
+		_, statErr := os.Stat(to)
+		require.ErrorIs(t, statErr, os.ErrNotExist)
+		_, statErr = os.Stat(from)
+		require.ErrorIs(t, statErr, os.ErrNotExist)
 	}
 	require.NoError(t, retiredCommandError("audit_store"))
+}
+
+func setCommandForRetiredTest(value string) {
+	command = value
 }
 
 func TestFlagWasProvided(t *testing.T) {
