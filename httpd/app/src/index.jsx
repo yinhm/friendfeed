@@ -1,20 +1,16 @@
 // @ts-check
 
-import React from 'react';
+import React, {lazy, Suspense} from 'react';
 import { createRoot } from "react-dom/client";
 
 import './styles/globals.css';
 import { App } from './App';
-import { AccountPage } from './account';
-import { FeedImportPage } from './import';
-import { NotificationsPage } from './notifications';
-import { RequestsPage } from './requests';
-import { GroupCreatePage } from './group-create';
-import { GroupSettingsPage } from './group-settings';
-import { GroupMembersPage } from './group-members';
-import { GroupsPage } from './groups';
 import { SiteLayout } from './site-layout';
 import { initSSRNavigation } from './ssr-navigation';
+
+const AccountPages = lazy(() => import('./account-pages'));
+const GroupPages = lazy(() => import('./group-pages'));
+const NotificationPages = lazy(() => import('./notification-pages'));
 
 /** @typedef {import('./browser-types').PageBootstrap} PageBootstrap */
 
@@ -22,17 +18,22 @@ function BootstrapError() {
   return <div className="feed" role="alert">Unable to load this page.</div>;
 }
 
+function PageLoading() {
+  return <div className="feed" role="status">Loading…</div>;
+}
+
 /** @param {PageBootstrap} bootstrap */
 function PageDispatcher({page, data, current_user: currentUser}) {
   if (page === 'feed') return <App data={/** @type {import('./browser-types').FeedPageData} */ (data)} />;
-  if (page === 'account') return <AccountPage data={/** @type {NonNullable<Parameters<typeof AccountPage>[0]>['data']} */ (data)} />;
-  if (page === 'feed-import') return <FeedImportPage data={/** @type {import('./browser-types').FeedImportPageData} */ (data)} />;
-  if (page === 'notifications') return <NotificationsPage data={/** @type {import('./browser-types').NotificationsPageData} */ (data)} />;
-  if (page === 'requests') return <RequestsPage data={/** @type {import('./browser-types').RequestsPageData} */ (data)} />;
-  if (page === 'group-create') return <GroupCreatePage data={/** @type {import('./browser-types').GroupCreatePageData} */ (data)} currentUserId={currentUser?.id ?? ''} />;
-  if (page === 'group-settings') return <GroupSettingsPage data={/** @type {import('./browser-types').GroupSettingsPageData} */ (data)} />;
-  if (page === 'group-members') return <GroupMembersPage data={/** @type {import('./browser-types').GroupMembersPageData} */ (data)} />;
-  if (page === 'groups') return <GroupsPage data={/** @type {import('./browser-types').GroupsPageData} */ (data)} currentUserId={currentUser?.id ?? ''} />;
+  if (page === 'account' || page === 'feed-import') {
+    return <Suspense fallback={<PageLoading />}><AccountPages page={page} data={data} /></Suspense>;
+  }
+  if (page === 'notifications' || page === 'requests') {
+    return <Suspense fallback={<PageLoading />}><NotificationPages page={page} data={data} /></Suspense>;
+  }
+  if (page === 'group-create' || page === 'group-settings' || page === 'group-members' || page === 'groups') {
+    return <Suspense fallback={<PageLoading />}><GroupPages page={page} data={data} currentUserId={currentUser?.id ?? ''} /></Suspense>;
+  }
   return <BootstrapError />;
 }
 
