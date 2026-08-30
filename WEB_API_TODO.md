@@ -5,10 +5,10 @@
 
 ## 0. Contract baseline
 
-- [ ] 将 `docs/web_api.md` 定稿并由 review 明确批准 V1 scope。
-- [ ] 新增 HTTP contract fixtures：success/error/feed/entry/list DTO 的 golden JSON。
-- [ ] 新增 route test，证明 `/api/v1/*` 尚未注册，避免无意复用现有 `/a/*`。
-- [ ] 记录现有 media limits、Entry mutation hooks、Feed manage 权限 helper 和 cursor 行为。
+- [x] 将 `docs/web_api.md` 定稿并由 review 明确批准 V1 scope。
+- [x] 新增 HTTP contract fixtures：success/error/feed/entry/list DTO 的 golden JSON。
+- [x] 新增 route test，证明 `/api/v1/*` 尚未注册，避免无意复用现有 `/a/*`。
+- [x] 记录现有 media limits、Entry mutation hooks、Feed manage 权限 helper 和 cursor 行为。
 
 验收：
 

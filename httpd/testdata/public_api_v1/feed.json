@@ -1,0 +1,11 @@
+{
+  "data": {
+    "id": "book-club",
+    "uuid": "6b7043ef-9a56-4f88-89b6-683d31cf7081",
+    "name": "Book Club",
+    "description": "Books and discussion",
+    "picture_url": "https://m.friendfeed.me/feed/book-club.jpg",
+    "type": "group",
+    "private": true
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "data": {
+    "id": "f145818e-e4ba-4d10-a499-515f46aac391",
+    "title": "Reading notes",
+    "body_html": "<p>A short note.</p>",
+    "created_at": "2026-08-30T12:00:00.123456789Z",
+    "author": {
+      "id": "book-club",
+      "name": "Book Club",
+      "picture_url": "https://m.friendfeed.me/feed/book-club.jpg"
+    },
+    "feed": {
+      "id": "book-club",
+      "name": "Book Club"
+    },
+    "via": {
+      "name": "FriendFeed API"
+    },
+    "images": [],
+    "files": []
+  }
+}

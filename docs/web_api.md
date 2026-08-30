@@ -362,3 +362,15 @@ action、结果和时间。不得记录响应 token。
 - key 管理 UI 和 Public endpoint 在 ffdb 支持上线后才能启用；
 - rollback 到不认识新表的旧版本不会删除 key row，但 Public API 暂停服务；
 - release 前必须在日志、heap/profile、HTTP error 和 browser history 中做 credential 泄漏审计。
+
+## 12. 实施基线
+
+V1 实施复用以下现有边界，不另造第二套默认值：
+
+- 单文件及 browser upload request 上限以 `media.MaxUploadFileBytes` 和现有 upload handler 为准；
+- Entry 写入必须经过 `ApiServer.postEntry`、`model.PutEntryWithTimelineObserver` 及其 public timeline、
+  realtime、search、archive dirty、media mirror hooks；
+- Feed 管理权限复用 personal owner、Group admin、super 的既有领域判断；
+- direct Feed 分页复用 `FetchFeed` 的 opaque cursor，不解释其编码，也不开放 Start/PageSize；
+- Phase 0 golden fixtures 位于 `httpd/testdata/public_api_v1`，生产 route 在 transport phase 前保持
+  未注册。

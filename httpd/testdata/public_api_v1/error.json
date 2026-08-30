@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Request is invalid",
+    "request_id": "req_01"
+  }
+}
