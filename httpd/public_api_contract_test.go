@@ -32,12 +32,14 @@ func TestPublicAPIV1GoldenContractsAreSafeJSON(t *testing.T) {
 	}
 }
 
-func TestPublicAPIV1RoutesRemainClosedAtBaseline(t *testing.T) {
-	raw, err := os.ReadFile("main.go")
+func TestPublicAPIV1DataRoutesRemainClosedAtTransportPhase(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("api", "transport.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), `"/api/v1`) {
-		t.Fatal("Public API V1 route opened before its transport phase")
+	for _, endpoint := range []string{`"/feed"`, `"/feed/entries"`} {
+		if strings.Contains(string(raw), endpoint) {
+			t.Fatalf("Public API V1 data route %s opened before its read/write phase", endpoint)
+		}
 	}
 }

@@ -63,10 +63,10 @@
 
 ## 4. Public API transport shell
 
-- [ ] 新建 `httpd/api` package，注册 `/api/v1` route group。
-- [ ] 实现 request ID、JSON/no-store/nosniff headers、error mapper。
-- [ ] 实现严格 Bearer parser、HTTP timeout/size boundary 和全局并发槽。
-- [ ] 先接入只返回 authenticated principal 的内部测试 endpoint/helper，不暴露 debug route。
+- [x] 新建 `httpd/api` package，注册 `/api/v1` route group。
+- [x] 实现 request ID、JSON/no-store/nosniff headers、error mapper。
+- [x] 实现严格 Bearer parser、HTTP timeout/size boundary 和全局并发槽。
+- [x] 通过 package 内测试 handler 验证 credential 传递，不暴露 debug route。
 
 验收：
 

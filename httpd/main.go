@@ -22,6 +22,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	publicapi "github.com/yinhm/friendfeed/httpd/api"
 	server "github.com/yinhm/friendfeed/httpd/src"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
@@ -101,7 +102,7 @@ func embeddedAssetHandler(assets fs.FS) gin.HandlerFunc {
 	}
 }
 
-func Serve(s *server.Server, config *util.Config) error {
+func Serve(s *server.Server, publicAPI *publicapi.Handler, config *util.Config) error {
 	gauthConfig, err := server.GoogleAuthConfig(config.GAuthKeyFile)
 	if err != nil {
 		return err
@@ -153,6 +154,7 @@ func Serve(s *server.Server, config *util.Config) error {
 	}
 	r.Use(sessions.Sessions("ffdbsess", store))
 	gothic.Store = store
+	publicAPI.Register(r)
 
 	// Serve static assets
 	if options.Debug {
@@ -267,6 +269,7 @@ func Serve(s *server.Server, config *util.Config) error {
 
 	// Long-lived SSE handlers must be signalled before HTTP graceful shutdown;
 	// otherwise every deployment can wait for the full 10 second timeout.
+	publicAPI.Shutdown()
 	s.ShutdownRealtime()
 	s.ShutdownUploadMaintenance()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -308,11 +311,12 @@ func main() {
 	defer rpcConn.Close()
 
 	s := server.NewServer(rpcConn, assetsFS, cfg, options.SecretKey, options.Debug)
+	publicAPI := publicapi.New(pb.NewApiClient(rpcConn))
 	s.StartRealtime(rpcConn)
 	s.StartUploadMaintenance()
 	defer s.ShutdownRealtime()
 	defer s.ShutdownUploadMaintenance()
-	if err := Serve(s, cfg); err != nil {
+	if err := Serve(s, publicAPI, cfg); err != nil {
 		log.Fatalf("webserver: %v", err)
 	}
 }

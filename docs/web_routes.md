@@ -55,6 +55,7 @@
 | `GET /feed/:name/comments` | `InteractionFeedHandler` | login + owner-only | Feed React |
 | `GET /feed/:name/following` | `ProfileRelationsHandler` | login + Feed visibility；User only | app shell + React `profile-relations` |
 | `GET /feed/:name/followers` | `ProfileRelationsHandler` | login + Feed visibility；User only | app shell + React `profile-relations` |
+| `GET /feed/:name/api` | `FeedApiKeyPageHandler` | login + owner/Group admin/super | app shell + React `feed-api-key` |
 | `GET /search` | `SearchHandler` | visibility-filtered | Feed React |
 | `GET /tag/:name` | `TagHandler` | visibility-filtered | Feed React |
 | `GET /a/entry/:uuid` | `ExpandCommentHandler` | entry visibility | HTML fragment |
@@ -95,6 +96,13 @@
 | `GET /groups/:name/members` | `GroupMembersPageHandler` | login + private visibility；管理按钮仅 admin/super | `app_shell.html` + React `group-members` |
 | `POST /groups/:name/members/action` | `GroupMemberActionHandler` | Group admin | membership/admin mutation |
 | `POST /groups/:name/delete` | `GroupDeleteHandler` | Group admin | destructive mutation |
+
+## Public Feed API
+
+`/api/v1` 是 Bearer credential 的 machine API 边界，不使用 session，也不属于 Browser BFF。当前
+transport shell 统一提供 request ID、JSON error、no-store/nosniff、30 秒 timeout、请求体上限和
+32 个全局并发槽；未知路径返回同形状 JSON 404。具体 Feed data route 由 Public API 后续阶段注册，
+不得为了诊断临时暴露 principal/debug endpoint。
 
 ## Notification、static 与 media
 
