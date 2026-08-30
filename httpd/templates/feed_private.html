@@ -21,11 +21,22 @@
     <p class="muted">This feed is private. Log in to request access.</p>
   {% elif state == "pending" %}
     <p>This feed is private. Your follow request is pending approval.</p>
-    <form method="post" action="/a/feed-request/cancel">
-      <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
-      <input type="hidden" name="feed_id" value="{{ profile.Id }}" />
-      <button type="submit" class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#1c1917] hover:bg-stone-50 disabled:opacity-50">Cancel request</button>
-    </form>
+    <button type="button"
+            class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#1c1917] hover:bg-stone-50 disabled:opacity-50"
+            popovertarget="cancel-follow-request-confirmation">Cancel request</button>
+    <div id="cancel-follow-request-confirmation" class="confirmation-popover border-stone-300" popover="auto">
+      <p><strong>Cancel your follow request for {{ profile.Name }}?</strong></p>
+      <div class="mt-4 flex gap-2">
+        <form method="post" action="/a/feed-request/cancel">
+          <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
+          <input type="hidden" name="feed_id" value="{{ profile.Id }}" />
+          <button type="submit" class="rounded-full bg-[#1c1917] px-4 py-2 text-sm font-semibold text-white hover:bg-[#292524] disabled:opacity-50">Cancel request</button>
+        </form>
+        <button type="button"
+                class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#1c1917] hover:bg-stone-50 disabled:opacity-50"
+                popovertarget="cancel-follow-request-confirmation" popovertargetaction="hide">Keep request</button>
+      </div>
+    </div>
   {% else %}
     <p>This feed is private. Only approved followers can read it.</p>
     <form method="post" action="/a/feed-request">
