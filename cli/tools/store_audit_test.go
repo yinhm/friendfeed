@@ -113,6 +113,37 @@ func TestAuditStoreChecksNotificationInvariants(t *testing.T) {
 	require.Equal(t, 1, stats.notificationStateMismatch)
 }
 
+func TestAuditStoreChecksFeedApiKeyRecordsAndOwnership(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	active := uuid.Must(uuid.NewV4())
+	revoked := uuid.Must(uuid.NewV4())
+	orphan := uuid.Must(uuid.NewV4())
+	for id, slug := range map[uuid.UUID]string{active: "api-active", revoked: "api-revoked"} {
+		require.NoError(t, model.UpdateProfile(db, &pb.Profile{Uuid: id.String(), Id: slug, Type: "user"}))
+	}
+	_, _, err = model.GenerateFeedApiKey(db, active, time.Now().UTC())
+	require.NoError(t, err)
+	_, _, err = model.GenerateFeedApiKey(db, revoked, time.Now().UTC())
+	require.NoError(t, err)
+	_, err = model.RevokeFeedApiKey(db, revoked, time.Now().UTC())
+	require.NoError(t, err)
+	_, _, err = model.GenerateFeedApiKey(db, orphan, time.Now().UTC())
+	require.NoError(t, err)
+	bad := uuid.Must(uuid.NewV4())
+	require.NoError(t, db.Put(model.FeedApiKey.PrefixAppend(bad.Bytes()), []byte("not protobuf")))
+
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 4, stats.feedApiKeys)
+	require.Equal(t, 2, stats.activeFeedApiKeys)
+	require.Equal(t, 1, stats.revokedFeedApiKeys)
+	require.Equal(t, 1, stats.invalidFeedApiKeys)
+	require.Equal(t, 1, stats.orphanFeedApiKeys)
+}
+
 func TestAuditStoreChecksServiceRelationships(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)

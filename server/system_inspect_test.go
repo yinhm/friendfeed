@@ -21,6 +21,14 @@ func TestCollectSystemReport(t *testing.T) {
 	require.NoError(t, model.PutServiceState(db, dead, &pb.ServiceState{
 		ServiceUuid: dead.String(), Status: model.ServiceStatusDead,
 	}))
+	activeKeyFeed := uuid.Must(uuid.NewV4())
+	revokedKeyFeed := uuid.Must(uuid.NewV4())
+	_, _, err := model.GenerateFeedApiKey(db, activeKeyFeed, now)
+	require.NoError(t, err)
+	_, _, err = model.GenerateFeedApiKey(db, revokedKeyFeed, now)
+	require.NoError(t, err)
+	_, err = model.RevokeFeedApiKey(db, revokedKeyFeed, now)
+	require.NoError(t, err)
 	srv := &ApiServer{
 		rdb: db, timelineBuildSlots: make(chan struct{}, 8),
 		timelineRetryAfter: map[uuid.UUID]time.Time{active: now.Add(time.Minute)},
@@ -34,9 +42,18 @@ func TestCollectSystemReport(t *testing.T) {
 	require.Equal(t, int64(1), report.Services.Active)
 	require.Equal(t, int64(1), report.Services.Dead)
 	require.Equal(t, int64(1), report.Services.Due)
+	require.Equal(t, int64(1), report.FeedAPI.Active)
+	require.Equal(t, int64(1), report.FeedAPI.Revoked)
+	require.Equal(t, int64(2), report.FeedAPI.Scanned)
 	require.Equal(t, 1, report.Timeline.MaintenanceRunning)
 	require.Equal(t, 8, report.Timeline.MaintenanceLimit)
 	require.Equal(t, 1, report.Timeline.RetryBackoffs)
 	require.Equal(t, int64(2), report.Notification.TrimsRunning)
 	require.Equal(t, int64(9), report.Public.BumpsSinceTrim)
+	raw, err := marshalSystemReport(report)
+	require.NoError(t, err)
+	require.NotContains(t, raw, "key_id")
+	require.NotContains(t, raw, "secret")
+	require.NotContains(t, raw, activeKeyFeed.String())
+	require.NotContains(t, raw, revokedKeyFeed.String())
 }

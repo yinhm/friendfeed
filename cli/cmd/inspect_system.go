@@ -29,6 +29,12 @@ type systemInspectReport struct {
 		Scanned   int64 `json:"scanned"`
 		Truncated bool  `json:"truncated"`
 	} `json:"services"`
+	FeedAPI struct {
+		Active    int64 `json:"active"`
+		Revoked   int64 `json:"revoked"`
+		Scanned   int64 `json:"scanned"`
+		Truncated bool  `json:"truncated"`
+	} `json:"feed_api"`
 	Timeline struct {
 		MaintenanceRunning int `json:"maintenance_running"`
 		MaintenanceLimit   int `json:"maintenance_limit"`
@@ -77,6 +83,9 @@ var inspectSystemCmd = &cobra.Command{
 		fmt.Fprintf(cmd.OutOrStdout(), "services: active %d, degraded %d, dead %d, due %d, scanned %d, truncated %t\n",
 			report.Services.Active, report.Services.Degraded, report.Services.Dead,
 			report.Services.Due, report.Services.Scanned, report.Services.Truncated)
+		fmt.Fprintf(cmd.OutOrStdout(), "Feed API keys: active %d, revoked %d, scanned %d, truncated %t\n",
+			report.FeedAPI.Active, report.FeedAPI.Revoked,
+			report.FeedAPI.Scanned, report.FeedAPI.Truncated)
 		fmt.Fprintf(cmd.OutOrStdout(), "timeline: maintenance %d/%d, retry-backoffs %d\n",
 			report.Timeline.MaintenanceRunning, report.Timeline.MaintenanceLimit, report.Timeline.RetryBackoffs)
 		fmt.Fprintf(cmd.OutOrStdout(), "notification: trims %d\n", report.Notification.TrimsRunning)

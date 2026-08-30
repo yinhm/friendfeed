@@ -31,7 +31,7 @@ The goal of 2.0 is not to add more experimental features. It consolidates the ca
 | Notifications | Core features complete | Follow requests, interactions, group roles/membership, and failed-service notifications; no email, Web Push, or notification aggregation |
 | Realtime updates | Intentionally simplified | SSE carries dirty hints only; Home offers a refresh and then reads the authoritative first page instead of pushing full entries |
 | Search | Complete | Local Bleve index with the same visibility checks used by feeds and permalinks |
-| Public API and client ecosystem | Incompatible | Does not recreate the original public FriendFeed API, mobile clients, or third-party application ecosystem |
+| Public Feed API | Purpose-built V1 | Per-Feed Bearer keys support Feed metadata, cursor-based Entry reads, and multipart publishing; it is not wire-compatible with the original FriendFeed API |
 | Multi-node, large-scale deployment | Not a goal | Designed for a single host and a small community; the main stack is Pebble, ffdb, ffweb, and nginx |
 
 ## Features
@@ -43,6 +43,7 @@ The goal of 2.0 is not to add more experimental features. It consolidates the ca
 - RSS, Atom, and JSON Feed imports for users and groups, including conditional requests, SSRF protection, source moves, and failure lifecycle management.
 - Persistent task queue with leases, epoch fencing, retries, dead history, audits, and operational tools.
 - Persistent in-site notifications and SSE dirty hints.
+- A versioned Public Feed API with per-Feed keys, private/Group Feed isolation, cursor reads, and verified media uploads.
 - Local or R2 media storage, historical media URL migration, and Twitter image rescue tools.
 - Pebble online consistent backups, database audits, index/timeline rebuilds, and memory-bounded migrations.
 - Single-host deployment with systemd, journald, nginx, and Fabric 3.
@@ -160,6 +161,7 @@ Backups are atomically published under `/tmp/backup-YYYYMMDD-HHMMSS`. Because th
 - [Notifications](docs/notifications.md) / [realtime SSE](docs/realtime_sse.md)
 - [Permissions](docs/perm.md) / [OAuth identity](docs/oauth_identity.md) / [profile rename](docs/profile_rename.md)
 - [Theme and frontend styles](docs/theme.md) / [health checks](docs/healthcheck.md)
+- [Public Feed API V1](docs/web_api.md) / [operations](docs/web_api_operations.md)
 - [2.0 release notes](docs/release_2.0.md) / [open architecture decisions](docs/open_decisions.md)
 
 Design documents describe current persistence and behavioral contracts, not a feature wish list. Work that is genuinely undecided is tracked only in `docs/open_decisions.md`.

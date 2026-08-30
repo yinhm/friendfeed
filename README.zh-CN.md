@@ -37,7 +37,7 @@ Home、独立互动数据、RSS/Atom Service、持久化 Task、Notification、�
 | Notification | 核心功能完整 | 支持关注申请、互动、Group 角色/成员和 Service 失效通知；不做邮件、Web Push 或聚合通知 |
 | 实时更新 | 有意简化 | SSE 只发送 dirty hint；Home 显示“有新动态”后读取权威第一页，不推送完整 Entry |
 | Search | 完整 | 本地 Bleve 索引，返回前执行与 Feed/permalink 相同的可见性检查 |
-| API 与客户端生态 | 不兼容 | 没有复刻原 FriendFeed 公共 API、移动客户端和第三方应用生态 |
+| Public Feed API | 独立设计的 V1 | per-Feed Bearer key 支持 Feed metadata、cursor Entry 读取和 multipart 发布；不兼容原 FriendFeed API 协议 |
 | 多机/大规模部署 | 非目标 | 面向单机、小社区；Pebble、ffdb、ffweb 和 nginx 构成主要运行栈 |
 
 ## 当前功能
@@ -50,6 +50,7 @@ Home、独立互动数据、RSS/Atom Service、持久化 Task、Notification、�
 - 用户及 Group 的 RSS/Atom/JSON Feed 导入；条件请求、SSRF 防护、来源迁移与失败生命周期。
 - 持久化 Task Queue，包含 lease、epoch fencing、重试、dead history、audit 与运维工具。
 - 持久化站内通知和 SSE dirty hint。
+- 版本化 Public Feed API：per-Feed key、private/Group Feed 隔离、cursor 读取和经验证的媒体上传。
 - 本地或 R2 媒体存储、历史媒体 URL 迁移和 Twitter 图片抢救工具。
 - Pebble 在线一致性备份、数据库 audit、索引/timeline rebuild 和有界迁移工具。
 - systemd + journald + nginx/Fabric 3 的单机部署方式。
@@ -176,6 +177,7 @@ cli run --t BackupDB
 - [Notification](docs/notifications.md) / [Realtime SSE](docs/realtime_sse.md)
 - [权限](docs/perm.md) / [OAuth 身份](docs/oauth_identity.md) / [Profile rename](docs/profile_rename.md)
 - [主题与前端样式](docs/theme.md) / [健康检查](docs/healthcheck.md)
+- [Public Feed API V1](docs/web_api.md) / [运维手册](docs/web_api_operations.md)
 - [2.0 发布说明](docs/release_2.0.md) / [未决架构事项](docs/open_decisions.md)
 
 设计文档描述的是当前持久化和行为契约，而不是功能愿望清单。真正尚未决定的工作只记录在

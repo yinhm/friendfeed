@@ -45,6 +45,11 @@ type storeAuditStats struct {
 	maxFollowers                 int
 	followRequests               int
 	invalidFollowRequests        int
+	feedApiKeys                  int
+	activeFeedApiKeys            int
+	revokedFeedApiKeys           int
+	invalidFeedApiKeys           int
+	orphanFeedApiKeys            int
 	services                     int
 	serviceStates                int
 	feedServices                 int
@@ -313,6 +318,41 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 			stats.orphanServiceIndexes++
 		}
 		stats.serviceFeedIndexes++
+		return nil
+	}); err != nil {
+		return stats, err
+	}
+	if err := model.FeedApiKey.Iter(db, func(key, raw []byte) error {
+		stats.feedApiKeys++
+		if len(key) != model.FeedApiKey.Prefix.Len()+uuid.Size {
+			stats.invalidFeedApiKeys++
+			return nil
+		}
+		feed, err := uuid.FromBytes(key[model.FeedApiKey.Prefix.Len():])
+		if err != nil || feed == uuid.Nil {
+			stats.invalidFeedApiKeys++
+			return nil
+		}
+		record := new(pb.FeedApiKeyRecord)
+		if err := proto.Unmarshal(raw, record); err != nil {
+			stats.invalidFeedApiKeys++
+			return nil
+		}
+		validActive := record.RevokedAtMs == 0 && len(record.KeyId) == 8 && len(record.SecretSha256) == 32
+		validRevoked := record.RevokedAtMs > 0 && len(record.KeyId) == 8 && len(record.SecretSha256) == 0
+		switch {
+		case validActive:
+			stats.activeFeedApiKeys++
+		case validRevoked:
+			stats.revokedFeedApiKeys++
+		default:
+			stats.invalidFeedApiKeys++
+		}
+		if _, err := model.GetProfileFromUuid(db, feed); errors.Is(err, model.ErrNotFound) || errors.Is(err, model.ErrProfileDeleted) {
+			stats.orphanFeedApiKeys++
+		} else if err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return stats, err
@@ -963,6 +1003,9 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 		stats.services, stats.serviceStates, stats.feedServices, stats.serviceFeedIndexes, stats.dormantServices,
 		stats.stateMissingService, stats.bindingMissingSource, stats.bindingMissingIndex,
 		stats.disabledWithIndex, stats.orphanServiceIndexes)
+	fmt.Fprintf(out, "feed_api_keys=%d active=%d revoked=%d invalid=%d orphan_feed=%d\n",
+		stats.feedApiKeys, stats.activeFeedApiKeys, stats.revokedFeedApiKeys,
+		stats.invalidFeedApiKeys, stats.orphanFeedApiKeys)
 	fmt.Fprintf(out, "like_timeline=%d comment_timeline=%d comment_positions=%d interaction_orphans=%d interaction_mismatches=%d\n",
 		stats.likeTimelineRows, stats.commentTimelineRows, stats.commentPositionRows,
 		stats.interactionOrphans, stats.interactionMismatches)

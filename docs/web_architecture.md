@@ -356,8 +356,8 @@ BFF 不应成为新的业务 source of truth。
 ## 3.3 Browser BFF API 与 Public API 分离
 
 Public Feed API V1 的 endpoint、credential、DTO、持久化和验收细节统一见
-`docs/web_api.md`；可执行阶段见 `WEB_API_TODO.md`。本文件只保留 Web 总体分层，若出现冲突，
-Public API 专项规范优先。
+`docs/web_api.md`，生产操作见 `docs/web_api_operations.md`。本文件只保留 Web 总体分层，若出现
+冲突，Public API 专项规范优先。
 
 必须区分两类接口：
 
@@ -1078,7 +1078,8 @@ templates/
 
 该阶段可以和 Phase 2–4 独立推进，但必须遵守本文定义的边界。
 
-Phase 5 已拆分为 `docs/web_api.md` 和 `WEB_API_TODO.md`。以下内容保留为架构摘要，不再作为
+Public Feed API V1 已由 `docs/web_api.md` 定稿并完成实施；生产操作见
+`docs/web_api_operations.md`。以下内容保留为架构摘要，不再作为
 字段、表号、限额或逐步实施的权威来源。
 
 ### 5.1 ffdb：Feed API Key domain

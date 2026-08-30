@@ -363,6 +363,9 @@ action、结果和时间。不得记录响应 token。
 - rollback 到不认识新表的旧版本不会删除 key row，但 Public API 暂停服务；
 - release 前必须在日志、heap/profile、HTTP error 和 browser history 中做 credential 泄漏审计。
 
+生产部署顺序、curl 验收、rotate/revoke、泄漏响应、回滚与 canonical media orphan 处置见
+`docs/web_api_operations.md`。
+
 ## 12. 实施基线
 
 V1 实施复用以下现有边界，不另造第二套默认值：

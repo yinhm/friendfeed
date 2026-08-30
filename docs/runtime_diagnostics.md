@@ -66,10 +66,11 @@ cli --address 127.0.0.1:8901 inspect-system --json
 
 - Task `ready/inflight/dead`、最老 ready age；
 - Service `active/degraded/dead/due`；
+- Feed API key `active/revoked` 聚合数量（不含 Feed UUID、key ID 或 secret）；
 - Home timeline maintenance 并发占用和失败退避数；
 - Notification trim、Public timeline trim/bump 状态。
 
-Task 与 Service 统计是流式扫描，单表最多检查 100,000 行；达到预算时返回
+Task、Service 与 Feed API key 统计是流式扫描，单表最多检查 100,000 行；达到预算时返回
 `truncated=true`，此时计数是下界，不能当作精确总量。诊断保持常数内存，但扫描仍占用数据库
 读取资源，不应被监控系统高频轮询；建议只在人工排障或低频巡检时调用。损坏记录会使命令明确
 失败，不会静默跳过并给出虚假健康状态。
