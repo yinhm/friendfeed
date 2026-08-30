@@ -96,8 +96,8 @@ func TestUploadHandlerRejectsOversizedRequest(t *testing.T) {
 func TestUploadHandlerValidatesBeforeStorageAndReturnsStagingURLs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	storage := &uploadTestStorage{}
-	cfg := &util.Config{MediaPath: t.TempDir()}
-	server := &Server{staging: media.NewStagingStore(cfg), secretKey: "secret", mediaBaseURL: "https://media.example", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
+	cfg := &util.Config{MediaPath: t.TempDir(), MediaURL: "https://media.example"}
+	server := &Server{uploads: media.NewUploadPipeline(cfg), secretKey: "secret", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
 	server.uploadFetch = func(string) ([]byte, error) { return storage.fetched, nil }
 	router := gin.New()
 	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
@@ -127,7 +127,7 @@ func TestUploadHandlerRemoteSourceUsesControlledFetchAndImagePipeline(t *testing
 	gin.SetMode(gin.TestMode)
 	storage := &uploadTestStorage{fetched: uploadJPEG(t, 20, 10)}
 	cfg := &util.Config{MediaPath: t.TempDir()}
-	server := &Server{staging: media.NewStagingStore(cfg), secretKey: "secret", mediaBaseURL: "https://media.example", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
+	server := &Server{uploads: media.NewUploadPipeline(cfg), secretKey: "secret", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
 	server.uploadFetch = func(string) ([]byte, error) { return storage.fetched, nil }
 	router := gin.New()
 	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
@@ -144,7 +144,7 @@ func TestUploadHandlerRemoteSourceUsesControlledFetchAndImagePipeline(t *testing
 
 func TestUploadHandlerRejectsInvalidRemoteURLBeforeFetch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	server := &Server{staging: media.NewStagingStore(&util.Config{MediaPath: t.TempDir()}), secretKey: "secret", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
+	server := &Server{uploads: media.NewUploadPipeline(&util.Config{MediaPath: t.TempDir()}), secretKey: "secret", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2)}
 	called := false
 	server.uploadFetch = func(string) ([]byte, error) { called = true; return nil, nil }
 	router := gin.New()

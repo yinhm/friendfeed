@@ -123,16 +123,18 @@ func (s *Server) promoteEntryImages(oldRawBody, rawBody, body string, old []*pb.
 				if thumbnail.Name == "" {
 					thumbnail = original
 				}
-				originalKey, err := s.staging.Promote(original.Name, original.Digest, original.Extension, original.Size)
+				published, err := s.uploads.PromoteImage(&media.StagedImage{
+					ThumbnailWidth: asset.Width, ThumbnailHeight: asset.Height,
+					Objects: []media.StagedObject{
+						{Name: original.Name, Digest: original.Digest, Extension: original.Extension, MimeType: original.MimeType, Size: original.Size, Role: "original"},
+						{Name: thumbnail.Name, Digest: thumbnail.Digest, Extension: thumbnail.Extension, MimeType: thumbnail.MimeType, Size: thumbnail.Size, Role: "thumbnail"},
+					},
+				})
 				if err != nil {
-					return fmt.Errorf("promote image original: %w", err)
+					return fmt.Errorf("promote image: %w", err)
 				}
-				thumbKey, err := s.staging.Promote(thumbnail.Name, thumbnail.Digest, thumbnail.Extension, thumbnail.Size)
-				if err != nil {
-					return fmt.Errorf("promote image thumbnail: %w", err)
-				}
-				originalURL := strings.TrimRight(s.mediaBaseURL, "/") + "/" + originalKey
-				thumbURL := strings.TrimRight(s.mediaBaseURL, "/") + "/" + thumbKey
+				originalURL := published.URL
+				thumbURL := published.ThumbnailURL
 				body = strings.ReplaceAll(body, originalValue, originalURL)
 				body = strings.ReplaceAll(body, urlValue, thumbURL)
 				node["url"] = thumbURL

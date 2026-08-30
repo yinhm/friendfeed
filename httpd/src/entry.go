@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -277,7 +276,7 @@ func (s *Server) UploadHandler(c *gin.Context) {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "uploaded file is too large"})
 		return
 	}
-	prepared, err := media.PrepareUploadedImage(content, 1024)
+	prepared, err := s.uploads.StageImage(content, 1024)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "unsupported or invalid image"})
 		return
@@ -299,42 +298,36 @@ func (s *Server) fetchUploadedImage(source string) ([]byte, error) {
 	return s.uploadFetch(parsed.String())
 }
 
-func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.PreparedImage) {
+func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.StagedImage) {
 	if prepared == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not process image"})
 		return
 	}
-	originalName, originalDigest, err := s.staging.Put(prepared.Original, prepared.Extension)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage image"})
-		return
-	}
-	thumbName, thumbDigest, thumbExt := originalName, originalDigest, prepared.ThumbnailExtension
-	thumbMime := prepared.ThumbnailMimeType
-	if !bytes.Equal(prepared.Original, prepared.Thumbnail) {
-		thumbName, thumbDigest, err = s.staging.Put(prepared.Thumbnail, thumbExt)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage image thumbnail"})
-			return
-		}
-	}
-	objects := []stagedObject{{Name: originalName, Digest: originalDigest, Extension: prepared.Extension, MimeType: prepared.MimeType, Size: len(prepared.Original), Role: "original"}}
-	if thumbName != originalName {
-		objects = append(objects, stagedObject{Name: thumbName, Digest: thumbDigest, Extension: thumbExt, MimeType: thumbMime, Size: len(prepared.Thumbnail), Role: "thumbnail"})
+	objects := make([]stagedObject, 0, len(prepared.Objects))
+	for _, object := range prepared.Objects {
+		objects = append(objects, stagedObject{Name: object.Name, Digest: object.Digest, Extension: object.Extension, MimeType: object.MimeType, Size: object.Size, Role: object.Role})
 	}
 	token, err := signAssetToken(s.secretKey, assetTokenPayload{Version: 1, Actor: CurrentUserUuid(c), Kind: "image", Width: prepared.ThumbnailWidth, Height: prepared.ThumbnailHeight, Expires: time.Now().UTC().Add(assetTokenLifetime).Unix(), Objects: objects})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not create asset token"})
 		return
 	}
-	base := strings.TrimRight(s.mediaBaseURL, "/") + "/" + media.StagingDirectory + "/"
+	original, thumbnail := prepared.Objects[0], prepared.Objects[0]
+	for _, object := range prepared.Objects {
+		if object.Role == "original" {
+			original = object
+		}
+		if object.Role == "thumbnail" {
+			thumbnail = object
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"assetToken":  token,
-		"url":         base + thumbName,
-		"originalUrl": base + originalName,
+		"url":         s.uploads.StagingURL(thumbnail),
+		"originalUrl": s.uploads.StagingURL(original),
 		"width":       prepared.ThumbnailWidth,
 		"height":      prepared.ThumbnailHeight,
-		"mimeType":    prepared.MimeType,
-		"size":        len(prepared.Original),
+		"mimeType":    original.MimeType,
+		"size":        original.Size,
 	})
 }

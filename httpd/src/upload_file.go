@@ -121,26 +121,21 @@ func (s *Server) UploadFileHandler(c *gin.Context) {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "uploaded file is too large"})
 		return
 	}
-	info, err := media.InspectAttachment(file.Filename, content)
-	if err != nil || info.MimeType == "image/jpeg" || info.MimeType == "image/png" || info.MimeType == "image/gif" || info.MimeType == "image/webp" {
+	staged, err := s.uploads.StageAttachment(file.Filename, content)
+	if err != nil || staged.Object.MimeType == "image/jpeg" || staged.Object.MimeType == "image/png" || staged.Object.MimeType == "image/gif" || staged.Object.MimeType == "image/webp" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported or invalid attachment"})
 		return
 	}
-	name, digest, err := s.staging.Put(content, info.Extension)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not stage attachment"})
-		return
-	}
 	token, err := signAssetToken(s.secretKey, assetTokenPayload{
-		Version: 1, Actor: CurrentUserUuid(c), Kind: "file", Name: info.Name,
+		Version: 1, Actor: CurrentUserUuid(c), Kind: "file", Name: staged.DisplayName,
 		Expires: time.Now().UTC().Add(assetTokenLifetime).Unix(),
-		Objects: []stagedObject{{Name: name, Digest: digest, Extension: info.Extension, MimeType: info.MimeType, Size: info.Size, Role: "file"}},
+		Objects: []stagedObject{{Name: staged.Object.Name, Digest: staged.Object.Digest, Extension: staged.Object.Extension, MimeType: staged.Object.MimeType, Size: staged.Object.Size, Role: "file"}},
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not create asset token"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"assetToken": token, "name": info.Name, "mimeType": info.MimeType, "size": info.Size})
+	c.JSON(http.StatusOK, gin.H{"assetToken": token, "name": staged.DisplayName, "mimeType": staged.Object.MimeType, "size": staged.Object.Size})
 }
 
 func (s *Server) filesForEntryPost(actor string, entry *pb.Entry, aware bool, keepURLs, tokens []string, now time.Time) ([]*pb.File, error) {
@@ -170,11 +165,14 @@ func (s *Server) filesForEntryPost(actor string, entry *pb.Entry, aware bool, ke
 			return nil, errors.New("invalid file asset token")
 		}
 		object := payload.Objects[0]
-		key, err := s.staging.Promote(object.Name, object.Digest, object.Extension, object.Size)
+		published, err := s.uploads.PromoteAttachment(&media.StagedAttachment{DisplayName: payload.Name, Object: media.StagedObject{
+			Name: object.Name, Digest: object.Digest, Extension: object.Extension,
+			MimeType: object.MimeType, Size: object.Size, Role: object.Role,
+		}})
 		if err != nil {
 			return nil, fmt.Errorf("promote attachment: %w", err)
 		}
-		fileURL := strings.TrimRight(s.mediaBaseURL, "/") + "/" + key + "?download=" + base64.RawURLEncoding.EncodeToString([]byte(payload.Name))
+		fileURL := published.URL
 		if !seen[fileURL] {
 			seen[fileURL] = true
 			files = append(files, &pb.File{Url: fileURL, Type: object.MimeType, Name: payload.Name, Size: int32(object.Size)})

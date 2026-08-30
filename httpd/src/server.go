@@ -38,8 +38,7 @@ type Server struct {
 	secretKey                 string
 	httpclient                *http.Client
 	cache                     *cache.Cache
-	staging                   *media.StagingStore
-	mediaBaseURL              string
+	uploads                   *media.UploadPipeline
 	uploadRequests            chan struct{}
 	imageOperations           chan struct{}
 	uploadUsersMu             sync.Mutex
@@ -70,8 +69,7 @@ func NewServer(conn *grpc.ClientConn, assets embed.FS, cfg *util.Config, secretK
 		secretKey:       secretKey,
 		httpclient:      httpclient,
 		cache:           cacheStore,
-		staging:         media.NewStagingStore(cfg),
-		mediaBaseURL:    strings.TrimSuffix(media.PublicURL(cfg, ""), "/"),
+		uploads:         media.NewUploadPipeline(cfg),
 		uploadRequests:  make(chan struct{}, 8),
 		imageOperations: make(chan struct{}, 2),
 		uploadUsers:     make(map[string]int),

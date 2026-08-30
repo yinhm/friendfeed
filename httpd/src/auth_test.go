@@ -11,10 +11,10 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	gsessions "github.com/gorilla/sessions"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/faux"
-	gsessions "github.com/gorilla/sessions"
 	"github.com/yinhm/friendfeed/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -29,8 +29,8 @@ func TestExtractNextPath(t *testing.T) {
 		"https://evil.example/auth/google":  "/",
 		"//evil.example/auth/google":        "/",
 		// Browsers treat backslashes as slashes in the Location header.
-		`/\\evil.example`:  "/",
-		`/%5Cevil.example`: "/",
+		`/\\evil.example`:     "/",
+		`/%5Cevil.example`:    "/",
 		`/%5c%5cevil.example`: "/",
 	}
 	for input, want := range tests {

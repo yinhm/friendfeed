@@ -45,6 +45,7 @@ type Principal struct {
 // Handler owns the bounded resources and shutdown signal for Public API V1.
 type Handler struct {
 	client  pb.ApiClient
+	uploads *media.UploadPipeline
 	ctx     context.Context
 	cancel  context.CancelFunc
 	sem     chan struct{}
@@ -52,9 +53,13 @@ type Handler struct {
 	once    sync.Once
 }
 
-func New(client pb.ApiClient) *Handler {
+func New(client pb.ApiClient, pipelines ...*media.UploadPipeline) *Handler {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Handler{client: client, ctx: ctx, cancel: cancel,
+	var uploads *media.UploadPipeline
+	if len(pipelines) > 0 {
+		uploads = pipelines[0]
+	}
+	return &Handler{client: client, uploads: uploads, ctx: ctx, cancel: cancel,
 		sem: make(chan struct{}, defaultConcurrency), timeout: defaultTimeout}
 }
 

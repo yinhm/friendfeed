@@ -34,7 +34,7 @@ func TestFilesForEntryPostPreservesExistingAndPromotesStaging(t *testing.T) {
 	content := []byte("%PDF-1.7\nfile")
 	name, digest, err := staging.Put(content, "pdf")
 	require.NoError(t, err)
-	server := &Server{secretKey: "secret", staging: staging, mediaBaseURL: cfg.MediaURL}
+	server := &Server{secretKey: "secret", uploads: media.NewUploadPipeline(cfg)}
 	entry := &pb.Entry{Files: []*pb.File{{Url: "https://legacy.example/keep.pdf", Name: "keep.pdf", Size: 3}, {Url: "https://legacy.example/remove.pdf", Name: "remove.pdf", Size: 4}}}
 	payload := assetTokenPayload{Version: 1, Actor: "actor", Kind: "file", Name: "new.pdf", Expires: now.Add(time.Hour).Unix(), Objects: []stagedObject{{Name: name, Digest: digest, Extension: "pdf", MimeType: "application/pdf", Size: len(content), Role: "file"}}}
 	token, err := signAssetToken("secret", payload)

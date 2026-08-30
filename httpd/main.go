@@ -24,6 +24,7 @@ import (
 	"github.com/gin-gonic/gin"
 	publicapi "github.com/yinhm/friendfeed/httpd/api"
 	server "github.com/yinhm/friendfeed/httpd/src"
+	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 	"google.golang.org/grpc"
@@ -311,7 +312,7 @@ func main() {
 	defer rpcConn.Close()
 
 	s := server.NewServer(rpcConn, assetsFS, cfg, options.SecretKey, options.Debug)
-	publicAPI := publicapi.New(pb.NewApiClient(rpcConn))
+	publicAPI := publicapi.New(pb.NewApiClient(rpcConn), media.NewUploadPipeline(cfg))
 	s.StartRealtime(rpcConn)
 	s.StartUploadMaintenance()
 	defer s.ShutdownRealtime()

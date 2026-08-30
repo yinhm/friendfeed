@@ -22,7 +22,7 @@ func TestPromoteEntryImagesRewritesAndRemovesTemporaryState(t *testing.T) {
 	stagingURL := cfg.MediaURL + "/upload-staging/" + name
 	raw := `[{"type":"img","url":"` + stagingURL + `","originalUrl":"` + stagingURL + `","assetToken":"` + token + `","children":[{"text":""}]}]`
 	body := `<img src="` + stagingURL + `">`
-	server := &Server{staging: staging, mediaBaseURL: cfg.MediaURL}
+	server := &Server{uploads: media.NewUploadPipeline(cfg)}
 	raw, body, thumbnails, err := server.promoteEntryImages("", raw, body, nil, map[string]*assetTokenPayload{token: payload})
 	require.NoError(t, err)
 	require.NotContains(t, raw, "upload-staging")
@@ -33,7 +33,7 @@ func TestPromoteEntryImagesRewritesAndRemovesTemporaryState(t *testing.T) {
 }
 
 func TestPromoteEntryImagesPreservesNonPlateSourceThumbnails(t *testing.T) {
-	server := &Server{mediaBaseURL: "https://media.example"}
+	server := &Server{uploads: media.NewUploadPipeline(&util.Config{MediaPath: t.TempDir(), MediaURL: "https://media.example"})}
 	old := []*pb.Thumbnail{{Url: "https://source.example/thumb.jpg", Link: "https://source.example/original.jpg"}}
 	raw := `[{"type":"p","children":[{"text":"edited source entry"}]}]`
 	_, _, thumbnails, err := server.promoteEntryImages(raw, raw, "<p>edited source entry</p>", old, nil)

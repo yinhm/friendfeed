@@ -8,7 +8,7 @@ import (
 const stagingCleanupInterval = time.Hour
 
 func (s *Server) StartUploadMaintenance() {
-	if s.staging == nil {
+	if s.uploads == nil {
 		return
 	}
 	s.uploadMaintenanceOnce.Do(func() {
@@ -17,7 +17,7 @@ func (s *Server) StartUploadMaintenance() {
 		go func() {
 			defer s.uploadMaintenanceWG.Done()
 			cleanup := func() {
-				if _, err := s.staging.Cleanup(time.Now().UTC(), assetTokenLifetime); err != nil {
+				if _, err := s.uploads.Cleanup(time.Now().UTC(), assetTokenLifetime); err != nil {
 					log.Printf("upload staging cleanup failed: %v", err)
 				}
 			}

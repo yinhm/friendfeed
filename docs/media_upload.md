@@ -82,6 +82,11 @@ ffdb 收到的是已经由 ffweb 完成 promote、URL rewrite、`Entry.files` �
 - 从 canonical media URL 还原 local object key；
 - R2 PUT primitive。
 
+运行时已由 `media.UploadPipeline` 统一编排 verified bytes 到 staging、promote 时的 size/digest
+复验、content-addressed canonical reuse 及公开 URL 生成。Browser upload 只在该共享层之外保留
+session、并发限制和 HMAC asset token；Public Feed API 只保留 Bearer transport adapter，不复制
+allowlist、thumbnail 或主动内容策略。
+
 新的用户上传路径应复用 primitive，但不能直接调用当前“同步 local + R2 dual-write”的
 `MirrorStorage.Post` 作为用户请求关键路径。
 

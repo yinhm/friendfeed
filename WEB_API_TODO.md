@@ -96,9 +96,9 @@
 
 ## 6. Shared media pipeline
 
-- [ ] 从 browser upload handler 抽取 verified upload/promote helper，不改现有 endpoint contract。
-- [ ] helper 接受显式限额和已认证调用 context，不接受 client storage path。
-- [ ] 保持图片、文件、active-content download、staging cleanup、R2 gate 语义。
+- [x] 从 browser upload handler 抽取 verified upload/promote helper，不改现有 endpoint contract。
+- [x] helper 接受内存字节与明确 thumbnail limit，不接受 client storage path。
+- [x] 保持图片、文件、active-content download、staging cleanup、R2 gate 语义。
 
 验收：
 
