@@ -33,7 +33,7 @@ user UUID -> group UUID             ProfileUuid = 发帖用户
 GroupAdmin(group, user) => Follow(user, group)
 每个未删除 Group 至少有一个 admin
 admin 不得直接退出 Group
-Group Entry 的作者始终是真实用户；可信 machine producer 除外
+Group Entry 的作者是实际用户，或具有明确服务端 provenance 的 Group machine author
 ```
 
 ## 权威数据
@@ -123,11 +123,30 @@ From        = 发帖用户快照
 To          = 唯一的 Group 快照
 ```
 
-服务端根据 Profile/FeedUuid 重建 From/To，不信任客户端提交的快照或多个 target。可信
-machine producer 是明确例外：FeedService 导入和未来经认证的 per-Feed API key 都只能通过
-不导出的专用 mutation boundary 创建 Group/system-authored Entry，可以使用 Group 作为来源
-快照，但 `Via` 必须由服务端记录具体来源，不能伪造某个 admin 为作者。普通 `PostEntry` RPC
-仍不得接受 Group principal。
+服务端根据 Profile/FeedUuid 重建 From/To，不信任客户端提交的快照或多个 target。
+
+### Group machine author
+
+FriendFeed 历史数据已经存在由 Group 绑定的 RSS、Twitter、YouTube 等 Service 自动发布的
+Entry。此类内容不是某个 admin 或 member 的投稿，而是 Group 本身作为 machine author：
+
+```text
+ProfileUuid = Group UUID
+FeedUuid    = Group UUID
+From        = Group 快照
+To          = 空（author 与 canonical target 相同）
+Via         = 服务端生成的具体来源，必须非空
+```
+
+FeedService 导入和经认证的 per-Feed API key 延续这一领域语义。客户端不能提交或覆盖
+ProfileUuid、FeedUuid、From、To、Via，也不能借用 key 创建者或 Group admin 的用户身份。
+两种 producer 都必须进入受控的服务端 mutation boundary，并复用普通 Entry 的索引、timeline、
+realtime、search、archive dirty 和 media 生命周期。
+
+历史归档中还存在 `ProfileUuid = Group UUID, FeedUuid = empty` 的旧编码：当 `From` 同样是
+Group 且 `Via` 非空时，它表示上述 machine-authored Entry，读取时可按 ProfileUuid 回退目标；
+新写入一律使用完整 canonical 编码。若 `From` 是用户快照，则该行仍属于历史用户投稿，不能因
+用户 Profile 已丢失而改判为 machine author。
 
 Group Feed 的最新第一页按 `docs/perm.md` 展示发布窗口，历史 cursor 页不展示。发布只创建
 一条 canonical Entry：author direct index 使其出现在用户 Feed，Group direct index 使同一条

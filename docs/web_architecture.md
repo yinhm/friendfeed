@@ -355,6 +355,10 @@ BFF 不应成为新的业务 source of truth。
 
 ## 3.3 Browser BFF API 与 Public API 分离
 
+Public Feed API V1 的 endpoint、credential、DTO、持久化和验收细节统一见
+`docs/web_api.md`；可执行阶段见 `WEB_API_TODO.md`。本文件只保留 Web 总体分层，若出现冲突，
+Public API 专项规范优先。
+
 必须区分两类接口：
 
 ### Browser BFF endpoint
@@ -476,29 +480,27 @@ API key 的具体 table number/key encoding 必须在实现阶段单独加入 `d
 
 ## 4.4 Feed principal
 
-认证成功后，内部应得到明确 principal：
+认证成功后，ffweb 得到权威 Feed identity：
 
 ```text
-FeedAPIPrincipal {
-    FeedUUID
-}
+FeedUUID
+KeyID (non-secret)
 ```
 
 Public API 请求不应该允许调用方决定 author UUID。
 
-Feed API key 是 machine principal，只能向它绑定的 Feed 发布。客户端不能提交或覆盖 author/target：
+Feed API key 是 machine capability，只能向它绑定的 Feed 发布。客户端不能提交或覆盖 author/target：
 
 ```text
 Bearer key
     |
     v
-AuthenticateFeedAPIKey
+AuthenticateFeedApiKey
     |
     v
-FeedAPIPrincipal { FeedUUID = F }
+ffweb { FeedUUID = F, KeyID }
     |
-    v
-PostFeedAPIEntry
+    +-- trusted internal metadata --> existing PostEntry
     |
     +--> ProfileUuid = F (server derived)
     +--> FeedUuid    = F (server derived)
@@ -507,9 +509,16 @@ PostFeedAPIEntry
     +--> Via.Url     = empty
 ```
 
-对 personal Feed，`F` 同时是用户 Profile 与目标 Feed。对 Group Feed，`ProfileUuid = FeedUuid = Group UUID` 是明确、受限的 **system-authored Entry** 例外，与 FeedService 导入使用相同领域语义；它不表示某个 admin 发帖，也不能借用 key 创建者的 user identity。
+对 personal Feed，`F` 同时是用户 Profile 与目标 Feed。对 Group Feed，`ProfileUuid = FeedUuid = Group UUID` 是明确、受限的 **machine-authored Entry**，与 FeedService 导入使用相同领域语义；它不表示某个 admin 发帖，也不能借用 key 创建者的 user identity。
 
-这不会重新引入历史迁移修复的数据错误：普通用户向 Group 投稿仍必须保存 `ProfileUuid = user UUID, FeedUuid = Group UUID`。只有经过 Feed API key 认证的专用内部 mutation boundary 才能创建 Group/system-authored Entry；现有公开 `PostEntry` RPC 仍不得接受 Group 冒充用户 principal。
+两种 Feed 都满足 author 与 canonical target 相同，因此 `To` 为空；Group 展示身份来自 `From`
+的 canonical Group 快照。`Via` 则区分具体 machine producer。
+
+这不会重新引入历史迁移修复的数据错误：普通用户向 Group 投稿仍必须保存 `ProfileUuid = user UUID, FeedUuid = Group UUID`。只有 ffweb 完成 Feed API key 认证并在 loopback context 注入可信 Feed identity metadata 时，既有 `PostEntry` 才进入 Group machine-author 分支；metadata 缺失时继续拒绝 Group 冒充用户 principal。
+
+ffdev 历史数据验证了这一区分：明确的 Group-author 行同时满足 `From = Group` 与非空 `Via`；
+另有 `ProfileUuid = Group` 但 `From = user` 的历史投稿，其中一部分因用户 Profile 缺失无法迁移，
+仍不得被推断成 machine entry。旧 machine row 的空 FeedUuid 只作读取兼容，新写入不延续该编码。
 
 Group machine entry 的权限边界：
 
@@ -1069,6 +1078,9 @@ templates/
 
 该阶段可以和 Phase 2–4 独立推进，但必须遵守本文定义的边界。
 
+Phase 5 已拆分为 `docs/web_api.md` 和 `WEB_API_TODO.md`。以下内容保留为架构摘要，不再作为
+字段、表号、限额或逐步实施的权威来源。
+
 ### 5.1 ffdb：Feed API Key domain
 
 新增：
@@ -1078,8 +1090,8 @@ templates/
 - Rotate；
 - Revoke；
 - Authenticate；
-- API principal；
-- dedicated feed-authenticated Entry write boundary。
+- authenticated Feed identity；
+- 既有 Feed/Entry RPC 的有界 machine-capability 分支。
 
 管理 API Key 的 browser action：
 
@@ -1097,7 +1109,8 @@ API 使用：
 Bearer key
   -> Public API
   -> ffdb authenticate
-  -> Feed principal
+  -> Feed UUID + non-secret key ID
+  -> reuse FetchFeed / FetchEntry / PostEntry
 ```
 
 ### 5.2 Public API V1
@@ -1138,7 +1151,11 @@ Authorization: Bearer <feed-api-key>
 
 ### 5.4 POST Entry
 
-V1 允许 personal Feed 和 Group Feed 使用 multipart。两者都通过专用 Feed API mutation boundary，由已认证的 Feed principal 派生 author/target；不得把这一能力开放到 legacy `PostEntry` RPC。
+V1 允许 personal Feed 和 Group Feed 使用 multipart。ffweb 完成 key 认证后，通过仅限 loopback
+内部 context 的 Feed identity metadata 调用既有 `PostEntry`；ffdb 据此派生 author/target。
+metadata 缺失时 `PostEntry` 的现有用户语义和 Group 拒绝规则保持不变。
+Feed API metadata 分支固定为 create-only，由 ffdb 生成新的 Entry UUID；复用 `PostEntry` 不代表
+向 API key 暴露其既有编辑路径。
 
 Server derived：
 
@@ -1183,7 +1200,6 @@ Public API 统一响应，例如：
 - invalid_request；
 - payload_too_large；
 - unsupported_media；
-- rate_limited（即使 V1 只预留语义）；
 - internal_error。
 
 ### 5.6 API 验收
@@ -1207,7 +1223,7 @@ Public API 统一响应，例如：
 #### Write
 
 - personal Feed key 发布后 author/feed 正确；
-- Group Feed key 发布后得到带 API provenance 的 Group/system-authored Entry；
+- Group Feed key 发布后得到带 API provenance 的 Group machine-authored Entry；
 - 普通用户向 Group 投稿仍以真实用户作为 `ProfileUuid`；
 - client 伪造 ProfileUuid 无效；
 - Entry domain/timeline/realtime invariant 与正常创建一致；
