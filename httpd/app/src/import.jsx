@@ -1,7 +1,13 @@
 // @ts-check
 
 import React, {useState} from 'react';
-import {obsidianButton, outlinedButton, primaryButton} from './button-styles';
+import {
+  confirmationActions,
+  confirmationPopover,
+  obsidianButton,
+  outlinedButton,
+  primaryButton,
+} from './button-styles';
 import {getJSON, postJSON} from './utils';
 
 /**
@@ -25,8 +31,7 @@ import {getJSON, postJSON} from './utils';
  * @property {number} [last_success_ms]
  */
 
-const smallButtonClass =
-  'rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-sm hover:bg-accent disabled:opacity-50';
+const serviceActionButton = `min-w-20 ${outlinedButton}`;
 
 /**
  * Connected import services with removal, plus entry points for adding
@@ -150,12 +155,12 @@ export function ImportPanel(props) {
                   {service.kind === 'web_feed' && <>
                     <button type="button" disabled={acting !== null}
                             onClick={() => handleAction(service, service.enabled ? 'disable' : 'enable')}
-                            className={smallButtonClass}>
+                            className={serviceActionButton}>
                       {service.enabled ? 'Disable' : 'Enable'}
                     </button>
                     <button type="button" disabled={!service.enabled || acting !== null}
                             onClick={() => handleAction(service, 'refresh')}
-                            className={smallButtonClass}>
+                            className={serviceActionButton}>
                       Refresh
                     </button>
                   </>}
@@ -166,10 +171,10 @@ export function ImportPanel(props) {
                     {removing === service.id ? 'Removing…' : 'Remove'}
                   </button>
                 </div>
-                <div id={confirmationId} popover="auto" className="destructive-confirmation">
+                <div id={confirmationId} popover="auto" className={confirmationPopover}>
                   <p><strong>Remove {serviceLabel(service).title || serviceLabel(service).type}?</strong></p>
                   <p className="hint">The import will stop. Historical entries will be kept.</p>
-                  <div className="mt-4 flex gap-2">
+                  <div className={confirmationActions}>
                     <button type="button" className={`min-w-20 ${obsidianButton}`}
                             popoverTarget={confirmationId} popoverTargetAction="hide"
                             onClick={() => handleRemove(service)}>Remove</button>

@@ -64,7 +64,6 @@ body {
     outline: none;
 }
 
-.legacy-button,
 .sharebox button.submit,
 .entry .comment.form input[type="submit"] {
     border: 1px solid var(--ff-border);
@@ -800,12 +799,6 @@ div.content pre {
     font-size: 14px;
 }
 
-.legacy-button.danger {
-    border-color: var(--ff-danger-border);
-    background: var(--ff-danger);
-    color: var(--ff-danger-fg);
-}
-
 .danger-zone {
     max-width: 36em;
     margin-top: 2em;
@@ -813,7 +806,7 @@ div.content pre {
     border-top: 1px solid var(--ff-hairline);
 }
 
-.destructive-confirmation {
+.confirmation-popover {
     position: fixed;
     inset: 0;
     width: min(28em, calc(100vw - 32px));
@@ -829,15 +822,15 @@ div.content pre {
     box-shadow: 0 8px 30px rgb(0 0 0 / 20%);
 }
 
-.destructive-confirmation::backdrop {
+.confirmation-popover::backdrop {
     background: rgb(0 0 0 / 22%);
 }
 
-.destructive-confirmation p:first-child {
+.confirmation-popover p:first-child {
     margin-top: 0;
 }
 
-.destructive-confirmation .confirm-delete {
+.confirmation-popover .confirm-delete {
     margin-top: 14px;
 }
 

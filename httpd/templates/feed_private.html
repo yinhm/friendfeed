@@ -24,14 +24,14 @@
     <form method="post" action="/a/feed-request/cancel">
       <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
       <input type="hidden" name="feed_id" value="{{ profile.Id }}" />
-      <button type="submit" class="legacy-button">Cancel request</button>
+      <button type="submit" class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#1c1917] hover:bg-stone-50 disabled:opacity-50">Cancel request</button>
     </form>
   {% else %}
     <p>This feed is private. Only approved followers can read it.</p>
     <form method="post" action="/a/feed-request">
       <input type="hidden" name="feed_uuid" value="{{ profile.Uuid }}" />
       <input type="hidden" name="feed_id" value="{{ profile.Id }}" />
-      <button type="submit" class="legacy-button">Request to follow</button>
+      <button type="submit" class="rounded-full bg-[#1c1917] px-4 py-2 text-sm font-semibold text-white hover:bg-[#292524] disabled:opacity-50">Request to follow</button>
     </form>
   {% endif %}
 </div>

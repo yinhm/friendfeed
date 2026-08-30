@@ -1,5 +1,12 @@
 // @ts-check
 import React from 'react';
+import {
+  confirmationActions,
+  confirmationPopover,
+  obsidianButton,
+  outlinedButton,
+  primaryButton,
+} from './button-styles';
 import {GroupManagementNav} from './group-management';
 
 /** @param {{data: import('./browser-types').GroupSettingsPageData}} props */
@@ -27,22 +34,22 @@ export function GroupSettingsPage({data}) {
         <div className="hint">Full URL to the group picture (leave empty for the default).</div>
       </div>
       <div className="actions">
-        <button type="submit" className="legacy-button">Save</button>
+        <button type="submit" className={primaryButton}>Save</button>
         <a href={`/feed/${group.id}`}>Cancel</a>
       </div>
     </form>
     <div className="danger-zone">
       <h3>Delete this group</h3>
       <p className="hint">The group is soft-deleted: it immediately blocks joins, posting and new deliveries. Historical content is cleaned up in the background.</p>
-      <button type="button" className="legacy-button danger" popoverTarget="delete-group-confirmation">Delete group</button>
-      <div id="delete-group-confirmation" className="destructive-confirmation" popover="auto">
+      <button type="button" className={obsidianButton} popoverTarget="delete-group-confirmation">Delete group</button>
+      <div id="delete-group-confirmation" className={confirmationPopover} popover="auto">
         <p><strong>Delete {group.name}?</strong></p>
         <p className="hint">This action immediately disables the group and cannot be undone here.</p>
-        <div className="confirm-delete">
+        <div className={confirmationActions}>
           <form method="post" action={`/groups/${group.id}/delete`}>
-            <button type="submit" className="yes">Confirm delete</button>
+            <button type="submit" className={obsidianButton}>Delete</button>
           </form>
-          <button type="button" className="cancel" popoverTarget="delete-group-confirmation" popoverTargetAction="hide">Cancel</button>
+          <button type="button" className={outlinedButton} popoverTarget="delete-group-confirmation" popoverTargetAction="hide">Cancel</button>
         </div>
       </div>
     </div>

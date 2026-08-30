@@ -1,5 +1,9 @@
 // @ts-check
 import React from 'react';
+import {obsidianButton, outlinedButton} from './button-styles';
+
+const approveButton = `min-w-20 ${obsidianButton}`;
+const rejectButton = `min-w-20 ${outlinedButton}`;
 
 /** @param {{data: import('./browser-types').RequestsPageData}} props */
 export function RequestsPage({data}) {
@@ -15,10 +19,10 @@ export function RequestsPage({data}) {
             <a href={`/feed/${request.requester.id}`}>{request.requester.name}</a>
             {request.requester.private && <span className="private-icon" role="img" aria-label="Private" title="Private" />}
             <span className="item-time">{request.requested_at}</span>
-            <form method="post" action="/account/requests/action">
+            <form method="post" action="/account/requests/action" className="flex gap-2">
               <input type="hidden" name="target_uuid" value={request.requester.uuid} />
-              <button type="submit" name="action" value="approve" className="legacy-button">Approve</button>
-              <button type="submit" name="action" value="reject" className="legacy-button danger">Reject</button>
+              <button type="submit" name="action" value="approve" className={approveButton}>Approve</button>
+              <button type="submit" name="action" value="reject" className={rejectButton}>Reject</button>
             </form>
           </li>)}
     </ul>

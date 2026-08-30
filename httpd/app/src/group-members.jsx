@@ -1,6 +1,11 @@
 // @ts-check
 import React from 'react';
-import {obsidianButton, outlinedButton} from './button-styles';
+import {
+  confirmationActions,
+  confirmationPopover,
+  obsidianButton,
+  outlinedButton,
+} from './button-styles';
 import {GroupManagementNav} from './group-management';
 
 /** @param {{profile: import('./browser-types').AccountPageData['profile']}} props */
@@ -26,9 +31,9 @@ function MemberActions({action, member}) {
       ? <>
           <button type="button" className={activeButton} popoverTarget={demoteConfirmation}>Demote</button>
           <span className="invisible min-w-20" aria-hidden="true">Remove</span>
-          <div id={demoteConfirmation} popover="auto" className="destructive-confirmation border-stone-300">
+          <div id={demoteConfirmation} popover="auto" className={confirmationPopover}>
             <p><strong>Demote {profile.name} from admin?</strong></p>
-            <form method="post" action={action} className="mt-4 flex gap-2">
+            <form method="post" action={action} className={confirmationActions}>
               <input type="hidden" name="target_uuid" value={profile.uuid} />
               <button type="submit" name="action" value="demote" className={primaryButton}>Demote</button>
               <button type="button" className={activeButton} popoverTarget={demoteConfirmation}
@@ -39,18 +44,18 @@ function MemberActions({action, member}) {
       : <>
           <button type="button" className={primaryButton} popoverTarget={promoteConfirmation}>Promote</button>
           <button type="button" className={primaryButton} popoverTarget={removeConfirmation}>Remove</button>
-          <div id={promoteConfirmation} popover="auto" className="destructive-confirmation border-stone-300">
+          <div id={promoteConfirmation} popover="auto" className={confirmationPopover}>
             <p><strong>Promote {profile.name} to admin?</strong></p>
-            <form method="post" action={action} className="mt-4 flex gap-2">
+            <form method="post" action={action} className={confirmationActions}>
               <input type="hidden" name="target_uuid" value={profile.uuid} />
               <button type="submit" name="action" value="promote" className={primaryButton}>Promote</button>
               <button type="button" className={activeButton} popoverTarget={promoteConfirmation}
                       popoverTargetAction="hide">Cancel</button>
             </form>
           </div>
-          <div id={removeConfirmation} popover="auto" className="destructive-confirmation border-stone-300">
+          <div id={removeConfirmation} popover="auto" className={confirmationPopover}>
             <p><strong>Remove {profile.name} from this group?</strong></p>
-            <form method="post" action={action} className="mt-4 flex gap-2">
+            <form method="post" action={action} className={confirmationActions}>
               <input type="hidden" name="target_uuid" value={profile.uuid} />
               <button type="submit" name="action" value="remove" className={primaryButton}>Remove</button>
               <button type="button" className={activeButton} popoverTarget={removeConfirmation}
@@ -75,10 +80,10 @@ export function GroupMembersPage({data}) {
       <ul className="item-list">{data.requests.map(request => <li key={request.requester.uuid}>
         <ProfileLink profile={request.requester} />
         <span className="item-time">{request.requested_at}</span>
-        <form method="post" action={action}>
+        <form method="post" action={action} className="flex gap-2">
           <input type="hidden" name="target_uuid" value={request.requester.uuid} />
-          <button type="submit" name="action" value="approve" className="legacy-button">Approve</button>
-          <button type="submit" name="action" value="reject" className="legacy-button danger">Reject</button>
+          <button type="submit" name="action" value="approve" className={primaryButton}>Approve</button>
+          <button type="submit" name="action" value="reject" className={activeButton}>Reject</button>
         </form>
       </li>)}</ul>
     </>}

@@ -1,7 +1,12 @@
 // @ts-check
 
 import React, { useCallback, useContext, useEffect, useState, lazy, Suspense } from 'react';
-import {obsidianButton, outlinedButton} from './button-styles';
+import {
+  confirmationActions,
+  confirmationPopover,
+  obsidianButton,
+  outlinedButton,
+} from './button-styles';
 import { Entry } from './entry';
 import { getJSON, postJSON, postForm } from './utils';
 import { FeedContext } from './context'
@@ -133,9 +138,9 @@ function FeedHeader(props) {
             Following
           </button>
           <div id={unfollowConfirmationId} popover="auto"
-               className="destructive-confirmation border-stone-300">
+               className={confirmationPopover}>
             <p><strong>Unfollow {props.name}?</strong></p>
-            <div className="mt-4 flex gap-2">
+            <div className={confirmationActions}>
               <button type="button" className={followButtonClass}
                       popoverTarget={unfollowConfirmationId} popoverTargetAction="hide"
                       onClick={handleUnfollow}>Unfollow</button>

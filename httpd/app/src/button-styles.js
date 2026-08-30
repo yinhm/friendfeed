@@ -7,3 +7,6 @@ export const outlinedButton =
 
 export const primaryButton =
   'rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50';
+
+export const confirmationPopover = 'confirmation-popover border-stone-300';
+export const confirmationActions = 'mt-4 flex gap-2';
