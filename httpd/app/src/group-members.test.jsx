@@ -12,16 +12,16 @@ it('renders bounded admin controls and pending requests from server data', () =>
     requests: [{requester: {uuid: 'u3', id: 'carol', name: 'Carol'}, requested_at: 'now'}],
   }} />);
   expect(screen.getByRole('link', {name: 'Members'})).toHaveAttribute('aria-current', 'page');
-  const adminButtons = screen.getAllByRole('button', {name: 'Admin'});
+  const demoteButtons = screen.getAllByRole('button', {name: 'Demote', hidden: true});
+  const promoteButtons = screen.getAllByRole('button', {name: 'Promote', hidden: true});
   expect(screen.getByRole('link', {name: 'Alice'}).parentElement).toHaveClass('min-w-0', 'flex-1');
-  expect(adminButtons[0].parentElement).toHaveClass('ml-auto', 'grid', 'grid-cols-2');
-  expect(adminButtons[0]).toHaveClass('bg-white', 'border-stone-300');
-  expect(adminButtons[0]).toHaveAttribute('popovertarget', 'revoke-admin-u1');
-  expect(adminButtons[1]).toHaveClass('bg-[#1c1917]');
-  expect(adminButtons[0]).toHaveClass('min-w-20');
-  expect(adminButtons[1]).toHaveClass('min-w-20');
-  expect(adminButtons[1]).toHaveAttribute('value', 'promote');
-  expect(screen.getByRole('button', {name: 'Revoke', hidden: true})).toHaveAttribute('value', 'demote');
+  expect(demoteButtons[0].parentElement).toHaveClass('ml-auto', 'grid', 'grid-cols-2');
+  expect(demoteButtons[0]).toHaveClass('bg-white', 'border-stone-300', 'min-w-20');
+  expect(demoteButtons[0]).toHaveAttribute('popovertarget', 'demote-admin-u1');
+  expect(demoteButtons[1]).toHaveAttribute('value', 'demote');
+  expect(promoteButtons[0]).toHaveClass('bg-[#1c1917]', 'min-w-20');
+  expect(promoteButtons[0]).toHaveAttribute('popovertarget', 'promote-admin-u2');
+  expect(promoteButtons[1]).toHaveAttribute('value', 'promote');
   const removeButtons = screen.getAllByRole('button', {name: 'Remove', hidden: true});
   expect(removeButtons[0]).toHaveAttribute('popovertarget', 'remove-member-u2');
   expect(removeButtons[1]).toHaveAttribute('value', 'remove');

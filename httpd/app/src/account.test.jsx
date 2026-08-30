@@ -77,7 +77,7 @@ describe('AccountApp', () => {
     render(<AccountApp initialTab="import" profile={profile} services={services} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
-    fireEvent.click(screen.getByRole('button', {name: 'Confirm remove', hidden: true}));
+    fireEvent.click(screen.getAllByRole('button', {name: 'Remove', hidden: true})[1]);
     await waitFor(() => expect(screen.queryByText('Twitter')).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('link', { name: 'Edit Profile' }));

@@ -53,7 +53,7 @@ describe('ImportPanel', () => {
     const service = screen.getByText('Tech Notes').closest('li');
     fireEvent.click(within(service).getByRole('button', {name: 'Remove'}));
     expect(fetchMock).not.toHaveBeenCalled();
-    fireEvent.click(within(service).getByRole('button', {name: 'Confirm remove', hidden: true}));
+    fireEvent.click(within(service).getAllByRole('button', {name: 'Remove', hidden: true})[1]);
 
     await waitFor(() => expect(screen.queryByText('Tech Notes')).not.toBeInTheDocument());
     expect(screen.getByText('Twitter')).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe('ImportPanel', () => {
 
     const service = screen.getByText('Tech Notes').closest('li');
     fireEvent.click(within(service).getByRole('button', {name: 'Remove'}));
-    fireEvent.click(within(service).getByRole('button', {name: 'Confirm remove', hidden: true}));
+    fireEvent.click(within(service).getAllByRole('button', {name: 'Remove', hidden: true})[1]);
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('service busy'));
     expect(screen.getByText('Tech Notes')).toBeInTheDocument();

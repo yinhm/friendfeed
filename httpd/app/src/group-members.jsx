@@ -1,5 +1,6 @@
 // @ts-check
 import React from 'react';
+import {obsidianButton, outlinedButton} from './button-styles';
 import {GroupManagementNav} from './group-management';
 
 /** @param {{profile: import('./browser-types').AccountPageData['profile']}} props */
@@ -11,35 +12,42 @@ function ProfileLink({profile}) {
   </div>;
 }
 
-const primaryButton = 'min-w-20 rounded-full bg-[#1c1917] px-4 py-2 text-sm font-semibold text-white hover:bg-[#292524] disabled:opacity-50';
-const activeButton = 'min-w-20 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#1c1917] hover:bg-stone-50 disabled:opacity-50';
+const primaryButton = `min-w-20 ${obsidianButton}`;
+const activeButton = `min-w-20 ${outlinedButton}`;
 
 /** @param {{action: string, member: import('./browser-types').GroupMembersPageData['members'][number]}} props */
 function MemberActions({action, member}) {
   const profile = member.profile;
-  const adminConfirmation = `revoke-admin-${profile.uuid}`;
+  const demoteConfirmation = `demote-admin-${profile.uuid}`;
+  const promoteConfirmation = `promote-admin-${profile.uuid}`;
   const removeConfirmation = `remove-member-${profile.uuid}`;
   return <div className="ml-auto grid grid-cols-2 gap-2">
     {member.is_admin
       ? <>
-          <button type="button" className={activeButton} popoverTarget={adminConfirmation}>Admin</button>
+          <button type="button" className={activeButton} popoverTarget={demoteConfirmation}>Demote</button>
           <span className="invisible min-w-20" aria-hidden="true">Remove</span>
-          <div id={adminConfirmation} popover="auto" className="destructive-confirmation border-stone-300">
-            <p><strong>Revoke admin access from {profile.name}?</strong></p>
+          <div id={demoteConfirmation} popover="auto" className="destructive-confirmation border-stone-300">
+            <p><strong>Demote {profile.name} from admin?</strong></p>
             <form method="post" action={action} className="mt-4 flex gap-2">
               <input type="hidden" name="target_uuid" value={profile.uuid} />
-              <button type="submit" name="action" value="demote" className={primaryButton}>Revoke</button>
-              <button type="button" className={activeButton} popoverTarget={adminConfirmation}
+              <button type="submit" name="action" value="demote" className={primaryButton}>Demote</button>
+              <button type="button" className={activeButton} popoverTarget={demoteConfirmation}
                       popoverTargetAction="hide">Cancel</button>
             </form>
           </div>
         </>
       : <>
-          <form method="post" action={action}>
-            <input type="hidden" name="target_uuid" value={profile.uuid} />
-            <button type="submit" name="action" value="promote" className={primaryButton}>Admin</button>
-          </form>
+          <button type="button" className={primaryButton} popoverTarget={promoteConfirmation}>Promote</button>
           <button type="button" className={primaryButton} popoverTarget={removeConfirmation}>Remove</button>
+          <div id={promoteConfirmation} popover="auto" className="destructive-confirmation border-stone-300">
+            <p><strong>Promote {profile.name} to admin?</strong></p>
+            <form method="post" action={action} className="mt-4 flex gap-2">
+              <input type="hidden" name="target_uuid" value={profile.uuid} />
+              <button type="submit" name="action" value="promote" className={primaryButton}>Promote</button>
+              <button type="button" className={activeButton} popoverTarget={promoteConfirmation}
+                      popoverTargetAction="hide">Cancel</button>
+            </form>
+          </div>
           <div id={removeConfirmation} popover="auto" className="destructive-confirmation border-stone-300">
             <p><strong>Remove {profile.name} from this group?</strong></p>
             <form method="post" action={action} className="mt-4 flex gap-2">

@@ -94,7 +94,7 @@ export function AccountApp(props) {
   };
 
   return (
-    <div>
+    <div className="feed">
       <nav className="mb-6 flex gap-1 border-b border-border">
         {tabLink('profile', 'Edit Profile')}
         {tabLink('import', 'Import Services')}

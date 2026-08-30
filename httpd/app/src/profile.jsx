@@ -1,6 +1,7 @@
 // @ts-check
 
 import React, {useState} from 'react';
+import {primaryButton} from './button-styles';
 import {postJSON} from './utils';
 
 /**
@@ -174,8 +175,8 @@ export function ProfileForm(props) {
 
       <div className="flex items-center gap-3">
         <button type="submit" disabled={saving}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-          {saving ? 'Saving…' : 'Save Changes'}
+                className={primaryButton}>
+          {saving ? 'Saving…' : 'Save'}
         </button>
         <a href={'/feed/' + savedId} className="text-sm text-muted-foreground underline hover:text-foreground">Cancel</a>
       </div>

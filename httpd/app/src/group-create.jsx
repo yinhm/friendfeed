@@ -1,5 +1,6 @@
 // @ts-check
 import React from 'react';
+import {primaryButton} from './button-styles';
 
 const activeNav = 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary';
 const inactiveNav = 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground';
@@ -49,7 +50,7 @@ export function GroupCreatePage({data, currentUserId}) {
         <div className="hint">Only approved members can read a private group. Joining requires a follow request approved by an admin.</div>
       </div>
       <div className="actions">
-        <button type="submit" className="legacy-button">Create Group</button>
+        <button type="submit" className={primaryButton}>Create</button>
         <a href="/">Cancel</a>
       </div>
     </form>

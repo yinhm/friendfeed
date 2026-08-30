@@ -12,5 +12,5 @@ it('renders submitted values, navigation, and the server validation error', () =
   expect(screen.getByLabelText('Private group')).toBeChecked();
   expect(screen.getByRole('link', {name: 'Create'})).toHaveAttribute('aria-current', 'page');
   expect(screen.getByRole('link', {name: 'My Groups'})).toHaveAttribute('href', '/feed/alice/groups');
-  expect(screen.getByRole('button', {name: 'Create Group'}).closest('form')).toHaveAttribute('action', '/groups/create');
+  expect(screen.getByRole('button', {name: 'Create'}).closest('form')).toHaveAttribute('action', '/groups/create');
 });

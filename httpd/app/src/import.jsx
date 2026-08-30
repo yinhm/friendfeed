@@ -1,6 +1,7 @@
 // @ts-check
 
 import React, {useState} from 'react';
+import {obsidianButton, outlinedButton, primaryButton} from './button-styles';
 import {getJSON, postJSON} from './utils';
 
 /**
@@ -24,8 +25,6 @@ import {getJSON, postJSON} from './utils';
  * @property {number} [last_success_ms]
  */
 
-const primaryButtonClass =
-  'rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50';
 const smallButtonClass =
   'rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-sm hover:bg-accent disabled:opacity-50';
 
@@ -163,18 +162,18 @@ export function ImportPanel(props) {
                   <button type="button"
                           disabled={removing === service.id}
                           popoverTarget={confirmationId}
-                          className="rounded-md border border-destructive/40 bg-background px-3 py-1.5 text-xs font-medium text-destructive shadow-sm hover:bg-destructive/10 disabled:opacity-50">
+                          className={`min-w-20 ${obsidianButton}`}>
                     {removing === service.id ? 'Removing…' : 'Remove'}
                   </button>
                 </div>
                 <div id={confirmationId} popover="auto" className="destructive-confirmation">
                   <p><strong>Remove {serviceLabel(service).title || serviceLabel(service).type}?</strong></p>
                   <p className="hint">The import will stop. Historical entries will be kept.</p>
-                  <div className="confirm-delete">
-                    <button type="button" className="yes"
+                  <div className="mt-4 flex gap-2">
+                    <button type="button" className={`min-w-20 ${obsidianButton}`}
                             popoverTarget={confirmationId} popoverTargetAction="hide"
-                            onClick={() => handleRemove(service)}>Confirm remove</button>
-                    <button type="button" className="cancel"
+                            onClick={() => handleRemove(service)}>Remove</button>
+                    <button type="button" className={`min-w-20 ${outlinedButton}`}
                             popoverTarget={confirmationId} popoverTargetAction="hide">Cancel</button>
                   </div>
                 </div>
@@ -186,7 +185,7 @@ export function ImportPanel(props) {
       {!hasTwitter &&
         <div>
           <h4 className="mb-2 text-sm font-semibold">Import</h4>
-          <a href="/account/import/twitter" className={`inline-block ${primaryButtonClass}`}>
+          <a href="/account/import/twitter" className={`inline-block ${primaryButton}`}>
             Import Tweet
           </a>
         </div>}
@@ -197,7 +196,7 @@ export function ImportPanel(props) {
           <input type="url" required value={url} onChange={(e) => setUrl(e.target.value)}
                  placeholder="https://example.com/feed.xml"
                  className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring" />
-          <button type="submit" disabled={adding} className={primaryButtonClass}>
+          <button type="submit" disabled={adding} className={primaryButton}>
             {adding ? 'Adding…' : 'Add'}
           </button>
         </div>
