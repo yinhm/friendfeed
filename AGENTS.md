@@ -15,6 +15,7 @@
   - `TableFollowRequest = 118`，编码为 `target feed UUID + requester user UUID -> RFC3339 时间字符串`；新写入使用 `RFC3339Nano` 保留同秒重复申请的 occurrence 精度，读取必须兼容历史秒精度 RFC3339 值。该表仅是 private feed/Group 关注审批的工作流数据；批准后的关系仍以 Follow/Follower 边表示。
   - `TableGroupIndex = 119`，编码为 `reverse activity Unix ms + raw Group UUID -> 空`，是可重建的 Group 发现页排序索引；Profile 仍是 Group metadata 权威来源。
   - Notification 表固定为 `TableNotification = 120`、`TableNotificationInbox = 121`、`TableNotificationState = 122`。canonical Notification key 为 `recipient UUID + notification UUID`；Inbox key 为 `recipient UUID + ^UnixMillis(activity_at) + notification UUID`；State 记录 `last_read_at_ns/unread_count/total_count`。这些编码和 retention 规则见 `docs/notifications.md`。
+  - `TableFeedApiKey = 123`，编码为 `raw Feed UUID -> pb.FeedApiKeyRecord`；value 只含 8-byte key ID、32-byte secret SHA-256 和生命周期时间，绝不保存明文 token。完整契约见 `docs/web_api.md`。
   - Feed 年度统计是 Meta 下的 `feed-archive/v1/<raw feed UUID>` 可重建 protobuf 快照；首次失效时间存于 `feed-archive-dirty/v1/<raw feed UUID>`，编码和维护规则见 `docs/feed_archive.md`。
   - application schema marker 固定为 `TableMeta | "db-schema/version" -> 4-byte big-endian uint32`；Pebble FMV 不能替代 application schema。
   - 非空数据库必须携带 current application schema marker；一次性迁移写入器只保留在 `v2.2.0` tag，不得复制回 master。

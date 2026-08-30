@@ -66,6 +66,9 @@ const (
 	TableNotification      store.KeyPrefix = 120
 	TableNotificationInbox store.KeyPrefix = 121
 	TableNotificationState store.KeyPrefix = 122
+	// TableFeedApiKey stores one API credential record per Feed:
+	// key = raw Feed UUID, value = pb.FeedApiKeyRecord.
+	TableFeedApiKey store.KeyPrefix = 123
 
 	// Prefixes 200-202 belonged to the retired Twitter FeedJob subsystem.
 	// They remain permanently reserved and must never be reassigned.
@@ -118,6 +121,7 @@ var (
 	Notification      = NewTable(KeyPrefixToBytes(TableNotification))
 	NotificationInbox = NewTable(KeyPrefixToBytes(TableNotificationInbox))
 	NotificationState = NewTable(KeyPrefixToBytes(TableNotificationState))
+	FeedApiKey         = NewTable(KeyPrefixToBytes(TableFeedApiKey))
 
 	Task      = NewTable(KeyPrefixToBytes(TableTask))
 	TaskReady = NewTable(KeyPrefixToBytes(TableTaskReady))

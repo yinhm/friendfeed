@@ -84,6 +84,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 120 | Notification | `T + recipient UUID + notification UUID` | versioned JSON NotificationRecord | recipient-owned canonical 通知 |
 | 121 | NotificationInbox | `T + recipient UUID + ^UnixMillis(activity_at) + notification UUID` | 空 | newest-first 通知排序索引 |
 | 122 | NotificationState | `T + recipient UUID` | versioned JSON：read watermark + counters | O(1) unread/total 状态 |
+| 123 | FeedApiKey | `T + raw Feed UUID` | `pb.FeedApiKeyRecord`：8 B key ID、32 B secret SHA-256、生命周期时间 | 每 Feed 至多一个 active Public API credential；不存明文 token |
 | 200–202 | 已退役 Twitter FeedJob | 不再读写 | 不再读写 | 永久保留表号，禁止复用 |
 | 203 | Task | `T + raw Flake ID` | `pb.Task` | Task 权威状态 |
 | 204 | TaskReady | `T + type_len(1) + type + run time + task ID` | 空 | READY 派生索引 |

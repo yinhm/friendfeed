@@ -18,10 +18,10 @@
 
 ## 1. Feed API Key persistence
 
-- [ ] protobuf 新增 `FeedApiKeyRecord`；固定 `TableFeedApiKey = 123` 和 key/value codec。
-- [ ] 实现 token generate/parse、SHA-256 digest、constant-time compare。
-- [ ] 实现 Store/model 层 get/generate/rotate/revoke/authenticate primitive。
-- [ ] 同步 `model/types.go`、`docs/database_design.md`、根 `AGENTS.md`。
+- [x] protobuf 新增 `FeedApiKeyRecord`；固定 `TableFeedApiKey = 123` 和 key/value codec。
+- [x] 实现 token generate/parse、SHA-256 digest、constant-time compare。
+- [x] 实现 Store/model 层 get/generate/rotate/revoke/authenticate primitive。
+- [x] 同步 `model/types.go`、`docs/database_design.md`、根 `AGENTS.md`。
 
 验收：
 

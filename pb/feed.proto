@@ -455,3 +455,13 @@ message Location {
   double latitude = 1;
   double longitude = 2;
 }
+
+// FeedApiKeyRecord is the persisted credential metadata for one Feed. The
+// plaintext token is never stored and is returned only by generate/rotate.
+message FeedApiKeyRecord {
+  bytes key_id = 1;
+  bytes secret_sha256 = 2;
+  int64 created_at_ms = 3;
+  int64 rotated_at_ms = 4;
+  int64 revoked_at_ms = 5;
+}
