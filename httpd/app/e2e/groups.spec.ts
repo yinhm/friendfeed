@@ -46,7 +46,7 @@ test('group create, sidebar navigation, duplicate rejection and delete', async (
     await page.locator('#group-id').fill(groupId);
     await page.locator('#group-name').fill(groupName);
     await page.locator('#group-description').fill('created by the e2e suite');
-    await page.getByRole('button', { name: 'Create Group' }).click();
+    await page.getByRole('button', { name: 'Create' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/feed/${groupId}$`));
     created = true;
@@ -68,7 +68,7 @@ test('group create, sidebar navigation, duplicate rejection and delete', async (
     await page.goto('/groups/create');
     await page.locator('#group-id').fill(groupId);
     await page.locator('#group-name').fill(`${groupName} duplicate`);
-    await page.getByRole('button', { name: 'Create Group' }).click();
+    await page.getByRole('button', { name: 'Create' }).click();
     await expect(page).toHaveURL(/\/groups\/create$/);
     await expect(page.locator('.error-banner')).toBeVisible();
     await expect(page.locator('#group-name')).toHaveValue(`${groupName} duplicate`);

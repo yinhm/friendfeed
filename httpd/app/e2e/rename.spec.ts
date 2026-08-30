@@ -144,7 +144,7 @@ test('profile rename propagates to author display, like state and comment comman
     const oldId = await page.locator('#id').inputValue();
     await page.locator('#id').fill(newId);
     await page.locator('#name').fill('E2E Renamed');
-    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByRole('status')).toContainText(`/feed/${newId}`);
 
     // The old feed URL follows the soft-rename record to the canonical ID.

@@ -33,7 +33,7 @@ test('private user feed: request, approve, read', async ({ browser }) => {
   try {
     await owner.page.goto('/account/profile');
     await owner.page.getByRole('checkbox', { name: /Private/ }).check();
-    await owner.page.getByRole('button', { name: 'Save Changes' }).click();
+    await owner.page.getByRole('button', { name: 'Save' }).click();
     await expect(owner.page.getByRole('status')).toBeVisible();
 
     await outsider.page.goto('/feed/e2e-user');
@@ -61,7 +61,7 @@ test('private user feed: request, approve, read', async ({ browser }) => {
     // Restore the shared fixture: public feed, no leftover approval state.
     await owner.page.goto('/account/profile');
     await owner.page.getByRole('checkbox', { name: /Private/ }).uncheck();
-    await owner.page.getByRole('button', { name: 'Save Changes' }).click();
+    await owner.page.getByRole('button', { name: 'Save' }).click();
     await expect(owner.page.getByRole('status')).toBeVisible();
     await owner.context.close();
     await outsider.context.close();
@@ -85,7 +85,7 @@ test('private group: request, admin approves, member reads', async ({ browser })
     await admin.page.locator('#group-id').fill(groupId);
     await admin.page.locator('#group-name').fill(groupName);
     await admin.page.getByRole('checkbox', { name: 'Private group' }).check();
-    await admin.page.getByRole('button', { name: 'Create Group' }).click();
+    await admin.page.getByRole('button', { name: 'Create' }).click();
     await expect(admin.page).toHaveURL(new RegExp(`/feed/${groupId}$`));
     created = true;
 

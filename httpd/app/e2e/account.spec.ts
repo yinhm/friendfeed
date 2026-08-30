@@ -41,7 +41,7 @@ test('profile form rejects an invalid ID without saving', async ({
   await page.locator('#id').fill('ab');
   await expect(page.getByText('At least 4 characters')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Save Changes' }).click();
+  await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('alert')).toContainText('At least 4 characters');
   await expect(page.getByRole('status')).toHaveCount(0);
   expect(saveRequests).toEqual([]);
