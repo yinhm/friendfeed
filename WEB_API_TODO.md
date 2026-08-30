@@ -110,12 +110,12 @@
 
 ## 7. Write domain mutation
 
-- [ ] 复用既有 `PostEntry`，只在可信 Feed identity metadata 存在时进入 machine-author 分支；
+- [x] 复用既有 `PostEntry`，只在可信 Feed identity metadata 存在时进入 machine-author 分支；
   metadata 缺失时维持现有用户语义与 Group 拒绝规则。
-- [ ] API 分支由 ffdb 无条件生成新 Entry UUID 并锁死 create-only；不得按 request Entry ID
+- [x] API 分支由 ffdb 无条件生成新 Entry UUID 并锁死 create-only；不得按 request Entry ID
   查询或进入编辑路径。
-- [ ] 复用正常 Entry lifecycle hooks；明确 Group machine-authored 分支。
-- [ ] 明确 POST 非幂等；忽略且不储存 Idempotency-Key，不新增幂等表或 replay 状态。
+- [x] 复用正常 Entry lifecycle hooks；明确 Group machine-authored 分支。
+- [x] 明确 POST 非幂等；忽略且不储存 Idempotency-Key，不新增幂等表或 replay 状态。
 
 验收：
 

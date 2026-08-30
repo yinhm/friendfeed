@@ -1155,6 +1155,32 @@ func canonicalizeEntryTo(mdb *store.Store, entry *pb.Entry, authorUUID uuid.UUID
 }
 
 func (s *ApiServer) PostEntry(ctx context.Context, entry *pb.Entry) (*pb.Entry, error) {
+	if capability, ok := feedprincipal.FromIncoming(ctx); ok {
+		if entry == nil {
+			return nil, errors.New("entry is required")
+		}
+		prepared := proto.Clone(entry).(*pb.Entry)
+		entryUUID, err := uuid.NewV4()
+		if err != nil {
+			return nil, status.Error(codes.Internal, "generate Entry UUID")
+		}
+		prepared.Id = entryUUID.String()
+		prepared.Date = time.Now().UTC().Format(time.RFC3339Nano)
+		prepared.ProfileUuid = capability.FeedUUID.String()
+		prepared.FeedUuid = capability.FeedUUID.String()
+		prepared.From = nil
+		prepared.To = nil
+		prepared.Via = &pb.Via{Name: "FriendFeed API"}
+		prepared.Url = ""
+		prepared.RawBody = ""
+		prepared.RawLink = ""
+		prepared.Commands = nil
+		prepared.Comments = nil
+		prepared.Likes = nil
+		prepared.Geo = nil
+		prepared.Type = ""
+		return s.postEntry(ctx, prepared, true)
+	}
 	return s.postEntry(ctx, entry, false)
 }
 
@@ -1198,6 +1224,9 @@ func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemF
 	created, err := s.entryCreated(entry)
 	if err != nil {
 		return nil, err
+	}
+	if _, apiPrincipal := feedprincipal.FromIncoming(ctx); apiPrincipal && !created {
+		return nil, status.Error(codes.AlreadyExists, "generated Entry UUID collision")
 	}
 	var oldEntry *pb.Entry
 	if !created {
