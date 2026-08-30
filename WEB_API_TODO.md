@@ -129,10 +129,10 @@
 
 ## 8. POST multipart endpoint
 
-- [ ] 注册 `POST /api/v1/feed/entries`，严格解析白名单字段。
-- [ ] 使用共享 media helper，构造 canonical RPC request 和 Public Entry DTO response。
-- [ ] 固定 201 create、413/415 等状态。
-- [ ] 所有失败路径清理 staging；canonical orphan 边界写入运维文档。
+- [x] 注册 `POST /api/v1/feed/entries`，严格解析白名单字段。
+- [x] 使用共享 media helper，构造 canonical RPC request 和 Public Entry DTO response。
+- [x] 固定 201 create、413/415 等状态。
+- [x] multipart 临时文件统一清理；canonical orphan 边界写入运维文档。
 
 验收：
 

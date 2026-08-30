@@ -21,7 +21,7 @@ import (
 const (
 	defaultConcurrency = 32
 	defaultTimeout     = 30 * time.Second
-	maxRequestBytes    = media.MaxUploadFileBytes + 64<<10
+	maxRequestBytes    = media.MaxEntryAttachmentBytes + 512<<10
 	requestIDKey       = "public-api-request-id"
 	bearerTokenKey     = "public-api-bearer-token"
 	principalKey       = "public-api-principal"
@@ -78,6 +78,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	group.GET("/feed", h.getFeed)
 	group.GET("/feed/entries", h.listEntries)
 	group.GET("/feed/entries/:entry_id", h.getEntry)
+	group.POST("/feed/entries", h.postEntry)
 }
 
 func (h *Handler) Shutdown() { h.once.Do(h.cancel) }

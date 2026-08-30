@@ -9,6 +9,11 @@ import (
 	"github.com/yinhm/friendfeed/util"
 )
 
+const (
+	MaxEntryAttachments     = 10
+	MaxEntryAttachmentBytes = 100 << 20
+)
+
 type StagedObject struct {
 	Name      string
 	Digest    string

@@ -103,7 +103,8 @@
 transport shell 统一提供 request ID、JSON error、no-store/nosniff、30 秒 timeout、请求体上限和
 32 个全局并发槽；未知路径返回同形状 JSON 404。V1 已开放 `GET /api/v1/feed`、
 `GET /api/v1/feed/entries` 和 `GET /api/v1/feed/entries/:entry_id`；不得为了诊断临时暴露
-principal/debug endpoint。
+principal/debug endpoint。`POST /api/v1/feed/entries` 接受严格白名单 multipart，具体字段、媒体
+限额、非幂等与 canonical orphan 边界以 `docs/web_api.md` 为准。
 
 ## Notification、static 与 media
 

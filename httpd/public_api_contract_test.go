@@ -42,7 +42,7 @@ func TestPublicAPIV1ReadRoutesAreRegisteredBeforeWriteRoute(t *testing.T) {
 			t.Fatalf("Public API V1 read route %s is not registered", endpoint)
 		}
 	}
-	if strings.Contains(string(raw), `group.POST("/feed/entries"`) {
-		t.Fatal("Public API V1 write route opened before its write phase")
+	if !strings.Contains(string(raw), `group.POST("/feed/entries"`) {
+		t.Fatal("Public API V1 write route is not registered")
 	}
 }

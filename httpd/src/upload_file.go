@@ -19,8 +19,8 @@ import (
 
 const (
 	assetTokenLifetime      = 24 * time.Hour
-	maxEntryAttachments     = 10
-	maxEntryAttachmentBytes = 100 << 20
+	maxEntryAttachments     = media.MaxEntryAttachments
+	maxEntryAttachmentBytes = media.MaxEntryAttachmentBytes
 )
 
 type stagedObject struct {
