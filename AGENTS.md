@@ -36,6 +36,7 @@
 ## 数据与并发不变量
 
 - ffdb 仅允许监听 loopback，不得绑定通配地址、网卡地址或对外暴露 gRPC；改变此边界前必须先设计可信 principal。
+- Public Feed API 在 ffweb 鉴权一次后，仅以 loopback gRPC metadata 传递 Feed UUID 与非敏感 key ID；不得把 API key 伪装为用户 viewer、转发 secret 到数据 RPC，或绕过 ffdb 的 canonical target 校验。具体边界见 `docs/web_api.md`。
 - Task 使用 READY/INFLIGHT 主状态、lease epoch fencing 与同批派生索引；handler 必须幂等，payload 与日志不得保存或输出凭据、正文。
 - `PutEntry` 的 entry 与 author/group 直接索引原子提交；Home activity timeline 只 fanout 到 TimelineState 有效的 viewer，独立执行且错误必须返回。活跃 Home 最多 10,000 条，inactive 冷缓存保留 500 条，当前时间窗口为 MAX。`DeleteEntry` 不枚举 viewer，timeline 孤儿由读路径懒删及 audit/rebuild 清理。
 - public timeline 是 TimelineIndex 的保留 viewer（`model.PublicTimelineUUID`），不是真实 profile：仅新建 Entry、首次 Like、新建 Comment 触发 bump，私有/已删除/不可解析的 target feed 一律不进入；不写 TimelineState，compact 永不把它当 inactive；trim 由 bump 计数驱动在后台 goroutine 执行，不进入请求路径。

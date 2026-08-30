@@ -61,13 +61,18 @@ func New(client pb.ApiClient) *Handler {
 // Register installs only the versioned machine API. Browser BFF routes retain
 // their existing session and rendering behavior outside this group.
 func (h *Handler) Register(router *gin.Engine) {
-	group := router.Group("/api/v1")
-	group.Use(h.transportBoundary())
-	// Data endpoints are registered by later phases. Unknown API paths still
-	// obey the stable JSON error contract; this is not a debug endpoint.
-	group.Any("/*path", func(c *gin.Context) {
-		writeError(c, http.StatusNotFound, "not_found", "Resource not found")
+	boundary := h.transportBoundary()
+	router.Use(func(c *gin.Context) {
+		if c.Request.URL.Path != "/api/v1" && !strings.HasPrefix(c.Request.URL.Path, "/api/v1/") {
+			c.Next()
+			return
+		}
+		boundary(c)
 	})
+	group := router.Group("/api/v1")
+	group.GET("/feed", h.getFeed)
+	group.GET("/feed/entries", h.listEntries)
+	group.GET("/feed/entries/:entry_id", h.getEntry)
 }
 
 func (h *Handler) Shutdown() { h.once.Do(h.cancel) }
@@ -115,6 +120,10 @@ func (h *Handler) transportBoundary() gin.HandlerFunc {
 		}
 		c.Set(principalKey, Principal{FeedUUID: principal.FeedUuid, KeyID: append([]byte(nil), principal.KeyId...)})
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBytes)
+		if c.FullPath() == "" {
+			writeError(c, http.StatusNotFound, "not_found", "Resource not found")
+			return
+		}
 		c.Next()
 	}
 }

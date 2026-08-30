@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"errors"
 
 	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/internal/feedprincipal"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"google.golang.org/grpc/codes"
@@ -22,11 +24,25 @@ const (
 // caches target-feed decisions, so a page containing many entries from the
 // same Feed performs one Profile read and at most one Follow lookup.
 type entryVisibilityResolver struct {
-	server  *ApiServer
-	viewer  uuid.UUID
-	profile *pb.Profile
-	targets map[uuid.UUID]visibilityDecision
-	public  map[uuid.UUID]visibilityDecision
+	server     *ApiServer
+	viewer     uuid.UUID
+	profile    *pb.Profile
+	targets    map[uuid.UUID]visibilityDecision
+	public     map[uuid.UUID]visibilityDecision
+	capability uuid.UUID
+}
+
+func newEntryVisibilityResolverForContext(s *ApiServer, ctx context.Context, viewerRaw string) (*entryVisibilityResolver, error) {
+	if capability, ok := feedprincipal.FromIncoming(ctx); ok {
+		if viewerRaw != "" {
+			return nil, status.Error(codes.InvalidArgument, "Feed principal cannot include viewer_uuid")
+		}
+		return &entryVisibilityResolver{
+			server: s, capability: capability.FeedUUID,
+			targets: make(map[uuid.UUID]visibilityDecision), public: make(map[uuid.UUID]visibilityDecision),
+		}, nil
+	}
+	return newEntryVisibilityResolver(s, viewerRaw)
 }
 
 func newEntryVisibilityResolver(s *ApiServer, viewerRaw string) (*entryVisibilityResolver, error) {
@@ -133,6 +149,14 @@ func (r *entryVisibilityResolver) target(feed uuid.UUID, known *pb.Profile) (vis
 	if profile == nil || profile.Deleted {
 		r.targets[feed] = visibilityTargetUnavailable
 		return visibilityTargetUnavailable, nil
+	}
+	if r.capability != uuid.Nil {
+		decision := visibilityDenied
+		if feed == r.capability {
+			decision = visibilityAllowed
+		}
+		r.targets[feed] = decision
+		return decision, nil
 	}
 	if !profile.Private {
 		r.targets[feed] = visibilityAllowed

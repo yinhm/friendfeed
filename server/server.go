@@ -17,6 +17,7 @@ import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
+	"github.com/yinhm/friendfeed/internal/feedprincipal"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
@@ -592,7 +593,7 @@ func (s *ApiServer) FetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Fee
 }
 
 func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
-	if req.PageSize <= 0 || req.PageSize >= 100 {
+	if req.PageSize <= 0 || req.PageSize > 100 {
 		req.PageSize = 50
 	}
 	slog.Debug("ForwardFetchFeed: request", "req", req)
@@ -613,7 +614,7 @@ func (s *ApiServer) ForwardFetchFeed(ctx context.Context, req *pb.FeedRequest) (
 	profileUuid, _ := uuid.FromString(profile.Uuid)
 	prefix := store.NewUUIDKey(model.TableEntryIndex, profileUuid).Bytes()
 
-	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	visibility, err := newEntryVisibilityResolverForContext(s, ctx, req.ViewerUuid)
 	if err != nil {
 		return nil, err
 	}
@@ -721,15 +722,15 @@ const minimumCursorVisibilityScan = 300
 // using direct EntryIndex. Legacy Start/PageSize behavior remains available to
 // old callers, while cached public feeds never reach this method.
 func (s *ApiServer) ForwardFetchFeedWithCursor(ctx context.Context, req *pb.FeedRequest) (*pb.Feed, error) {
-	if req.PageSize <= 0 || req.PageSize >= 100 {
+	if req.PageSize <= 0 || req.PageSize > 100 {
 		req.PageSize = 50
 	}
 
-	profile, prefix, activityTimeline, err := s.cursorFeedTarget(req)
+	profile, prefix, activityTimeline, err := s.cursorFeedTarget(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	visibility, err := newEntryVisibilityResolverForContext(s, ctx, req.ViewerUuid)
 	if err != nil {
 		return nil, err
 	}
@@ -999,7 +1000,7 @@ func (s *ApiServer) maintainHomeTimeline(viewer uuid.UUID, now time.Time) error 
 	return nil
 }
 
-func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Key, bool, error) {
+func (s *ApiServer) cursorFeedTarget(ctx context.Context, req *pb.FeedRequest) (*pb.Profile, store.Key, bool, error) {
 	if isPublicFeedRequest(req) {
 		// The public timeline is a reserved TimelineIndex viewer, not a real
 		// profile. The pseudo profile keeps the historical wire values;
@@ -1020,6 +1021,12 @@ func (s *ApiServer) cursorFeedTarget(req *pb.FeedRequest) (*pb.Profile, store.Ke
 		profile, err := model.GetProfileFromUuid(s.mdb, profileUUID)
 		if err != nil {
 			return nil, nil, false, status.Error(codes.NotFound, "profile not found")
+		}
+		if capability, ok := feedprincipal.FromIncoming(ctx); ok {
+			if capability.FeedUUID != profileUUID {
+				return nil, nil, false, status.Error(codes.PermissionDenied, "Feed principal target mismatch")
+			}
+			return profile, store.NewUUIDKey(model.TableEntryIndex, profileUUID).Bytes(), false, nil
 		}
 		return profile, model.TimelineIndexPrefix(profileUUID), true, nil
 	}
@@ -1077,7 +1084,7 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 		slog.Debug("FetchEntry error", "err", err)
 		return nil, status.Errorf(codes.NotFound, "entry not found")
 	}
-	visibility, err := newEntryVisibilityResolver(s, req.ViewerUuid)
+	visibility, err := newEntryVisibilityResolverForContext(s, ctx, req.ViewerUuid)
 	if err != nil {
 		return nil, err
 	}
@@ -1095,6 +1102,12 @@ func (s *ApiServer) FetchEntry(ctx context.Context, req *pb.EntryRequest) (*pb.F
 	profile, err := fmtEntryProfiles(s.mdb, entry)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "profile not found")
+	}
+	if capability, ok := feedprincipal.FromIncoming(ctx); ok {
+		profile, err = model.GetProfileFromUuid(s.mdb, capability.FeedUUID)
+		if err != nil {
+			return nil, status.Error(codes.NotFound, "target feed not found")
+		}
 	}
 
 	feed := &pb.Feed{

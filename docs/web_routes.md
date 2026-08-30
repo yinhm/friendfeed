@@ -101,8 +101,9 @@
 
 `/api/v1` 是 Bearer credential 的 machine API 边界，不使用 session，也不属于 Browser BFF。当前
 transport shell 统一提供 request ID、JSON error、no-store/nosniff、30 秒 timeout、请求体上限和
-32 个全局并发槽；未知路径返回同形状 JSON 404。具体 Feed data route 由 Public API 后续阶段注册，
-不得为了诊断临时暴露 principal/debug endpoint。
+32 个全局并发槽；未知路径返回同形状 JSON 404。V1 已开放 `GET /api/v1/feed`、
+`GET /api/v1/feed/entries` 和 `GET /api/v1/feed/entries/:entry_id`；不得为了诊断临时暴露
+principal/debug endpoint。
 
 ## Notification、static 与 media
 

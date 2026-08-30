@@ -32,14 +32,17 @@ func TestPublicAPIV1GoldenContractsAreSafeJSON(t *testing.T) {
 	}
 }
 
-func TestPublicAPIV1DataRoutesRemainClosedAtTransportPhase(t *testing.T) {
+func TestPublicAPIV1ReadRoutesAreRegisteredBeforeWriteRoute(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("api", "transport.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, endpoint := range []string{`"/feed"`, `"/feed/entries"`} {
-		if strings.Contains(string(raw), endpoint) {
-			t.Fatalf("Public API V1 data route %s opened before its read/write phase", endpoint)
+	for _, endpoint := range []string{`group.GET("/feed"`, `group.GET("/feed/entries"`, `group.GET("/feed/entries/:entry_id"`} {
+		if !strings.Contains(string(raw), endpoint) {
+			t.Fatalf("Public API V1 read route %s is not registered", endpoint)
 		}
+	}
+	if strings.Contains(string(raw), `group.POST("/feed/entries"`) {
+		t.Fatal("Public API V1 write route opened before its write phase")
 	}
 }

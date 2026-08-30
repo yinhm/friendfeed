@@ -78,12 +78,12 @@
 
 ## 5. Read API
 
-- [ ] ffweb 每个 Public HTTP 请求调用 `AuthenticateFeedApiKey` 一次，不缓存结果。
-- [ ] 复用 `FetchFeed`、`FetchEntry`；以 ffweb 生成的可信 Feed identity metadata 表达 capability，
+- [x] ffweb 每个 Public HTTP 请求调用 `AuthenticateFeedApiKey` 一次，不缓存结果。
+- [x] 复用 `FetchFeed`、`FetchEntry`；以 ffweb 生成的可信 Feed identity metadata 表达 capability，
   不新增平行数据 RPC。
-- [ ] 实现 Feed/Entry/Public pagination DTO mapper 和 golden contract tests。
-- [ ] 注册四个 endpoint 中的三个 GET endpoint。
-- [ ] 复用 direct Feed cursor，限制 1–100，拒绝 Start/PageSize。
+- [x] 实现 Feed/Entry/Public pagination DTO mapper 和 golden contract tests。
+- [x] 注册四个 endpoint 中的三个 GET endpoint。
+- [x] 复用 direct Feed cursor，限制 1–100，拒绝 Start/PageSize。
 
 验收：
 
