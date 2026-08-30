@@ -74,6 +74,12 @@ service Api {
   rpc RejectFollowRequest(FollowRequestAction) returns (google.protobuf.Empty) {}
   rpc ListFollowRequests(ListFollowRequestsRequest) returns (ListFollowRequestsResponse) {}
 
+  rpc GetFeedApiKeyStatus(FeedApiKeyManageRequest) returns (FeedApiKeyStatusResponse) {}
+  rpc GenerateFeedApiKey(FeedApiKeyManageRequest) returns (FeedApiKeyMutationResponse) {}
+  rpc RotateFeedApiKey(FeedApiKeyManageRequest) returns (FeedApiKeyMutationResponse) {}
+  rpc RevokeFeedApiKey(FeedApiKeyManageRequest) returns (FeedApiKeyStatusResponse) {}
+  rpc AuthenticateFeedApiKey(AuthenticateFeedApiKeyRequest) returns (AuthenticateFeedApiKeyResponse) {}
+
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
 }
@@ -465,6 +471,35 @@ message FollowRequestItem {
 message ListFollowRequestsResponse {
   repeated FollowRequestItem requests = 1;
   string next_cursor = 2; // Empty when iteration is complete
+}
+
+message FeedApiKeyManageRequest {
+  string actor_uuid = 1;
+  string feed_uuid = 2;
+}
+
+message FeedApiKeyStatusResponse {
+  string feed_uuid = 1;
+  bytes key_id = 2;
+  int64 created_at_ms = 3;
+  int64 rotated_at_ms = 4;
+  int64 revoked_at_ms = 5;
+  bool active = 6;
+}
+
+message FeedApiKeyMutationResponse {
+  FeedApiKeyStatusResponse status = 1;
+  // Returned exactly once by Generate/Rotate. Never persisted in plaintext.
+  string token = 2;
+}
+
+message AuthenticateFeedApiKeyRequest {
+  string token = 1;
+}
+
+message AuthenticateFeedApiKeyResponse {
+  string feed_uuid = 1;
+  bytes key_id = 2;
 }
 
 // ListGroupMembersRequest pages a Group's membership. Follower edges are the

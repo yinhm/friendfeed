@@ -113,6 +113,8 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, request *pb.GroupMembershipR
 // admin or super. target must already be a member. Only the real non-admin ->
 // admin transition emits GROUP_ADMIN_ADDED, atomically with GroupAdmin.
 func (s *ApiServer) AddGroupAdmin(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
 	}
@@ -150,6 +152,8 @@ func (s *ApiServer) AddGroupAdmin(ctx context.Context, request *pb.GroupMembersh
 // an admin or super. Rejected if target is the Group's only admin. Only a
 // real admin -> member transition emits GROUP_ADMIN_REMOVED.
 func (s *ApiServer) RemoveGroupAdmin(ctx context.Context, request *pb.GroupMembershipRequest) (*emptypb.Empty, error) {
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
 	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
 	}
@@ -232,6 +236,8 @@ func (s *ApiServer) RemoveGroupMember(ctx context.Context, request *pb.GroupMemb
 // delivery through the standard ErrProfileDeleted paths; historical content
 // and relationship edges are left for bounded background cleanup.
 func (s *ApiServer) DeleteGroup(ctx context.Context, request *pb.DeleteGroupRequest) (*emptypb.Empty, error) {
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
 	if request == nil || request.GroupUuid == "" {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
 	}

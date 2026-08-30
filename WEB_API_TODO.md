@@ -33,10 +33,10 @@
 
 ## 2. ffdb key lifecycle and authentication RPC
 
-- [ ] additive 增加 status/generate/rotate/revoke/authenticate RPC 和 request/response。
-- [ ] 统一 Feed manage authorization：personal owner、Group admin、super。
-- [ ] 注册 server handlers；日志/interceptor 不输出 request/token。
-- [ ] 为 deleted actor/feed、非 admin、missing Feed、active Generate、revoked Rotate 固定 error code。
+- [x] additive 增加 status/generate/rotate/revoke/authenticate RPC 和 request/response。
+- [x] 统一 Feed manage authorization：personal owner、Group admin、super。
+- [x] 注册 server handlers；日志/interceptor 不输出 request/token。
+- [x] 为 deleted actor/feed、非 admin、missing Feed、active Generate、revoked Rotate 固定 error code。
 
 验收：
 
