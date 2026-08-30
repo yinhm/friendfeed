@@ -8,6 +8,7 @@ type groupFormView struct {
 	Description string `json:"description,omitempty"`
 	Picture     string `json:"picture,omitempty"`
 	Private     bool   `json:"private,omitempty"`
+	Type        string `json:"type,omitempty"`
 }
 
 type groupCreatePageData struct {
@@ -80,5 +81,6 @@ func groupFormViewFromProto(group *pb.Profile) groupFormView {
 		Description: group.Description,
 		Picture:     group.Picture,
 		Private:     group.Private,
+		Type:        group.Type,
 	}
 }

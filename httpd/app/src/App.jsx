@@ -37,6 +37,7 @@ const OnPageEditor = lazy(() => import('./editor'));
  * @property {boolean} [realtime_home]
  * @property {string} [group_settings_url]
  * @property {string} [group_members_url]
+ * @property {string} [feed_api_url]
  * @property {string} query
  * @property {boolean} onpage
  * @property {boolean} onpage_edit
@@ -85,7 +86,7 @@ function FeedPagin(props) {
 /**
  * @param {{feedId: string, feedUuid: string, name?: string, picture?: string,
  * description?: string, private?: boolean, showRelations?: boolean, groupHeader?: boolean, commands?: string[],
- * groupSettingsUrl?: string, groupMembersUrl?: string}} props
+ * groupSettingsUrl?: string, groupMembersUrl?: string, feedApiUrl?: string}} props
  */
 function FeedHeader(props) {
   const [commands, setCommands] = useState(props.commands);
@@ -175,7 +176,7 @@ function FeedHeader(props) {
 
         <div className="flex items-center gap-3">
           {followBtn}
-          {(props.showRelations || props.groupMembersUrl || props.groupSettingsUrl) &&
+          {(props.showRelations || props.groupMembersUrl || props.groupSettingsUrl || props.feedApiUrl) &&
           <span className="flex gap-3 text-sm text-muted-foreground">
             {props.showRelations && <>
               <a href={`/feed/${props.feedId}/following`} className="hover:text-foreground">Following</a>
@@ -183,6 +184,7 @@ function FeedHeader(props) {
             </>}
             {props.groupMembersUrl && <a href={props.groupMembersUrl} className="hover:text-foreground">Members</a>}
             {props.groupSettingsUrl && <a href={props.groupSettingsUrl} className="hover:text-foreground">Settings</a>}
+            {props.feedApiUrl && <a href={props.feedApiUrl} className="hover:text-foreground">API</a>}
           </span>}
         </div>
         {followError && <div role="alert" className="error-banner">{followError}</div>}
@@ -324,7 +326,8 @@ export function Feed(props) {
                   groupHeader={state.group_feed_header}
                   commands={feed.commands}
                   groupSettingsUrl={state.group_settings_url}
-                  groupMembersUrl={state.group_members_url} />
+                  groupMembersUrl={state.group_members_url}
+                  feedApiUrl={state.feed_api_url} />
     )
   }
 
@@ -402,6 +405,7 @@ export function App({data}) {
       realtime_enabled={appData.realtime_enabled}
       realtime_home={appData.realtime_home}
       group_settings_url={appData.group_settings_url}
+      feed_api_url={appData.feed_api_url}
       group_members_url={appData.group_members_url}
       query={appData.query}
       onpage={appData.onpage}

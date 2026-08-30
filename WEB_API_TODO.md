@@ -48,10 +48,10 @@
 
 ## 3. Browser key management
 
-- [ ] 新增 `/feed/:id/api` authenticated React 页面与 Browser BFF actions。
-- [ ] 接入 Feed management nav，但普通 member 不显示且直接访问稳定 403。
-- [ ] Generate/Rotate/Revoke 使用统一 button/confirmation popover。
-- [ ] token 仅保存在 mutation 后当前 React state，不进入 bootstrap/URL/storage。
+- [x] 新增 `/feed/:id/api` authenticated React 页面与 Browser BFF actions。
+- [x] 接入 Feed management nav，但普通 member 不显示且直接访问稳定 403。
+- [x] Generate/Rotate/Revoke 使用统一 button/confirmation popover。
+- [x] token 仅保存在 mutation 后当前 React state，不进入 bootstrap/URL/storage。
 
 验收：
 

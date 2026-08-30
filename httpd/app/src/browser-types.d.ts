@@ -23,7 +23,7 @@ export type FeedPageData = {
   show_prev: boolean; show_next: boolean; prev_start: number; next_start: number;
   cursor_paging: boolean; next_cursor: string; realtime_enabled: boolean;
   realtime_home: boolean; onpage: boolean; onpage_edit: boolean; query: string;
-  group_settings_url?: string; group_members_url?: string;
+  group_settings_url?: string; group_members_url?: string; feed_api_url?: string;
 };
 export type ProfileSummary = {uuid: string; id: string; name: string; picture?: string};
 export type PageBootstrap<T = unknown> = {
@@ -61,6 +61,11 @@ export type GroupCreatePageData = {
 };
 export type GroupSettingsPageData = {
   group: GroupCreatePageData['group']; error?: string;
+};
+
+export type FeedApiKeyPageData = {
+  feed: {id: string; name: string; description?: string; picture?: string; private?: boolean; type?: string};
+  status: {key_id?: string; created_at_ms?: number; rotated_at_ms?: number; revoked_at_ms?: number; active: boolean};
 };
 export type GroupMembersPageData = {
   group: GroupCreatePageData['group'];

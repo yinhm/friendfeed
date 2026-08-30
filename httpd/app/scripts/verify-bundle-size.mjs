@@ -46,6 +46,12 @@ const budgets = [
     maxGzipBytes: 1_500,
   },
   {
+    name: 'Feed API key page JS',
+    manifestKey: 'src/feed-api-key.jsx',
+    maxBytes: 8_000,
+    maxGzipBytes: 2_500,
+  },
+  {
     name: 'editor JS',
     manifestKey: 'src/editor.jsx',
     maxBytes: 1_500_000,
