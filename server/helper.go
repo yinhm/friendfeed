@@ -124,6 +124,7 @@ func fmtEntryProfilesWithResolver(resolver *profileResolver, entry *pb.Entry) (*
 	entry.From.Name = profile.Name
 	entry.From.Picture = profile.Picture
 	entry.From.Type = profile.Type
+	entry.From.Private = profile.Private
 	// Stamp the identity UUID only when the profile came from the stable
 	// ProfileUuid. The legacy id fallback resolves through a recyclable
 	// id; stamping there could misattribute the entry to whoever currently
@@ -177,6 +178,7 @@ func fmtCommentOrLikeWithResolver(resolver *profileResolver, from *pb.Feed) {
 	from.Name = profile.Name
 	from.Picture = profile.Picture
 	from.Type = profile.Type
+	from.Private = profile.Private
 }
 
 func BuildGraph(info *pb.Feedinfo) *pb.Graph {

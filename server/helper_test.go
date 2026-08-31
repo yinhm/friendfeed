@@ -28,6 +28,7 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 		Name:    "Test User",
 		Type:    "user",
 		Picture: "http://example.com/new.jpg",
+		Private: true,
 	}
 	if err := model.UpdateProfile(db, profile); err != nil {
 		t.Fatalf("seed profile: %v", err)
@@ -76,6 +77,9 @@ func TestFmtEntryProfileSurvivesRename(t *testing.T) {
 	}
 	if entry.From.Type != "user" {
 		t.Errorf("From.Type = %q; want %q", entry.From.Type, "user")
+	}
+	if !entry.From.Private {
+		t.Error("From.Private = false; want current Profile privacy")
 	}
 }
 
@@ -335,6 +339,7 @@ func TestFmtCommentOrLikeRefreshesUuidRefs(t *testing.T) {
 	}
 	renamed.Name = "New Commenter"
 	renamed.Picture = "http://example.com/newcmt.jpg"
+	renamed.Private = true
 	if err := model.UpdateProfile(db, renamed); err != nil {
 		t.Fatalf("update name: %v", err)
 	}
@@ -355,6 +360,9 @@ func TestFmtCommentOrLikeRefreshesUuidRefs(t *testing.T) {
 		}
 		if ref.Picture != "http://example.com/newcmt.jpg" || ref.Type != "user" {
 			t.Errorf("ref snapshot = <%q, %q>; want refreshed picture and type", ref.Picture, ref.Type)
+		}
+		if !ref.Private {
+			t.Error("ref.Private = false; want current Profile privacy")
 		}
 	}
 }
