@@ -17,6 +17,8 @@ service Api {
   rpc RenewTaskLease(RenewTaskLeaseRequest) returns (Task) {}
 
   rpc FetchProfile(ProfileRequest) returns (Profile) {}
+  rpc InspectFeed(InspectFeedRequest) returns (InspectFeedResponse) {}
+  rpc UpdateFeedState(UpdateFeedStateRequest) returns (UpdateFeedStateResponse) {}
   rpc FetchGraph(ProfileRequest) returns (Graph) {}
   rpc GraphFollow(FollowRequest) returns (FollowResponse) {}
 
@@ -282,6 +284,69 @@ message ProfileRequest {
   string uuid = 1;
   // Resolve by profile ID when uuid is empty.
   string id = 2;
+}
+
+// InspectFeed is a loopback-only administrative diagnostic. It intentionally
+// returns metadata and bounded Entry identity summaries, never Entry bodies,
+// OAuth credentials, sessions, or Feed API secrets.
+message InspectFeedRequest {
+  string feed = 1;       // Profile ID or UUID.
+  int32 entry_limit = 2; // Default 20, maximum 100.
+}
+
+message FeedInspectionEntry {
+  string uuid = 1;
+  string profile_uuid = 2;
+  string feed_uuid = 3;
+  int64 created_at_ms = 4;
+}
+
+message InspectFeedResponse {
+  Profile profile = 1;
+  bool user_map_consistent = 2;
+  int64 entry_count = 3;
+  int64 following_count = 4;
+  int64 follower_count = 5;
+  int64 pending_request_count = 6;
+  int64 service_count = 7;
+  int64 group_admin_count = 8;
+  int64 group_member_count = 9;
+  bool timeline_state_exists = 10;
+  int64 timeline_last_access_ms = 11;
+  bool archive_exists = 12;
+  bool archive_dirty = 13;
+  bool feed_api_key_exists = 14;
+  bool feed_api_key_active = 15;
+  repeated FeedInspectionEntry entries = 16;
+  repeated string warnings = 17;
+}
+
+message FeedStatePatch {
+  optional bool private = 1;
+}
+
+message UpdateFeedStateRequest {
+  repeated string feeds = 1; // Each value is a Profile ID or UUID.
+  FeedStatePatch patch = 2;
+  bool dry_run = 3;
+}
+
+message FeedState {
+  bool private = 1;
+  bool deleted = 2;
+}
+
+message FeedStateChange {
+  string uuid = 1;
+  string id = 2;
+  string type = 3;
+  FeedState before = 4;
+  FeedState after = 5;
+  bool changed = 6;
+}
+
+message UpdateFeedStateResponse {
+  repeated FeedStateChange changes = 1;
 }
 
 message LikeRequest {

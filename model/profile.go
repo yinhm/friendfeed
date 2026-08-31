@@ -9,6 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
+	"google.golang.org/protobuf/proto"
 )
 
 // ErrProfileDeleted is returned by GetProfileFromUuid when the profile
@@ -203,9 +204,7 @@ func GetProfileFromUserId(db *store.Store, id string) (*pb.Profile, error) {
 }
 
 func GetProfileFromUuid(db *store.Store, profileUUID uuid.UUID) (*pb.Profile, error) {
-	// key := NewUUIDKey(TableProfile, profileUUID)
-	msg := new(pb.Profile)
-	err := Profile.Get(db, profileUUID.Bytes(), msg)
+	msg, err := GetStoredProfileFromUuid(db, profileUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -213,6 +212,54 @@ func GetProfileFromUuid(db *store.Store, profileUUID uuid.UUID) (*pb.Profile, er
 		return nil, ErrProfileDeleted
 	}
 	return msg, nil
+}
+
+// GetStoredProfileFromUuid returns the persisted Profile row without mapping
+// the Deleted flag to ErrProfileDeleted. It exists for bounded administrative
+// inspection and state validation; ordinary product reads must continue to
+// use GetProfileFromUuid so soft-deleted profiles remain unavailable.
+func GetStoredProfileFromUuid(db *store.Store, profileUUID uuid.UUID) (*pb.Profile, error) {
+	if profileUUID == uuid.Nil {
+		return nil, errors.New("profile UUID is required")
+	}
+	msg := new(pb.Profile)
+	if err := Profile.Get(db, profileUUID.Bytes(), msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
+}
+
+// StageSetUserFeedPrivacy updates only the privacy bit of a live user Feed.
+// Group privacy is immutable and system fields are preserved because the
+// stored Profile is cloned rather than reconstructed from editable fields.
+// Callers must invoke it from Store.ApplyBatch while holding the server's
+// profile-update mutation lock.
+func StageSetUserFeedPrivacy(db *store.Store, batch *pebble.Batch, profile *pb.Profile, private bool) (*pb.Profile, error) {
+	if db == nil || batch == nil || profile == nil {
+		return nil, errors.New("store, batch, and profile are required")
+	}
+	profileUUID, err := uuid.FromString(profile.Uuid)
+	if err != nil || profileUUID == uuid.Nil {
+		return nil, errors.New("profile UUID is invalid")
+	}
+	if profile.Deleted {
+		return nil, ErrProfileDeleted
+	}
+	if profile.Type != "user" {
+		return nil, fmt.Errorf("Feed privacy management only supports user feeds, got %q", profile.Type)
+	}
+	updated := proto.Clone(profile).(*pb.Profile)
+	updated.Private = private
+	if err := setProto(batch, Profile.PrefixAppend(profileUUID.Bytes()), updated); err != nil {
+		return nil, err
+	}
+	// Public feeds should never carry requests, but clear the prefix on either
+	// transition so stale requests from an earlier private period cannot become
+	// actionable when an operator makes the feed private again.
+	if err := StageDeleteFollowRequestsByTarget(db, batch, profileUUID); err != nil {
+		return nil, err
+	}
+	return updated, nil
 }
 
 func ProfileToFeedinfo(profile *pb.Profile) *pb.Feedinfo {

@@ -214,6 +214,14 @@ Like/Comment timeline 是派生索引；暂时不可见的行不删除，未来�
 当前 gRPC 只监听 loopback，actor/viewer 字段仍由可信 ffweb 断言。本项收紧领域权限，但不声称
 解决恶意本机进程伪造 principal；若未来开放 gRPC，必须先设计经过认证的 principal。
 
+## 运维 Privacy 切换
+
+loopback 管理 RPC `UpdateFeedState` 可以原子地切换一个或一批 user Feed 的 `Private` 状态；
+Group privacy 仍在创建时固定。切换不删除已有 Follow/Follower 边；任一真实切换都会在同一
+batch 清理 pending FollowRequest，避免旧 private 周期的申请重新生效。timeline、Public 与 Search 不因切换而重建，所有读取
+继续由本文件定义的 resolver 根据当前 Profile 状态过滤。命令、确认机制和诊断输出见
+[`feed_admin.md`](feed_admin.md)。
+
 ## 测试与验收
 
 先为 resolver 写完整矩阵测试，再用少量跨入口集成测试证明所有读取路径已接线，避免为每条
