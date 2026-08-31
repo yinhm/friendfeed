@@ -72,7 +72,6 @@ type feedPageData struct {
 	Query            string   `json:"query"`
 	GroupSettingsURL string   `json:"group_settings_url,omitempty"`
 	GroupMembersURL  string   `json:"group_members_url,omitempty"`
-	FeedApiURL       string   `json:"feed_api_url,omitempty"`
 }
 
 type feedView struct {
@@ -158,7 +157,6 @@ func feedPageDataFromContext(data pongo2.Context) feedPageData {
 		OnPage: contextBool(data, "onpage"), OnPageEdit: contextBool(data, "onpage_edit"), Query: contextString(data, "query"),
 		GroupSettingsURL: contextString(data, "group_settings_url"),
 		GroupMembersURL:  contextString(data, "group_members_url"),
-		FeedApiURL:       contextString(data, "feed_api_url"),
 	}
 }
 

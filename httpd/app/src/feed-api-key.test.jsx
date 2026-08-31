@@ -52,3 +52,11 @@ it('keeps a failed mutation visible as a page error', async () => {
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('denied'));
   expect(screen.queryByText(/copy this token/i)).not.toBeInTheDocument();
 });
+
+it('uses account navigation for a personal Feed API key', () => {
+  render(<FeedApiKeyPage data={{feed: {id: 'alice', name: 'Alice', type: 'user'},
+    status: {active: false}}} />);
+  expect(screen.getByRole('navigation', {name: 'Account management'})).toBeInTheDocument();
+  expect(screen.getByRole('link', {name: 'Edit Profile'})).toHaveAttribute('href', '/account/profile');
+  expect(screen.getByRole('link', {name: 'API'})).toHaveAttribute('aria-current', 'page');
+});

@@ -28,6 +28,29 @@ export function tabFromPath(pathname) {
 }
 
 /**
+ * @param {{active: AccountTab | 'api', profileId: string,
+ *   onSelect?: (tab: AccountTab, event: React.MouseEvent<HTMLAnchorElement>) => void}} props
+ */
+export function AccountNav({active, profileId, onSelect}) {
+  /** @param {AccountTab | 'api'} name @param {string} href @param {string} label */
+  const link = (name, href, label) => (
+    <a href={href}
+       aria-current={active === name ? 'page' : undefined}
+       onClick={name !== 'api' && onSelect ? (event) => onSelect(name, event) : undefined}
+       className={active === name
+         ? 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary'
+         : 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'}>
+      {label}
+    </a>
+  );
+  return <nav className="mb-6 flex gap-1 border-b border-border" aria-label="Account management">
+    {link('profile', TAB_PATHS.profile, 'Edit Profile')}
+    {link('import', TAB_PATHS.import, 'Import Services')}
+    {link('api', `/feed/${encodeURIComponent(profileId)}/api`, 'API')}
+  </nav>;
+}
+
+/**
  * Unified account page: profile editing and import services as tabs in a
  * single app. Tab switches are client-side and keep the URL in sync so a
  * refresh or direct link lands on the same tab.
@@ -67,21 +90,6 @@ export function AccountApp(props) {
     window.history.pushState({tab: next}, '', TAB_PATHS[next]);
   };
 
-  /** @param {AccountTab} name @param {string} label */
-  const tabLink = (name, label) => {
-    const active = tab === name;
-    return (
-      <a href={TAB_PATHS[name]}
-         aria-current={active ? 'page' : undefined}
-         onClick={(e) => switchTab(name, e)}
-         className={active
-           ? 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary'
-           : 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'}>
-        {label}
-      </a>
-    );
-  };
-
   /** @param {ProfileData} saved */
   const handleSaved = (saved) => {
     setProfile(saved);
@@ -95,10 +103,7 @@ export function AccountApp(props) {
 
   return (
     <div className="feed">
-      <nav className="mb-6 flex gap-1 border-b border-border">
-        {tabLink('profile', 'Edit Profile')}
-        {tabLink('import', 'Import Services')}
-      </nav>
+      <AccountNav active={tab} profileId={profile.id} onSelect={switchTab} />
       {tab === 'profile'
         ? <ProfileForm profile={profile} welcome={welcome} onSaved={handleSaved} />
         : <ImportPanel services={services} states={props.states} target={props.target}

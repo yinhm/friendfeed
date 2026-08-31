@@ -310,6 +310,7 @@ test('Group Feed header exposes members and settings as plain links', () => {
     .toHaveAttribute('href', '/groups/book-club/settings');
   expect(screen.getByRole('link', {name: 'Members'}))
     .toHaveAttribute('href', '/groups/book-club/members');
+  expect(screen.queryByRole('link', {name: 'API'})).not.toBeInTheDocument();
 });
 
 test('Feed header shows the error when unfollow is rejected', async () => {

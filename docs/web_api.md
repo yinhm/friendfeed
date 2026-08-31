@@ -339,7 +339,8 @@ action、结果和时间。不得记录响应 token。
 
 ## 10. Browser key management
 
-登录态 Feed management 增加 `API` 页面：
+登录态管理界面增加 `API` 页面：个人 Feed 从 `/account/profile` 的 account nav 进入；Group
+管理员先进入 Settings，再从 Group management nav 进入。普通 Feed header 不显示 API 入口。
 
 ```text
 /feed/:id/api

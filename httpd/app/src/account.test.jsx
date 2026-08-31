@@ -28,6 +28,8 @@ describe('AccountApp', () => {
     expect(screen.queryByText('Twitter')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit Profile' }))
       .toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', {name: 'API'}))
+      .toHaveAttribute('href', '/feed/oldname/api');
   });
 
   it('shows the import tab first when tab=import', () => {
@@ -69,6 +71,8 @@ describe('AccountApp', () => {
     // Regression: a remount must not resurrect the server-injected snapshot.
     expect(screen.getByLabelText(/Profile ID/)).toHaveValue('newname');
     expect(screen.getByLabelText(/Display Name/)).toHaveValue('New Name');
+    expect(screen.getByRole('link', {name: 'API'}))
+      .toHaveAttribute('href', '/feed/newname/api');
   });
 
   it('keeps service removals across tab switches', async () => {

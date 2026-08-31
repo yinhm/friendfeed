@@ -461,12 +461,6 @@ func (s *Server) FeedHandler(c *gin.Context) {
 	data["group_feed_header"] = feed.Type == "group"
 	actor := CurrentUserUuid(c)
 	data["show_profile_relations"] = actor != "" && feed.Type == "user"
-	if actor != "" && feed.Type == "user" {
-		profile, _ := s.CurrentUser(c)
-		if actor == feed.Uuid || profile != nil && profile.IsSuper {
-			data["feed_api_url"] = FeedApiKeyURL(feed.Id)
-		}
-	}
 	if actor != "" && feed.Archive != nil {
 		data["feed_archive"] = feed.Archive
 		data["feed_archive_id"] = feed.Id
@@ -489,7 +483,6 @@ func (s *Server) FeedHandler(c *gin.Context) {
 			}
 			if canManageGroup(view, profile) {
 				data["group_settings_url"] = "/groups/" + url.PathEscape(feed.Id) + "/settings"
-				data["feed_api_url"] = FeedApiKeyURL(feed.Id)
 			}
 		}
 	}

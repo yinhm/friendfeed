@@ -1,18 +1,8 @@
 // @ts-check
 import React, {useState} from 'react';
 import {confirmationActions, confirmationPopover, obsidianButton, outlinedButton} from './button-styles';
+import {AccountNav} from './account';
 import {GroupManagementNav} from './group-management';
-
-const activeNav = 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary';
-const inactiveNav = 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground';
-
-/** @param {{feedId: string}} props */
-function PersonalFeedApiNav({feedId}) {
-  return <nav className="mb-6 flex gap-1 border-b border-border" aria-label="Feed management">
-    <a href={`/feed/${feedId}`} className={inactiveNav}>Feed</a>
-    <a href={`/feed/${feedId}/api`} aria-current="page" className={activeNav}>API</a>
-  </nav>;
-}
 
 /** @param {number | undefined} value */
 function formattedTime(value) {
@@ -55,7 +45,7 @@ export default function FeedApiKeyPage({data}) {
 
   const nav = data.feed.type === 'group'
     ? <GroupManagementNav groupId={data.feed.id} active="api" />
-    : <PersonalFeedApiNav feedId={data.feed.id} />;
+    : <AccountNav active="api" profileId={data.feed.id} />;
 
   return <div className="feed">
     <h2 className="page-title">API access: {data.feed.name}</h2>
@@ -63,13 +53,22 @@ export default function FeedApiKeyPage({data}) {
     {error && <div className="error-banner" role="alert">{error}</div>}
     <p className="hint">This key represents the Feed itself. Treat it like a password.</p>
 
-    <dl className="item-list">
-      <div><dt>Status</dt><dd>{keyStatus.active ? 'Active' : keyStatus.revoked_at_ms ? 'Revoked' : 'Not generated'}</dd></div>
-      <div><dt>Key ID</dt><dd>{keyStatus.key_id || '—'}</dd></div>
-      <div><dt>Created</dt><dd>{formattedTime(keyStatus.created_at_ms)}</dd></div>
-      <div><dt>Rotated</dt><dd>{formattedTime(keyStatus.rotated_at_ms)}</dd></div>
-      <div><dt>Revoked</dt><dd>{formattedTime(keyStatus.revoked_at_ms)}</dd></div>
-    </dl>
+    <div className="overflow-hidden rounded-md border border-border">
+      <table className="w-full border-collapse text-sm">
+        <tbody className="divide-y divide-border">
+          <tr><th scope="row" className="w-32 bg-muted px-4 py-3 text-left font-medium">Status</th>
+            <td className="px-4 py-3">{keyStatus.active ? 'Active' : keyStatus.revoked_at_ms ? 'Revoked' : 'Not generated'}</td></tr>
+          <tr><th scope="row" className="w-32 bg-muted px-4 py-3 text-left font-medium">Key ID</th>
+            <td className="px-4 py-3"><code>{keyStatus.key_id || '—'}</code></td></tr>
+          <tr><th scope="row" className="w-32 bg-muted px-4 py-3 text-left font-medium">Created</th>
+            <td className="px-4 py-3">{formattedTime(keyStatus.created_at_ms)}</td></tr>
+          <tr><th scope="row" className="w-32 bg-muted px-4 py-3 text-left font-medium">Rotated</th>
+            <td className="px-4 py-3">{formattedTime(keyStatus.rotated_at_ms)}</td></tr>
+          <tr><th scope="row" className="w-32 bg-muted px-4 py-3 text-left font-medium">Revoked</th>
+            <td className="px-4 py-3">{formattedTime(keyStatus.revoked_at_ms)}</td></tr>
+        </tbody>
+      </table>
+    </div>
 
     {token && <div className="notification" role="status">
       <strong>Copy this token now. It will not be shown again.</strong>
