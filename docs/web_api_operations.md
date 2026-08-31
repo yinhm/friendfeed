@@ -52,7 +52,7 @@ curl --fail-with-body -H "Authorization: Bearer $FF_API_TOKEN" \
 
 curl --fail-with-body -H "Authorization: Bearer $FF_API_TOKEN" \
   -F 'title=API smoke test' \
-  -F 'body_html=<p>Created by the release smoke test.</p>' \
+  --form-string 'body_html=<p>Created by the release smoke test.</p>' \
   -F 'file=@./fixture.png' \
   https://friendfeed.example/api/v1/feed/entries
 ```
