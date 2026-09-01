@@ -2813,6 +2813,95 @@ func (x *FeedApiKeyRecord) GetRevokedAtMs() int64 {
 	return 0
 }
 
+// ImportOperatorTokenRecord stores the single active, short-lived operator
+// credential. The plaintext secret is returned once and never persisted.
+type ImportOperatorTokenRecord struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	KeyId        []byte `protobuf:"bytes,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	SecretSha256 []byte `protobuf:"bytes,2,opt,name=secret_sha256,json=secretSha256,proto3" json:"secret_sha256,omitempty"`
+	CreatedAtMs  int64  `protobuf:"varint,3,opt,name=created_at_ms,json=createdAtMs,proto3" json:"created_at_ms,omitempty"`
+	ExpiresAtMs  int64  `protobuf:"varint,4,opt,name=expires_at_ms,json=expiresAtMs,proto3" json:"expires_at_ms,omitempty"`
+	RevokedAtMs  int64  `protobuf:"varint,5,opt,name=revoked_at_ms,json=revokedAtMs,proto3" json:"revoked_at_ms,omitempty"`
+	IssuedBy     string `protobuf:"bytes,6,opt,name=issued_by,json=issuedBy,proto3" json:"issued_by,omitempty"` // Diagnostic only; never an authorization identity.
+}
+
+func (x *ImportOperatorTokenRecord) Reset() {
+	*x = ImportOperatorTokenRecord{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_feed_proto_msgTypes[27]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ImportOperatorTokenRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportOperatorTokenRecord) ProtoMessage() {}
+
+func (x *ImportOperatorTokenRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_feed_proto_msgTypes[27]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportOperatorTokenRecord.ProtoReflect.Descriptor instead.
+func (*ImportOperatorTokenRecord) Descriptor() ([]byte, []int) {
+	return file_feed_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ImportOperatorTokenRecord) GetKeyId() []byte {
+	if x != nil {
+		return x.KeyId
+	}
+	return nil
+}
+
+func (x *ImportOperatorTokenRecord) GetSecretSha256() []byte {
+	if x != nil {
+		return x.SecretSha256
+	}
+	return nil
+}
+
+func (x *ImportOperatorTokenRecord) GetCreatedAtMs() int64 {
+	if x != nil {
+		return x.CreatedAtMs
+	}
+	return 0
+}
+
+func (x *ImportOperatorTokenRecord) GetExpiresAtMs() int64 {
+	if x != nil {
+		return x.ExpiresAtMs
+	}
+	return 0
+}
+
+func (x *ImportOperatorTokenRecord) GetRevokedAtMs() int64 {
+	if x != nil {
+		return x.RevokedAtMs
+	}
+	return 0
+}
+
+func (x *ImportOperatorTokenRecord) GetIssuedBy() string {
+	if x != nil {
+		return x.IssuedBy
+	}
+	return ""
+}
+
 var File_feed_proto protoreflect.FileDescriptor
 
 var file_feed_proto_rawDesc = []byte{
@@ -3205,13 +3294,28 @@ var file_feed_proto_rawDesc = []byte{
 	0x6d, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b, 0x72, 0x6f, 0x74, 0x61, 0x74, 0x65,
 	0x64, 0x41, 0x74, 0x4d, 0x73, 0x12, 0x22, 0x0a, 0x0d, 0x72, 0x65, 0x76, 0x6f, 0x6b, 0x65, 0x64,
 	0x5f, 0x61, 0x74, 0x5f, 0x6d, 0x73, 0x18, 0x05, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b, 0x72, 0x65,
-	0x76, 0x6f, 0x6b, 0x65, 0x64, 0x41, 0x74, 0x4d, 0x73, 0x2a, 0x2c, 0x0a, 0x08, 0x46, 0x65, 0x65,
-	0x64, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x75, 0x73, 0x65, 0x72, 0x10, 0x00, 0x12,
-	0x09, 0x0a, 0x05, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x73, 0x70,
-	0x65, 0x63, 0x69, 0x61, 0x6c, 0x10, 0x02, 0x2a, 0x25, 0x0a, 0x0a, 0x53, 0x74, 0x61, 0x74, 0x75,
-	0x73, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x70, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65,
-	0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x10, 0x01, 0x42, 0x06,
-	0x5a, 0x04, 0x2e, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x76, 0x6f, 0x6b, 0x65, 0x64, 0x41, 0x74, 0x4d, 0x73, 0x22, 0xe0, 0x01, 0x0a, 0x19, 0x49, 0x6d,
+	0x70, 0x6f, 0x72, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x54, 0x6f, 0x6b, 0x65,
+	0x6e, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12, 0x15, 0x0a, 0x06, 0x6b, 0x65, 0x79, 0x5f, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x6b, 0x65, 0x79, 0x49, 0x64, 0x12, 0x23,
+	0x0a, 0x0d, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74, 0x5f, 0x73, 0x68, 0x61, 0x32, 0x35, 0x36, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0c, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74, 0x53, 0x68, 0x61,
+	0x32, 0x35, 0x36, 0x12, 0x22, 0x0a, 0x0d, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x61,
+	0x74, 0x5f, 0x6d, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b, 0x63, 0x72, 0x65, 0x61,
+	0x74, 0x65, 0x64, 0x41, 0x74, 0x4d, 0x73, 0x12, 0x22, 0x0a, 0x0d, 0x65, 0x78, 0x70, 0x69, 0x72,
+	0x65, 0x73, 0x5f, 0x61, 0x74, 0x5f, 0x6d, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b,
+	0x65, 0x78, 0x70, 0x69, 0x72, 0x65, 0x73, 0x41, 0x74, 0x4d, 0x73, 0x12, 0x22, 0x0a, 0x0d, 0x72,
+	0x65, 0x76, 0x6f, 0x6b, 0x65, 0x64, 0x5f, 0x61, 0x74, 0x5f, 0x6d, 0x73, 0x18, 0x05, 0x20, 0x01,
+	0x28, 0x03, 0x52, 0x0b, 0x72, 0x65, 0x76, 0x6f, 0x6b, 0x65, 0x64, 0x41, 0x74, 0x4d, 0x73, 0x12,
+	0x1b, 0x0a, 0x09, 0x69, 0x73, 0x73, 0x75, 0x65, 0x64, 0x5f, 0x62, 0x79, 0x18, 0x06, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x08, 0x69, 0x73, 0x73, 0x75, 0x65, 0x64, 0x42, 0x79, 0x2a, 0x2c, 0x0a, 0x08,
+	0x46, 0x65, 0x65, 0x64, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x75, 0x73, 0x65, 0x72,
+	0x10, 0x00, 0x12, 0x09, 0x0a, 0x05, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x10, 0x01, 0x12, 0x0b, 0x0a,
+	0x07, 0x73, 0x70, 0x65, 0x63, 0x69, 0x61, 0x6c, 0x10, 0x02, 0x2a, 0x25, 0x0a, 0x0a, 0x53, 0x74,
+	0x61, 0x74, 0x75, 0x73, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x70, 0x72, 0x69, 0x76,
+	0x61, 0x74, 0x65, 0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x10,
+	0x01, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -3227,49 +3331,50 @@ func file_feed_proto_rawDescGZIP() []byte {
 }
 
 var file_feed_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_feed_proto_goTypes = []interface{}{
-	(FeedType)(0),                  // 0: pb.FeedType
-	(StatusType)(0),                // 1: pb.StatusType
-	(*Service)(nil),                // 2: pb.Service
-	(*ServiceState)(nil),           // 3: pb.ServiceState
-	(*ServiceFetchPayload)(nil),    // 4: pb.ServiceFetchPayload
-	(*FeedServiceSeedPayload)(nil), // 5: pb.FeedServiceSeedPayload
-	(*HomeRebuildPayload)(nil),     // 6: pb.HomeRebuildPayload
-	(*OAuthUser)(nil),              // 7: pb.OAuthUser
-	(*Profile)(nil),                // 8: pb.Profile
-	(*Graph)(nil),                  // 9: pb.Graph
-	(*FollowRequest)(nil),          // 10: pb.FollowRequest
-	(*FollowResponse)(nil),         // 11: pb.FollowResponse
-	(*Feed)(nil),                   // 12: pb.Feed
-	(*FeedArchiveYear)(nil),        // 13: pb.FeedArchiveYear
-	(*FeedArchiveStats)(nil),       // 14: pb.FeedArchiveStats
-	(*Feedinfo)(nil),               // 15: pb.Feedinfo
-	(*Follow)(nil),                 // 16: pb.Follow
-	(*Follower)(nil),               // 17: pb.Follower
-	(*FeedService)(nil),            // 18: pb.FeedService
-	(*Entry)(nil),                  // 19: pb.Entry
-	(*Tweet)(nil),                  // 20: pb.Tweet
-	(*TweetUser)(nil),              // 21: pb.TweetUser
-	(*Comment)(nil),                // 22: pb.Comment
-	(*Like)(nil),                   // 23: pb.Like
-	(*Thumbnail)(nil),              // 24: pb.Thumbnail
-	(*File)(nil),                   // 25: pb.File
-	(*Via)(nil),                    // 26: pb.Via
-	(*Location)(nil),               // 27: pb.Location
-	(*FeedApiKeyRecord)(nil),       // 28: pb.FeedApiKeyRecord
-	nil,                            // 29: pb.Graph.FollowingEntry
-	nil,                            // 30: pb.Graph.FollowersEntry
-	nil,                            // 31: pb.Graph.AdminsEntry
-	nil,                            // 32: pb.Graph.FeedsEntry
-	nil,                            // 33: pb.Graph.ServicesEntry
+	(FeedType)(0),                     // 0: pb.FeedType
+	(StatusType)(0),                   // 1: pb.StatusType
+	(*Service)(nil),                   // 2: pb.Service
+	(*ServiceState)(nil),              // 3: pb.ServiceState
+	(*ServiceFetchPayload)(nil),       // 4: pb.ServiceFetchPayload
+	(*FeedServiceSeedPayload)(nil),    // 5: pb.FeedServiceSeedPayload
+	(*HomeRebuildPayload)(nil),        // 6: pb.HomeRebuildPayload
+	(*OAuthUser)(nil),                 // 7: pb.OAuthUser
+	(*Profile)(nil),                   // 8: pb.Profile
+	(*Graph)(nil),                     // 9: pb.Graph
+	(*FollowRequest)(nil),             // 10: pb.FollowRequest
+	(*FollowResponse)(nil),            // 11: pb.FollowResponse
+	(*Feed)(nil),                      // 12: pb.Feed
+	(*FeedArchiveYear)(nil),           // 13: pb.FeedArchiveYear
+	(*FeedArchiveStats)(nil),          // 14: pb.FeedArchiveStats
+	(*Feedinfo)(nil),                  // 15: pb.Feedinfo
+	(*Follow)(nil),                    // 16: pb.Follow
+	(*Follower)(nil),                  // 17: pb.Follower
+	(*FeedService)(nil),               // 18: pb.FeedService
+	(*Entry)(nil),                     // 19: pb.Entry
+	(*Tweet)(nil),                     // 20: pb.Tweet
+	(*TweetUser)(nil),                 // 21: pb.TweetUser
+	(*Comment)(nil),                   // 22: pb.Comment
+	(*Like)(nil),                      // 23: pb.Like
+	(*Thumbnail)(nil),                 // 24: pb.Thumbnail
+	(*File)(nil),                      // 25: pb.File
+	(*Via)(nil),                       // 26: pb.Via
+	(*Location)(nil),                  // 27: pb.Location
+	(*FeedApiKeyRecord)(nil),          // 28: pb.FeedApiKeyRecord
+	(*ImportOperatorTokenRecord)(nil), // 29: pb.ImportOperatorTokenRecord
+	nil,                               // 30: pb.Graph.FollowingEntry
+	nil,                               // 31: pb.Graph.FollowersEntry
+	nil,                               // 32: pb.Graph.AdminsEntry
+	nil,                               // 33: pb.Graph.FeedsEntry
+	nil,                               // 34: pb.Graph.ServicesEntry
 }
 var file_feed_proto_depIdxs = []int32{
-	29, // 0: pb.Graph.following:type_name -> pb.Graph.FollowingEntry
-	30, // 1: pb.Graph.followers:type_name -> pb.Graph.FollowersEntry
-	31, // 2: pb.Graph.admins:type_name -> pb.Graph.AdminsEntry
-	32, // 3: pb.Graph.feeds:type_name -> pb.Graph.FeedsEntry
-	33, // 4: pb.Graph.services:type_name -> pb.Graph.ServicesEntry
+	30, // 0: pb.Graph.following:type_name -> pb.Graph.FollowingEntry
+	31, // 1: pb.Graph.followers:type_name -> pb.Graph.FollowersEntry
+	32, // 2: pb.Graph.admins:type_name -> pb.Graph.AdminsEntry
+	33, // 3: pb.Graph.feeds:type_name -> pb.Graph.FeedsEntry
+	34, // 4: pb.Graph.services:type_name -> pb.Graph.ServicesEntry
 	19, // 5: pb.Feed.entries:type_name -> pb.Entry
 	14, // 6: pb.Feed.archive:type_name -> pb.FeedArchiveStats
 	13, // 7: pb.FeedArchiveStats.years:type_name -> pb.FeedArchiveYear
@@ -3636,6 +3741,18 @@ func file_feed_proto_init() {
 				return nil
 			}
 		}
+		file_feed_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ImportOperatorTokenRecord); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3643,7 +3760,7 @@ func file_feed_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_feed_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   32,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

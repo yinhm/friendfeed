@@ -144,6 +144,24 @@ func TestAuditStoreChecksFeedApiKeyRecordsAndOwnership(t *testing.T) {
 	require.Equal(t, 1, stats.orphanFeedApiKeys)
 }
 
+func TestAuditStoreChecksImportOperatorToken(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, _, err = model.IssueImportOperatorToken(db, time.Now().UTC(), time.Hour, "operator@host")
+	require.NoError(t, err)
+	stats, err := auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.importOperatorTokens)
+	require.Zero(t, stats.invalidImportOperatorTokens)
+
+	require.NoError(t, db.Set(model.ImportOperatorTokenMetaKey(), []byte("bad")))
+	stats, err = auditStore(db)
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.invalidImportOperatorTokens)
+}
+
 func TestAuditStoreChecksServiceRelationships(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)

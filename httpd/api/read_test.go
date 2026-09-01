@@ -113,6 +113,18 @@ func TestGetEntryMatchesGolden(t *testing.T) {
 	require.Equal(t, "f145818e-e4ba-4d10-a499-515f46aac391", client.entryReq.Uuid)
 }
 
+func TestEntryDTOExposesCanonicalSourceURLForLegacyImportScan(t *testing.T) {
+	entry := goldenEntry()
+	entry.Url = "http://friendfeed.com/example/legacy-entry"
+	entry.RawLink = "https://twitter.com/example/statuses/1295071681511407617"
+	dto := entryResponseDTO(entry, goldenFeed())
+	require.Equal(t, entry.RawLink, dto.SourceURL)
+	entry.RawLink = ""
+	entry.Via = &pb.Via{Url: "https://x.com/example/status/1295071681511407617"}
+	dto = entryResponseDTO(entry, goldenFeed())
+	require.Equal(t, entry.Via.Url, dto.SourceURL)
+}
+
 func TestReadAPIRejectsLegacyAndInvalidPagination(t *testing.T) {
 	client := &readAPIClient{fakeAPIClient: validAPIClient(), feed: goldenFeed()}
 	for _, path := range []string{

@@ -15,3 +15,4 @@ httpd/static/manifest.json
 cli/tools/*
 !cli/tools/*.go
 twitter/cookies.json
+/twitter-import/

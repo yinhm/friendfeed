@@ -16,6 +16,7 @@
   - `TableGroupIndex = 119`，编码为 `reverse activity Unix ms + raw Group UUID -> 空`，是可重建的 Group 发现页排序索引；Profile 仍是 Group metadata 权威来源。
   - Notification 表固定为 `TableNotification = 120`、`TableNotificationInbox = 121`、`TableNotificationState = 122`。canonical Notification key 为 `recipient UUID + notification UUID`；Inbox key 为 `recipient UUID + ^UnixMillis(activity_at) + notification UUID`；State 记录 `last_read_at_ns/unread_count/total_count`。这些编码和 retention 规则见 `docs/notifications.md`。
   - `TableFeedApiKey = 123`，编码为 `raw Feed UUID -> pb.FeedApiKeyRecord`；value 只含 8-byte key ID、32-byte secret SHA-256 和生命周期时间，绝不保存明文 token。完整契约见 `docs/web_api.md`。
+  - 管理员历史导入 token 固定存于 `TableMeta | "import-operator-token/v1" -> pb.ImportOperatorTokenRecord`；全站仅一枚 active token、最长一小时、只允许 `/api/v1/feed/imports`，明文不得持久化，`issued_by` 仅供诊断而非授权。完整边界见 `docs/external_import.md`。
   - Feed 年度统计是 Meta 下的 `feed-archive/v1/<raw feed UUID>` 可重建 protobuf 快照；首次失效时间存于 `feed-archive-dirty/v1/<raw feed UUID>`，编码和维护规则见 `docs/feed_archive.md`。
   - application schema marker 固定为 `TableMeta | "db-schema/version" -> 4-byte big-endian uint32`；Pebble FMV 不能替代 application schema。
   - 非空数据库必须携带 current application schema marker；一次性迁移写入器只保留在 `v2.2.0` tag，不得复制回 master。
@@ -37,6 +38,8 @@
 
 - ffdb 仅允许监听 loopback，不得绑定通配地址、网卡地址或对外暴露 gRPC；改变此边界前必须先设计可信 principal。
 - Public Feed API 在 ffweb 鉴权一次后，仅以 loopback gRPC metadata 传递 Feed UUID 与非敏感 key ID；不得把 API key 伪装为用户 viewer、转发 secret 到数据 RPC，或绕过 ffdb 的 canonical target 校验。具体边界见 `docs/web_api.md`。
+- 历史外部导入只使用同一 Feed capability principal；新 Entry ID 固定为 `UniqueKeyFrom("external-entry", target Feed UUID, provider, item ID)`，Twitter 精确兼容 `UniqueKeyFrom("twitter", tweet ID)`。archive import 不写 Home/Public/Group activity timeline 或 realtime/notification，完整边界见 `docs/external_import.md`。
+- import operator token 只能由 loopback CLI 管理；ffweb 必须在读取 multipart body 前连同显式 target 向 ffdb 鉴权，并继续复用同一媒体与 `ImportFeedEntry` 流水线。它不得读取 Feed、普通发布或执行其他管理操作。
 - Task 使用 READY/INFLIGHT 主状态、lease epoch fencing 与同批派生索引；handler 必须幂等，payload 与日志不得保存或输出凭据、正文。
 - `PutEntry` 的 entry 与 author/group 直接索引原子提交；Home activity timeline 只 fanout 到 TimelineState 有效的 viewer，独立执行且错误必须返回。活跃 Home 最多 10,000 条，inactive 冷缓存保留 500 条，当前时间窗口为 MAX。`DeleteEntry` 不枚举 viewer，timeline 孤儿由读路径懒删及 audit/rebuild 清理。
 - public timeline 是 TimelineIndex 的保留 viewer（`model.PublicTimelineUUID`），不是真实 profile：仅新建 Entry、首次 Like、新建 Comment 触发 bump，私有/已删除/不可解析的 target feed 一律不进入；不写 TimelineState，compact 永不把它当 inactive；trim 由 bump 计数驱动在后台 goroutine 执行，不进入请求路径。

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -26,6 +27,68 @@ const (
 var activeContentElements = map[string]bool{
 	"img": true, "picture": true, "source": true, "video": true, "audio": true,
 	"object": true, "embed": true, "iframe": true, "canvas": true,
+}
+
+type uploadFailure struct {
+	status  int
+	code    string
+	message string
+}
+
+func (e *uploadFailure) Error() string { return e.message }
+
+func (h *Handler) promoteUploads(files []*multipart.FileHeader) ([]*pb.Thumbnail, []*pb.File, error) {
+	if len(files) > media.MaxEntryAttachments {
+		return nil, nil, &uploadFailure{http.StatusBadRequest, "invalid_request", "Request is invalid"}
+	}
+	var thumbnails []*pb.Thumbnail
+	var attachments []*pb.File
+	totalBytes := int64(0)
+	for _, header := range files {
+		if header == nil || header.Size > media.MaxUploadFileBytes {
+			return nil, nil, &uploadFailure{http.StatusRequestEntityTooLarge, "payload_too_large", "Payload too large"}
+		}
+		source, err := header.Open()
+		if err != nil {
+			return nil, nil, &uploadFailure{http.StatusBadRequest, "invalid_request", "Request is invalid"}
+		}
+		content, readErr := io.ReadAll(io.LimitReader(source, media.MaxUploadFileBytes+1))
+		closeErr := source.Close()
+		if readErr != nil || closeErr != nil {
+			return nil, nil, &uploadFailure{http.StatusBadRequest, "invalid_request", "Request is invalid"}
+		}
+		if len(content) > media.MaxUploadFileBytes {
+			return nil, nil, &uploadFailure{http.StatusRequestEntityTooLarge, "payload_too_large", "Payload too large"}
+		}
+		totalBytes += int64(len(content))
+		if totalBytes > media.MaxEntryAttachmentBytes {
+			return nil, nil, &uploadFailure{http.StatusRequestEntityTooLarge, "payload_too_large", "Payload too large"}
+		}
+
+		if stagedImage, imageErr := h.uploads.StageImage(content, 1024); imageErr == nil {
+			published, promoteErr := h.uploads.PromoteImage(stagedImage)
+			if promoteErr != nil {
+				return nil, nil, &uploadFailure{http.StatusInternalServerError, "internal_error", "Unable to publish media"}
+			}
+			thumbnails = append(thumbnails, &pb.Thumbnail{
+				Url: published.ThumbnailURL, Link: published.URL,
+				Width: int32(published.Width), Height: int32(published.Height),
+			})
+			continue
+		}
+		stagedFile, fileErr := h.uploads.StageAttachment(header.Filename, content)
+		if fileErr != nil {
+			return nil, nil, &uploadFailure{http.StatusUnsupportedMediaType, "unsupported_media", "Media type is unsupported"}
+		}
+		published, promoteErr := h.uploads.PromoteAttachment(stagedFile)
+		if promoteErr != nil {
+			return nil, nil, &uploadFailure{http.StatusInternalServerError, "internal_error", "Unable to publish media"}
+		}
+		attachments = append(attachments, &pb.File{
+			Url: published.URL, Name: published.Name, Type: published.MimeType, Size: int32(published.Size),
+		})
+	}
+	return thumbnails, attachments, nil
 }
 
 func stripExternalMedia(raw string) (string, error) {
@@ -126,60 +189,13 @@ func (h *Handler) postEntry(c *gin.Context) {
 		return
 	}
 
-	entry := &pb.Entry{Title: title, Body: body}
-	totalBytes := int64(0)
-	for _, header := range files {
-		if header == nil || header.Size > media.MaxUploadFileBytes {
-			writeError(c, http.StatusRequestEntityTooLarge, "payload_too_large", "Payload too large")
-			return
-		}
-		source, err := header.Open()
-		if err != nil {
-			writeError(c, http.StatusBadRequest, "invalid_request", "Request is invalid")
-			return
-		}
-		content, readErr := io.ReadAll(io.LimitReader(source, media.MaxUploadFileBytes+1))
-		closeErr := source.Close()
-		if readErr != nil || closeErr != nil {
-			writeError(c, http.StatusBadRequest, "invalid_request", "Request is invalid")
-			return
-		}
-		if len(content) > media.MaxUploadFileBytes {
-			writeError(c, http.StatusRequestEntityTooLarge, "payload_too_large", "Payload too large")
-			return
-		}
-		totalBytes += int64(len(content))
-		if totalBytes > media.MaxEntryAttachmentBytes {
-			writeError(c, http.StatusRequestEntityTooLarge, "payload_too_large", "Payload too large")
-			return
-		}
-
-		if stagedImage, imageErr := h.uploads.StageImage(content, 1024); imageErr == nil {
-			published, promoteErr := h.uploads.PromoteImage(stagedImage)
-			if promoteErr != nil {
-				writeError(c, http.StatusInternalServerError, "internal_error", "Unable to publish media")
-				return
-			}
-			entry.Thumbnails = append(entry.Thumbnails, &pb.Thumbnail{
-				Url: published.ThumbnailURL, Link: published.URL,
-				Width: int32(published.Width), Height: int32(published.Height),
-			})
-			continue
-		}
-		stagedFile, fileErr := h.uploads.StageAttachment(header.Filename, content)
-		if fileErr != nil {
-			writeError(c, http.StatusUnsupportedMediaType, "unsupported_media", "Media type is unsupported")
-			return
-		}
-		published, promoteErr := h.uploads.PromoteAttachment(stagedFile)
-		if promoteErr != nil {
-			writeError(c, http.StatusInternalServerError, "internal_error", "Unable to publish media")
-			return
-		}
-		entry.Files = append(entry.Files, &pb.File{
-			Url: published.URL, Name: published.Name, Type: published.MimeType, Size: int32(published.Size),
-		})
+	thumbnails, attachments, uploadErr := h.promoteUploads(files)
+	if uploadErr != nil {
+		failure := uploadErr.(*uploadFailure)
+		writeError(c, failure.status, failure.code, failure.message)
+		return
 	}
+	entry := &pb.Entry{Title: title, Body: body, Thumbnails: thumbnails, Files: attachments}
 
 	ctx, ok := h.trustedContext(c)
 	if !ok {

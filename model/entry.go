@@ -20,6 +20,17 @@ func PutEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
 // PutEntryWithTimelineObserver writes the canonical Entry and observes only
 // the committed per-viewer Home moves caused by its derived fanout.
 func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer TimelineMoveObserver) (store.Key, error) {
+	return putEntry(db, entry, observer, true)
+}
+
+// PutArchiveEntry stores historical machine-authored content without moving
+// activity-ranked Home/Public/Group timelines. Canonical Entry/direct-index,
+// search and Feed archive maintenance remain identical to PutEntry.
+func PutArchiveEntry(db *store.Store, entry *pb.Entry) (store.Key, error) {
+	return putEntry(db, entry, nil, false)
+}
+
+func putEntry(db *store.Store, entry *pb.Entry, observer TimelineMoveObserver, activity bool) (store.Key, error) {
 	if entry.FeedUuid == "" {
 		entry.FeedUuid = entry.ProfileUuid // backward compatible
 	}
@@ -91,7 +102,7 @@ func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer Tim
 		if err := writeEntryInteractionsBatch(batch, entryUuid, entry.Comments, entry.Likes); err != nil {
 			return fmt.Errorf("write entry interactions: %w", err)
 		}
-		if created && groupEntry {
+		if created && groupEntry && activity {
 			if err := stageAdjustGroupActivityIfMember(db, batch, userUuid, groupUUID, GroupActivityPostScore); err != nil {
 				return fmt.Errorf("update Group activity: %w", err)
 			}
@@ -106,8 +117,10 @@ func PutEntryWithTimelineObserver(db *store.Store, entry *pb.Entry, observer Tim
 
 	// Initialize activity-ranked Home timelines after the canonical Entry and
 	// direct indexes commit. Follower count is unbounded.
-	if _, err := FanoutTimelineActivity(db, entry, oldtime, TimelineActivityPublish, observer); err != nil {
-		return nil, fmt.Errorf("fanout entry: %w", err)
+	if activity {
+		if _, err := FanoutTimelineActivity(db, entry, oldtime, TimelineActivityPublish, observer); err != nil {
+			return nil, fmt.Errorf("fanout entry: %w", err)
+		}
 	}
 
 	// index entry body

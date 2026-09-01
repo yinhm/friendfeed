@@ -296,8 +296,8 @@ Pebble 目录；升级二进制后正常启动即可。启动后检查：
 这些工具会自行以只读或读写模式打开数据库，但 Pebble 仍不允许另一进程同时打开同一
 目录；生产检查应针对停服目录或一致性副本执行。正常的
 旧库首次启动没有 Service/Task 行；不得为了“初始化”手工写空表。既有表 101 的
-Twitter FeedService 会按原字段号继续读取，但不会被 Web Feed 调度器抓取。旧 FeedJob
-客户端、RPC 和调度器已经退役；表号 200–202 永久保留且不得复用。Done 清理必须先带 `-dry-run` 和
+Twitter FeedService 会按原字段号继续读取，但不会被 Web Feed 调度器抓取。表号 200–202 永久保留且
+不得复用。Done 清理必须先带 `-dry-run` 和
 明确 `-before`，确认计数后再执行同一 cutoff。
 
 # Pebble v2 / FMV 升级（2026-07，dev 与 production 已完成）

@@ -16,7 +16,13 @@ GET  /api/v1/feed
 GET  /api/v1/feed/entries
 GET  /api/v1/feed/entries/:entry_id
 POST /api/v1/feed/entries
+POST /api/v1/feed/imports
 ```
+
+`/api/v1/feed/imports` 是同一 Feed capability 下的历史外部内容入口，但使用专用幂等/历史时间
+mutation；完整契约、旧 Twitter UUID fallback 与 archive side-effect 边界见
+`docs/external_import.md`。站点管理员也可用一小时、import-only operator token 及显式 target 调用
+该端点；它不改变普通 `POST /api/v1/feed/entries` 的非幂等语义。
 
 V1 不支持：
 
@@ -43,6 +49,12 @@ External client
   -> ffdb AuthenticateFeedApiKey
   -> receive authoritative Feed UUID and non-secret key ID
   -> reuse FetchFeed / FetchEntry / PostEntry with trusted internal metadata
+
+Local operator CLI
+  -> issue one short-lived import-only token over loopback gRPC
+  -> connector sends X-FF-Import-Target before multipart body
+  -> ffweb asks ffdb to authenticate token + canonical target
+  -> reuse the same media pipeline and ImportFeedEntry mutation
 ```
 
 - ffweb 负责 HTTP contract、multipart、限额和 Public DTO；
@@ -52,6 +64,8 @@ External client
 - Public API 不复制 Feed/Entry RPC；鉴权后复用 `FetchFeed`、`FetchEntry`、`PostEntry`，仅在
   ffweb 注入可信 Feed identity metadata 时进入 machine capability 分支；
 - ffdb 继续只监听 loopback，Public API 只由 ffweb 暴露。
+- operator token 不能调用其他 Public API endpoint；普通 Feed API key 也不能携带
+  `X-FF-Import-Target` 改写自身 target。
 
 ## 3. Credential model
 

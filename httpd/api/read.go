@@ -61,6 +61,7 @@ type entryDTO struct {
 	Via       entryViaDTO   `json:"via"`
 	Images    []imageDTO    `json:"images"`
 	Files     []fileDTO     `json:"files"`
+	SourceURL string        `json:"source_url,omitempty"`
 }
 
 type paginationDTO struct {
@@ -86,6 +87,18 @@ func entryResponseDTO(entry *pb.Entry, target *pb.Feed) entryDTO {
 	}
 	if entry.Via != nil {
 		result.Via = entryViaDTO{Name: entry.Via.Name}
+	}
+	// RawLink/Via point at the external source. Historical FriendFeed rows
+	// commonly keep their local permalink in Url, which cannot identify the
+	// original provider item during a connector legacy scan.
+	result.SourceURL = entry.RawLink
+	if result.SourceURL == "" {
+		if entry.Via != nil {
+			result.SourceURL = entry.Via.Url
+		}
+	}
+	if result.SourceURL == "" {
+		result.SourceURL = entry.Url
 	}
 	for _, thumbnail := range entry.Thumbnails {
 		if thumbnail == nil {

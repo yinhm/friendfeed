@@ -50,6 +50,8 @@ type storeAuditStats struct {
 	revokedFeedApiKeys           int
 	invalidFeedApiKeys           int
 	orphanFeedApiKeys            int
+	importOperatorTokens         int
+	invalidImportOperatorTokens  int
 	services                     int
 	serviceStates                int
 	feedServices                 int
@@ -356,6 +358,19 @@ func auditStore(db *store.Store) (storeAuditStats, error) {
 		return nil
 	}); err != nil {
 		return stats, err
+	}
+	if record, err := model.GetImportOperatorToken(db); err == nil {
+		stats.importOperatorTokens = 1
+		validLifetime := record.CreatedAtMs > 0 && record.ExpiresAtMs > record.CreatedAtMs &&
+			record.ExpiresAtMs-record.CreatedAtMs <= time.Hour.Milliseconds()
+		validSecret := record.RevokedAtMs == 0 && len(record.KeyId) == 8 && len(record.SecretSha256) == 32
+		validRevoked := record.RevokedAtMs > 0 && len(record.KeyId) == 8 && len(record.SecretSha256) == 0
+		if !validLifetime || record.IssuedBy == "" || (!validSecret && !validRevoked) {
+			stats.invalidImportOperatorTokens = 1
+		}
+	} else if !errors.Is(err, store.ErrNotFound) {
+		stats.importOperatorTokens = 1
+		stats.invalidImportOperatorTokens = 1
 	}
 
 	var groupOwner uuid.UUID
@@ -1006,6 +1021,8 @@ func writeStoreAudit(out io.Writer, stats storeAuditStats) {
 	fmt.Fprintf(out, "feed_api_keys=%d active=%d revoked=%d invalid=%d orphan_feed=%d\n",
 		stats.feedApiKeys, stats.activeFeedApiKeys, stats.revokedFeedApiKeys,
 		stats.invalidFeedApiKeys, stats.orphanFeedApiKeys)
+	fmt.Fprintf(out, "import_operator_tokens=%d invalid=%d\n",
+		stats.importOperatorTokens, stats.invalidImportOperatorTokens)
 	fmt.Fprintf(out, "like_timeline=%d comment_timeline=%d comment_positions=%d interaction_orphans=%d interaction_mismatches=%d\n",
 		stats.likeTimelineRows, stats.commentTimelineRows, stats.commentPositionRows,
 		stats.interactionOrphans, stats.interactionMismatches)

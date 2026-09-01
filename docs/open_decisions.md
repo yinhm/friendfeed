@@ -13,7 +13,6 @@
 
 ## 部署与运行维护
 
-- **Python 依赖锁定**：确定生产 Python 版本后，再统一锁定 `twikit` 及 protobuf/gRPC 兼容范围。
 
 ## 协议、数据与服务模型
 

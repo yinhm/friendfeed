@@ -61,6 +61,23 @@ GET 返回 `{"data": ...}`；list 另含 `pagination.next_cursor`；POST 成功�
 `{"error":{"code","message","request_id"}}`，不得含 gRPC error、token 或服务端路径。
 POST 非幂等：网络超时后先查询 Entry list，不要盲目重试。
 
+历史外部内容使用独立 import contract。不要手写或记录真实 token；示例 metadata：
+
+```json
+{"source":{"kind":"twitter","account_id":"12345","item_id":"1295071681511407617","url":"https://x.com/example/status/1295071681511407617"},"published_at":"2020-08-17T12:34:56Z","title":"","body_html":"Archived post"}
+```
+
+```bash
+curl --fail-with-body -H "Authorization: Bearer $FF_API_TOKEN" \
+  --form-string "metadata=$(cat ./metadata.json)" \
+  -F 'file=@./archive-media.jpg' \
+  https://friendfeed.example/api/v1/feed/imports
+```
+
+首次创建返回 201/`created=true`，相同 identity 重放返回 200/`created=false`；409 表示来源 identity
+与现存 Entry 冲突。archive import 不进入 Home/Public/realtime。批量归档应使用独立
+`twitter-import` connector，而不是 shell 循环；完整边界见 `docs/external_import.md`。
+
 ## 回滚与媒体孤儿
 
 回滚 ffweb/nginx 会暂停 Public API，但不会删除 `TableFeedApiKey` 行。回滚 ffdb 前必须确认目标

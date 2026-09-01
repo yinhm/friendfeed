@@ -465,3 +465,14 @@ message FeedApiKeyRecord {
   int64 rotated_at_ms = 4;
   int64 revoked_at_ms = 5;
 }
+
+// ImportOperatorTokenRecord stores the single active, short-lived operator
+// credential. The plaintext secret is returned once and never persisted.
+message ImportOperatorTokenRecord {
+  bytes key_id = 1;
+  bytes secret_sha256 = 2;
+  int64 created_at_ms = 3;
+  int64 expires_at_ms = 4;
+  int64 revoked_at_ms = 5;
+  string issued_by = 6; // Diagnostic only; never an authorization identity.
+}

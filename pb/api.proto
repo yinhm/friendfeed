@@ -38,6 +38,7 @@ service Api {
   // Entry page return Feed as well
   rpc FetchEntry(EntryRequest) returns (Feed) {}
   rpc PostEntry(Entry) returns (Entry) {}
+  rpc ImportFeedEntry(ImportFeedEntryRequest) returns (ImportFeedEntryResponse) {}
   rpc PostTweet(Tweet) returns (Entry) {}
   rpc DeleteEntry(EntryRequest) returns (EntryRequest) {}
   rpc LikeEntry(LikeRequest) returns (Entry) {}
@@ -81,6 +82,10 @@ service Api {
   rpc RotateFeedApiKey(FeedApiKeyManageRequest) returns (FeedApiKeyMutationResponse) {}
   rpc RevokeFeedApiKey(FeedApiKeyManageRequest) returns (FeedApiKeyStatusResponse) {}
   rpc AuthenticateFeedApiKey(AuthenticateFeedApiKeyRequest) returns (AuthenticateFeedApiKeyResponse) {}
+  rpc GetImportOperatorTokenStatus(google.protobuf.Empty) returns (ImportOperatorTokenStatusResponse) {}
+  rpc IssueImportOperatorToken(IssueImportOperatorTokenRequest) returns (ImportOperatorTokenMutationResponse) {}
+  rpc RevokeImportOperatorToken(google.protobuf.Empty) returns (ImportOperatorTokenStatusResponse) {}
+  rpc AuthenticateImportOperatorToken(AuthenticateImportOperatorTokenRequest) returns (AuthenticateFeedApiKeyResponse) {}
 
   rpc Command(CommandRequest) returns (CommandResponse) {}
 
@@ -567,6 +572,32 @@ message AuthenticateFeedApiKeyResponse {
   bytes key_id = 2;
 }
 
+message IssueImportOperatorTokenRequest {
+  int64 ttl_seconds = 1;
+  string issued_by = 2; // Local CLI user@host; diagnostic only.
+}
+
+message ImportOperatorTokenStatusResponse {
+  bytes key_id = 1;
+  int64 created_at_ms = 2;
+  int64 expires_at_ms = 3;
+  int64 revoked_at_ms = 4;
+  bool active = 5;
+  string issued_by = 6;
+}
+
+message ImportOperatorTokenMutationResponse {
+  ImportOperatorTokenStatusResponse status = 1;
+  // Returned exactly once by Issue. Never persisted in plaintext.
+  string token = 2;
+}
+
+message AuthenticateImportOperatorTokenRequest {
+  string token = 1;
+  // Explicit target Feed ID or UUID. ffdb resolves the canonical UUID.
+  string target_feed = 2;
+}
+
 // ListGroupMembersRequest pages a Group's membership. Follower edges are the
 // sole membership source; cursor follows the same contract as
 // ListUserGroups (last scanned edge, never a business ID).
@@ -587,4 +618,25 @@ message GroupMember {
 message ListGroupMembersResponse {
   repeated GroupMember members = 1;
   string next_cursor = 2; // Empty when iteration is complete
+}
+
+// ImportFeedEntry is the loopback data mutation for an already-authenticated
+// Feed capability. The target Feed is carried only by trusted gRPC metadata;
+// callers cannot select it in this request.
+message ImportFeedEntryRequest {
+  string source_kind = 1;
+  string source_account_id = 2;
+  string source_item_id = 3;
+  string source_url = 4;
+  string published_at = 5;
+  string title = 6;
+  string body_html = 7;
+  repeated Thumbnail thumbnails = 8;
+  repeated File files = 9;
+}
+
+message ImportFeedEntryResponse {
+  Entry entry = 1;
+  bool created = 2;
+  bool legacy_replay = 3;
 }

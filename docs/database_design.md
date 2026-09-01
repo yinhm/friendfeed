@@ -53,7 +53,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 
 | Prefix | 表 | Key（省略 value 中的 protobuf 细节） | Value | 性质 |
 | ---: | --- | --- | --- | --- |
-| 0 | Meta | 领域固定字符串 + UUID | raw UUID、JSON 或 protobuf | 小型 metadata 与可重建物化视图；含 Group owner/activity、`feed-archive/v1` 快照及 `feed-archive-dirty/v1` 首次失效时间 |
+| 0 | Meta | 领域固定字符串 + UUID | raw UUID、JSON 或 protobuf | 小型 metadata 与可重建物化视图；含 Group owner/activity、Feed archive，以及 `import-operator-token/v1` 短期导入凭据 digest |
 | 1 | Feed | 保留，当前无运行时表实例 | — | 历史前缀 |
 | 2 | Feedinfo | `T + feed UUID` | `pb.Feedinfo` | 历史/迁移 metadata |
 | 3 | Entry | `T + entry UUID` | `pb.Entry`，不再内嵌 canonical Like/Comment | 源数据 |
@@ -85,7 +85,7 @@ Entry 与 EntryIndex 中的 UUID 均为 raw bytes，不允许用 UUID 字符串�
 | 121 | NotificationInbox | `T + recipient UUID + ^UnixMillis(activity_at) + notification UUID` | 空 | newest-first 通知排序索引 |
 | 122 | NotificationState | `T + recipient UUID` | versioned JSON：read watermark + counters | O(1) unread/total 状态 |
 | 123 | FeedApiKey | `T + raw Feed UUID` | `pb.FeedApiKeyRecord`：8 B key ID、32 B secret SHA-256、生命周期时间 | 每 Feed 至多一个 active Public API credential；不存明文 token |
-| 200–202 | 已退役 Twitter FeedJob | 不再读写 | 不再读写 | 永久保留表号，禁止复用 |
+| 200–202 | 保留表号 | 不再读写 | 不再读写 | 禁止复用 |
 | 203 | Task | `T + raw Flake ID` | `pb.Task` | Task 权威状态 |
 | 204 | TaskReady | `T + type_len(1) + type + run time + task ID` | 空 | READY 派生索引 |
 | 205 | TaskLease | `T + lease time + task ID` | 空 | INFLIGHT 派生索引 |

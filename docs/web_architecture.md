@@ -356,7 +356,8 @@ BFF 不应成为新的业务 source of truth。
 ## 3.3 Browser BFF API 与 Public API 分离
 
 Public Feed API V1 的 endpoint、credential、DTO、持久化和验收细节统一见
-`docs/web_api.md`，生产操作见 `docs/web_api_operations.md`。本文件只保留 Web 总体分层，若出现
+`docs/web_api.md`，生产操作见 `docs/web_api_operations.md`；历史外部内容导入扩展见
+`docs/external_import.md`。本文件只保留 Web 总体分层，若出现
 冲突，Public API 专项规范优先。
 
 必须区分两类接口：

@@ -19,12 +19,12 @@ import (
 )
 
 const (
-	defaultConcurrency = 32
-	defaultTimeout     = 30 * time.Second
-	maxRequestBytes    = media.MaxEntryAttachmentBytes + 512<<10
-	requestIDKey       = "public-api-request-id"
-	bearerTokenKey     = "public-api-bearer-token"
-	principalKey       = "public-api-principal"
+	defaultConcurrency   = 32
+	defaultTimeout       = 30 * time.Second
+	maxRequestBytes      = media.MaxEntryAttachmentBytes + 512<<10
+	requestIDKey         = "public-api-request-id"
+	principalKey         = "public-api-principal"
+	operatorTargetHeader = "X-FF-Import-Target"
 )
 
 type Error struct {
@@ -79,6 +79,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	group.GET("/feed/entries", h.listEntries)
 	group.GET("/feed/entries/:entry_id", h.getEntry)
 	group.POST("/feed/entries", h.postEntry)
+	group.POST("/feed/imports", h.importEntry)
 }
 
 func (h *Handler) Shutdown() { h.once.Do(h.cancel) }
@@ -105,7 +106,6 @@ func (h *Handler) transportBoundary() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		c.Set(bearerTokenKey, token)
 		ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
 		defer cancel()
 		stopShutdownCancellation := context.AfterFunc(h.ctx, cancel)
@@ -113,6 +113,24 @@ func (h *Handler) transportBoundary() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 		principal, err := h.client.AuthenticateFeedApiKey(ctx, &pb.AuthenticateFeedApiKeyRequest{Token: token})
 		if err != nil || principal == nil || principal.FeedUuid == "" || len(principal.KeyId) == 0 {
+			if status.Code(err) == codes.Unauthenticated && c.Request.Method == http.MethodPost && c.Request.URL.Path == "/api/v1/feed/imports" {
+				target := strings.TrimSpace(c.GetHeader(operatorTargetHeader))
+				if target == "" || len(target) > 255 {
+					writeError(c, http.StatusUnauthorized, "invalid_api_key", "API key is invalid")
+					c.Abort()
+					return
+				}
+				operator, operatorErr := h.client.AuthenticateImportOperatorToken(ctx, &pb.AuthenticateImportOperatorTokenRequest{
+					Token: token, TargetFeed: target,
+				})
+				if operatorErr == nil && operator != nil && operator.FeedUuid != "" && len(operator.KeyId) != 0 {
+					c.Set(principalKey, Principal{FeedUUID: operator.FeedUuid, KeyID: append([]byte(nil), operator.KeyId...)})
+					c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBytes)
+					c.Next()
+					return
+				}
+				err = operatorErr
+			}
 			switch status.Code(err) {
 			case codes.FailedPrecondition, codes.PermissionDenied:
 				writeError(c, http.StatusForbidden, "forbidden", "Feed is unavailable")
@@ -125,6 +143,11 @@ func (h *Handler) transportBoundary() gin.HandlerFunc {
 			return
 		}
 		c.Set(principalKey, Principal{FeedUUID: principal.FeedUuid, KeyID: append([]byte(nil), principal.KeyId...)})
+		if c.GetHeader(operatorTargetHeader) != "" {
+			writeError(c, http.StatusBadRequest, "invalid_request", "Request is invalid")
+			c.Abort()
+			return
+		}
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBytes)
 		if c.FullPath() == "" {
 			writeError(c, http.StatusNotFound, "not_found", "Resource not found")
@@ -160,12 +183,6 @@ func strictBearerToken(values []string) (string, bool) {
 		return "", false
 	}
 	return token, true
-}
-
-func bearerToken(c *gin.Context) string {
-	value, _ := c.Get(bearerTokenKey)
-	token, _ := value.(string)
-	return token
 }
 
 func requestID(c *gin.Context) string {

@@ -104,7 +104,9 @@ transport shell 统一提供 request ID、JSON error、no-store/nosniff、30 秒
 32 个全局并发槽；未知路径返回同形状 JSON 404。V1 已开放 `GET /api/v1/feed`、
 `GET /api/v1/feed/entries` 和 `GET /api/v1/feed/entries/:entry_id`；不得为了诊断临时暴露
 principal/debug endpoint。`POST /api/v1/feed/entries` 接受严格白名单 multipart，具体字段、媒体
-限额、非幂等与 canonical orphan 边界以 `docs/web_api.md` 为准。
+限额、非幂等与 canonical orphan 边界以 `docs/web_api.md` 为准。历史外部内容使用
+`POST /api/v1/feed/imports`，其确定性 identity、旧 Twitter 兼容和 archive side-effect 以
+`docs/external_import.md` 为准。
 
 ## Notification、static 与 media
 
