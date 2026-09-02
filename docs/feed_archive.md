@@ -72,3 +72,12 @@ Task handler 流式扫描单个 Feed，内存只随年份数增长。EntryIndex 
 ```
 
 全量模式逐个扫描未删除的 user/group Profile，不收集全库 Entry 或 key。
+
+只需清空派生统计并让登录用户访问时按需重建，可停服后执行：
+
+```bash
+echo purge_feed_archive | ./tools -to <db-dir> -c purge_feed_archive
+```
+
+该命令只删除 `feed-archive/v1/` 快照和 `feed-archive-dirty/v1/` marker，不触碰
+其他 Meta 数据。缺失快照会在登录用户访问 direct Feed 时入队重建；匿名访问不触发维护。

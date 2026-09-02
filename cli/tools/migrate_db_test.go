@@ -56,6 +56,10 @@ func TestConfirmDestructive(t *testing.T) {
 	}
 }
 
+func TestPurgeFeedArchiveIsDestructive(t *testing.T) {
+	require.True(t, destructiveCommands["purge_feed_archive"])
+}
+
 func TestInspectAndPurgeUserRenameMap(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)

@@ -72,6 +72,7 @@ func purge_table(db *store.Store, prefix store.Key) (int, error) {
 
 // destructiveCommands 会不可逆地删除整表数据，执行前必须交互确认。
 var destructiveCommands = map[string]bool{
+	"purge_feed_archive":    true,
 	"purge_profile":         true,
 	"purge_oauth":           true,
 	"purge_timeline":        true,
@@ -1044,6 +1045,12 @@ func main() {
 		runPurgeOAuthCommand(ndb)
 	case "purge_timeline":
 		runPurgeTimelineCommand(ndb)
+	case "purge_feed_archive":
+		snapshots, dirty, err := model.PurgeFeedArchives(ndb)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Feed archive purge: snapshots=%d dirty_markers=%d", snapshots, dirty)
 	case "purge_user_rename_map":
 		runPurgeUserRenameMapCommand(ndb)
 	case "inspect_profile":

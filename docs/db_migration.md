@@ -80,6 +80,11 @@ Feed 年度统计同样先按用户验证，再全量重建；它逐个处理全
     ./tools -to /srv/ffdb/db -c rebuild_feed_archive -dry-run
     ./tools -to /srv/ffdb/db -c rebuild_feed_archive
 
+不需要全量预建时，可清除 Archive 快照和 dirty marker，随后由登录用户访问 direct Feed
+时懒重建：
+
+    echo purge_feed_archive | ./tools -to /srv/ffdb/db -c purge_feed_archive
+
 社交图完成后重建用户 timeline。
 
 单个用户：

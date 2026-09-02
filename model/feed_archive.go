@@ -89,6 +89,37 @@ func PutFeedArchive(db *store.Store, feed uuid.UUID, stats *pb.FeedArchiveStats)
 	})
 }
 
+// PurgeFeedArchives removes every rebuildable archive snapshot and dirty
+// marker while leaving unrelated Meta records untouched.
+func PurgeFeedArchives(db *store.Store) (snapshots, dirty int, err error) {
+	prefixes := []struct {
+		key   store.Key
+		count *int
+	}{
+		{NewKeyFrom(TableMeta.Bytes(), feedArchiveMetaPrefix), &snapshots},
+		{NewKeyFrom(TableMeta.Bytes(), feedArchiveDirtyMetaPrefix), &dirty},
+	}
+	for _, prefix := range prefixes {
+		*prefix.count, err = db.ForwardScan(prefix.key, func(int, []byte, []byte) error { return nil })
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
+		for _, prefix := range prefixes {
+			upper := store.KeyUpperBound(prefix.key)
+			if upper == nil {
+				return fmt.Errorf("Feed archive prefix %x has no upper bound", prefix.key)
+			}
+			if err := batch.DeleteRange(prefix.key, upper, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return snapshots, dirty, err
+}
+
 // StageMarkFeedArchiveDirty preserves the first mutation time and leaves the
 // last good snapshot readable while deferred maintenance is pending. It must
 // be called inside Store.ApplyBatch so its read and staged write are

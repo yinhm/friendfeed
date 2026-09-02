@@ -107,3 +107,27 @@ func TestFeedArchiveRoundTripDirtyMarkerAndPublish(t *testing.T) {
 	_, err = GetFeedArchive(db, feed)
 	require.Error(t, err)
 }
+
+func TestPurgeFeedArchivesLeavesOtherMetaUntouched(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	for range 2 {
+		feed := uuid.Must(uuid.NewV4())
+		require.NoError(t, PutFeedArchive(db, feed, &pb.FeedArchiveStats{}))
+		require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+			return StageMarkFeedArchiveDirty(db, batch, feed, time.Now().UTC())
+		}))
+	}
+	unrelated := NewKeyFrom(TableMeta.Bytes(), []byte("unrelated"))
+	require.NoError(t, db.Set(unrelated, []byte("keep")))
+
+	snapshots, dirty, err := PurgeFeedArchives(db)
+	require.NoError(t, err)
+	require.Equal(t, 2, snapshots)
+	require.Equal(t, 2, dirty)
+	value, err := db.Get(unrelated)
+	require.NoError(t, err)
+	require.Equal(t, []byte("keep"), value)
+}
