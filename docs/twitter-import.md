@@ -87,12 +87,21 @@ operator token 只能调用 import endpoint，不能读取 Feed、普通发帖�
 
 `collect` 和 `sync` 都使用 TSV 把不可变 Twitter user ID 映射到 canonical FriendFeed Feed UUID：
 
-```text
-feed_id	feed_uuid	twitter_username	twitter_user_id
-alice	9e43d39c-2358-40a4-80ab-08a79a7b21e2	AliceX	42
+```bash
+./cli export-twitter-users --out ./twitter-users.tsv
 ```
 
-身份以 `feed_uuid` 和十进制 `twitter_user_id` 为准；用户名只用于操作时识别，改名不影响 identity。
+命令通过 loopback ffdb 只读导出，目标文件必须不存在并以 0600 创建。
+
+```text
+feed_id	feed_uuid	twitter_username	twitter_user_id	boundary_tweet_id	boundary_at
+alice	9e43d39c-2358-40a4-80ab-08a79a7b21e2	AliceX	42	100	2026-01-12T13:44:55Z
+```
+
+身份以 `feed_uuid` 和十进制 `twitter_user_id` 为准；用户名只用于操作时识别，改名不影响 identity。CLI
+导出 TSV 时把该 Feed 最新的既有 Twitter 条目固定为 `boundary_tweet_id` 和 `boundary_at`。`sync` 遇到该
+ID，或时间不晚于该时间点的 tweet，即结束该用户的增量区间；`--resume` 始终复用 TSV 中的固定值，不会
+因刚导入的条目移动边界。两列可由操作者在同步前清空或调整，`--full` 忽略边界。
 
 ## 6. GetXAPI collect：只采集，不导入
 
@@ -140,6 +149,8 @@ output/
 - 默认跳过 reply；
 - 媒体下载失败记为 `media_missing`，降级为纯文本导入；
 - 内容级永久错误记为 `rejected` 并继续；凭据错误和耗尽重试的临时错误中止；
+- GetXAPI 单账号 401/403/404 记为 `account_unavailable` 并继续后续账号；429、5xx 或网络错误仍立即
+  停止。若所有账号均不可访问，命令最终返回非零，避免把 key/套餐问题误报为成功；
 - 串行执行，不隐藏并发，也不自动重试付费 GetXAPI 读取；
 - 默认输出目录是 `./output`，可用 `--output` 修改。
 
@@ -168,8 +179,9 @@ output/
   --resume
 ```
 
-`--resume` 先消费本地 ZIP，不重新读取同一付费页面。保存页耗尽后，如果存在 `NextCursor`，仍会请求新的
-GetXAPI 页面；它避免重复费用，但不是零费用模式。没有 continuation 时不会调用 GetXAPI。
+`--resume` 优先消费本地 ZIP，不重新读取同一付费页面。某用户没有 continuation 时，从该用户最新页正常
+开始，不会跳过首次同步账号。保存页耗尽后，如果存在 `NextCursor`，仍会请求新的 GetXAPI 页面；它避免
+重复费用，但不是零费用模式。
 
 普通 `sync` 总是检查最新页，同时保留旧 continuation；多个未完成区间按每用户位置栈保存，不会被新的
 增量检查覆盖。
