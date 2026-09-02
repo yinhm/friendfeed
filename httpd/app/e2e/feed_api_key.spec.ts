@@ -24,7 +24,7 @@ test('Feed API key is displayed once and can be revoked', async ({context, page}
 
   if (await page.getByText('Active', {exact: true}).count()) {
     await confirm(page, 'Revoke');
-    await expect(page.getByText('Revoked', {exact: true})).toBeVisible();
+    await expect(page.getByRole('cell', {name: 'Revoked', exact: true})).toBeVisible();
   }
 
   const fresh = page.getByRole('button', {name: 'Generate new key'});
@@ -41,5 +41,5 @@ test('Feed API key is displayed once and can be revoked', async ({context, page}
   await expect(page.getByText('Active', {exact: true})).toBeVisible();
 
   await confirm(page, 'Revoke');
-  await expect(page.getByText('Revoked', {exact: true})).toBeVisible();
+  await expect(page.getByRole('cell', {name: 'Revoked', exact: true})).toBeVisible();
 });

@@ -27,16 +27,17 @@ test('sidebar search mounts for logged-in users and finds a seeded entry', async
   ).toBeVisible();
 });
 
-// The results page itself is server-rendered and works without the client
-// bundle.
+// Logged-in results are React-owned (app_shell.html): the SSR document carries
+// them in pageBootstrap instead of a server-rendered Entry tree. Anonymous
+// SSR rendering is covered by the public feed specs.
 test('search results render for logged-in users', async ({ context, page }) => {
   await authenticate(context);
   const response = await page.request.get('/search?q=smoke');
   expect(response.ok()).toBeTruthy();
   const html = await response.text();
 
+  expect(html).toContain('window.pageBootstrap');
   expect(html).toContain('E2E smoke');
-  expect(html).toContain('<div class="entry" eid=');
 });
 
 test('anonymous search redirects to login', async ({ page }) => {
