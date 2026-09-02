@@ -27,7 +27,7 @@ require (
 require (
 	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/anthonynsimon/bild v0.17.0
-	github.com/cockroachdb/pebble/v2 v2.1.6
+	github.com/cockroachdb/pebble/v2 v2.1.7
 	github.com/gin-contrib/sessions v1.1.0
 	github.com/mmcdole/gofeed v1.4.2
 )
@@ -69,7 +69,7 @@ require (
 	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
-	github.com/cockroachdb/swiss v0.0.0-20251224182025-b0f6560f979b // indirect
+	github.com/cockroachdb/swiss v0.0.0-20260820225851-333444432258 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
