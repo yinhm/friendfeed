@@ -35,7 +35,7 @@
     "@radix-ui/react-tooltip": "^1.2.16",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
-    "lucide-react": "^1.35.0",
+    "lucide-react": "^1.37.0",
     "platejs": "53.3.9",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
