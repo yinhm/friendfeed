@@ -13,7 +13,7 @@
 | Notifications | `app_shell.html` + React dispatcher | 已迁移 |
 | Follow Requests | `app_shell.html` + React dispatcher | 已迁移 |
 | Group 管理/列表 | `app_shell.html` + React dispatcher | 已迁移 |
-| Sidebar Search | authenticated app shell 内的 React navigation | 已并入唯一 `#app-root`；匿名 SSR 使用普通 HTML form |
+| Sidebar Search | authenticated app shell 内的 React navigation | 仅登录用户显示；匿名 SSR 不提供 Search |
 | 403/404 | Pongo2 | 保留简单服务端页面 |
 
 匿名 SSR 白名单不改变权限：private Feed/Entry 必须先通过 ffdb 可见性检查，未授权时不得输出正文。登录态明确依赖 JavaScript。
@@ -56,7 +56,7 @@
 | `GET /feed/:name/following` | `ProfileRelationsHandler` | login + Feed visibility；User only | app shell + React `profile-relations` |
 | `GET /feed/:name/followers` | `ProfileRelationsHandler` | login + Feed visibility；User only | app shell + React `profile-relations` |
 | `GET /feed/:name/api` | `FeedApiKeyPageHandler` | login + owner/Group admin/super | app shell + React `feed-api-key` |
-| `GET /search` | `SearchHandler` | visibility-filtered | Feed React |
+| `GET /search` | `SearchHandler` | login required、visibility-filtered | Feed React |
 | `GET /tag/:name` | `TagHandler` | visibility-filtered | Feed React |
 | `GET /a/entry/:uuid` | `ExpandCommentHandler` | entry visibility | HTML fragment |
 | `GET /a/expandlikes/:uuid` | `ExpandLikeHandler` | entry visibility | HTML fragment |

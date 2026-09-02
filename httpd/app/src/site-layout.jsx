@@ -46,7 +46,6 @@ export function SiteLayout({bootstrap, children}) {
         <div className="section"><h3>Account</h3><ul>
           {currentUser ? <>
             <li><a href="/account/profile">Profile</a></li>
-            <li><a href="/account/import">Import</a></li>
             <li><a href="/account/requests">Requests</a></li>
             <li><a href="/logout">Logout</a></li>
           </> : <>
@@ -54,7 +53,7 @@ export function SiteLayout({bootstrap, children}) {
             <li><a href="/auth/google">Google</a></li>
           </>}
         </ul></div>
-        <Search />
+        {currentUser && <Search />}
       </details>
       {currentUser && layout.show_groups && <div className="menu groups-menu sidebar-secondary-menu"><div className="section">
         <h3 className="groups-heading">Groups</h3>

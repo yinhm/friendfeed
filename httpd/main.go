@@ -236,7 +236,7 @@ func Serve(s *server.Server, publicAPI *publicapi.Handler, config *util.Config) 
 	}
 
 	r.GET("/public", s.PublicHandler)
-	r.GET("/search", s.SearchHandler)
+	r.GET("/search", server.LoginRequired(), s.SearchHandler)
 	r.GET("/tag/:name", s.TagHandler)
 
 	r.GET("/file/*filepath", localMediaHandler(config.MediaPath))

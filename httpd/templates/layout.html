@@ -59,7 +59,6 @@
                     <ul>
                         {% if current_user %}
                         <li><a href="/account/profile">Profile</a></li>
-                        <li><a href="/account/import">Import</a></li>
                         <li><a href="/account/requests">Requests</a></li>
                         <li><a href="/logout">Logout</a></li>
                         {% else %}
@@ -69,10 +68,10 @@
                     </ul>
                 </div>
 
-                <div class="section">
+                {% if current_user %}<div class="section">
                     <h3><label for="search-query">Search</label></h3>
                     <form action="/search"><input id="search-query" name="q" type="search" /></form>
-                </div>
+                </div>{% endif %}
             </details>
 
             {% if current_user and show_groups_sidebar %}

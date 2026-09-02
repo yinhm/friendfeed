@@ -25,3 +25,10 @@ it('uses the compact permalink navigation when onpage is true', () => {
   expect(screen.getByRole('link', {name: 'Home'})).toBeInTheDocument();
   expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
 });
+
+it('does not expose search to anonymous readers', () => {
+  render(<SiteLayout bootstrap={{version: 1, page: 'groups', data: {}, layout: {
+    onpage: false, has_unread_notifications: false, show_groups: false,
+  }}}><div>groups</div></SiteLayout>);
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+});
