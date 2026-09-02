@@ -188,7 +188,7 @@ SSR/UI responsibilities
 - Vite；
 - React 19；
 - TypeScript type checking；
-- ESLint；
+- oxlint；
 - Vitest；
 - Playwright；
 - Tailwind；

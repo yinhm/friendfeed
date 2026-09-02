@@ -27,8 +27,8 @@
 
 ## 前端约束
 
-- `tsconfig` 不使用 `baseUrl`；类型门禁使用 TypeScript 7 原生 `tsc`。TypeScript 6 compatibility package 仅供仍依赖 programmatic API 的 ESLint 工具链使用。
-- ESLint 必须零 warning。Playwright 文件只放 `e2e/**`，Vitest 必须排除该目录。
+- `tsconfig` 不使用 `baseUrl`；类型门禁使用 TypeScript 7 原生 `tsc`。
+- Lint 门禁使用 oxlint（配置在 `httpd/app/.oxlintrc.json`），必须零 warning。不引入 eslint-plugin-react / React Compiler 严格规则，除非先单独清理存量代码。Playwright 文件只放 `e2e/**`，Vitest 必须排除该目录。
 
 ## OAuth、配置与日志
 

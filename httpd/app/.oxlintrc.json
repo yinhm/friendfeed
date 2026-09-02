@@ -1,0 +1,56 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "browser": true
+  },
+  "ignorePatterns": ["build/**", "coverage/**"],
+  "rules": {
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "typescript/no-explicit-any": "off",
+    "typescript/no-this-alias": "off",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    // ESLint 时期从未启用 eslint-plugin-react 与 React Compiler 严格规则；
+    // 关闭以保持门禁等价。若要启用，先单独清理存量代码。
+    "react/jsx-key": "off",
+    "react/immutability": "off",
+    "react/set-state-in-effect": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx"],
+      "rules": {
+        "no-undef": "off"
+      }
+    },
+    {
+      "files": ["**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs"],
+      "rules": {
+        "no-undef": "error"
+      }
+    },
+    {
+      "files": ["src/**/*.test.{js,jsx,ts,tsx}", "src/setupTests.js"],
+      "env": {
+        "vitest": true
+      }
+    },
+    {
+      "files": ["vite.config.js", "scripts/**/*.mjs", "**/*.cjs"],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}
