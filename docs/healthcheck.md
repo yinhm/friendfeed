@@ -16,17 +16,17 @@ ffdb 的 gRPC server 注册了标准健康检查服务 `grpc.health.v1.Health`�
 
 ## 探测方式
 
-假设服务监听 `127.0.0.1:8901`（以实际 `config.json` 的 `address` 为准）。
+先按实际 `config.json` 设置仅限 loopback 的 `FFDB_ADDRESS`。
 
 grpc_health_probe（退出码 0 表示 SERVING，适合脚本与监控系统）：
 
-    grpc_health_probe -addr=127.0.0.1:8901
-    grpc_health_probe -addr=127.0.0.1:8901 -service=ffdb.Storage
+    grpc_health_probe -addr="$FFDB_ADDRESS"
+    grpc_health_probe -addr="$FFDB_ADDRESS" -service=ffdb.Storage
 
 grpcurl（便于人工查看）：
 
-    grpcurl -plaintext 127.0.0.1:8901 grpc.health.v1.Health/Check
-    grpcurl -plaintext -d '{"service": "ffdb.Search"}' 127.0.0.1:8901 grpc.health.v1.Health/Check
+    grpcurl -plaintext "$FFDB_ADDRESS" grpc.health.v1.Health/Check
+    grpcurl -plaintext -d '{"service": "ffdb.Search"}' "$FFDB_ADDRESS" grpc.health.v1.Health/Check
 
 ## systemd 集成
 

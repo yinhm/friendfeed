@@ -80,6 +80,18 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 			return nil, err
 		}
 		return &pb.CommandResponse{Command: cmd.Command, Result: result}, nil
+	case "OAuthInspect":
+		result, err := s.oauthMaintenanceResult(cmd.Arg1, cmd.Arg2, false)
+		if err != nil {
+			return nil, err
+		}
+		return &pb.CommandResponse{Command: cmd.Command, Result: result}, nil
+	case "OAuthUnlink":
+		result, err := s.oauthMaintenanceResult(cmd.Arg1, cmd.Arg2, true)
+		if err != nil {
+			return nil, err
+		}
+		return &pb.CommandResponse{Command: cmd.Command, Result: result}, nil
 	default:
 		return nil, fmt.Errorf("unknown command %q", cmd.Command)
 	}

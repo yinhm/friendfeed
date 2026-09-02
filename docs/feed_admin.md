@@ -16,9 +16,9 @@
 ## Inspect
 
 ```bash
-./cli --address 127.0.0.1:8901 feed inspect yinhm
-./cli --address 127.0.0.1:8901 feed inspect <uuid> --entries 50
-./cli --address 127.0.0.1:8901 feed inspect yinhm --json
+./cli --address "$FFDB_ADDRESS" feed inspect yinhm
+./cli --address "$FFDB_ADDRESS" feed inspect <uuid> --entries 50
+./cli --address "$FFDB_ADDRESS" feed inspect yinhm --json
 ```
 
 `InspectFeed` 可以读取 soft-deleted Profile 的管理摘要，但不会返回 Entry 正文、`RawBody`、OAuth 凭据、Cookie/session 或 Feed API secret。输出包含：
@@ -41,18 +41,18 @@ Entry 总数等计数需要扫描对应 Feed 前缀，因此该命令是显式�
 单 Feed 预览：
 
 ```bash
-./cli --address 127.0.0.1:8901 feed privacy private --feed yinhm
-./cli --address 127.0.0.1:8901 feed privacy public --feed yinhm
+./cli --address "$FFDB_ADDRESS" feed privacy private --feed yinhm
+./cli --address "$FFDB_ADDRESS" feed privacy public --feed yinhm
 ```
 
 批量预览：
 
 ```bash
-./cli --address 127.0.0.1:8901 feed privacy private \
+./cli --address "$FFDB_ADDRESS" feed privacy private \
   --feed alice \
   --feed bob
 
-./cli --address 127.0.0.1:8901 feed privacy private --file feeds.txt
+./cli --address "$FFDB_ADDRESS" feed privacy private --file feeds.txt
 ```
 
 列表文件每行一个 Feed ID 或 UUID，允许空行和以 `#` 开头的注释。`--feed` 可重复，并可与 `--file` 合并；重复标识会在客户端和服务端解析后去重。每次 RPC 最多处理 100 个 Feed。

@@ -8,8 +8,8 @@ HTTP 路由，不开放 pprof，也不读取配置、凭据、Entry/Comment 正�
 在 ffdb 所在主机执行：
 
 ```bash
-cli --address 127.0.0.1:8901 inspect-runtime
-cli --address 127.0.0.1:8901 inspect-runtime --json
+cli --address "$FFDB_ADDRESS" inspect-runtime
+cli --address "$FFDB_ADDRESS" inspect-runtime --json
 ```
 
 基础快照为 O(1) 操作，不扫描数据库，也不触发 GC、Flush 或 cache eviction。主要字段：
@@ -41,7 +41,7 @@ cli --address 127.0.0.1:8901 inspect-runtime --json
 只有基础快照不能定位 Go 活对象归属时才执行：
 
 ```bash
-cli --address 127.0.0.1:8901 inspect-runtime --heap-profile
+cli --address "$FFDB_ADDRESS" inspect-runtime --heap-profile
 ```
 
 服务端将 profile 写入固定目录 `/tmp/ffdb-diagnostics`，目录权限 `0700`、文件权限 `0600`。
@@ -58,8 +58,8 @@ go tool pprof /path/to/ffdb /tmp/ffdb-diagnostics/heap-*.pprof
 ## 后台系统摘要
 
 ```bash
-cli --address 127.0.0.1:8901 inspect-system
-cli --address 127.0.0.1:8901 inspect-system --json
+cli --address "$FFDB_ADDRESS" inspect-system
+cli --address "$FFDB_ADDRESS" inspect-system --json
 ```
 
 输出包括：
