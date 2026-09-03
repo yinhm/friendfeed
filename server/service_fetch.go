@@ -471,6 +471,8 @@ func (s *ApiServer) attachBingWallpaperMedia(entry *pb.Entry, item *gofeed.Item)
 		return fmt.Errorf("store Bing Wallpaper image: %w", err)
 	}
 	object.Url = s.mediaBaseURL + "/" + strings.TrimLeft(object.Path, "/")
+	entry.Url = object.Url
+	entry.RawLink = object.Url
 	thumbnail, err := s.fs.Thumbnail(object)
 	if err != nil {
 		return fmt.Errorf("thumbnail Bing Wallpaper image: %w", err)
@@ -612,8 +614,9 @@ func parseBingWallpaper(body []byte) (*gofeed.Feed, error) {
 		}
 		imageURL := "https://www.bing.com" + image.URLBase + "_UHD.jpg"
 		published = published.UTC()
+		copyright := strings.TrimSpace(image.Copyright)
 		feed.Items = append(feed.Items, &gofeed.Item{
-			GUID: image.URLBase, Title: strings.TrimSpace(image.Copyright), Link: "https://www.bing.com/",
+			GUID: image.URLBase, Title: copyright, Description: copyright, Link: imageURL,
 			PublishedParsed: &published,
 			Enclosures:      []*gofeed.Enclosure{{URL: imageURL, Type: "image/jpeg"}},
 		})

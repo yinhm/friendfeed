@@ -521,6 +521,8 @@ func TestParseBingWallpaper(t *testing.T) {
 	require.Equal(t, "Bing Wallpaper", feed.Title)
 	require.Len(t, feed.Items, 1)
 	require.Equal(t, "/th?id=OHR.Sample_EN-US123", feed.Items[0].GUID)
+	require.Equal(t, "Sample © Author", feed.Items[0].Description)
+	require.Equal(t, "https://www.bing.com/th?id=OHR.Sample_EN-US123_UHD.jpg", feed.Items[0].Link)
 	require.Equal(t, "https://www.bing.com/th?id=OHR.Sample_EN-US123_UHD.jpg", feed.Items[0].Enclosures[0].URL)
 	require.Equal(t, time.Date(2026, 9, 2, 23, 0, 0, 0, time.UTC), *feed.Items[0].PublishedParsed)
 
@@ -543,7 +545,7 @@ func TestBingWallpaperServiceImportsMediaAndUsesDailyInterval(t *testing.T) {
 	published := now.Add(-time.Hour)
 	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
 		item := &gofeed.Item{
-			GUID: "/th?id=OHR.Sample_EN-US123", Title: "Sample", Link: "https://www.bing.com/", PublishedParsed: &published,
+			GUID: "/th?id=OHR.Sample_EN-US123", Title: "Sample", Description: "Sample © Author", Link: "https://www.bing.com/th?id=OHR.Sample_EN-US123_UHD.jpg", PublishedParsed: &published,
 			Enclosures: []*gofeed.Enclosure{{URL: "https://www.bing.com/th?id=OHR.Sample_EN-US123_UHD.jpg", Type: "image/jpeg"}},
 		}
 		return &serviceFetchResult{status: http.StatusOK, feed: &gofeed.Feed{Title: "Bing Wallpaper", Items: []*gofeed.Item{item}}}, nil
@@ -558,6 +560,9 @@ func TestBingWallpaperServiceImportsMediaAndUsesDailyInterval(t *testing.T) {
 	entry, err := model.GetEntry(srv.rdb, entryID.String())
 	require.NoError(t, err)
 	require.Empty(t, entry.Files)
+	require.Equal(t, "Sample © Author", entry.Body)
+	require.Equal(t, srv.mediaBaseURL+"/a/b/original", entry.Url)
+	require.Equal(t, srv.mediaBaseURL+"/a/b/original", entry.RawLink)
 	require.Equal(t, srv.mediaBaseURL+"/a/b/original-1024.jpg", entry.Thumbnails[0].Url)
 	require.Equal(t, srv.mediaBaseURL+"/a/b/original", entry.Thumbnails[0].Link)
 	state, err := model.GetServiceState(srv.rdb, serviceID)
