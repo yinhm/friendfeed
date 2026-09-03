@@ -57,10 +57,10 @@ export type RequestsPageData = {
 };
 export type GroupCreatePageData = {
   group: {id: string; name: string; description?: string; picture?: string; private?: boolean};
-  error?: string;
+  error?: string; picture_action?: string; picture_asset_token?: string;
 };
 export type GroupSettingsPageData = {
-  group: GroupCreatePageData['group']; error?: string;
+  group: GroupCreatePageData['group']; error?: string; picture_action?: string; picture_asset_token?: string;
 };
 
 export type FeedApiKeyPageData = {

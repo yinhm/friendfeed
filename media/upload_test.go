@@ -44,6 +44,16 @@ func TestPrepareUploadedImageRejectsPixelBomb(t *testing.T) {
 	require.ErrorContains(t, err, "invalid image dimensions")
 }
 
+func TestPrepareAvatarCropsToSquare(t *testing.T) {
+	prepared, err := PrepareAvatar(jpegBytes(t, 240, 120))
+	require.NoError(t, err)
+	require.Equal(t, AvatarSize, prepared.Width)
+	require.Equal(t, AvatarSize, prepared.Height)
+	decoded, _, err := image.Decode(bytes.NewReader(prepared.Original))
+	require.NoError(t, err)
+	require.Equal(t, image.Pt(AvatarSize, AvatarSize), decoded.Bounds().Size())
+}
+
 func TestInspectAttachmentAllowlist(t *testing.T) {
 	info, err := InspectAttachment("../report.HTML", []byte("<!doctype html><title>x</title>"))
 	require.NoError(t, err)

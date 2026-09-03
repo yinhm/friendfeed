@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/pb"
 )
@@ -30,13 +31,45 @@ func partitionAssetTokens(secret, actor string, tokens []string, now time.Time) 
 		if err != nil {
 			return nil, nil, err
 		}
-		if payload.Kind == "file" {
+		switch payload.Kind {
+		case "file":
 			files = append(files, token)
-		} else {
+		case "image":
 			images[token] = payload
+		default:
+			return nil, nil, errors.New("invalid entry asset token")
 		}
 	}
 	return images, files, nil
+}
+
+func (s *Server) promoteAvatarToken(token, actor string) (string, error) {
+	payload, err := verifyAssetToken(s.secretKey, token, actor, time.Now().UTC())
+	if err != nil || payload.Kind != "avatar" || len(payload.Objects) != 1 || payload.Objects[0].Role != "avatar" {
+		return "", errors.New("invalid avatar upload")
+	}
+	object := payload.Objects[0]
+	published, err := s.uploads.PromoteImage(&media.StagedImage{
+		Width: payload.Width, Height: payload.Height, ThumbnailWidth: payload.Width, ThumbnailHeight: payload.Height,
+		Objects: []media.StagedObject{{Name: object.Name, Digest: object.Digest, Extension: object.Extension, MimeType: object.MimeType, Size: object.Size, Role: "avatar"}},
+	})
+	if err != nil {
+		return "", fmt.Errorf("promote avatar: %w", err)
+	}
+	return published.URL, nil
+}
+
+func (s *Server) pictureFromAvatarForm(c *gin.Context, current, actor string) (string, error) {
+	switch c.PostForm("picture_action") {
+	case "", "keep":
+		return current, nil
+	case "default":
+		return "", nil
+	case "replace":
+		return s.promoteAvatarToken(c.PostForm("picture_asset_token"), actor)
+	default:
+		return "", errors.New("invalid picture action")
+	}
 }
 
 func plateImageURLs(rawBody string) map[string]bool {

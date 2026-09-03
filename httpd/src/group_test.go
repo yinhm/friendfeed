@@ -259,7 +259,10 @@ func (f *fakeGroupClient) ListGroupMembers(ctx context.Context, req *pb.ListGrou
 
 func (f *fakeGroupClient) UpdateGroup(ctx context.Context, req *pb.UpdateGroupRequest, opts ...grpc.CallOption) (*pb.Profile, error) {
 	f.updateReq = req
-	return nil, f.updateErr
+	if f.updateErr != nil {
+		return nil, f.updateErr
+	}
+	return &pb.Profile{Uuid: req.GroupUuid, Name: req.Name, Description: req.Description, Picture: req.Picture}, nil
 }
 
 func (f *fakeGroupClient) DeleteGroup(ctx context.Context, req *pb.DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
@@ -423,7 +426,6 @@ func TestGroupCreateHandlerPassesID(t *testing.T) {
 		"id":          {"book-club"},
 		"name":        {"Book Club"},
 		"description": {"reading"},
-		"picture":     {"https://example.com/p.png"},
 	}, login)
 
 	if recorder.Code != http.StatusSeeOther {
@@ -438,7 +440,7 @@ func TestGroupCreateHandlerPassesID(t *testing.T) {
 	}
 	if req.ActorUuid != testGroupUserUUID || req.Id != "book-club" ||
 		req.Name != "Book Club" || req.Description != "reading" ||
-		req.Picture != "https://example.com/p.png" {
+		req.Picture != "" {
 		t.Fatalf("CreateGroup request = %+v", req)
 	}
 }
@@ -518,7 +520,7 @@ func TestCanManageGroup(t *testing.T) {
 func TestGroupMemberActionRemove(t *testing.T) {
 	client := &fakeGroupClient{
 		feedResp:  &pb.Feed{Uuid: testGroupUUID, Id: "book-club"},
-		groupView: &pb.GroupView{Group: &pb.Profile{Uuid: testGroupUUID, Id: "book-club"}, IsAdmin: true},
+		groupView: &pb.GroupView{Group: &pb.Profile{Uuid: testGroupUUID, Id: "book-club", Picture: "https://example.com/old.png"}, IsAdmin: true},
 		profile:   &pb.Profile{Uuid: testGroupUserUUID},
 	}
 	s := newGroupTestServer(client)
@@ -572,7 +574,7 @@ func TestGroupMemberActionRejectsUnknownAction(t *testing.T) {
 func TestGroupSettingsHandlerSubmitsAllFields(t *testing.T) {
 	client := &fakeGroupClient{
 		feedResp:  &pb.Feed{Uuid: testGroupUUID, Id: "book-club"},
-		groupView: &pb.GroupView{Group: &pb.Profile{Uuid: testGroupUUID, Id: "book-club"}, IsAdmin: true},
+		groupView: &pb.GroupView{Group: &pb.Profile{Uuid: testGroupUUID, Id: "book-club", Picture: "https://example.com/old.png"}, IsAdmin: true},
 		profile:   &pb.Profile{Uuid: testGroupUserUUID},
 	}
 	s := newGroupTestServer(client)
@@ -583,7 +585,6 @@ func TestGroupSettingsHandlerSubmitsAllFields(t *testing.T) {
 	recorder := postForm(t, router, "/groups/book-club/settings", url.Values{
 		"name":        {"Book Club!"},
 		"description": {"new desc"},
-		"picture":     {"https://example.com/new.png"},
 	}, login)
 
 	if recorder.Code != http.StatusFound {
@@ -598,8 +599,27 @@ func TestGroupSettingsHandlerSubmitsAllFields(t *testing.T) {
 	}
 	if req.ActorUuid != testGroupUserUUID || req.GroupUuid != testGroupUUID ||
 		req.Name != "Book Club!" || req.Description != "new desc" ||
-		req.Picture != "https://example.com/new.png" {
+		req.Picture != "https://example.com/old.png" {
 		t.Fatalf("UpdateGroup request = %+v", req)
+	}
+}
+
+func TestGroupAvatarHandlerUpdatesOnlyPictureForAdmin(t *testing.T) {
+	client := &fakeGroupClient{
+		feedResp:  &pb.Feed{Uuid: testGroupUUID, Id: "book-club"},
+		groupView: &pb.GroupView{Group: &pb.Profile{Uuid: testGroupUUID, Id: "book-club", Name: "Book Club", Description: "reading", Picture: "https://example.com/old.png"}, IsAdmin: true},
+		profile:   &pb.Profile{Uuid: testGroupUserUUID},
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.POST("/a/group-avatar", LoginRequired(), s.GroupAvatarHandler)
+	cookie := groupLoginCookie(t, router)
+	response := postForm(t, router, "/a/group-avatar", url.Values{"group_id": {"book-club"}, "picture_action": {"default"}}, cookie)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if got := client.updateReq; got == nil || got.Picture != "" || got.Name != "Book Club" || got.Description != "reading" {
+		t.Fatalf("UpdateGroup=%+v", got)
 	}
 }
 

@@ -79,6 +79,7 @@ ffdb 收到的是已经由 ffweb 完成 promote、URL rewrite、`Entry.files` �
 - canonical key；
 - atomic local publish；
 - image decode/thumbnail helper；
+- Profile/Group avatar 的居中正方形裁剪；
 - 从 canonical media URL 还原 local object key；
 - R2 PUT primitive。
 
@@ -1015,6 +1016,16 @@ canonical object 是 content-addressed 且可共享，所以 request path 不直
 
 图片 staging endpoint。multipart request 必须二选一：
 
+`purpose=avatar` 复用同一 endpoint、并发限制、staging store 和 HMAC token，生成一个
+`128×128` canonical object。avatar token 绑定当前 actor 且不能用于 Entry 图片。Profile/Group
+表单不再接受任意 Picture URL：未提交头像 action 时保留旧值，`replace` 只接受该 token，
+`default` 清空自定义值并回退 `/static/images/ff-default.jpg`。历史外部 Picture URL 保持可读，
+但只能被新上传或默认头像替换。
+
+已有 Profile 和 Group 的设置页在上传成功后，只提交 Picture 字段并立即保存；
+页面内尚未提交的名称、ID、隐私和简介不受影响。Group Create 仍随整个新 Group 表单显式提交，
+不会在上传后提前创建 Group。空 Picture 在展示时自然回退到站内默认头像；前端不提供主动重置入口。
+
 ### 本地图片
 
 ~~~text
@@ -1208,6 +1219,7 @@ R2 不是同步 upload response 的 `502/503` 来源，因为用户上传请求�
 ### R2
 
 - Entry 发布不等待 R2；
+- Profile/Group avatar 更新也只在权威 mutation 成功后 enqueue 同一 `media.mirror_r2` task；
 - mirror task 幂等；
 - R2 failure 可 retry；
 - task/log 不含 token/source URL/file content；

@@ -22,6 +22,19 @@ func TestUploadPipelineStagesAndReusesCanonicalImage(t *testing.T) {
 	require.NotEqual(t, first.URL, first.ThumbnailURL)
 }
 
+func TestUploadPipelineStagesAvatarAsSingleCanonicalObject(t *testing.T) {
+	pipeline := NewUploadPipeline(&util.Config{MediaPath: t.TempDir(), MediaURL: "https://media.example"})
+	staged, err := pipeline.StageAvatar(jpegBytes(t, 240, 120))
+	require.NoError(t, err)
+	require.Len(t, staged.Objects, 1)
+	require.Equal(t, "avatar", staged.Objects[0].Role)
+	published, err := pipeline.PromoteImage(staged)
+	require.NoError(t, err)
+	require.Equal(t, published.URL, published.ThumbnailURL)
+	require.Equal(t, AvatarSize, published.Width)
+	require.Equal(t, AvatarSize, published.Height)
+}
+
 func TestUploadPipelineRejectsSpoofAndChangedPromotionMetadata(t *testing.T) {
 	pipeline := NewUploadPipeline(&util.Config{MediaPath: t.TempDir(), MediaURL: "https://media.example"})
 	_, err := pipeline.StageAttachment("fake.pdf", []byte("not a PDF"))

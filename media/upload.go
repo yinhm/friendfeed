@@ -20,11 +20,50 @@ const (
 	MaxUploadFileBytes = 20 << 20
 	MaxImagePixels     = 50_000_000
 	MaxImageSide       = 16_384
+	AvatarSize         = 128
 
 	// maxMimeMarkerBytes bounds the ODF "mimetype" marker inside a zip
 	// container. Real markers are a short ASCII MIME string.
 	maxMimeMarkerBytes = 256
 )
+
+// PrepareAvatar validates, center-crops and encodes the square image used by
+// profile and Group avatars.
+func PrepareAvatar(content []byte) (*PreparedImage, error) {
+	validated, err := PrepareUploadedImage(content, 0)
+	if err != nil {
+		return nil, err
+	}
+	source, _, err := image.Decode(bytes.NewReader(content))
+	if err != nil {
+		return nil, fmt.Errorf("decode avatar: %w", err)
+	}
+	bounds := source.Bounds()
+	side := bounds.Dx()
+	if bounds.Dy() < side {
+		side = bounds.Dy()
+	}
+	left := bounds.Min.X + (bounds.Dx()-side)/2
+	top := bounds.Min.Y + (bounds.Dy()-side)/2
+	square := transform.Crop(source, image.Rect(left, top, left+side, top+side))
+	avatar := transform.Resize(square, AvatarSize, AvatarSize, transform.Lanczos)
+
+	var encoded bytes.Buffer
+	mimeType, extension := "image/jpeg", "jpg"
+	encoder := imgio.JPEGEncoder(95)
+	if validated.MimeType == "image/png" {
+		mimeType, extension = "image/png", "png"
+		encoder = imgio.PNGEncoder()
+	}
+	if err := encoder(&encoded, avatar); err != nil {
+		return nil, fmt.Errorf("encode avatar: %w", err)
+	}
+	return &PreparedImage{
+		Original: encoded.Bytes(), MimeType: mimeType, Extension: extension,
+		Thumbnail: encoded.Bytes(), ThumbnailMimeType: mimeType, ThumbnailExtension: extension,
+		Width: AvatarSize, Height: AvatarSize, ThumbnailWidth: AvatarSize, ThumbnailHeight: AvatarSize,
+	}, nil
+}
 
 type PreparedImage struct {
 	Original           []byte

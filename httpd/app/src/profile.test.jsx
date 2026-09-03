@@ -46,23 +46,10 @@ describe('ProfileForm', () => {
     expect(screen.getByLabelText(/Profile ID/)).toHaveValue('oldname');
     expect(screen.getByLabelText(/Display Name/)).toHaveValue('Old Name');
     expect(screen.getByLabelText(/Description/)).toHaveValue('a bio');
-    expect(screen.getByLabelText(/Picture URL/)).toHaveValue('http://example.com/p.jpg');
+    expect(screen.getByRole('img', {name: 'Avatar preview'})).toHaveAttribute('src', 'http://example.com/p.jpg');
+    expect(screen.queryByLabelText(/Picture URL/)).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox')).not.toBeChecked();
     expect(screen.getByText('c6f8dca854f011ddb489003048343a40')).toBeInTheDocument();
-  });
-
-  it('only renders the avatar preview for http(s) URLs', () => {
-    render(<ProfileForm profile={{ ...profile, picture: '' }} />);
-    const input = screen.getByLabelText(/Picture URL/);
-
-    fireEvent.change(input, { target: { value: 'javascript:alert(1)' } });
-    expect(screen.queryByRole('img')).not.toBeInTheDocument();
-
-    fireEvent.change(input, { target: { value: 'data:image/svg+xml,x' } });
-    expect(screen.queryByRole('img')).not.toBeInTheDocument();
-
-    fireEvent.change(input, { target: { value: 'https://example.com/a.png' } });
-    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/a.png');
   });
 
   it('blocks submit on an invalid id without calling the server', () => {
@@ -132,13 +119,12 @@ describe('ProfileForm', () => {
 
     fireEvent.change(screen.getByLabelText(/Profile ID/), { target: { value: 'NEWNAME' } });
     fireEvent.change(screen.getByLabelText(/Display Name/), { target: { value: 'New Name' } });
-    fireEvent.change(screen.getByLabelText(/Picture URL/), { target: { value: '' } });
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.submit(container.querySelector('form'));
 
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
     expect(screen.getByLabelText(/Profile ID/)).toHaveValue('newname');
-    expect(screen.getByLabelText(/Picture URL/)).toHaveValue('http://example.com/generated.jpg');
+    expect(screen.getByRole('img', {name: 'Avatar preview'})).toHaveAttribute('src', 'http://example.com/generated.jpg');
     expect(screen.getByRole('checkbox')).toBeChecked();
     expect(onSaved).toHaveBeenCalledWith(saved);
   });

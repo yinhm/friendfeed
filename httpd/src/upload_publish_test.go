@@ -47,3 +47,29 @@ func TestPromoteEntryImagesRejectsTokenWithoutStagingURLs(t *testing.T) {
 	_, _, _, err := server.promoteEntryImages("", raw, "<p>safe</p>", nil, map[string]*assetTokenPayload{"token": {Kind: "image"}})
 	require.ErrorContains(t, err, "missing its staging URLs")
 }
+
+func TestPromoteAvatarTokenRequiresAvatarKind(t *testing.T) {
+	server := &Server{secretKey: "secret", uploads: media.NewUploadPipeline(&util.Config{MediaPath: t.TempDir(), MediaURL: "https://media.example"})}
+	staged, err := server.uploads.StageAvatar(uploadJPEG(t, 240, 120))
+	require.NoError(t, err)
+	object := staged.Objects[0]
+	payload := assetTokenPayload{Version: 1, Actor: "actor", Kind: "avatar", Width: media.AvatarSize, Height: media.AvatarSize, Expires: time.Now().Add(time.Hour).Unix(), Objects: []stagedObject{{Name: object.Name, Digest: object.Digest, Extension: object.Extension, MimeType: object.MimeType, Size: object.Size, Role: object.Role}}}
+	token, err := signAssetToken("secret", payload)
+	require.NoError(t, err)
+	url, err := server.promoteAvatarToken(token, "actor")
+	require.NoError(t, err)
+	require.Contains(t, url, "https://media.example/")
+
+	payload.Kind = "image"
+	token, err = signAssetToken("secret", payload)
+	require.NoError(t, err)
+	_, err = server.promoteAvatarToken(token, "actor")
+	require.ErrorContains(t, err, "invalid avatar upload")
+}
+
+func TestPartitionAssetTokensRejectsAvatarForEntry(t *testing.T) {
+	token, err := signAssetToken("secret", assetTokenPayload{Version: 1, Actor: "actor", Kind: "avatar", Expires: time.Now().Add(time.Hour).Unix(), Objects: []stagedObject{{Name: "staged.jpg", Digest: strings.Repeat("a", 64), Extension: "jpg", MimeType: "image/jpeg", Size: 1, Role: "avatar"}}})
+	require.NoError(t, err)
+	_, _, err = partitionAssetTokens("secret", "actor", []string{token}, time.Now())
+	require.ErrorContains(t, err, "invalid entry asset token")
+}

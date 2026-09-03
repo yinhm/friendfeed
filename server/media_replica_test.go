@@ -18,3 +18,8 @@ func TestCollectCanonicalMediaRefsUsesOnlyConfiguredMediaOrigin(t *testing.T) {
 	require.Len(t, refs, 1)
 	require.Equal(t, "application/pdf", refs[key])
 }
+
+func TestCanonicalImageMimeSupportsAvatarFormats(t *testing.T) {
+	require.Equal(t, "image/jpeg", canonicalImageMime("a/b/avatar.jpg"))
+	require.Equal(t, "image/png", canonicalImageMime("a/b/avatar.png"))
+}

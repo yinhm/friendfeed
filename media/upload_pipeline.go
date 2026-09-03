@@ -92,6 +92,25 @@ func (p *UploadPipeline) StageImage(content []byte, maxWidth int) (*StagedImage,
 	}, nil
 }
 
+func (p *UploadPipeline) StageAvatar(content []byte) (*StagedImage, error) {
+	if p == nil || p.staging == nil {
+		return nil, errors.New("media: upload pipeline is not configured")
+	}
+	prepared, err := PrepareAvatar(content)
+	if err != nil {
+		return nil, err
+	}
+	name, digest, err := p.staging.Put(prepared.Original, prepared.Extension)
+	if err != nil {
+		return nil, err
+	}
+	return &StagedImage{
+		Width: AvatarSize, Height: AvatarSize, ThumbnailWidth: AvatarSize, ThumbnailHeight: AvatarSize,
+		Objects: []StagedObject{{Name: name, Digest: digest, Extension: prepared.Extension,
+			MimeType: prepared.MimeType, Size: len(prepared.Original), Role: "avatar"}},
+	}, nil
+}
+
 func bytesEqual(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false
@@ -138,6 +157,8 @@ func (p *UploadPipeline) PromoteImage(image *StagedImage) (*PublishedImage, erro
 	for _, object := range image.Objects {
 		switch object.Role {
 		case "original":
+			original = object
+		case "avatar":
 			original = object
 		case "thumbnail":
 			thumbnail = object

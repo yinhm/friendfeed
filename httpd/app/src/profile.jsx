@@ -2,6 +2,7 @@
 
 import React, {useState} from 'react';
 import {primaryButton} from './button-styles';
+import {AvatarUpload} from './avatar-upload';
 import {postJSON} from './utils';
 
 /**
@@ -37,9 +38,9 @@ export function ProfileForm(props) {
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description ?? '');
   const [picture, setPicture] = useState(initial.picture ?? '');
+  const [pictureChange, setPictureChange] = useState({action: 'keep', token: ''});
   const [isPrivate, setIsPrivate] = useState(initial.private ?? false);
   const [savedId, setSavedId] = useState(initial.id);
-  const [avatarBroken, setAvatarBroken] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const [saved, setSaved] = useState(false);
@@ -48,10 +49,13 @@ export function ProfileForm(props) {
   const idError = validateProfileId(normalizedId);
   const nameError = name.trim() === '' ? 'Name cannot be empty' : null;
   const renaming = !idError && normalizedId !== savedId;
-  // The preview src is free-text input: only http(s) URLs may reach the
-  // <img>, exotic schemes like javascript: or data: fall back to the
-  // placeholder.
-  const previewUrl = /^https?:\/\//i.test(picture) ? picture : '';
+  /** @param {string} action @param {string} token */
+  const saveAvatar = (action, token) => postJSON('/a/profile-avatar', {
+    picture_action: action, picture_asset_token: token,
+  }).then(data => {
+    setPicture(data.picture ?? '');
+    return data;
+  });
 
   /** @param {React.FormEvent<HTMLFormElement>} event */
   const handleSubmit = (event) => {
@@ -67,7 +71,8 @@ export function ProfileForm(props) {
       id: id.trim(),
       name: name.trim(),
       description: description.trim(),
-      picture: picture.trim(),
+      picture_action: pictureChange.action,
+      picture_asset_token: pictureChange.token,
       private: isPrivate ? 'on' : '',
     })
       .then((/** @type {ProfileData & {error?: string}} */ data) => {
@@ -81,7 +86,7 @@ export function ProfileForm(props) {
         setName(data.name ?? '');
         setDescription(data.description ?? '');
         setPicture(data.picture ?? '');
-        setAvatarBroken(false);
+        setPictureChange({action: 'keep', token: ''});
         setIsPrivate(data.private ?? false);
         props.onSaved?.(data);
       })
@@ -108,20 +113,7 @@ export function ProfileForm(props) {
           Saved. Your feed is at <a className="underline" href={'/feed/' + savedId}>/feed/{savedId}</a>
         </div>}
 
-      <div className="mb-4 flex items-start gap-4">
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-          {previewUrl && !avatarBroken
-            ? <img src={previewUrl} alt="avatar preview" className="h-full w-full object-cover"
-                   onError={() => setAvatarBroken(true)} />
-            : <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">no image</div>}
-        </div>
-        <div className="flex-1">
-          <label htmlFor="picture" className="mb-1 block text-sm font-medium">Picture URL</label>
-          <input id="picture" type="url" value={picture} className={inputClass}
-                 onChange={(e) => { setPicture(e.target.value); setAvatarBroken(false); }} />
-          <div className={hintClass}>Full URL to your profile picture (leave empty for default)</div>
-        </div>
-      </div>
+      <AvatarUpload key={picture} picture={picture} onChange={setPictureChange} autoSave={saveAvatar} />
 
       <div className="mb-4">
         <label htmlFor="id" className="mb-1 block text-sm font-medium">

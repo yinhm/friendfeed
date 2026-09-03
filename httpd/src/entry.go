@@ -249,6 +249,11 @@ func (s *Server) UploadHandler(c *gin.Context) {
 	defer done()
 	file, fileErr := c.FormFile("file")
 	sourceURL := strings.TrimSpace(c.PostForm("sourceUrl"))
+	purpose := strings.TrimSpace(c.PostForm("purpose"))
+	if purpose != "" && purpose != "avatar" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported upload purpose"})
+		return
+	}
 	if fileErr == nil && sourceURL != "" || fileErr != nil && sourceURL == "" {
 		var maxBytesError *http.MaxBytesError
 		if errors.As(fileErr, &maxBytesError) {
@@ -285,12 +290,17 @@ func (s *Server) UploadHandler(c *gin.Context) {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "uploaded file is too large"})
 		return
 	}
-	prepared, err := s.uploads.StageImage(content, 1024)
+	var prepared *media.StagedImage
+	if purpose == "avatar" {
+		prepared, err = s.uploads.StageAvatar(content)
+	} else {
+		prepared, err = s.uploads.StageImage(content, 1024)
+	}
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "unsupported or invalid image"})
 		return
 	}
-	s.writeUploadedImage(c, prepared)
+	s.writeUploadedImage(c, prepared, purpose)
 }
 
 func (s *Server) fetchUploadedImage(source string) ([]byte, error) {
@@ -307,7 +317,7 @@ func (s *Server) fetchUploadedImage(source string) ([]byte, error) {
 	return s.uploadFetch(parsed.String())
 }
 
-func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.StagedImage) {
+func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.StagedImage, purpose string) {
 	if prepared == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not process image"})
 		return
@@ -316,7 +326,11 @@ func (s *Server) writeUploadedImage(c *gin.Context, prepared *media.StagedImage)
 	for _, object := range prepared.Objects {
 		objects = append(objects, stagedObject{Name: object.Name, Digest: object.Digest, Extension: object.Extension, MimeType: object.MimeType, Size: object.Size, Role: object.Role})
 	}
-	token, err := signAssetToken(s.secretKey, assetTokenPayload{Version: 1, Actor: CurrentUserUuid(c), Kind: "image", Width: prepared.ThumbnailWidth, Height: prepared.ThumbnailHeight, Expires: time.Now().UTC().Add(assetTokenLifetime).Unix(), Objects: objects})
+	kind := "image"
+	if purpose == "avatar" {
+		kind = "avatar"
+	}
+	token, err := signAssetToken(s.secretKey, assetTokenPayload{Version: 1, Actor: CurrentUserUuid(c), Kind: kind, Width: prepared.ThumbnailWidth, Height: prepared.ThumbnailHeight, Expires: time.Now().UTC().Add(assetTokenLifetime).Unix(), Objects: objects})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "can not create asset token"})
 		return

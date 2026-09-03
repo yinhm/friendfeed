@@ -73,6 +73,8 @@
 | `POST /a/share` | `EntryPostHandler` | publish/edit Entry，含 media promote |
 | `POST /a/upload` | `UploadHandler` | image/remote image staging |
 | `POST /a/upload_file` | `UploadFileHandler` | attachment staging |
+| `POST /a/profile-avatar` | `ProfileAvatarHandler` | publish only the current user's avatar |
+| `POST /a/group-avatar` | `GroupAvatarHandler` | publish only a managed Group's avatar |
 | `POST /a/follow` | `FollowHandler` | follow/unfollow |
 | `POST /a/feed-request` | `FeedRequestHandler` | private follow request |
 | `POST /a/feed-request/cancel` | `FeedRequestCancelHandler` | cancel request |

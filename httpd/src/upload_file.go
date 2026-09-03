@@ -77,7 +77,7 @@ func verifyAssetToken(secret, token, actor string, now time.Time) (*assetTokenPa
 	}
 	var payload assetTokenPayload
 	if json.Unmarshal(raw, &payload) != nil || payload.Version != 1 || payload.Actor != actor ||
-		(payload.Kind != "image" && payload.Kind != "file") || len(payload.Objects) == 0 || now.Unix() > payload.Expires {
+		(payload.Kind != "image" && payload.Kind != "file" && payload.Kind != "avatar") || len(payload.Objects) == 0 || now.Unix() > payload.Expires {
 		return nil, errors.New("invalid or expired asset token")
 	}
 	for _, object := range payload.Objects {

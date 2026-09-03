@@ -289,6 +289,10 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		// Proceed with the standard path.
 		currentProfile = nil
 	}
+	oldPicture := ""
+	if currentProfile != nil {
+		oldPicture = currentProfile.Picture
+	}
 
 	profile := &pb.Profile{
 		Uuid:        in.Uuid,
@@ -355,6 +359,11 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 	// if err := model.PutFeedinfo(s.rdb, profile.Uuid, in); err != nil {
 	// 	return nil, err
 	// }
+	if profile.Picture != oldPicture {
+		if err := s.enqueueCanonicalMediaURL(ctx, profile.Picture); err != nil {
+			slog.Error("profile_media_mirror_enqueue_failed", "profile_uuid", profile.Uuid, "error", err)
+		}
+	}
 	return profile, nil
 }
 

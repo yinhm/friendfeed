@@ -8,10 +8,16 @@ import {
   primaryButton,
 } from './button-styles';
 import {GroupManagementNav} from './group-management';
+import {AvatarUpload} from './avatar-upload';
+import {postJSON} from './utils';
 
 /** @param {{data: import('./browser-types').GroupSettingsPageData}} props */
 export function GroupSettingsPage({data}) {
   const group = data.group;
+  /** @param {string} action @param {string} token */
+  const saveAvatar = (action, token) => postJSON('/a/group-avatar', {
+    group_id: group.id, picture_action: action, picture_asset_token: token,
+  });
   return <div className="feed">
     <h2 className="page-title">Group settings: {group.name}
       {group.private && <span className="private-icon" role="img" aria-label="Private" title="Private" />}
@@ -27,12 +33,8 @@ export function GroupSettingsPage({data}) {
         <label htmlFor="group-description">Description</label>
         <textarea id="group-description" name="description" rows={4} maxLength={500} defaultValue={group.description} />
       </div>
-      <div className="field">
-        <label htmlFor="group-picture">Picture URL</label>
-        {group.picture && <div className="avatar-preview"><img src={group.picture} alt="" /></div>}
-        <input type="url" id="group-picture" name="picture" maxLength={2048} defaultValue={group.picture} />
-        <div className="hint">Full URL to the group picture (leave empty for the default).</div>
-      </div>
+      <AvatarUpload picture={group.picture} initialAction={data.picture_action}
+        initialToken={data.picture_asset_token} autoSave={saveAvatar} />
       <div className="actions">
         <button type="submit" className={primaryButton}>Save</button>
         <a href={`/feed/${group.id}`}>Cancel</a>

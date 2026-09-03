@@ -47,6 +47,34 @@ test('profile form rejects an invalid ID without saving', async ({
   expect(saveRequests).toEqual([]);
 });
 
+test('profile avatar upload is cropped and published without saving the form', async ({context, page}) => {
+  await authenticate(context);
+  await page.goto('/account/profile');
+
+  const profileSaves: string[] = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/account/profile' && request.method() === 'POST') {
+      profileSaves.push(request.url());
+    }
+  });
+  const uploadResponse = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/a/upload' && response.request().method() === 'POST');
+  const avatarResponse = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/a/profile-avatar' && response.request().method() === 'POST');
+  await page.getByLabel('Upload image').setInputFiles({
+    name: 'avatar.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
+  expect(await (await uploadResponse).json()).toMatchObject({width: 128, height: 128});
+  expect((await avatarResponse).ok()).toBe(true);
+  await expect(page.getByRole('img', {name: 'Avatar preview'})).not.toHaveAttribute('src', /upload-staging/);
+  expect(profileSaves).toEqual([]);
+});
+
 // Tab switches are client-side and keep the URL and history in sync: Back
 // from a pushed tab must land on the previous panel (the remount contract in
 // account.jsx).

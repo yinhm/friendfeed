@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -426,6 +427,9 @@ func (s *ApiServer) CreateGroup(ctx context.Context, request *pb.CreateGroupRequ
 		}
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
 	}
+	if err := s.enqueueCanonicalMediaURL(ctx, group.Picture); err != nil {
+		slog.Error("group_media_mirror_enqueue_failed", "group_uuid", group.Uuid, "error", err)
+	}
 	return group, nil
 }
 
@@ -445,16 +449,27 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, request *pb.UpdateGroupRequ
 		return nil, taskRPCError(err)
 	}
 	var updated *pb.Profile
+	pictureChanged := false
 	err = s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
 		if err := s.authorizeGroupManage(actor, group); err != nil {
 			return err
 		}
+		current, err := model.GetProfileFromUuid(s.rdb, group)
+		if err != nil {
+			return err
+		}
+		pictureChanged = current.Picture != request.Picture
 		var stageErr error
 		updated, stageErr = model.StageUpdateGroup(s.rdb, batch, group, request.Name, request.Description, request.Picture)
 		return stageErr
 	})
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrFailedPrecondition, err))
+	}
+	if pictureChanged {
+		if err := s.enqueueCanonicalMediaURL(ctx, updated.Picture); err != nil {
+			slog.Error("group_media_mirror_enqueue_failed", "group_uuid", updated.Uuid, "error", err)
+		}
 	}
 	return updated, nil
 }

@@ -171,6 +171,7 @@ func (s *Server) requireGroupManage(c *gin.Context, name string) *pb.GroupView {
 func (s *Server) renderGroupSettings(c *gin.Context, view *pb.GroupView, errMsg string) {
 	encoded, err := marshalPageBootstrap("group-settings", groupSettingsPageData{
 		Group: groupFormViewFromProto(view.Group), Error: errMsg,
+		PictureAction: c.PostForm("picture_action"), PictureAssetToken: c.PostForm("picture_asset_token"),
 	})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Server error.")
@@ -198,17 +199,22 @@ func (s *Server) GroupSettingsHandler(c *gin.Context) {
 	// values, not only the ones the user touched.
 	name := strings.TrimSpace(c.Request.Form.Get("name"))
 	description := strings.TrimSpace(c.Request.Form.Get("description"))
-	picture := strings.TrimSpace(c.Request.Form.Get("picture"))
 	if name == "" {
 		s.renderGroupSettings(c, view, "Group name is required")
+		return
+	}
+	actor := CurrentUserUuid(c)
+	picture, err := s.pictureFromAvatarForm(c, view.Group.Picture, actor)
+	if err != nil {
+		s.renderGroupSettings(c, view, "Invalid avatar upload")
 		return
 	}
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()
 
-	_, err := s.client.UpdateGroup(ctx, &pb.UpdateGroupRequest{
-		ActorUuid:   CurrentUserUuid(c),
+	_, err = s.client.UpdateGroup(ctx, &pb.UpdateGroupRequest{
+		ActorUuid:   actor,
 		GroupUuid:   view.Group.Uuid,
 		Name:        name,
 		Description: description,
@@ -224,7 +230,6 @@ func (s *Server) GroupSettingsHandler(c *gin.Context) {
 		return
 	}
 
-	actor := CurrentUserUuid(c)
 	s.cache.Delete("graph:" + actor)
 	s.cache.Delete("profile:" + view.Group.Uuid)
 

@@ -86,6 +86,19 @@ func canonicalImageMime(key string) string {
 	}
 }
 
+func (s *ApiServer) enqueueCanonicalMediaURL(ctx context.Context, raw string) error {
+	if s.mediaReplica == nil {
+		return nil
+	}
+	key, ok := media.CanonicalKeyFromURL(s.mediaBaseURL, raw)
+	if !ok {
+		return nil
+	}
+	payload, _ := json.Marshal(mediaReplicaPayload{Key: key, MimeType: canonicalImageMime(key)})
+	_, err := s.tasks.Enqueue(ctx, taskqueue.Spec{Type: mediaReplicaTaskType, Payload: payload, PayloadVersion: 1, IdempotencyKey: "media-r2:" + key})
+	return err
+}
+
 func (s *ApiServer) enqueueAddedMediaRefs(ctx context.Context, oldEntry, newEntry *pb.Entry) error {
 	if s.mediaReplica == nil {
 		return nil

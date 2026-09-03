@@ -12,13 +12,17 @@ type groupFormView struct {
 }
 
 type groupCreatePageData struct {
-	Group groupFormView `json:"group"`
-	Error string        `json:"error,omitempty"`
+	Group             groupFormView `json:"group"`
+	Error             string        `json:"error,omitempty"`
+	PictureAction     string        `json:"picture_action,omitempty"`
+	PictureAssetToken string        `json:"picture_asset_token,omitempty"`
 }
 
 type groupSettingsPageData struct {
-	Group groupFormView `json:"group"`
-	Error string        `json:"error,omitempty"`
+	Group             groupFormView `json:"group"`
+	Error             string        `json:"error,omitempty"`
+	PictureAction     string        `json:"picture_action,omitempty"`
+	PictureAssetToken string        `json:"picture_asset_token,omitempty"`
 }
 
 type groupMemberView struct {

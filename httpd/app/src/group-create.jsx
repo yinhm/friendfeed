@@ -1,6 +1,7 @@
 // @ts-check
 import React from 'react';
 import {primaryButton} from './button-styles';
+import {AvatarUpload} from './avatar-upload';
 
 const activeNav = 'border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary';
 const inactiveNav = 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground';
@@ -39,12 +40,7 @@ export function GroupCreatePage({data, currentUserId}) {
         <label htmlFor="group-description">Description</label>
         <textarea id="group-description" name="description" rows={4} maxLength={500} defaultValue={group.description} />
       </div>
-      <div className="field">
-        <label htmlFor="group-picture">Picture URL</label>
-        {group.picture && <div className="avatar-preview"><img src={group.picture} alt="" /></div>}
-        <input type="url" id="group-picture" name="picture" maxLength={2048} defaultValue={group.picture} />
-        <div className="hint">Full URL to the group picture (leave empty for the default).</div>
-      </div>
+      <AvatarUpload picture={group.picture} initialAction={data.picture_action} initialToken={data.picture_asset_token} />
       <div className="field">
         <label><input type="checkbox" name="private" defaultChecked={group.private} /> Private group</label>
         <div className="hint">Only approved members can read a private group. Joining requires a follow request approved by an admin.</div>

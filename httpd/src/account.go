@@ -117,8 +117,13 @@ func (s *Server) AccountProfileUpdateHandler(c *gin.Context) {
 		Id:          strings.TrimSpace(c.PostForm("id")),
 		Name:        strings.TrimSpace(c.PostForm("name")),
 		Description: strings.TrimSpace(c.PostForm("description")),
-		Picture:     strings.TrimSpace(c.PostForm("picture")),
+		Picture:     currentProfile.Picture,
 		Type:        currentProfile.Type, // System field: preserve existing value
+	}
+	feedinfo.Picture, err = s.pictureFromAvatarForm(c, currentProfile.Picture, uuid)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar upload"})
+		return
 	}
 
 	// Private checkbox: only set to true if explicitly checked

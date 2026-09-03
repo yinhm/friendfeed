@@ -590,6 +590,7 @@ func (s *Server) GroupCreatePageHandler(c *gin.Context) {
 func (s *Server) renderGroupCreate(c *gin.Context, code int, group *pb.Profile, errMsg string) {
 	encoded, err := marshalPageBootstrap("group-create", groupCreatePageData{
 		Group: groupFormViewFromProto(group), Error: errMsg,
+		PictureAction: c.PostForm("picture_action"), PictureAssetToken: c.PostForm("picture_asset_token"),
 	})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Server error.")
@@ -607,7 +608,6 @@ func (s *Server) GroupCreateHandler(c *gin.Context) {
 		Id:          strings.TrimSpace(c.Request.Form.Get("id")),
 		Name:        strings.TrimSpace(c.Request.Form.Get("name")),
 		Description: strings.TrimSpace(c.Request.Form.Get("description")),
-		Picture:     strings.TrimSpace(c.Request.Form.Get("picture")),
 	}
 
 	if group.Id == "" {
@@ -622,6 +622,12 @@ func (s *Server) GroupCreateHandler(c *gin.Context) {
 	uuid := CurrentUserUuid(c)
 	if uuid == "" {
 		s.renderGroupCreate(c, http.StatusUnauthorized, group, "Not logged in")
+		return
+	}
+	var err error
+	group.Picture, err = s.pictureFromAvatarForm(c, "", uuid)
+	if err != nil {
+		s.renderGroupCreate(c, http.StatusBadRequest, group, "Invalid avatar upload")
 		return
 	}
 

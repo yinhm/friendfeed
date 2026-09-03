@@ -15,6 +15,14 @@ export function uploadImage(file, filename) {
   return postForm('/a/upload', form);
 }
 
+/** @param {File} file @returns {Promise<UploadedImage>} */
+export function uploadAvatar(file) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('purpose', 'avatar');
+  return postForm('/a/upload', form);
+}
+
 /** @param {string} sourceUrl */
 export function mirrorImage(sourceUrl) {
   const form = new FormData();

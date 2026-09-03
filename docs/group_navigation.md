@@ -128,7 +128,7 @@ Entry/Like/Comment 的 score 更新与权威 mutation 同一 batch。JSON 损坏
     在表单上。
   - `name`：必填。
   - `description`：选填。
-  - `picture`：选填，缺省由服务端使用站内默认头像。
+  - `picture`：可选上传；服务端居中裁剪为 `128×128`，缺省使用站内默认头像，不接受任意 URL 输入。
   - `private`：复选框。Private Group 创建后通过 Follow Request/批准流程接纳新成员。
 - 提交成功后重定向到 `/feed/{id}`；创建者此时已因 `CreateGroup` 的原子写入
   出现在自己的 Group 列表中，sidebar 实时读取，下次渲染即见。

@@ -67,6 +67,51 @@ type fakeAccountClient struct {
 	feed          *pb.Feed
 	feedErr       error
 	addServiceReq *pb.AddFeedServiceRequest
+	postFeedinfo  *pb.Feedinfo
+}
+
+func (f *fakeAccountClient) PostFeedinfo(_ context.Context, req *pb.Feedinfo, _ ...grpc.CallOption) (*pb.Profile, error) {
+	f.postFeedinfo = req
+	return &pb.Profile{Uuid: req.Uuid, Id: req.Id, Name: req.Name, Picture: req.Picture, Private: req.Private, Type: req.Type}, nil
+}
+
+func TestAccountProfileUpdatePreservesOrDefaultsPictureExplicitly(t *testing.T) {
+	for _, test := range []struct {
+		name, action, want string
+	}{
+		{name: "keep", action: "keep", want: "https://example.com/old.jpg"},
+		{name: "default", action: "default", want: ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client := &fakeAccountClient{profile: &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user", Name: "User", Picture: "https://example.com/old.jpg", Type: "user"}}
+			s := newGroupTestServer(client)
+			router := groupTestRouter(s)
+			router.POST("/account/profile", LoginRequired(), s.AccountProfileUpdateHandler)
+			cookie := groupLoginCookie(t, router)
+			response := postForm(t, router, "/account/profile", url.Values{"id": {"test-user"}, "name": {"User"}, "picture_action": {test.action}}, cookie)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if client.postFeedinfo == nil || client.postFeedinfo.Picture != test.want {
+				t.Fatalf("PostFeedinfo picture=%q; want %q", client.postFeedinfo.GetPicture(), test.want)
+			}
+		})
+	}
+}
+
+func TestProfileAvatarHandlerUpdatesOnlyPicture(t *testing.T) {
+	client := &fakeAccountClient{profile: &pb.Profile{Uuid: testGroupUserUUID, Id: "test-user", Name: "User", Description: "bio", Picture: "https://example.com/old.jpg", Private: true, Type: "user"}}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.POST("/a/profile-avatar", LoginRequired(), s.ProfileAvatarHandler)
+	cookie := groupLoginCookie(t, router)
+	response := postForm(t, router, "/a/profile-avatar", url.Values{"picture_action": {"default"}}, cookie)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if got := client.postFeedinfo; got == nil || got.Picture != "" || got.Id != "test-user" || got.Name != "User" || got.Description != "bio" || !got.Private {
+		t.Fatalf("PostFeedinfo=%+v", got)
+	}
 }
 
 func (f *fakeAccountClient) FetchProfile(ctx context.Context, req *pb.ProfileRequest, opts ...grpc.CallOption) (*pb.Profile, error) {

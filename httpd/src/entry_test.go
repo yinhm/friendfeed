@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/json"
 	"image"
 	"image/jpeg"
 	"mime/multipart"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -60,6 +62,21 @@ func multipartUpload(t *testing.T, content []byte, filename string) (*bytes.Buff
 	require.NoError(t, err)
 	_, err = file.Write(content)
 	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	return &body, writer.FormDataContentType()
+}
+
+func multipartUploadFields(t *testing.T, content []byte, filename string, fields map[string]string) (*bytes.Buffer, string) {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	file, err := writer.CreateFormFile("file", filename)
+	require.NoError(t, err)
+	_, err = file.Write(content)
+	require.NoError(t, err)
+	for name, value := range fields {
+		require.NoError(t, writer.WriteField(name, value))
+	}
 	require.NoError(t, writer.Close())
 	return &body, writer.FormDataContentType()
 }
@@ -153,6 +170,35 @@ func TestUploadHandlerValidatesBeforeStorageAndReturnsStagingURLs(t *testing.T) 
 	require.Contains(t, goodResponse.Body.String(), `"url":"https://media.example/upload-staging/`)
 	require.Contains(t, goodResponse.Body.String(), `"originalUrl":"https://media.example/upload-staging/`)
 	require.Contains(t, goodResponse.Body.String(), `"assetToken":`)
+}
+
+func TestUploadHandlerStagesActorBoundAvatar(t *testing.T) {
+	server := &Server{uploads: media.NewUploadPipeline(&util.Config{MediaPath: t.TempDir(), MediaURL: "https://media.example"}), secretKey: "secret", uploadRequests: make(chan struct{}, 8), imageOperations: make(chan struct{}, 2), uploadUsers: make(map[string]int)}
+	router := gin.New()
+	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
+	router.POST("/upload", func(c *gin.Context) {
+		sessions.Default(c).Set("uuid", "actor")
+		server.UploadHandler(c)
+	})
+	body, contentType := multipartUploadFields(t, uploadJPEG(t, 240, 120), "avatar.jpg", map[string]string{"purpose": "avatar"})
+	request := httptest.NewRequest(http.MethodPost, "/upload", body)
+	request.Header.Set("Content-Type", contentType)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+	var result struct {
+		AssetToken string `json:"assetToken"`
+		Width      int    `json:"width"`
+		Height     int    `json:"height"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
+	require.Equal(t, media.AvatarSize, result.Width)
+	require.Equal(t, media.AvatarSize, result.Height)
+	payload, err := verifyAssetToken("secret", result.AssetToken, "actor", time.Now())
+	require.NoError(t, err)
+	require.Equal(t, "avatar", payload.Kind)
+	require.Len(t, payload.Objects, 1)
+	require.Equal(t, "avatar", payload.Objects[0].Role)
 }
 
 func TestUploadHandlerRemoteSourceUsesControlledFetchAndImagePipeline(t *testing.T) {
