@@ -565,6 +565,7 @@ func TestBingWallpaperServiceImportsMediaAndUsesDailyInterval(t *testing.T) {
 	require.Equal(t, srv.mediaBaseURL+"/a/b/original", entry.RawLink)
 	require.Equal(t, srv.mediaBaseURL+"/a/b/original-1024.jpg", entry.Thumbnails[0].Url)
 	require.Equal(t, srv.mediaBaseURL+"/a/b/original", entry.Thumbnails[0].Link)
+	require.Equal(t, "https://www.bing.com/th?id=OHR.Sample_EN-US123_UHD.jpg", entry.Via.Url)
 	state, err := model.GetServiceState(srv.rdb, serviceID)
 	require.NoError(t, err)
 	require.Equal(t, now.Add(24*time.Hour).UnixMilli(), state.NextFetchMs)

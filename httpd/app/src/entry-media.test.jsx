@@ -59,6 +59,25 @@ test('lightbox falls back if a direct original image fails to load', () => {
   expect(image).toHaveAttribute('src', '/media/thumb.jpg');
 });
 
+test('lightbox accepts an extensionless stored original on any media host', () => {
+  const {unmount} = render(<EntryMediaBox thumbs={[{
+    url: '/file/a/original-1024.jpg', link: '/file/a/original',
+  }]} />);
+
+  fireEvent.click(screen.getByRole('button', {name: 'Open media'}));
+  expect(screen.getByRole('dialog', {name: 'Enlarged media'}).querySelector('img'))
+    .toHaveAttribute('src', '/file/a/original');
+  unmount();
+
+  render(<EntryMediaBox thumbs={[{
+    url: 'https://media.example/a/hash-1024.jpg',
+    link: 'https://media.example/a/hash',
+  }]} />);
+  fireEvent.click(screen.getByRole('button', {name: 'Open media'}));
+  expect(screen.getByRole('dialog', {name: 'Enlarged media'}).querySelector('img'))
+    .toHaveAttribute('src', 'https://media.example/a/hash');
+});
+
 test('lightbox closes on click and on Escape', () => {
   render(<EntryMediaBox thumbs={thumbs} />);
 

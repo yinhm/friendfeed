@@ -438,15 +438,19 @@ function EntryMedia(props) {
 /** @param {{thumb: Thumbnail}} props */
 function LightboxImage({thumb}) {
   const [originalFailed, setOriginalFailed] = useState(false);
-  const src = !originalFailed && directImageURL(thumb.link) ? thumb.link : thumb.url;
+  const src = !originalFailed && directImageURL(thumb.link, thumb.url) ? thumb.link : thumb.url;
   return <img src={src} alt="" onError={() => setOriginalFailed(true)} />;
 }
 
-/** @param {string|undefined} value */
-function directImageURL(value) {
+/** @param {string|undefined} value @param {string|undefined} thumbnail */
+function directImageURL(value, thumbnail) {
   if (!value) return false;
   try {
     const path = new URL(value, 'https://local.invalid').pathname;
+    // Keep in sync with media.LocalStorage.Thumbnail. A future thumbnail
+    // naming/size change should replace this implicit URL relation with an
+    // explicit original-media signal in the browser DTO.
+    if (thumbnail === value + '-1024.jpg') return true;
     return /\.(?:avif|bmp|gif|jpe?g|png|svg|tiff?|webp)$/i.test(path);
   } catch {
     return false;

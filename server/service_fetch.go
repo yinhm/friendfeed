@@ -483,6 +483,7 @@ func (s *ApiServer) attachBingWallpaperMedia(entry *pb.Entry, item *gofeed.Item)
 	entry.Thumbnails = []*pb.Thumbnail{{
 		Url: thumbnail.Url, Link: object.Url, Width: thumbnail.Width, Height: thumbnail.Height,
 	}}
+	entry.Via.Url = imageURL
 	return nil
 }
 
