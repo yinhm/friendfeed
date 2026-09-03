@@ -1194,48 +1194,67 @@ func (s *ApiServer) postEntry(ctx context.Context, entry *pb.Entry, allowSystemF
 	s.entryLifecycleMu.Lock()
 	defer s.entryLifecycleMu.Unlock()
 
-	profileUuid, err := uuid.FromString(entry.ProfileUuid)
+	actorUUID, err := uuid.FromString(entry.ProfileUuid)
 	if err != nil {
 		return nil, err
 	}
-	profile, err := model.GetProfileFromUuid(s.mdb, profileUuid)
-	if err != nil || profile == nil {
+	actor, err := model.GetProfileFromUuid(s.mdb, actorUUID)
+	if err != nil || actor == nil {
 		return nil, err
 	}
-	// From is a display snapshot, but it must still be minted from the
-	// canonical author Profile rather than trusted from the client.
-	entry.From = &pb.Feed{
-		Uuid:    profile.Uuid,
-		Id:      profile.Id,
-		Name:    profile.Name,
-		Type:    profile.Type,
-		Picture: profile.Picture,
-	}
-	if err := canonicalizeEntryTo(s.mdb, entry, profileUuid); err != nil {
-		return nil, err
-	}
-	if profile.Type == "group" && (!allowSystemFeedSelfPost || entry.FeedUuid != profile.Uuid) {
-		return nil, status.Error(codes.PermissionDenied, "a Group cannot act as a user principal")
-	}
-	if err := s.authorizeEntryPost(entry, profileUuid); err != nil {
-		return nil, err
-	}
-	// key, err := store.PutEntry(s.rdb, entry, false) // always use false
 	created, err := s.entryCreated(entry)
 	if err != nil {
 		return nil, err
 	}
-	if _, apiPrincipal := feedprincipal.FromIncoming(ctx); apiPrincipal && !created {
-		return nil, status.Error(codes.AlreadyExists, "generated Entry UUID collision")
-	}
 	var oldEntry *pb.Entry
+	authorUUID := actorUUID
+	author := actor
 	if !created {
 		oldEntry, err = model.GetEntry(s.rdb, entry.Id)
 		if err != nil {
 			return nil, err
 		}
+		authorUUID, err = uuid.FromString(oldEntry.ProfileUuid)
+		if err != nil || authorUUID == uuid.Nil {
+			return nil, status.Error(codes.FailedPrecondition, "stored Entry author is invalid")
+		}
+		if actorUUID != authorUUID && !actor.IsSuper {
+			return nil, status.Error(codes.PermissionDenied, "only the Entry author or super may edit")
+		}
+		if actorUUID != authorUUID {
+			author, err = model.GetProfileFromUuid(s.mdb, authorUUID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		entry.Date = oldEntry.Date
+		entry.ProfileUuid = oldEntry.ProfileUuid
+		entry.FeedUuid = oldEntry.FeedUuid
 	}
-	_, err = model.PutEntryWithTimelineObserver(s.rdb, entry, s.realtimeObserverExcluding(profileUuid))
+	// From is a display snapshot, but it must still be minted from the
+	// canonical author Profile rather than trusted from the client.
+	entry.From = &pb.Feed{
+		Uuid:    author.Uuid,
+		Id:      author.Id,
+		Name:    author.Name,
+		Type:    author.Type,
+		Picture: author.Picture,
+	}
+	if err := canonicalizeEntryTo(s.mdb, entry, authorUUID); err != nil {
+		return nil, err
+	}
+	if created {
+		if actor.Type == "group" && (!allowSystemFeedSelfPost || entry.FeedUuid != actor.Uuid) {
+			return nil, status.Error(codes.PermissionDenied, "a Group cannot act as a user principal")
+		}
+		if err := s.authorizeEntryPost(entry, actorUUID); err != nil {
+			return nil, err
+		}
+	}
+	if _, apiPrincipal := feedprincipal.FromIncoming(ctx); apiPrincipal && !created {
+		return nil, status.Error(codes.AlreadyExists, "generated Entry UUID collision")
+	}
+	_, err = model.PutEntryWithTimelineObserver(s.rdb, entry, s.realtimeObserverExcluding(actorUUID))
 	if err != nil {
 		return nil, err
 	}

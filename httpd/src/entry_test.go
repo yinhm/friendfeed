@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/media"
+	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
 )
 
@@ -61,6 +62,37 @@ func multipartUpload(t *testing.T, content []byte, filename string) (*bytes.Buff
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 	return &body, writer.FormDataContentType()
+}
+
+func TestEntryPostHandlerRejectsEditByNonAuthorBeforePosting(t *testing.T) {
+	client := &fakeGroupClient{
+		profile: &pb.Profile{Uuid: testGroupUserUUID, Id: "group-admin"},
+		entryResp: &pb.Feed{Uuid: testGroupUUID, Entries: []*pb.Entry{{
+			Id:          "33333333-3333-3333-3333-333333333333",
+			ProfileUuid: "44444444-4444-4444-4444-444444444444",
+			FeedUuid:    testGroupUUID,
+			Body:        "original",
+		}}},
+	}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.POST("/a/share", s.EntryPostHandler)
+	login := groupLoginCookie(t, router)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("id", client.entryResp.Entries[0].Id))
+	require.NoError(t, writer.WriteField("feedUuid", testGroupUUID))
+	require.NoError(t, writer.WriteField("body", "unauthorized edit"))
+	require.NoError(t, writer.Close())
+	req := httptest.NewRequest(http.MethodPost, "/a/share", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.AddCookie(login)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	require.Equal(t, http.StatusForbidden, response.Code)
+	require.Zero(t, client.postCalls)
 }
 
 func TestUploadHandlerRejectsOversizedRequest(t *testing.T) {

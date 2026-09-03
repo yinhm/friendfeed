@@ -13,6 +13,7 @@ import (
 	"github.com/yinhm/friendfeed/search"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestCreateGroupAtomicMembershipAndAdmin(t *testing.T) {
@@ -416,6 +417,43 @@ func TestDeleteEntryAllowsGroupAdminButNotOrdinaryMember(t *testing.T) {
 	// The Group admin (creator) may delete it despite not being the author.
 	_, err = srv.DeleteEntry(context.Background(), &pb.EntryRequest{Uuid: entry.Id, User: creator.String()})
 	require.NoError(t, err)
+}
+
+func TestPostEntryEditRejectsGroupAdminAndPreservesAuthorForSuper(t *testing.T) {
+	srv := newServiceServer(t)
+	admin := createServiceUser(t, srv, "edit-admin")
+	author := createServiceUser(t, srv, "edit-author")
+	group := createTestGroup(t, srv, admin, "edit-moderation")
+	require.NoError(t, model.JoinGroup(srv.rdb, group, author))
+	entry, err := postGroupEntry(t, srv, author, group)
+	require.NoError(t, err)
+	originalDate := entry.Date
+
+	adminEdit := proto.Clone(entry).(*pb.Entry)
+	adminEdit.ProfileUuid = admin.String()
+	adminEdit.Body = "admin rewrite"
+	_, err = srv.PostEntry(context.Background(), adminEdit)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	super := createServiceUser(t, srv, "edit-super")
+	superProfile, err := model.GetProfileFromUuid(srv.rdb, super)
+	require.NoError(t, err)
+	superProfile.IsSuper = true
+	require.NoError(t, model.UpdateProfile(srv.rdb, superProfile))
+	superEdit := proto.Clone(entry).(*pb.Entry)
+	superEdit.ProfileUuid = super.String()
+	superEdit.FeedUuid = super.String()
+	superEdit.Date = "2020-01-01T00:00:00Z"
+	superEdit.From = &pb.Feed{Uuid: super.String(), Id: "forged"}
+	superEdit.Body = "super edit"
+	updated, err := srv.PostEntry(context.Background(), superEdit)
+	require.NoError(t, err)
+	require.Equal(t, author.String(), updated.ProfileUuid)
+	require.Equal(t, author.String(), updated.From.Uuid)
+	require.Equal(t, "edit-author", updated.From.Id)
+	require.Equal(t, group.String(), updated.FeedUuid)
+	require.Equal(t, originalDate, updated.Date)
+	require.Equal(t, "super edit", updated.Body)
 }
 
 func TestUpdateGroupRequiresAdmin(t *testing.T) {

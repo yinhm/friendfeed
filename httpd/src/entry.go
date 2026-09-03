@@ -104,11 +104,16 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	}
 
 	// init profile and new entry
-	profile, _ := s.CurrentUser(c)
+	profile, err := s.CurrentUser(c)
+	if err != nil || profile == nil || profile.Uuid == "" {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
 	dt := time.Now().UTC()
 	entry := &pb.Entry{}
+	editing := form.Id != ""
 
-	if form.Id == "" { // new entry
+	if !editing { // new entry
 		entryUUID, err := uuid.NewV4()
 		if err != nil {
 			c.AbortWithStatus(http.StatusInternalServerError)
@@ -117,18 +122,21 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 		entry.Id = entryUUID.String()
 		entry.Date = dt.Format(time.RFC3339)
 	} else { // edit entry
-		// only allow edit self entry for now
 		feed, err := s.FetchEntry(c, form.Id)
 		if err != nil {
 			return
 		}
 		// restore old entry, Id, date etc...
 		entry = feed.Entries[0]
+		if entry.ProfileUuid != profile.Uuid && !profile.IsSuper {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
 		// rewrite feedid when edit entry
 		form.FeedUuid = feed.Uuid
 	}
 
-	if !s.feedWritable(c, strings.ToLower(form.FeedUuid)) {
+	if !editing && !s.feedWritable(c, strings.ToLower(form.FeedUuid)) {
 		c.AbortWithStatus(401)
 		return
 	}
@@ -173,8 +181,10 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	entry.From = from
 	// To:      []*pb.Feed{from},
 	// Thumbnails: thumbnails,
-	entry.ProfileUuid = profile.Uuid // 发布人
-	entry.FeedUuid = form.FeedUuid   // 写到具体的 Feed
+	// On edits this identifies the acting user to ffdb; ffdb authorizes the
+	// actor and restores the Entry's canonical author before persistence.
+	entry.ProfileUuid = profile.Uuid
+	entry.FeedUuid = form.FeedUuid // 写到具体的 Feed
 
 	ctx, cancel := DefaultTimeoutContext()
 	defer cancel()

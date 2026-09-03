@@ -47,6 +47,9 @@ type fakeGroupClient struct {
 	feedResp  *pb.Feed
 	feedErr   error
 	feedCalls int
+	entryResp *pb.Feed
+	entryErr  error
+	postCalls int
 	graphResp *pb.Graph
 	graphReq  *pb.ProfileRequest
 
@@ -216,6 +219,15 @@ func TestUserGroupsPageIsOwnerOnly(t *testing.T) {
 func (f *fakeGroupClient) FetchFeed(ctx context.Context, req *pb.FeedRequest, opts ...grpc.CallOption) (*pb.Feed, error) {
 	f.feedCalls++
 	return f.feedResp, f.feedErr
+}
+
+func (f *fakeGroupClient) FetchEntry(ctx context.Context, req *pb.EntryRequest, opts ...grpc.CallOption) (*pb.Feed, error) {
+	return f.entryResp, f.entryErr
+}
+
+func (f *fakeGroupClient) PostEntry(ctx context.Context, entry *pb.Entry, opts ...grpc.CallOption) (*pb.Entry, error) {
+	f.postCalls++
+	return entry, nil
 }
 
 func (f *fakeGroupClient) FetchGraph(ctx context.Context, req *pb.ProfileRequest, opts ...grpc.CallOption) (*pb.Graph, error) {
