@@ -79,7 +79,7 @@ func TestGroupActivityTracksMutationsAndRebuilds(t *testing.T) {
 	require.Equal(t, []GroupActivity{{GroupUUID: groupUUID.String(), Score: 100}}, rebuilt)
 }
 
-func TestJoinGroupMaterializesExistingActivity(t *testing.T) {
+func TestJoinGroupDoesNotCountActivityBeforeMembership(t *testing.T) {
 	db, err := store.NewStore(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
@@ -108,7 +108,35 @@ func TestJoinGroupMaterializesExistingActivity(t *testing.T) {
 	require.NoError(t, JoinGroup(db, groupUUID, visitor))
 	rows, err := GetGroupActivity(db, visitor)
 	require.NoError(t, err)
-	require.Equal(t, []GroupActivity{{GroupUUID: group.Uuid, Score: 7}}, rows)
+	require.Equal(t, []GroupActivity{{GroupUUID: group.Uuid, Score: 0}}, rows)
+
+	entry, err = DeleteLike(db, visitorProfile, entry)
+	require.NoError(t, err)
+	_, entry, err = PutLike(db, visitorProfile, entry)
+	require.NoError(t, err)
+	rows, err = GetGroupActivity(db, visitor)
+	require.NoError(t, err)
+	require.Equal(t, []GroupActivity{{GroupUUID: group.Uuid, Score: 3}}, rows)
+	require.NoError(t, LeaveGroup(db, groupUUID, visitor))
+	require.NoError(t, JoinGroup(db, groupUUID, visitor))
+	rows, err = GetGroupActivity(db, visitor)
+	require.NoError(t, err)
+	require.Equal(t, []GroupActivity{{GroupUUID: group.Uuid, Score: 3}}, rows,
+		"Leave and rejoin must retain activity earned while a member")
+
+	require.NoError(t, LeaveGroup(db, groupUUID, visitor))
+	entry, err = DeleteLike(db, visitorProfile, entry)
+	require.NoError(t, err)
+	rows, err = GetGroupActivity(db, visitor)
+	require.NoError(t, err)
+	require.Equal(t, []GroupActivity{{GroupUUID: group.Uuid, Score: 0}}, rows,
+		"removing a counted fact while away must reduce the retained score")
+	_, _, err = PutLike(db, visitorProfile, entry)
+	require.NoError(t, err)
+	rows, err = GetGroupActivity(db, visitor)
+	require.NoError(t, err)
+	require.Equal(t, []GroupActivity{{GroupUUID: group.Uuid, Score: 0}}, rows,
+		"new activity while away must not increase the retained score")
 }
 
 // A user whose Follow edges point only at non-Group feeds has no ranking by

@@ -330,10 +330,6 @@ func stageGroupJoinEdges(db *store.Store, batch *pebble.Batch, group, user uuid.
 	if alreadyMember {
 		return nil
 	}
-	activityScore, err := groupActivityScoreForUserGroup(db, user, group)
-	if err != nil {
-		return fmt.Errorf("calculate existing Group activity: %w", err)
-	}
 	followKey := NewKeyFrom(Follow.Prefix, user.Bytes(), group.Bytes())
 	if err := batch.Set(followKey, []byte("1"), nil); err != nil {
 		return fmt.Errorf("stage Follow: %w", err)
@@ -342,7 +338,10 @@ func stageGroupJoinEdges(db *store.Store, batch *pebble.Batch, group, user uuid.
 	if err := batch.Set(followerKey, []byte("1"), nil); err != nil {
 		return fmt.Errorf("stage Follower: %w", err)
 	}
-	if err := StageAdjustGroupActivity(db, batch, user, group, activityScore); err != nil {
+	// Activity earned during membership is retained across Leave/Join. A first
+	// join starts at zero; historical pre-membership interactions are not
+	// synchronously rescanned in this latency-sensitive mutation.
+	if err := StageAdjustGroupActivity(db, batch, user, group, 0); err != nil {
 		return err
 	}
 	// Same self-healing rule as stageFollowEdges: membership must not let a
@@ -393,7 +392,7 @@ func stageRemoveGroupMembership(db *store.Store, batch *pebble.Batch, group, use
 	if err := batch.Delete(followerKey, nil); err != nil {
 		return fmt.Errorf("stage Follower removal: %w", err)
 	}
-	return StageRemoveGroupActivity(db, batch, user, group)
+	return nil
 }
 
 // StageLeaveGroup stages user voluntarily leaving group. Idempotent if the

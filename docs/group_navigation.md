@@ -56,11 +56,16 @@ JSON 始终按 `score DESC, group_uuid ASC` 排好；同分使用稳定 UUID 排
 扫描或临时排序全部 Follow。创建者身份不能从可转让的 GroupAdmin 推断，因此另有
 稳定 metadata：`TableMeta | "group-owner/v1/" | group UUID -> creator UUID`。
 
-评分仅统计当前仍存在的事实，并且只排名用户当前加入的 Group：创建该 Group +100，
+评分仅统计成员期间产生且当前仍存在的事实，并且只展示用户当前加入的 Group：创建该 Group +100，
 向 Group 新发一条 Entry +10，保留一个 Like +3，保留一条 Comment +4；编辑不重复
-计分，Unlike、删除 Comment、删除 Entry 会扣除对应分值且最低为 0。点击不记录。
-Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 score 更新与
-权威 mutation 同一 batch。JSON 损坏必须报错，不得静默猜测。
+计分，Unlike、删除 Comment、删除 Entry 会扣除对应分值且最低为 0。加入前的历史互动
+不回算；Leave 保留已累计分数但由权威 Follow 边隐藏，重新 Join 直接恢复，禁止在 Join
+请求内扫描历史。点击不记录。Create/Join/Leave 与 score 行在同一 batch 维护；
+Entry/Like/Comment 的 score 更新与权威 mutation 同一 batch。JSON 损坏必须报错，不得静默猜测。
+
+离线 `rebuild_group_activity` 无法从当前权威表恢复历史 Join/Leave 时间段，因此采用明确的
+近似口径：只为当前成员关系重建，并统计这些 Group 中当前仍存在的全部历史事实，可能包含
+首次加入前产生的互动。它用于修复派生数据，不作为 membership 历史审计工具。
 
 `rebuild_group_activity` 按用户的 Follow、EntryIndex、LikeTimeline、CommentTimeline
 流式重建；默认只处理持有 OAuth 登录身份的活跃用户，无 Group 成员关系的用户跳过；

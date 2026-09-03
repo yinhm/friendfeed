@@ -100,27 +100,35 @@ func StageAdjustGroupActivity(db *store.Store, batch *pebble.Batch, user, group 
 	return stageWriteGroupActivity(batch, user, rows)
 }
 
-func StageRemoveGroupActivity(db *store.Store, batch *pebble.Batch, user, group uuid.UUID) error {
-	rows, err := GetGroupActivity(db, user)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil
-	}
+func stageAdjustGroupActivityIfMember(db *store.Store, batch *pebble.Batch, user, group uuid.UUID, delta int64) error {
+	member, err := IsGroupMember(db, group, user)
 	if err != nil {
 		return err
 	}
-	kept := rows[:0]
-	for _, row := range rows {
-		if row.GroupUUID != group.String() {
-			kept = append(kept, row)
+	if !member {
+		// Leave hides the row through the authoritative Follow edge but retains
+		// its score for a future rejoin. Only deletions of already-counted facts
+		// remain applicable while the user is away; new activity does not count.
+		if delta > 0 {
+			return nil
 		}
-	}
-	return stageWriteGroupActivity(batch, user, kept)
-}
-
-func stageAdjustGroupActivityIfMember(db *store.Store, batch *pebble.Batch, user, group uuid.UUID, delta int64) error {
-	member, err := IsGroupMember(db, group, user)
-	if err != nil || !member {
-		return err
+		rows, err := GetGroupActivity(db, user)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		tracked := false
+		for _, row := range rows {
+			if row.GroupUUID == group.String() {
+				tracked = true
+				break
+			}
+		}
+		if !tracked {
+			return nil
+		}
 	}
 	profile, err := getGroupProfile(db, group)
 	if err != nil {
@@ -145,65 +153,6 @@ func entryGroupUUID(db *store.Store, entry *pb.Entry) (uuid.UUID, bool, error) {
 		return uuid.Nil, false, err
 	}
 	return group, profile.Type == "group" && !profile.Deleted, nil
-}
-
-func groupActivityScoreForUserGroup(db *store.Store, user, group uuid.UUID) (int64, error) {
-	var score int64
-	owner, err := db.Get(groupOwnerMetaKey(group))
-	if err == nil {
-		if ownerUUID, parseErr := uuid.FromBytes(owner); parseErr == nil && ownerUUID == user {
-			score += GroupActivityCreateScore
-		}
-	} else if !errors.Is(err, store.ErrNotFound) {
-		return 0, err
-	}
-	entryPrefix := EntryIndex.PrefixAppend(user.Bytes())
-	if _, err := db.ForwardScan(entryPrefix, func(_ int, key, _ []byte) error {
-		_, entryID, _, err := ParseEntryIndexKey(key)
-		if err != nil {
-			return err
-		}
-		entry := new(pb.Entry)
-		if err := Entry.Get(db, entryID.Bytes(), entry); err == nil &&
-			entry.ProfileUuid == user.String() && entry.FeedUuid == group.String() {
-			score += GroupActivityPostScore
-		}
-		return nil
-	}); err != nil {
-		return 0, err
-	}
-	if _, err := db.ForwardScan(LikeTimelinePrefix(user), func(_ int, key, _ []byte) error {
-		_, entryID, _, err := ParseInteractionTimelineKey(key, TableLikeTimeline)
-		if err != nil {
-			return err
-		}
-		entry := new(pb.Entry)
-		if err := Entry.Get(db, entryID.Bytes(), entry); err == nil && entry.FeedUuid == group.String() {
-			score += GroupActivityLikeScore
-		}
-		return nil
-	}); err != nil {
-		return 0, err
-	}
-	if _, err := db.ForwardScan(CommentTimelinePrefix(user), func(_ int, key, _ []byte) error {
-		_, entryID, _, err := ParseInteractionTimelineKey(key, TableCommentTimeline)
-		if err != nil {
-			return err
-		}
-		entry, err := GetEntry(db, entryID.String())
-		if err != nil || entry.FeedUuid != group.String() {
-			return nil
-		}
-		for _, comment := range entry.Comments {
-			if comment != nil && comment.GetFrom().GetUuid() == user.String() {
-				score += GroupActivityCommentScore
-			}
-		}
-		return nil
-	}); err != nil {
-		return 0, err
-	}
-	return score, nil
 }
 
 // RebuildGroupActivityForUser derives one user's ranking from current
