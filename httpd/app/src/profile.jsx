@@ -90,7 +90,7 @@ export function ProfileForm(props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl">
+    <form onSubmit={handleSubmit} noValidate className="max-w-xl">
       <h3 className="mb-4 text-lg font-semibold">Edit Profile</h3>
 
       {props.welcome &&
