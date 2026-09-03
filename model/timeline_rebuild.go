@@ -131,14 +131,20 @@ func MergeHomeFeed(db *store.Store, viewer, feed uuid.UUID, maxRows int, retenti
 	if err != nil {
 		return 0, skipped, err
 	}
-	for entry, activity := range rows {
-		moved, err := MoveTimelineEntry(db, viewer, entry, activity, nil)
-		if err != nil {
-			return added, skipped, err
+	err = db.ApplyBatch(func(batch *pebble.Batch) error {
+		for entry, activity := range rows {
+			moved, err := stageMoveTimelineEntry(db, batch, viewer, entry, activity, nil)
+			if err != nil {
+				return err
+			}
+			if moved {
+				added++
+			}
 		}
-		if moved {
-			added++
-		}
+		return nil
+	})
+	if err != nil {
+		return 0, skipped, err
 	}
 	if _, err := TrimHomeTimeline(db, viewer, TimelineMaxEntries, retention, now); err != nil {
 		return added, skipped, err

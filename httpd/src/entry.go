@@ -186,7 +186,7 @@ func (s *Server) EntryPostHandler(c *gin.Context) {
 	entry.ProfileUuid = profile.Uuid
 	entry.FeedUuid = form.FeedUuid // 写到具体的 Feed
 
-	ctx, cancel := DefaultTimeoutContext()
+	ctx, cancel := mutationTimeoutContext()
 	defer cancel()
 	entry, err = s.client.PostEntry(ctx, entry)
 	if RequestError(c, err) {
@@ -229,7 +229,7 @@ func (s *Server) EntryDeleteHandler(c *gin.Context) {
 		ViewerUuid: uuid,
 	}
 
-	ctx, cancel := DefaultTimeoutContext()
+	ctx, cancel := mutationTimeoutContext()
 	defer cancel()
 
 	_, err := s.client.DeleteEntry(ctx, req)

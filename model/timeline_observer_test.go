@@ -91,3 +91,31 @@ func TestFanoutTimelineObserverRespectsLikeCooldown(t *testing.T) {
 	require.Equal(t, 1, moved)
 	require.Equal(t, 1, calls)
 }
+
+func TestFanoutTimelineActivityCommitsEachBatchAtomically(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	author := uuid.Must(uuid.NewV4())
+	follower := uuid.Must(uuid.NewV4())
+	entryID := uuid.Must(uuid.NewV4())
+	require.NoError(t, TouchTimelineState(db, author, now))
+	require.NoError(t, TouchTimelineState(db, follower, now))
+	require.NoError(t, db.Put(NewKeyFrom(Follower.Prefix, author.Bytes(), follower.Bytes()), []byte("1")))
+	require.NoError(t, db.Put(TimelinePositionKey(follower, entryID), []byte("bad")))
+
+	entry := &pb.Entry{
+		Id:          entryID.String(),
+		ProfileUuid: author.String(),
+		Date:        now.Add(-time.Hour).Format(time.RFC3339Nano),
+	}
+	observed := 0
+	_, err = FanoutTimelineActivity(db, entry, now, TimelineActivityComment,
+		func(uuid.UUID, uuid.UUID, TimelineActivityKind, time.Time) { observed++ })
+	require.ErrorContains(t, err, "invalid TimelinePosition")
+	require.Zero(t, observed, "observer must not see a rolled-back batch")
+	_, err = TimelinePositionTime(db, author, entryID)
+	require.ErrorIs(t, err, store.ErrNotFound, "an earlier viewer must not commit before a later viewer fails")
+}

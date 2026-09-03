@@ -158,3 +158,28 @@ func TestMergeAndRemoveHomeFeedAreRelationshipScoped(t *testing.T) {
 	_, err = TimelinePositionTime(db, viewer, unrelated)
 	require.NoError(t, err)
 }
+
+func TestMergeHomeFeedDoesNotPartiallyCommit(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	defer db.Close()
+
+	viewer := uuid.Must(uuid.NewV4())
+	feed := uuid.Must(uuid.NewV4())
+	now := time.Now().UTC().Truncate(time.Second)
+	entries := []uuid.UUID{uuid.Must(uuid.NewV4()), uuid.Must(uuid.NewV4())}
+	for i, entry := range entries {
+		_, err := PutEntry(db, &pb.Entry{
+			Id: entry.String(), ProfileUuid: feed.String(), FeedUuid: feed.String(),
+			Date: now.Add(-time.Duration(i) * time.Second).Format(time.RFC3339),
+		})
+		require.NoError(t, err)
+	}
+	require.NoError(t, db.Put(TimelinePositionKey(viewer, entries[1]), []byte("bad")))
+
+	_, _, err = MergeHomeFeed(db, viewer, feed, len(entries), TimelineRetentionMax, now)
+	require.ErrorContains(t, err, "invalid TimelinePosition")
+	rows, err := db.ForwardScan(TimelineIndexPrefix(viewer), func(int, []byte, []byte) error { return nil })
+	require.NoError(t, err)
+	require.Zero(t, rows, "a failed merge must not commit earlier timeline rows")
+}

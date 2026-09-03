@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yinhm/friendfeed/pb"
@@ -342,11 +343,15 @@ func TestRequestErrorReturnsForbiddenForPermissionDenied(t *testing.T) {
 type fakeFollowHandlerClient struct {
 	pb.ApiClient
 
-	followResp *pb.FollowResponse
-	followErr  error
+	followResp        *pb.FollowResponse
+	followErr         error
+	deadlineRemaining time.Duration
 }
 
 func (f *fakeFollowHandlerClient) GraphFollow(ctx context.Context, req *pb.FollowRequest, opts ...grpc.CallOption) (*pb.FollowResponse, error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		f.deadlineRemaining = time.Until(deadline)
+	}
 	return f.followResp, f.followErr
 }
 
@@ -379,6 +384,9 @@ func TestFollowHandlerReturnsControlledErrorForDomainRejection(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), "demoted") {
 		t.Fatalf("RPC message leaked into web response: %q", recorder.Body.String())
+	}
+	if client.deadlineRemaining < 9*time.Second {
+		t.Fatalf("Follow RPC deadline = %s; want approximately 10s", client.deadlineRemaining)
 	}
 }
 

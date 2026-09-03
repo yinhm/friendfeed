@@ -134,6 +134,10 @@ func DefaultTimeoutContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 3*time.Second)
 }
 
+func mutationTimeoutContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 10*time.Second)
+}
+
 func (s *Server) HTML(c *gin.Context, code int, name string, data pongo2.Context) {
 	profile, err := s.CurrentUser(c)
 	if err != nil {
@@ -423,7 +427,7 @@ func (s *Server) updateLike(c *gin.Context, like bool) {
 		Like:  like,
 	}
 
-	ctx, cancel := DefaultTimeoutContext()
+	ctx, cancel := mutationTimeoutContext()
 	defer cancel()
 
 	entry, err := s.client.LikeEntry(ctx, req)
@@ -486,7 +490,7 @@ func (s *Server) CommentHandler(c *gin.Context) {
 		UserUuid: CurrentUserUuid(c),
 	}
 
-	ctx, cancel := DefaultTimeoutContext()
+	ctx, cancel := mutationTimeoutContext()
 	defer cancel()
 
 	_, err = s.client.CommentEntry(ctx, req)
@@ -516,7 +520,7 @@ func (s *Server) CommentDeleteHandler(c *gin.Context) {
 		UserUuid: CurrentUserUuid(c),
 	}
 
-	ctx, cancel := DefaultTimeoutContext()
+	ctx, cancel := mutationTimeoutContext()
 	defer cancel()
 
 	entry, err := s.client.DeleteComment(ctx, req)
@@ -546,7 +550,7 @@ func (s *Server) FollowHandler(c *gin.Context) {
 		Action:      action,
 	}
 
-	ctx, cancel := DefaultTimeoutContext()
+	ctx, cancel := mutationTimeoutContext()
 	defer cancel()
 
 	entry, err := s.client.GraphFollow(ctx, req)

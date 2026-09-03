@@ -155,45 +155,53 @@ func TimelinePositionTime(db *store.Store, viewer, entry uuid.UUID) (time.Time, 
 // moves backwards.
 func MoveTimelineEntry(db *store.Store, viewer, entry uuid.UUID, activity time.Time,
 	qualify func(old time.Time, exists bool) bool) (bool, error) {
-	activity = activity.UTC()
 	moved := false
 	err := db.ApplyBatch(func(batch *pebble.Batch) error {
-		old, err := TimelinePositionTime(db, viewer, entry)
-		exists := err == nil
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return err
-		}
-		if exists && !activity.After(old) {
-			return nil
-		}
-		if qualify != nil && !qualify(old, exists) {
-			return nil
-		}
-		if exists {
-			oldKey, err := TimelineIndexKey(viewer, entry, old)
-			if err != nil {
-				return err
-			}
-			if err := batch.Delete(oldKey, nil); err != nil {
-				return err
-			}
-		}
-		newKey, err := TimelineIndexKey(viewer, entry, activity)
-		if err != nil {
-			return err
-		}
-		var value [8]byte
-		binary.BigEndian.PutUint64(value[:], uint64(activity.UnixMilli()))
-		if err := batch.Set(newKey, nil, nil); err != nil {
-			return err
-		}
-		if err := batch.Set(TimelinePositionKey(viewer, entry), value[:], nil); err != nil {
-			return err
-		}
-		moved = true
-		return nil
+		var err error
+		moved, err = stageMoveTimelineEntry(db, batch, viewer, entry, activity, qualify)
+		return err
 	})
 	return moved, err
+}
+
+// stageMoveTimelineEntry is MoveTimelineEntry's batch form. Callers may stage
+// multiple distinct viewer/entry pairs while one ApplyBatch lock is held.
+func stageMoveTimelineEntry(db *store.Store, batch *pebble.Batch, viewer, entry uuid.UUID, activity time.Time,
+	qualify func(old time.Time, exists bool) bool) (bool, error) {
+	activity = activity.UTC()
+	old, err := TimelinePositionTime(db, viewer, entry)
+	exists := err == nil
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return false, err
+	}
+	if exists && !activity.After(old) {
+		return false, nil
+	}
+	if qualify != nil && !qualify(old, exists) {
+		return false, nil
+	}
+	if exists {
+		oldKey, err := TimelineIndexKey(viewer, entry, old)
+		if err != nil {
+			return false, err
+		}
+		if err := batch.Delete(oldKey, nil); err != nil {
+			return false, err
+		}
+	}
+	newKey, err := TimelineIndexKey(viewer, entry, activity)
+	if err != nil {
+		return false, err
+	}
+	var value [8]byte
+	binary.BigEndian.PutUint64(value[:], uint64(activity.UnixMilli()))
+	if err := batch.Set(newKey, nil, nil); err != nil {
+		return false, err
+	}
+	if err := batch.Set(TimelinePositionKey(viewer, entry), value[:], nil); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func DeleteTimelinePositionBatch(batch *pebble.Batch, viewer, entry uuid.UUID, activity time.Time) error {
@@ -220,9 +228,13 @@ const (
 // the correctness/error result of the timeline fanout.
 type TimelineMoveObserver func(viewer, entry uuid.UUID, kind TimelineActivityKind, at time.Time)
 
+const timelineFanoutBatchSize = 100
+
 // FanoutTimelineActivity updates only active Home caches. Inactive viewers are
 // rebuilt on their next Home request; source mutations are committed before
-// this derived-data fanout. observer runs only after a real committed move.
+// this derived-data fanout. Moves commit atomically in batches of 100 viewers;
+// a later batch may fail after earlier batches committed. observer runs only
+// after a real committed move.
 func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time, kind TimelineActivityKind, observer TimelineMoveObserver) (int, error) {
 	entryUUID, err := uuid.FromString(entry.Id)
 	if err != nil {
@@ -253,36 +265,59 @@ func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time
 			return 0, nil
 		}
 	}
-	update := func(viewer uuid.UUID) (bool, error) {
-		active, err := TimelineIsActive(db, viewer, now)
+	qualify := func(old time.Time, exists bool) bool { return true }
+	if kind == TimelineActivityLike {
+		qualify = func(old time.Time, exists bool) bool {
+			return !exists || activity.Sub(old) >= LikeBumpCooldown
+		}
+	}
+	viewers := make([]uuid.UUID, 0, timelineFanoutBatchSize)
+	updated := 0
+	flush := func() error {
+		if len(viewers) == 0 {
+			return nil
+		}
+		moved := make([]uuid.UUID, 0, len(viewers))
+		err := db.ApplyBatch(func(batch *pebble.Batch) error {
+			for _, viewer := range viewers {
+				ok, err := stageMoveTimelineEntry(db, batch, viewer, entryUUID, activity, qualify)
+				if err != nil {
+					return err
+				}
+				if ok {
+					moved = append(moved, viewer)
+				}
+			}
+			return nil
+		})
+		viewers = viewers[:0]
 		if err != nil {
-			return false, err
+			return err
 		}
-		if !active {
-			return false, nil
-		}
-		qualify := func(old time.Time, exists bool) bool { return true }
-		if kind == TimelineActivityLike {
-			qualify = func(old time.Time, exists bool) bool {
-				return !exists || activity.Sub(old) >= LikeBumpCooldown
+		updated += len(moved)
+		if observer != nil {
+			for _, viewer := range moved {
+				observer(viewer, entryUUID, kind, activity)
 			}
 		}
-		moved, err := MoveTimelineEntry(db, viewer, entryUUID, activity, qualify)
+		return nil
+	}
+	queue := func(viewer uuid.UUID) error {
+		active, err := TimelineIsActive(db, viewer, now)
 		if err != nil {
-			return false, err
+			return err
 		}
-		if moved && observer != nil {
-			observer(viewer, entryUUID, kind, activity)
+		if !active {
+			return nil
 		}
-		return moved, nil
+		viewers = append(viewers, viewer)
+		if len(viewers) == timelineFanoutBatchSize {
+			return flush()
+		}
+		return nil
 	}
-	updated := 0
-	moved, err := update(author)
-	if err != nil {
+	if err := queue(author); err != nil {
 		return 0, fmt.Errorf("update author timeline: %w", err)
-	}
-	if moved {
-		updated++
 	}
 	prefix := NewPrefixKeyFrom(TableFollower, feed.Bytes())
 	_, err = db.ForwardScan(prefix, func(_ int, key, _ []byte) error {
@@ -290,16 +325,15 @@ func FanoutTimelineActivity(db *store.Store, entry *pb.Entry, activity time.Time
 		if err != nil {
 			return err
 		}
-		moved, err := update(follower)
-		if err != nil {
-			return err
+		if follower == author {
+			return nil
 		}
-		if moved {
-			updated++
-		}
-		return nil
+		return queue(follower)
 	})
 	if err != nil {
+		return updated, fmt.Errorf("update follower timelines: %w", err)
+	}
+	if err := flush(); err != nil {
 		return updated, fmt.Errorf("update follower timelines: %w", err)
 	}
 	return updated, nil
