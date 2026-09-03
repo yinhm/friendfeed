@@ -92,11 +92,54 @@ func (s *ApiServer) Command(ctx context.Context, cmd *pb.CommandRequest) (*pb.Co
 			return nil, err
 		}
 		return &pb.CommandResponse{Command: cmd.Command, Result: result}, nil
+	case "BootstrapGroupAdmin":
+		if err := s.bootstrapGroupAdmin(cmd.Arg1, cmd.Arg2); err != nil {
+			return nil, err
+		}
+		return &pb.CommandResponse{Command: cmd.Command, Result: "bootstrapped"}, nil
 	default:
 		return nil, fmt.Errorf("unknown command %q", cmd.Command)
 	}
 
 	return new(pb.CommandResponse), nil
+}
+
+// bootstrapGroupAdmin repairs a historical Group with no administrator. It is
+// deliberately exposed only through the loopback maintenance Command RPC; the
+// normal AddGroupAdmin authorization contract remains unchanged.
+func (s *ApiServer) bootstrapGroupAdmin(groupRaw, targetRaw string) error {
+	group, groupErr := uuid.FromString(groupRaw)
+	target, targetErr := uuid.FromString(targetRaw)
+	if groupErr != nil || targetErr != nil || group == uuid.Nil || target == uuid.Nil {
+		return errors.New("valid group UUID and target user UUID are required")
+	}
+
+	s.profileUpdateMu.Lock()
+	defer s.profileUpdateMu.Unlock()
+	return s.rdb.ApplyBatch(func(batch *pebble.Batch) error {
+		groupProfile, err := model.GetProfileFromUuid(s.rdb, group)
+		if err != nil {
+			return err
+		}
+		if groupProfile.Deleted || groupProfile.Type != "group" {
+			return errors.New("target is not an active Group")
+		}
+		targetProfile, err := model.GetProfileFromUuid(s.rdb, target)
+		if err != nil {
+			return err
+		}
+		if targetProfile.Deleted || targetProfile.Type != "user" {
+			return errors.New("target is not an active user")
+		}
+		count, err := model.CountGroupAdmins(s.rdb, group)
+		if err != nil {
+			return err
+		}
+		if count != 0 {
+			return errors.New("Group already has an administrator; use AddGroupAdmin")
+		}
+		return model.StageAddGroupAdmin(s.rdb, batch, group, target)
+	})
 }
 
 func (s *ApiServer) MarkDelete(feedId string) (bool, error) {

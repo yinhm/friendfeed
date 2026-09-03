@@ -79,9 +79,49 @@ func newGroupAdminCommand(name string, promote bool) *cobra.Command {
 	}
 }
 
+var groupAdminBootstrapCmd = &cobra.Command{
+	Use:   "bootstrap",
+	Short: "restore the first administrator of an orphan Group",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+		defer cancel()
+		group, err := resolveGroupAdminProfile(ctx, groupAdminGroup, "group")
+		if err != nil {
+			return fmt.Errorf("resolve Group: %w", err)
+		}
+		user, err := resolveGroupAdminProfile(ctx, groupAdminUser, "user")
+		if err != nil {
+			return fmt.Errorf("resolve user: %w", err)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Group: %s (%s)\nuser: %s (%s)\n",
+			group.Id, group.Uuid, user.Id, user.Uuid)
+		if !groupAdminApply {
+			fmt.Fprintln(cmd.OutOrStdout(), "dry-run only; rerun with --apply to restore the first admin")
+			return nil
+		}
+		_, err = apiClient.Command(ctx, &pb.CommandRequest{
+			Command: "BootstrapGroupAdmin",
+			Arg1:    group.Uuid,
+			Arg2:    user.Uuid,
+		})
+		if err != nil {
+			return fmt.Errorf("bootstrap Group administrator: %w", err)
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "bootstrapped")
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(groupCmd)
 	groupCmd.AddCommand(groupAdminCmd)
+	groupAdminCmd.AddCommand(groupAdminBootstrapCmd)
+	groupAdminBootstrapCmd.Flags().StringVar(&groupAdminGroup, "group", "", "Group ID or UUID")
+	groupAdminBootstrapCmd.Flags().StringVar(&groupAdminUser, "user", "", "target user ID or UUID")
+	groupAdminBootstrapCmd.Flags().BoolVar(&groupAdminApply, "apply", false, "restore the first Group administrator")
+	_ = groupAdminBootstrapCmd.MarkFlagRequired("group")
+	_ = groupAdminBootstrapCmd.MarkFlagRequired("user")
 	for _, command := range []*cobra.Command{
 		newGroupAdminCommand("promote", true),
 		newGroupAdminCommand("demote", false),

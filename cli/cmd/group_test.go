@@ -15,4 +15,10 @@ func TestGroupAdminCommandsAreRegistered(t *testing.T) {
 			require.NotNil(t, command.Flags().Lookup(flag))
 		}
 	}
+	bootstrap, _, err := rootCmd.Find([]string{"group", "admin", "bootstrap"})
+	require.NoError(t, err)
+	for _, flag := range []string{"group", "user", "apply"} {
+		require.NotNil(t, bootstrap.Flags().Lookup(flag))
+	}
+	require.Nil(t, bootstrap.Flags().Lookup("actor"))
 }

@@ -34,3 +34,17 @@ Group 的现有 admin 或 super；目标用户必须已经是 Group member。命
 ```
 
 服务端仍会执行权限、membership 和 last-admin 检查，并按既有 Group 行为发送角色变更通知。
+
+历史 Group 若没有任何 admin，普通权限链无法恢复。仅此场景可使用 loopback 运维入口指定
+首位 admin；目标必须已是 Group member，且服务端会在写入时重新确认 admin 数仍为零：
+
+```bash
+./cli --address "$FFDB_ADDRESS" group admin bootstrap \
+  --group example-group --user alice
+
+./cli --address "$FFDB_ADDRESS" group admin bootstrap \
+  --group example-group --user alice --apply
+```
+
+一旦 Group 已有 admin，`bootstrap` 必须失败，后续角色调整只能使用带 `--actor` 的
+`promote`/`demote`。该恢复动作不放宽公开 `AddGroupAdmin` RPC，也不发送用户通知。
