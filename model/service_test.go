@@ -2,7 +2,9 @@ package model
 
 import (
 	"testing"
+	"time"
 
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yinhm/friendfeed/pb"
@@ -40,6 +42,33 @@ func TestServiceAndFeedServiceKeys(t *testing.T) {
 	indexKey, err := ServiceFeedIndexKey(service, target, "rss")
 	require.NoError(t, err)
 	require.Equal(t, append(append(append(KeyPrefixToBytes(TableServiceFeedIndex), service.Bytes()...), target.Bytes()...), []byte("rss")...), []byte(indexKey))
+}
+
+func TestStageAddBuiltinBingWallpaperService(t *testing.T) {
+	db, err := store.NewStore(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(db.Close)
+	target := uuid.Must(uuid.NewV4())
+	now := time.Date(2026, 9, 3, 8, 0, 0, 0, time.UTC)
+	var binding *pb.FeedService
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		var err error
+		binding, _, err = StageAddBuiltinFeedService(db, batch, target, BingWallpaperServiceKind, now)
+		return err
+	}))
+	require.Equal(t, BingWallpaperServiceKind, binding.Kind)
+	require.Empty(t, binding.AddedByUuid)
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	service, err := GetService(db, serviceID)
+	require.NoError(t, err)
+	require.Equal(t, BingWallpaperCanonicalURL, service.CanonicalUrl)
+	require.Equal(t, BingWallpaperFetchURL, service.FetchUrl)
+
+	require.NoError(t, db.ApplyBatch(func(batch *pebble.Batch) error {
+		repeated, _, err := StageAddBuiltinFeedService(db, batch, target, BingWallpaperServiceKind, now.Add(time.Hour))
+		require.Equal(t, binding.ServiceUuid, repeated.ServiceUuid)
+		return err
+	}))
 }
 
 func TestExistingFeedServiceEncodingRemainsReadable(t *testing.T) {

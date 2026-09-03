@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -59,12 +60,13 @@ type fakeAccountClient struct {
 	profileErr  error
 	profileWait time.Duration
 
-	services     *pb.ListFeedServicesResponse
-	servicesErr  error
-	servicesWait time.Duration
-	servicesReq  *pb.ListFeedServicesRequest
-	feed         *pb.Feed
-	feedErr      error
+	services      *pb.ListFeedServicesResponse
+	servicesErr   error
+	servicesWait  time.Duration
+	servicesReq   *pb.ListFeedServicesRequest
+	feed          *pb.Feed
+	feedErr       error
+	addServiceReq *pb.AddFeedServiceRequest
 }
 
 func (f *fakeAccountClient) FetchProfile(ctx context.Context, req *pb.ProfileRequest, opts ...grpc.CallOption) (*pb.Profile, error) {
@@ -92,6 +94,30 @@ func (f *fakeAccountClient) ListUserGroups(ctx context.Context, req *pb.ListUser
 
 func (f *fakeAccountClient) Command(ctx context.Context, req *pb.CommandRequest, opts ...grpc.CallOption) (*pb.CommandResponse, error) {
 	return &pb.CommandResponse{Result: `{"version":1,"unread_count":0,"total_count":0}`}, nil
+}
+
+func (f *fakeAccountClient) AddFeedService(_ context.Context, req *pb.AddFeedServiceRequest, _ ...grpc.CallOption) (*pb.FeedService, error) {
+	f.addServiceReq = req
+	return &pb.FeedService{Id: "service", Kind: req.Kind}, nil
+}
+
+func TestWebAddFeedServiceAlwaysUsesWebFeedKind(t *testing.T) {
+	client := &fakeAccountClient{}
+	s := newGroupTestServer(client)
+	router := groupTestRouter(s)
+	router.POST("/account/feed-service", LoginRequired(), s.AddFeedServiceHandler)
+	cookie := groupLoginCookie(t, router)
+	response := postForm(t, router, "/account/feed-service", url.Values{
+		"target_uuid": {testGroupUserUUID},
+		"url":         {"https://example.com/feed"},
+		"kind":        {"bing_wallpaper"},
+	}, cookie)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if client.addServiceReq == nil || client.addServiceReq.Kind != "web_feed" {
+		t.Fatalf("AddFeedService request=%+v", client.addServiceReq)
+	}
 }
 
 func TestFetchAccountData(t *testing.T) {

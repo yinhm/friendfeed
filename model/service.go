@@ -15,7 +15,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const WebFeedServiceKind = "web_feed"
+const (
+	WebFeedServiceKind        = "web_feed"
+	BingWallpaperServiceKind  = "bing_wallpaper"
+	BingWallpaperCanonicalURL = "https://www.bing.com/HPImageArchive.aspx"
+	BingWallpaperFetchURL     = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=10&mkt=zh-CN"
+)
 
 const (
 	ServiceStatusActive   = "active"
@@ -70,7 +75,9 @@ func NormalizeServiceURL(rawURL string) (string, error) {
 }
 
 func ServiceIdentity(kind, rawURL string) (string, uuid.UUID, error) {
-	if kind != WebFeedServiceKind {
+	if kind == BingWallpaperServiceKind {
+		rawURL = BingWallpaperCanonicalURL
+	} else if kind != WebFeedServiceKind {
 		return "", uuid.Nil, fmt.Errorf("unsupported service kind %q", kind)
 	}
 	normalized, err := NormalizeServiceURL(rawURL)
@@ -78,6 +85,13 @@ func ServiceIdentity(kind, rawURL string) (string, uuid.UUID, error) {
 		return "", uuid.Nil, err
 	}
 	return normalized, UniqueKeyFrom("service", kind, normalized), nil
+}
+
+func StageAddBuiltinFeedService(db *store.Store, batch *pebble.Batch, target uuid.UUID, kind string, now time.Time) (*pb.FeedService, *pb.Service, error) {
+	if kind != BingWallpaperServiceKind {
+		return nil, nil, fmt.Errorf("unsupported built-in service kind %q", kind)
+	}
+	return stageAddFeedService(db, batch, target, uuid.Nil, kind, BingWallpaperCanonicalURL, now)
 }
 
 func GetService(db *store.Store, serviceID uuid.UUID) (*pb.Service, error) {
@@ -183,25 +197,39 @@ func StageAddWebFeedService(db *store.Store, batch *pebble.Batch, target, actor 
 	if batch == nil || target == uuid.Nil || actor == uuid.Nil {
 		return nil, nil, errors.New("batch, target Feed UUID, and actor UUID are required")
 	}
+	return stageAddFeedService(db, batch, target, actor, WebFeedServiceKind, rawURL, now)
+}
+
+func stageAddFeedService(db *store.Store, batch *pebble.Batch, target, actor uuid.UUID, kind, rawURL string, now time.Time) (*pb.FeedService, *pb.Service, error) {
+	if batch == nil || target == uuid.Nil {
+		return nil, nil, errors.New("batch and target Feed UUID are required")
+	}
 	if now.IsZero() || now.UnixMilli() < 0 {
 		return nil, nil, errors.New("service creation time is invalid")
 	}
-	normalized, serviceUUID, err := ServiceIdentity(WebFeedServiceKind, rawURL)
+	normalized, serviceUUID, err := ServiceIdentity(kind, rawURL)
 	if err != nil {
 		return nil, nil, err
 	}
 	parsed, _ := url.Parse(normalized)
 	name := strings.ToLower(parsed.Hostname())
+	siteURL := parsed.Scheme + "://" + parsed.Host
+	fetchURL := ""
+	if kind == BingWallpaperServiceKind {
+		name = "Bing Wallpaper"
+		siteURL = "https://www.bing.com/"
+		fetchURL = BingWallpaperFetchURL
+	}
 	service := &pb.Service{
-		Uuid: serviceUUID.String(), Kind: WebFeedServiceKind, CanonicalUrl: normalized,
-		Title: name, SiteUrl: parsed.Scheme + "://" + parsed.Host, CreatedAtMs: now.UTC().UnixMilli(), UpdatedAtMs: now.UTC().UnixMilli(),
+		Uuid: serviceUUID.String(), Kind: kind, CanonicalUrl: normalized, FetchUrl: fetchURL,
+		Title: name, SiteUrl: siteURL, CreatedAtMs: now.UTC().UnixMilli(), UpdatedAtMs: now.UTC().UnixMilli(),
 	}
 	if raw, getErr := Service.GetRaw(db, serviceUUID.Bytes()); getErr == nil {
 		existing := new(pb.Service)
 		if err := proto.Unmarshal(raw, existing); err != nil {
 			return nil, nil, fmt.Errorf("decode Service %s: %w", serviceUUID, err)
 		}
-		if existing.Uuid != serviceUUID.String() || existing.Kind != WebFeedServiceKind || existing.CanonicalUrl != normalized {
+		if existing.Uuid != serviceUUID.String() || existing.Kind != kind || existing.CanonicalUrl != normalized {
 			return nil, nil, fmt.Errorf("Service %s identity mismatch", serviceUUID)
 		}
 		service = existing
@@ -221,8 +249,11 @@ func StageAddWebFeedService(db *store.Store, batch *pebble.Batch, target, actor 
 	}
 
 	feedService := &pb.FeedService{
-		Id: serviceUUID.String(), Kind: WebFeedServiceKind, ServiceUuid: serviceUUID.String(),
-		Name: name, Profile: normalized, Enabled: true, AddedByUuid: actor.String(), Created: now.UTC().Unix(), Updated: now.UTC().Unix(),
+		Id: serviceUUID.String(), Kind: kind, ServiceUuid: serviceUUID.String(),
+		Name: name, Profile: normalized, Enabled: true, Created: now.UTC().Unix(), Updated: now.UTC().Unix(),
+	}
+	if actor != uuid.Nil {
+		feedService.AddedByUuid = actor.String()
 	}
 	feedKey, _ := FeedServiceKey(target, feedService.Id)
 	if raw, getErr := db.Get(feedKey); getErr == nil {

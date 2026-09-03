@@ -49,10 +49,25 @@ func parseFeedServiceRequestIDs(actorRaw, targetRaw string) (uuid.UUID, uuid.UUI
 }
 
 func (s *ApiServer) AddFeedService(ctx context.Context, request *pb.AddFeedServiceRequest) (*pb.FeedService, error) {
-	if request == nil || request.Url == "" || request.Kind != model.WebFeedServiceKind {
+	if request == nil {
 		return nil, taskRPCError(taskqueue.ErrInvalidArgument)
 	}
-	actor, target, err := parseFeedServiceRequestIDs(request.ActorUuid, request.TargetFeedUuid)
+	var actor, target uuid.UUID
+	var err error
+	switch request.Kind {
+	case model.WebFeedServiceKind:
+		if request.Url == "" {
+			return nil, taskRPCError(taskqueue.ErrInvalidArgument)
+		}
+		actor, target, err = parseFeedServiceRequestIDs(request.ActorUuid, request.TargetFeedUuid)
+	case model.BingWallpaperServiceKind:
+		target, err = uuid.FromString(request.TargetFeedUuid)
+		if err == nil && target == uuid.Nil {
+			err = errors.New("target Feed UUID is zero")
+		}
+	default:
+		err = fmt.Errorf("unsupported service kind %q", request.Kind)
+	}
 	if err != nil {
 		return nil, taskRPCError(errors.Join(taskqueue.ErrInvalidArgument, err))
 	}
@@ -72,11 +87,17 @@ func (s *ApiServer) AddFeedService(ctx context.Context, request *pb.AddFeedServi
 		Type: feedServiceSeedTaskType, Payload: payload, PayloadVersion: 1,
 		IdempotencyKey: target.String() + ":" + serviceUUID.String(),
 	}}, func(batch *pebble.Batch) error {
-		if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+		if request.Kind == model.WebFeedServiceKind {
+			if err := s.authorizeFeedServiceAdmin(actor, target); err != nil {
+				return errors.Join(taskqueue.ErrFailedPrecondition, err)
+			}
+			binding, _, err = model.StageAddWebFeedService(s.rdb, batch, target, actor, request.Url, now)
+			return err
+		}
+		if _, err := model.GetProfileFromUuid(s.rdb, target); err != nil {
 			return errors.Join(taskqueue.ErrFailedPrecondition, err)
 		}
-		created, _, err := model.StageAddWebFeedService(s.rdb, batch, target, actor, request.Url, now)
-		binding = created
+		binding, _, err = model.StageAddBuiltinFeedService(s.rdb, batch, target, request.Kind, now)
 		return err
 	})
 	if err != nil {

@@ -93,7 +93,7 @@ export function ImportPanel(props) {
 
   /** @param {ServiceData} service */
   const serviceStatus = (service) => {
-    if (service.kind !== 'web_feed') return null;
+	if (!service.service_uuid) return null;
     const state = props.states?.[service.service_uuid ?? ''];
     if (!state?.last_fetch_ms) return 'Pending first fetch';
     if (state.status === 'dead') return 'Source is no longer available. Use Refresh to retry.';
@@ -103,9 +103,11 @@ export function ImportPanel(props) {
   };
 
   /** @param {ServiceData} service */
-  const serviceLabel = (service) => service.kind === 'web_feed'
-    ? {type: 'RSS', title: service.name || 'Untitled feed'}
-    : {type: service.name || service.id, title: ''};
+  const serviceLabel = (service) => {
+    if (service.kind === 'web_feed') return {type: 'RSS', title: service.name || 'Untitled feed'};
+    if (service.kind === 'bing_wallpaper') return {type: 'Bing Wallpaper', title: ''};
+    return {type: service.name || service.id, title: ''};
+  };
 
   /** @param {ServiceData} service @param {'enable'|'disable'|'refresh'} action */
   const handleAction = (service, action) => {
@@ -152,7 +154,7 @@ export function ImportPanel(props) {
                     <div className="mt-1 text-xs text-muted-foreground">{serviceStatus(service)}</div>}
                 </div>
                 <div className="flex gap-1">
-                  {service.kind === 'web_feed' && <>
+                  {service.service_uuid && <>
                     <button type="button" disabled={acting !== null}
                             onClick={() => handleAction(service, service.enabled ? 'disable' : 'enable')}
                             className={serviceActionButton}>

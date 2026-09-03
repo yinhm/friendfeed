@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/mmcdole/gofeed"
+	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	taskqueue "github.com/yinhm/friendfeed/task"
@@ -264,7 +266,7 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 		}
 		return err
 	}
-	if result.permanentRedirect && result.finalURL != "" && result.finalURL != model.ServiceFetchURL(service) {
+	if service.Kind == model.WebFeedServiceKind && result.permanentRedirect && result.finalURL != "" && result.finalURL != model.ServiceFetchURL(service) {
 		service.FetchUrl = result.finalURL
 		service.UpdatedAtMs = now.UnixMilli()
 		if _, err := model.Service.Put(s.rdb, serviceID.Bytes(), service); err != nil {
@@ -354,7 +356,7 @@ func (s *ApiServer) handleServiceTask(ctx context.Context, task *pb.Task) error 
 	} else {
 		state.EmptyFetches = 0
 	}
-	state.NextFetchMs = now.Add(serviceNextInterval(state.EmptyFetches)).UnixMilli()
+	state.NextFetchMs = now.Add(serviceNextInterval(service.Kind, state.EmptyFetches)).UnixMilli()
 	return model.PutServiceState(s.rdb, serviceID, state)
 }
 
@@ -435,10 +437,50 @@ func (s *ApiServer) importServiceItems(ctx context.Context, service *pb.Service,
 			ProfileUuid: target.String(), FeedUuid: target.String(), Type: "service",
 			Via: &pb.Via{Name: binding.Name, Url: service.SiteUrl},
 		}
+		if service.Kind == model.BingWallpaperServiceKind {
+			if err := s.attachBingWallpaperMedia(entry, item); err != nil {
+				return err
+			}
+		}
 		if _, err := s.postEntry(ctx, entry, true); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *ApiServer) attachBingWallpaperMedia(entry *pb.Entry, item *gofeed.Item) error {
+	if item == nil || len(item.Enclosures) != 1 || strings.TrimSpace(item.Enclosures[0].URL) == "" {
+		return errors.New("Bing Wallpaper item has no image")
+	}
+	imageURL := item.Enclosures[0].URL
+	parsed, err := url.Parse(imageURL)
+	if err != nil || parsed.Scheme != "https" || !strings.EqualFold(parsed.Hostname(), "www.bing.com") {
+		return errors.New("Bing Wallpaper image URL is invalid")
+	}
+	object := &media.Object{Filename: "bing-wallpaper.jpg", Url: imageURL}
+	if _, err := s.fs.Fetch(object); err != nil {
+		return fmt.Errorf("fetch Bing Wallpaper image: %w", err)
+	}
+	detected := http.DetectContentType(object.Content)
+	if !strings.HasPrefix(detected, "image/") {
+		return fmt.Errorf("Bing Wallpaper returned %s instead of an image", detected)
+	}
+	object.MimeType = detected
+	if _, err := s.fs.Post(object); err != nil {
+		return fmt.Errorf("store Bing Wallpaper image: %w", err)
+	}
+	object.Url = s.mediaBaseURL + "/" + strings.TrimLeft(object.Path, "/")
+	thumbnail, err := s.fs.Thumbnail(object)
+	if err != nil {
+		return fmt.Errorf("thumbnail Bing Wallpaper image: %w", err)
+	}
+	if thumbnail.Url == "" {
+		thumbnail.Url = s.mediaBaseURL + "/" + strings.TrimLeft(thumbnail.Path, "/")
+	}
+	entry.Thumbnails = []*pb.Thumbnail{{
+		Url: thumbnail.Url, Link: object.Url, Width: thumbnail.Width, Height: thumbnail.Height,
+	}}
 	return nil
 }
 
@@ -472,6 +514,10 @@ func (s *ApiServer) rssHostLock(raw string) (*sync.Mutex, error) {
 }
 
 func fetchServiceHTTP(ctx context.Context, service *pb.Service, state *pb.ServiceState) (*serviceFetchResult, error) {
+	fetchURL := model.ServiceFetchURL(service)
+	if service.Kind == model.BingWallpaperServiceKind && fetchURL != model.BingWallpaperFetchURL {
+		return nil, &serviceSourceError{err: errors.New("Bing Wallpaper fetch URL is not canonical"), permanent: true}
+	}
 	transport := &http.Transport{DialContext: safeRSSDialContext}
 	client := &http.Client{Transport: transport, Timeout: rssHTTPTimeout}
 	permanentRedirect := false
@@ -482,12 +528,15 @@ func fetchServiceHTTP(ctx context.Context, service *pb.Service, state *pb.Servic
 		if err := validateRSSURL(req.URL); err != nil {
 			return err
 		}
+		if service.Kind == model.BingWallpaperServiceKind && !strings.EqualFold(req.URL.Hostname(), "www.bing.com") {
+			return errors.New("Bing Wallpaper redirect left www.bing.com")
+		}
 		if req.Response != nil && (req.Response.StatusCode == http.StatusMovedPermanently || req.Response.StatusCode == http.StatusPermanentRedirect) {
 			permanentRedirect = true
 		}
 		return nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, model.ServiceFetchURL(service), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -528,11 +577,69 @@ func fetchServiceHTTP(ctx context.Context, service *pb.Service, state *pb.Servic
 	if len(body) > rssMaxBodyBytes {
 		return result, &serviceSourceError{err: errors.New("Service response exceeds 5 MiB"), permanent: true}
 	}
-	result.feed, err = gofeed.NewParser().ParseString(string(body))
+	if service.Kind == model.BingWallpaperServiceKind {
+		result.feed, err = parseBingWallpaper(body)
+	} else {
+		result.feed, err = gofeed.NewParser().ParseString(string(body))
+	}
 	if err != nil {
 		return result, &serviceSourceError{err: fmt.Errorf("parse Service feed: %w", err), permanent: true}
 	}
 	return result, nil
+}
+
+type bingWallpaperResponse struct {
+	Images []struct {
+		FullStartDate string `json:"fullstartdate"`
+		URLBase       string `json:"urlbase"`
+		Copyright     string `json:"copyright"`
+	} `json:"images"`
+}
+
+func parseBingWallpaper(body []byte) (*gofeed.Feed, error) {
+	var response bingWallpaperResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("decode Bing Wallpaper response: %w", err)
+	}
+	if len(response.Images) == 0 || len(response.Images) > 10 {
+		return nil, fmt.Errorf("Bing Wallpaper response has %d images", len(response.Images))
+	}
+	feed := &gofeed.Feed{Title: "Bing Wallpaper"}
+	for _, image := range response.Images {
+		published, err := time.ParseInLocation("200601021504", image.FullStartDate, time.FixedZone("UTC+8", 8*60*60))
+		if err != nil || !validBingWallpaperURLBase(image.URLBase) {
+			return nil, errors.New("Bing Wallpaper item is invalid")
+		}
+		imageURL := "https://www.bing.com" + image.URLBase + "_UHD.jpg"
+		published = published.UTC()
+		feed.Items = append(feed.Items, &gofeed.Item{
+			GUID: image.URLBase, Title: strings.TrimSpace(image.Copyright), Link: "https://www.bing.com/",
+			PublishedParsed: &published,
+			Enclosures:      []*gofeed.Enclosure{{URL: imageURL, Type: "image/jpeg"}},
+		})
+	}
+	return feed, nil
+}
+
+func validBingWallpaperURLBase(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	query := parsed.Query()
+	if parsed.Path != "/th" || parsed.Fragment != "" || len(query) != 1 || len(query["id"]) != 1 {
+		return false
+	}
+	id := query.Get("id")
+	if !strings.HasPrefix(id, "OHR.") || len(id) <= len("OHR.") {
+		return false
+	}
+	for _, char := range id[len("OHR."):] {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '-' && char != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 func permanentHTTPStatus(status int) bool {
@@ -571,7 +678,10 @@ func rssPublicIP(address netip.Addr) bool {
 		!address.IsLinkLocalMulticast() && !address.IsMulticast() && !address.IsUnspecified()
 }
 
-func serviceNextInterval(empty uint32) time.Duration {
+func serviceNextInterval(kind string, empty uint32) time.Duration {
+	if kind == model.BingWallpaperServiceKind {
+		return serviceFetchMaxInterval
+	}
 	interval := serviceFetchInterval
 	for i := uint32(0); i < empty && interval < serviceFetchMaxInterval; i++ {
 		interval *= 2

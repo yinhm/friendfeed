@@ -94,6 +94,16 @@ describe('ImportPanel', () => {
     expect(screen.getByRole('button', {name: 'Refresh'})).toBeEnabled();
   });
 
+  it('allows an existing built-in service to be managed', () => {
+    render(<ImportPanel services={{bing: {
+      id: 'bing', name: 'Bing Wallpaper', kind: 'bing_wallpaper', service_uuid: 'source', enabled: true,
+    }}} states={{source: {last_fetch_ms: 1000}}} />);
+    expect(screen.getByText('Bing Wallpaper')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Disable'})).toBeEnabled();
+    expect(screen.getByRole('button', {name: 'Refresh'})).toBeEnabled();
+    expect(screen.getByRole('button', {name: 'Remove'})).toBeEnabled();
+  });
+
   it('keeps the service when confirmation is cancelled', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

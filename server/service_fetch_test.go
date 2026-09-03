@@ -13,6 +13,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/mmcdole/gofeed"
 	"github.com/stretchr/testify/require"
+	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/search"
@@ -493,4 +494,73 @@ func TestRSSPublicIPPolicy(t *testing.T) {
 func TestRSSUserAgentIsCommonCompatibleForm(t *testing.T) {
 	require.Contains(t, rssUserAgent, "Mozilla/5.0")
 	require.Contains(t, rssUserAgent, "FriendFeed/1.0")
+}
+
+type bingTestStorage struct{}
+
+func (bingTestStorage) Exists(string) (bool, error) { return false, nil }
+func (bingTestStorage) Fetch(object *media.Object) (*http.Response, error) {
+	object.Content = []byte("\x89PNG\r\n\x1a\n")
+	return nil, nil
+}
+func (bingTestStorage) Post(object *media.Object) (*media.Object, error) {
+	object.Path = "a/b/original"
+	return object, nil
+}
+func (bingTestStorage) Mirror(object *media.Object) (*media.Object, error) { return object, nil }
+func (bingTestStorage) FromUrl(_ string, source string, _ string) (*media.Object, error) {
+	return &media.Object{Url: source}, nil
+}
+func (bingTestStorage) Thumbnail(*media.Object) (*media.Object, error) {
+	return &media.Object{Path: "a/b/original-1024.jpg", Width: 1024, Height: 576}, nil
+}
+
+func TestParseBingWallpaper(t *testing.T) {
+	feed, err := parseBingWallpaper([]byte(`{"images":[{"fullstartdate":"202609030700","urlbase":"/th?id=OHR.Sample_EN-US123","copyright":"Sample © Author"}]}`))
+	require.NoError(t, err)
+	require.Equal(t, "Bing Wallpaper", feed.Title)
+	require.Len(t, feed.Items, 1)
+	require.Equal(t, "/th?id=OHR.Sample_EN-US123", feed.Items[0].GUID)
+	require.Equal(t, "https://www.bing.com/th?id=OHR.Sample_EN-US123_UHD.jpg", feed.Items[0].Enclosures[0].URL)
+	require.Equal(t, time.Date(2026, 9, 2, 23, 0, 0, 0, time.UTC), *feed.Items[0].PublishedParsed)
+
+	_, err = parseBingWallpaper([]byte(`{"images":[{"fullstartdate":"202609030700","urlbase":"https://evil.example/x","copyright":"bad"}]}`))
+	require.Error(t, err)
+	require.False(t, validBingWallpaperURLBase("\x7f"))
+}
+
+func TestBingWallpaperServiceImportsMediaAndUsesDailyInterval(t *testing.T) {
+	srv := newServiceServer(t)
+	user := createServiceUser(t, srv, "wallpapers")
+	now := time.Date(2026, 9, 3, 8, 0, 0, 0, time.UTC)
+	srv.rssNow = func() time.Time { return now }
+	binding, err := srv.AddFeedService(context.Background(), &pb.AddFeedServiceRequest{
+		TargetFeedUuid: user.String(), Kind: model.BingWallpaperServiceKind,
+	})
+	require.NoError(t, err)
+	require.Empty(t, binding.AddedByUuid)
+	srv.fs = bingTestStorage{}
+	published := now.Add(-time.Hour)
+	srv.serviceFetch = func(context.Context, *pb.Service, *pb.ServiceState) (*serviceFetchResult, error) {
+		item := &gofeed.Item{
+			GUID: "/th?id=OHR.Sample_EN-US123", Title: "Sample", Link: "https://www.bing.com/", PublishedParsed: &published,
+			Enclosures: []*gofeed.Enclosure{{URL: "https://www.bing.com/th?id=OHR.Sample_EN-US123_UHD.jpg", Type: "image/jpeg"}},
+		}
+		return &serviceFetchResult{status: http.StatusOK, feed: &gofeed.Feed{Title: "Bing Wallpaper", Items: []*gofeed.Item{item}}}, nil
+	}
+	payload, err := proto.Marshal(&pb.FeedServiceSeedPayload{ServiceUuid: binding.ServiceUuid, TargetFeedUuid: user.String(), ServiceId: binding.Id})
+	require.NoError(t, err)
+	require.NoError(t, srv.handleServiceTask(context.Background(), &pb.Task{
+		Type: feedServiceSeedTaskType, Payload: payload, CreatedAtMs: now.UnixMilli(), Attempts: 1, MaxAttempts: 3,
+	}))
+	serviceID := uuid.Must(uuid.FromString(binding.ServiceUuid))
+	entryID := model.UniqueKeyFrom("external-entry", user.String(), serviceID.String(), "/th?id=OHR.Sample_EN-US123")
+	entry, err := model.GetEntry(srv.rdb, entryID.String())
+	require.NoError(t, err)
+	require.Empty(t, entry.Files)
+	require.Equal(t, srv.mediaBaseURL+"/a/b/original-1024.jpg", entry.Thumbnails[0].Url)
+	require.Equal(t, srv.mediaBaseURL+"/a/b/original", entry.Thumbnails[0].Link)
+	state, err := model.GetServiceState(srv.rdb, serviceID)
+	require.NoError(t, err)
+	require.Equal(t, now.Add(24*time.Hour).UnixMilli(), state.NextFetchMs)
 }

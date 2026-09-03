@@ -33,15 +33,17 @@ https://example.com/feed ──┬── personal-feed / blog
 
 ## 支持范围
 
-当前实现公开 Web Feed，解析格式不写死为 RSS 2.0：
+当前实现支持公开 Web Feed和一个内建来源：
 
 - RSS 2.0；
 - Atom 1.0；
 - JSON Feed；
 - 能由解析器识别的常见 RSS/RDF 变体。
+- Bing Wallpaper，使用 `kind = "bing_wallpaper"`，由可信 CLI 绑定，Web 不提供创建入口。
 
-这些格式统一使用 `kind = "web_feed"`。以后接入 Flickr、GitHub 等 provider 时新增
-adapter；不得在通用调度器中堆 provider 分支。需要 OAuth/token 的 provider，其凭据
+Web Feed 格式统一使用 `kind = "web_feed"`。内建来源按 `kind` 静态分派；当前种类很少，
+不引入动态插件、运行时加载或配置化 connector。以后接入 Flickr、GitHub 等 provider 时新增
+小型 adapter；需要 OAuth/token 的 provider，其凭据
 只存 FeedService 或后续专用凭据记录，不进入 Task payload、日志或全局 Service。
 
 ## 持久化结构
@@ -67,6 +69,13 @@ URL 规范化只处理身份等价项：scheme/host 小写、默认端口移除�
 `canonical_url` 是不可变身份，继续决定 Service UUID；`fetch_url` 是可变抓取端点，空值回退到
 `canonical_url`。成功跟随 301/308 后保存最终 `fetch_url`，不改变 UUID、绑定或历史 Entry。
 302/303/307 只在当次请求内跟随。这样来源搬迁不会生成新 Service，也不会破坏已有幂等键。
+
+`bing_wallpaper` 使用固定身份与端点，不接受操作者提供任意 URL：
+
+```text
+canonical_url = https://www.bing.com/HPImageArchive.aspx
+fetch_url     = https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=10&mkt=zh-CN
+```
 
 ### ServiceState（112）
 
@@ -149,6 +158,8 @@ entry UUID = UniqueKeyFrom(
   提交；只有全部投递成功后才推进 ServiceState。中途失败重试时，已完成部分不会重复。
 - 每轮每个目标 Feed 最多导入固定数量的新 item；按发布时间从旧到新提交，避免 timeline
   顺序倒置。日期缺失时使用服务端抓取时间。
+- Bing 的 `urlbase` 与日期必须严格解析；UHD 原图先经现有受控媒体存储持久化并生成
+  thumbnail，Entry 只保存站内媒体 URL。图片失败时不提交该 Entry，由 Task 重试。
 
 新绑定必须能获得近期内容。添加 FeedService 后入队一次 `feed_service.seed`：对该 Service 做一次
 不带条件头的有界抓取，只投递到新目标 Feed。周期性 `service.fetch` 继续全局条件抓取并
@@ -175,7 +186,9 @@ feed_service.seed { service_uuid, target_feed_uuid, service_id }
   已删除或不存在属于失效配置：原子 disable FeedService 并移除 ServiceFeedIndex 后继续；
   其他写入错误汇总并使 Task 重试，不能自动停用。
 
-成功无新内容时自适应放慢，默认从 30 分钟逐步增加到 24 小时。来源失败按正常生命周期处理：
+Web Feed 成功无新内容时自适应放慢，从 30 分钟逐步增加到 24 小时；Bing Wallpaper
+无论本轮是否有新内容，成功后均固定 24 小时再抓取。频率属于内建 connector 规则，
+不写数据库配置、不开放 cron。来源失败按统一生命周期处理：
 
 - 网络、DNS、TLS、408/425/429 和 5xx 是临时失败；Task 内重试结束后置 degraded，并按
   1 小时至 24 小时退避，仍持续探测；
@@ -224,7 +237,7 @@ rpc RefreshFeedService(RefreshFeedServiceRequest) returns (google.protobuf.Empty
 message AddFeedServiceRequest {
   string actor_uuid = 1;
   string target_feed_uuid = 2;
-  string kind = 3;              // 2.0 只接受 web_feed
+  string kind = 3;              // Web 使用 web_feed；可信 CLI 可使用内建 kind
   string url = 4;
 }
 ```
@@ -238,6 +251,11 @@ Service、Service UUID、抓取状态或 Task 参数。
 - group Feed：仅明确的 Group admin 可以管理 Service，普通 follower/可发帖成员不行；
 - super 可用于运维恢复，但必须走相同审计路径；
 - List 可按 Feed 可见性返回安全展示字段，永不返回 OAuth/token 或抓取错误详情。
+
+可信 loopback CLI 可以不提供 actor 创建已注册的内建 Service；这不是用户权限模型。
+ffweb 的创建 handler 始终固定 `kind = "web_feed"`，不信任表单传入的任意 kind。
+已绑定的内建 Service 与 Web Feed 共用 owner/Group admin 的 Refresh、Disable 和
+Remove 权限。
 
 服务端从可信 actor principal 做授权；`actor_uuid` 是当前 loopback RPC 的过渡字段，未来
 若 gRPC 对外开放必须先建立认证 principal，不能继续信任请求自报身份。
@@ -270,6 +288,17 @@ Service、Service UUID、抓取状态或 Task 参数。
    Service；提供 inspect/refetch/disable 工具，不提供绕过授权的普通写接口。
 
 ## 运维命令
+
+绑定 Bing Wallpaper 默认只预览：
+
+```bash
+./cli service add --kind bing_wallpaper --feed <feed-id-or-uuid>
+./cli service add --kind bing_wallpaper --feed <feed-id-or-uuid> --apply
+```
+
+命令先通过 `InspectFeed` 解析 canonical Feed UUID，然后复用 `AddFeedService`、
+FeedService/ServiceFeedIndex 原子写和 `feed_service.seed`。重复执行复用同一
+Service 与绑定。
 
 生产目录必须停服后操作；日常诊断优先针对一致性副本：
 
