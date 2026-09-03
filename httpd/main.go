@@ -51,7 +51,7 @@ const defaultSecretKey = "randombitsreplacedlkjsa"
 
 func init() {
 	flag.BoolVar(&options.Debug, "d", false, "Enable debug")
-	flag.StringVar(&options.Rpc, "rpc", "localhost:8901", "Rpc Server Address")
+	flag.StringVar(&options.Rpc, "rpc", "localhost:3000", "Rpc Server Address")
 	flag.UintVar(&options.Port, "p", 8080, "HTTP server listen port")
 	flag.StringVar(&options.SecretKey, "s", defaultSecretKey, "Key used to encryption cookies")
 	flag.StringVar(&options.ConfigFile, "c", "/srv/ffdb/config.json", "Config file")

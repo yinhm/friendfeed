@@ -89,11 +89,11 @@ Prepare a configuration file:
 cp conf/example.config.json conf/config.json
 ```
 
-At minimum, ensure that `address` is a loopback address such as `127.0.0.1:8901`, that `db_path` and `media_path` are writable by the service account, that ffweb's `-rpc` matches `address`, and that OAuth callback URLs match the real HTTPS domain. Without R2 configuration, media is stored locally only.
+At minimum, ensure that `address` is a loopback address such as `127.0.0.1:3000`, that `db_path` and `media_path` are writable by the service account, that ffweb's `-rpc` matches `address`, and that OAuth callback URLs match the real HTTPS domain. Without R2 configuration, media is stored locally only.
 
 ```bash
 ./ffdb -c conf/config.json -d
-./httpd/httpd -c conf/config.json -rpc 127.0.0.1:8901 -p 8080 -s '<cookie-secret>' -d
+./httpd/httpd -c conf/config.json -rpc 127.0.0.1:3000 -p 8080 -s '<cookie-secret>' -d
 ```
 
 For frontend development, run `pnpm dev` in `httpd/app`. See the [frontend README](httpd/app/README.md) for details.

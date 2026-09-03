@@ -98,13 +98,13 @@ go build -o httpd/httpd ./httpd
 cp conf/example.config.json conf/config.json
 ```
 
-至少确认 `address` 是 loopback 地址（如 `127.0.0.1:8901`），`db_path`/`media_path` 可由运行
+至少确认 `address` 是 loopback 地址（如 `127.0.0.1:3000`），`db_path`/`media_path` 可由运行
 用户读写，ffweb 的 `-rpc` 与 `address` 一致，OAuth callback 与实际 HTTPS 域名一致。R2 未配置
 时只使用本地媒体存储。
 
 ```bash
 ./ffdb -c conf/config.json -d
-./httpd/httpd -c conf/config.json -rpc 127.0.0.1:8901 -p 8080 -s '<cookie-secret>' -d
+./httpd/httpd -c conf/config.json -rpc 127.0.0.1:3000 -p 8080 -s '<cookie-secret>' -d
 ```
 
 前端开发可在 `httpd/app` 执行 `pnpm dev`。完整说明见
