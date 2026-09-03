@@ -16,7 +16,6 @@ import (
 	"github.com/yinhm/friendfeed/media"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/util"
-	"golang.org/x/exp/utf8string"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -53,9 +52,9 @@ func entryTitle(entry *pb.Entry) string {
 		title = entry.Body
 	}
 	title = titleSanitizer.Sanitize(title)
-	titleUtf8 := utf8string.NewString(title)
-	if titleUtf8.RuneCount() > 42 {
-		title = titleUtf8.Slice(0, 42)
+	runes := []rune(title)
+	if len(runes) > 42 {
+		title = string(runes[:42])
 	}
 	return title
 }
