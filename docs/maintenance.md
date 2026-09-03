@@ -15,3 +15,22 @@ OAuth identity 以不可变的 `provider:user_id` 为 key；多个 identity 可�
 
 `unlink` 默认只做 dry-run。Apply 要求输入 `UNLINK provider:user_id`；服务端会重新检查 identity，
 并拒绝删除 Profile 的最后一个 OAuth 登录身份。
+
+## Group administrators
+
+通过现有 Group 领域 RPC 提升或降级管理员，不直接写 GroupAdmin 表。`--actor` 必须是该
+Group 的现有 admin 或 super；目标用户必须已经是 Group member。命令接受 Feed ID 或 UUID，
+默认只解析并显示三方身份，追加 `--apply` 才会修改角色：
+
+```bash
+./cli --address "$FFDB_ADDRESS" group admin promote \
+  --actor operator --group example-group --user alice
+
+./cli --address "$FFDB_ADDRESS" group admin promote \
+  --actor operator --group example-group --user alice --apply
+
+./cli --address "$FFDB_ADDRESS" group admin demote \
+  --actor operator --group example-group --user alice --apply
+```
+
+服务端仍会执行权限、membership 和 last-admin 检查，并按既有 Group 行为发送角色变更通知。
