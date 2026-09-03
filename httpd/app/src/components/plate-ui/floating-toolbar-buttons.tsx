@@ -12,7 +12,6 @@ import {
 } from 'components/plate-plugin-keys';
 
 import { MarkToolbarButton } from './mark-toolbar-button';
-// import { MoreDropdownMenu } from './more-dropdown-menu';
 import { TurnIntoDropdownMenu } from './turn-into-dropdown-menu';
 
 export function FloatingToolbarButtons() {
