@@ -483,6 +483,14 @@ func (s *Server) FeedHandler(c *gin.Context) {
 			}
 			if canManageGroup(view, profile) {
 				data["group_settings_url"] = "/groups/" + url.PathEscape(feed.Id) + "/settings"
+				for _, entry := range feed.Entries {
+					if entry == nil {
+						continue
+					}
+					if !hasCommand(entry.Commands, "delete") {
+						entry.Commands = append(entry.Commands, "delete")
+					}
+				}
 			}
 		}
 	}

@@ -169,6 +169,48 @@ func TestGroupFeedEditorIsLimitedToMembersOnNewestPage(t *testing.T) {
 	}
 }
 
+func TestGroupFeedAdminGetsEntryCommandsFromAuthoritativeRole(t *testing.T) {
+	client := &fakeGroupClient{
+		feedResp: &pb.Feed{
+			Uuid: testGroupUUID, Id: "book-club", Type: "group",
+			Entries: []*pb.Entry{{Id: "group-entry", ProfileUuid: testGroupUUID}},
+		},
+		profile: &pb.Profile{Uuid: testGroupUserUUID, Id: "viewer", Type: "user"},
+		// The graph intentionally has no legacy Admins entry. GroupAdmin is
+		// authoritative and arrives through GetGroup.
+		graphResp: &pb.Graph{},
+		groupView: &pb.GroupView{Group: &pb.Profile{
+			Uuid: testGroupUUID, Id: "book-club", Type: "group",
+		}, IsAdmin: true, IsMember: true},
+	}
+	server := newGroupTestServer(client)
+	router := groupTestRouter(server)
+	capture := &captureNotificationRender{}
+	router.HTMLRender = capture
+	router.GET("/feed/:name", server.FeedHandler)
+	login := groupLoginCookie(t, router)
+	req := httptest.NewRequest(http.MethodGet, "/feed/book-club", nil)
+	req.AddCookie(login)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d", recorder.Code)
+	}
+	var bootstrap struct {
+		Data feedPageData `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(capture.data["pageBootstrap"].(string)), &bootstrap); err != nil {
+		t.Fatal(err)
+	}
+	commands := bootstrap.Data.Feed.Entries[0].Commands
+	if !hasCommand(commands, "delete") {
+		t.Fatalf("commands=%v; authoritative Group admin must delete Entry", commands)
+	}
+	if hasCommand(commands, "edit") {
+		t.Fatalf("commands=%v; Group admin must not edit another author's Entry", commands)
+	}
+}
+
 func TestLegacyFeedPageContinuesWithCursor(t *testing.T) {
 	feed := &pb.Feed{Id: "alice", NextCursor: "next-cursor"}
 	for i := 0; i < 31; i++ {
