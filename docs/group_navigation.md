@@ -123,7 +123,7 @@ Create/Join/Leave 与 score 行在同一 batch 维护；Entry/Like/Comment 的 s
     在表单上。
   - `name`：必填。
   - `description`：选填。
-  - `picture`：选填，缺省由服务端沿用 wallpaper 默认头像逻辑。
+  - `picture`：选填，缺省由服务端使用站内默认头像。
   - `private`：复选框。Private Group 创建后通过 Follow Request/批准流程接纳新成员。
 - 提交成功后重定向到 `/feed/{id}`；创建者此时已因 `CreateGroup` 的原子写入
   出现在自己的 Group 列表中，sidebar 实时读取，下次渲染即见。

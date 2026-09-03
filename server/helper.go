@@ -1,17 +1,13 @@
 package server
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
-	"math/rand"
 
 	"github.com/gofrs/uuid"
 	"github.com/yinhm/friendfeed/model"
 	"github.com/yinhm/friendfeed/pb"
 	"github.com/yinhm/friendfeed/store"
-	"google.golang.org/protobuf/proto"
 )
 
 type profileLookup struct {
@@ -201,53 +197,6 @@ func BuildGraph(info *pb.Feedinfo) *pb.Graph {
 	return graph
 }
 
-func RandomPictureFromWallpaper(db *store.Store, profile *pb.Profile) string {
-	profileUUID, err := uuid.FromString(profile.Uuid)
-	if err != nil {
-		slog.Debug("RandomPictureFromWallpaper", "err", err)
-		return ""
-	}
-	profile, err = model.GetProfileFromUuid(db, profileUUID)
-	if err != nil {
-		slog.Debug("RandomPictureFromWallpaper: no profile", "err", err)
-		return ""
-	}
-
-	// no update if not empty
-	if profile.Picture != "" {
-		return profile.Picture
-	}
-
-	bingUuid := model.UniqueKeyFrom("bing", "wallpaper")
-	preKey := model.NewUUIDKey(model.TableEntryIndex, bingUuid)
-	slog.Info("RandomPictureFromWallpaper", "pre_key", preKey.String())
-
-	url := ""
-	_, _ = db.ForwardScan(preKey, func(i int, k, v []byte) error {
-		_, entryUUID, _, err := model.ParseEntryIndexKey(k)
-		if err != nil {
-			return err
-		}
-		entry := new(pb.Entry)
-		rawdata, err := db.Get(model.Entry.PrefixAppend(entryUUID.Bytes()))
-		if errors.Is(err, store.ErrNotFound) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if err := proto.Unmarshal(rawdata, entry); err != nil {
-			return err
-		}
-
-		dice := rand.Intn(10)
-		slog.Debug("entry key", "key", hex.EncodeToString(k), "dice", dice)
-		if dice == 5 && len(entry.Thumbnails) > 0 && entry.Thumbnails[0] != nil {
-			url = entry.Thumbnails[0].Url
-			return &store.Error{Msg: "ok", Code: store.StopIteration} // stop scan
-		}
-		return nil
-	})
-
-	return url
+func RandomProfilePicture(_ *store.Store, _ *pb.Profile) string {
+	return "/static/images/ff-default.jpg"
 }

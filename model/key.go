@@ -68,7 +68,6 @@ func joinKeyString(ids ...string) string {
 // deterministic unique key from
 // Example combination:
 // twitter:foobar
-// bing:wallpaper
 // SH:600519
 func UniqueKeyFrom(ids ...string) uuid.UUID {
 	return uuid.NewV5(uuid.NamespaceURL, joinKeyString(ids...))

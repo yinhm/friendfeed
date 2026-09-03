@@ -21,7 +21,7 @@
   - application schema marker 固定为 `TableMeta | "db-schema/version" -> 4-byte big-endian uint32`；Pebble FMV 不能替代 application schema。
   - 非空数据库必须携带 current application schema marker；一次性迁移写入器只保留在 `v2.2.0` tag，不得复制回 master。
   - Entry 与 EntryIndex 中的 Entry key 固定为 `4-byte table prefix + 16-byte raw UUID`，不得写 UUID/hex 字符串。
-- 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`cli/cmd.OldWallpapers`、`httpd/src.CurrentUserId`；`twitter/config.py` 的 `zh_names` 和现存 Fabric task。
+- 受保护的导出 API：`model.Table` 查询/迭代方法、`SeekZero`、表变量/前缀、`GetFeedinfo/PutFeedinfo`、`KeyPrefixToBytes`；`store.DestroyStore`、错误码、`Key` 排序方法、`Iterator` 方法、`Store.Options()`；`util.UrlToLink`（输入为 sanitized HTML fragment）、时间常量、`httpd/src.CurrentUserId`；`twitter/config.py` 的 `zh_names` 和现存 Fabric task。
 - 旧 Twitter FeedAgent、FeedJob 服务端和 `deploy_client` Fabric task 已整体退役；历史表号 200–202 永久保留，不得复用。
 - Stock 子系统已整体退役；历史表号 300–303 永久保留，不得复用。
 - `model/feed.go` 的旧 Feedinfo、`UserMap` 仍用于迁移，不按运行时零引用删除。所有 iterator 必须关闭。

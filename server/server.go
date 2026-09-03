@@ -299,9 +299,9 @@ func (s *ApiServer) PostFeedinfo(ctx context.Context, in *pb.Feedinfo) (*pb.Prof
 		Picture:     in.Picture,
 		Description: in.Description,
 	}
-	// Random wallpaper as default icon
+	// Use the built-in default icon when no picture was supplied.
 	if profile.Picture == "" {
-		profile.Picture = RandomPictureFromWallpaper(s.rdb, profile)
+		profile.Picture = RandomProfilePicture(s.rdb, profile)
 	}
 	slog.Debug("profile pic", "id", profile.Id, "picture", profile.Picture)
 
