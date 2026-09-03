@@ -34,7 +34,7 @@
 
 Entry 总数等计数需要扫描对应 Feed 前缀，因此该命令是显式运维诊断，不应被监控系统高频轮询。
 
-旧 `cli debug --u` 是兼容入口，本版不删除或改变其语义；新运维流程使用 `feed inspect`。
+Feed 调试与管理统一使用 `feed inspect`。
 
 ## Privacy
 
