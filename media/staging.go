@@ -72,6 +72,9 @@ func (s *StagingStore) Put(content []byte, extension string) (string, string, er
 	}
 	id := hex.EncodeToString(random)
 	name := id + "." + extension
+	if !filepath.IsLocal(name) {
+		return "", "", errors.New("media: invalid staging object")
+	}
 	dir := filepath.Join(s.root, StagingDirectory)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", "", err
@@ -90,7 +93,8 @@ func (s *StagingStore) Promote(name, digest, extension string, size int) (string
 	extension = strings.TrimPrefix(strings.ToLower(extension), ".")
 	wantSuffix := "." + extension
 	id := strings.TrimSuffix(name, wantSuffix)
-	if filepath.Base(name) != name || !strings.HasSuffix(name, wantSuffix) || len(id) != 32 {
+	if filepath.Base(name) != name || !filepath.IsLocal(name) ||
+		!strings.HasSuffix(name, wantSuffix) || len(id) != 32 {
 		return "", errors.New("media: invalid staging object")
 	}
 	if _, err := hex.DecodeString(id); err != nil {
@@ -109,7 +113,11 @@ func (s *StagingStore) Promote(name, digest, extension string, size int) (string
 		return "", errors.New("media: staged object digest changed")
 	}
 	key := actual[:1] + "/" + actual[1:2] + "/" + actual[2:] + "." + extension
-	full := filepath.Join(s.root, filepath.FromSlash(key))
+	rel := filepath.FromSlash(key)
+	if !filepath.IsLocal(rel) {
+		return "", errors.New("media: invalid staging object")
+	}
+	full := filepath.Join(s.root, rel)
 	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
 		return "", err
 	}

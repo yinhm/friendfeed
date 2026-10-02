@@ -297,6 +297,9 @@ func (c *LocalStorage) Post(obj *Object) (*Object, error) {
 		}
 	}
 	filename = contentObjectKey(obj.Content)
+	if !filepath.IsLocal(filename) {
+		return obj, fmt.Errorf("media: object key %q is not a local path", filename)
+	}
 	obj.Filename = filename
 
 	outFile, fullPath := c.shardFilepath(filename)
