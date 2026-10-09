@@ -27,7 +27,7 @@ require (
 	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/anthonynsimon/bild v0.17.1
 	github.com/cockroachdb/pebble/v2 v2.1.7
-	github.com/gin-contrib/sessions v1.1.1
+	github.com/gin-contrib/sessions v1.1.2
 	github.com/mmcdole/gofeed v1.4.2
 )
 
