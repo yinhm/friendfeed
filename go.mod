@@ -7,7 +7,7 @@ require (
 	github.com/blevesearch/bleve_index_api v1.4.1 // indirect
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3
 	github.com/gin-gonic/gin v1.12.0
-	github.com/go-ego/gse v1.1.0
+	github.com/go-ego/gse v1.3.1
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gorilla/sessions v1.4.0
 	github.com/markbates/goth v1.82.0
@@ -110,7 +110,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
-	github.com/vcaesar/cedar v0.50.0 // indirect
+	github.com/vcaesar/cedar v0.50.1 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.8.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
