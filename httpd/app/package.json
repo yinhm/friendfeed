@@ -34,8 +34,8 @@
     "@radix-ui/react-tooltip": "^1.4.1",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
-    "lucide-react": "^1.65.0",
-    "platejs": "53.3.18",
+    "lucide-react": "^1.70.0",
+    "platejs": "53.5.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-lite-youtube-embed": "^3.7.0",
@@ -54,21 +54,21 @@
     "test:e2e": "bash ../../scripts/e2e/run.sh"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1",
-    "@tailwindcss/vite": "4.3.3",
+    "@playwright/test": "^1.65.0",
+    "@tailwindcss/vite": "4.3.4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@typescript/native": "npm:typescript@7.0.2",
-    "@vitejs/plugin-react": "^6.1.2",
+    "@vitejs/plugin-react": "^6.2.1",
     "@vitest/coverage-v8": "4.1.12",
     "axe-core": "^4.14.0",
     "jsdom": "^29.1.1",
-    "oxlint": "1.90.0",
-    "tailwindcss": "^4.3.3",
-    "vite": "^8.3.5",
+    "oxlint": "1.91.0",
+    "tailwindcss": "^4.3.4",
+    "vite": "^8.3.6",
     "vitest": "^4.1.12"
   }
 }
